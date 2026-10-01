@@ -7,6 +7,7 @@ case $cmd in
   status) [ -f "$S/ct_$1" ] && { echo "status: running"; exit 0; } || exit 2 ;;
   create) id=$1; shift; touch "$S/ct_$id"; echo "$*" > "$S/ct_$id.conf"
           [ -n "${STUB_CREATE_FAIL:-}" ] && exit 1; echo 0.9.0 > "$S/ct_version"; exit 0 ;;
+  list) echo 'VMID       Status     Lock         Name'; for f in "$S"/ct_*.conf; do [ -e "$f" ] || continue; i=$(basename "$f" .conf); i=${i#ct_}; printf '%-10s %-10s %-12s %s\n' "$i" running '' mtmon; done; exit 0 ;;
   config) cat "$S/ct_$1.conf" 2>/dev/null; exit 0 ;;
   destroy) rm -f "$S/ct_$1" "$S/ct_$1.conf"; exit 0 ;;
   start|stop|snapshot) [ "$cmd" = snapshot ] && [ -n "${STUB_NO_SNAPSHOT:-}" ] && exit 1; exit 0 ;;

@@ -20,7 +20,7 @@ test:                     ## unit + integration tests (race detector on)
 
 lint:                     ## static analysis + shell checks
 	staticcheck ./...
-	cd deploy && shellcheck -x -s bash lib.sh install-mtmon.sh update-mtmon.sh uninstall-mtmon.sh && shellcheck -s sh update-geo.sh
+	cd deploy && shellcheck -x -s bash lib.sh install-mtmon.sh update-mtmon.sh uninstall-mtmon.sh test/test-deploy.sh test/test-tui.sh && shellcheck -s sh update-geo.sh
 	gofmt -l . | (! grep .)
 
 scale:                    ## 100 clients x 30 days data set; asserts every query < 500 ms
@@ -28,6 +28,7 @@ scale:                    ## 100 clients x 30 days data set; asserts every query
 
 deploy-test: build        ## install/update/uninstall scripts against fake Proxmox tools
 	deploy/test/test-deploy.sh bin/mtmon
+	deploy/test/test-tui.sh
 
 release: build            ## dist/mtmon-<version>-linux-amd64.tar.gz with checksums
 	rm -rf dist && mkdir -p dist/mtmon

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Fake whiptail: pops one scripted answer ("rc|value") per call from $FAKE_STATE/answers.
+S=${FAKE_STATE:?}; echo "whiptail $*" >> "$S/wt.log"
+line=$(head -n1 "$S/answers" 2>/dev/null); sed -i 1d "$S/answers" 2>/dev/null
+[ -n "$line" ] || { echo "no scripted answer left for: $*" >&2; exit 99; }
+rc=${line%%|*}; val=${line#*|}
+[ -z "$val" ] || printf '%s' "$val" >&2
+exit "$rc"
