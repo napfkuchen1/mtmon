@@ -94,7 +94,7 @@ MAJOR=$(pve_major || true)
 [ "$MAJOR" -ge 9 ] || die "Proxmox VE 9 or newer required (found $MAJOR.x). Older versions may work, but Debian 13 templates are expected"
 ok "Proxmox VE $MAJOR.x"
 
-[[ $CTID =~ ^[0-9]+$ ]] && [ "$CTID" -ge 100 ] || die "invalid --ctid '$CTID'"
+if ! { [[ $CTID =~ ^[0-9]+$ ]] && [ "$CTID" -ge 100 ]; }; then die "invalid --ctid '$CTID'"; fi
 if ct_exists "$CTID"; then die "CT/VM $CTID already exists. Choose another --ctid (free id: $(pvesh get /cluster/nextid 2>/dev/null || echo '?')). Use update-mtmon.sh to upgrade an existing install"; fi
 ok "CT id $CTID is free"
 

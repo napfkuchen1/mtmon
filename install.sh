@@ -36,7 +36,7 @@ echo "==> downloading $BASE/$ASSET"
 curl -fsSL --retry 3 -o "$T/$ASSET" "$BASE/$ASSET" || die "download failed (release exists? repo public?)"
 curl -fsSL --retry 3 -o "$T/$ASSET.sha256" "$BASE/$ASSET.sha256" || die "checksum download failed"
 want=$(awk '{print $1}' "$T/$ASSET.sha256"); got=$(sha256sum "$T/$ASSET" | awk '{print $1}')
-[ -n "$want" ] && [ "$want" = "$got" ] || die "checksum mismatch - aborting (expected $want, got $got)"
+if [ -z "$want" ] || [ "$want" != "$got" ]; then die "checksum mismatch - aborting (expected $want, got $got)"; fi
 echo "==> checksum ok"
 tar xzf "$T/$ASSET" -C "$T"
 [ -x "$T/mtmon/install-mtmon.sh" ] || die "unexpected archive layout"

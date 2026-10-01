@@ -22,7 +22,7 @@ jobs:
       - run: cd deploy && shellcheck -x -s bash lib.sh install-mtmon.sh update-mtmon.sh uninstall-mtmon.sh
       - run: cd deploy && shellcheck -s sh update-geo.sh
       - run: shellcheck install.sh
-      - run: test -z ""
+      - run: test -z "$(gofmt -l .)"
       - run: make deploy-test
       - run: make release
       - name: stable asset names
