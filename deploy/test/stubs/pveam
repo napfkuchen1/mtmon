@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+case $1 in
+  list) [ -n "${STUB_NO_TEMPLATE:-}" ] || echo "local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst  123MB" ;;
+  available) echo "system  debian-13-standard_13.1-2_amd64.tar.zst" ;;
+  update|download) echo "pveam $*" >> "$FAKE_STATE/calls.log" ;;
+esac
