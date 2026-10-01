@@ -21,4 +21,6 @@ jobs:
       - run: shellcheck install.sh
       - run: test -z "$(gofmt -l .)"
       - run: make build
-      - run: sudo deploy/test/test-deploy.sh bin/mtmon
+      - name: deploy tests
+        run: |
+          sudo deploy/test/test-deploy.sh bin/mtmon > /tmp/dt.log 2>&1 || { m=$(grep -v '^PASS' /tmp/dt.log | tail -15 | sed ':a;N;$!ba;s/\n/%0A/g'); echo "::error::$m"; exit 1; }
