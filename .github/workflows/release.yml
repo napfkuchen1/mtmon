@@ -23,7 +23,8 @@ jobs:
       - run: cd deploy && shellcheck -s sh update-geo.sh
       - run: shellcheck install.sh
       - run: test -z "$(gofmt -l .)"
-      - run: make deploy-test
+      - run: make build
+      - run: sudo deploy/test/test-deploy.sh bin/mtmon
       - run: make release
       - name: stable asset names
         run: |
