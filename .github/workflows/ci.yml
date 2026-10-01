@@ -14,4 +14,6 @@ jobs:
       - run: cd web && npm ci --no-audit --no-fund && npm run build
       - run: go install honnef.co/go/tools/cmd/staticcheck@latest
       - run: sudo apt-get install -y shellcheck
-      - run: make test lint deploy-test
+      - run: make test
+      - run: make lint
+      - run: make deploy-test
