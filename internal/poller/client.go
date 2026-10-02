@@ -13,6 +13,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -29,10 +30,67 @@ type Client struct {
 
 var ErrAuth = errors.New("routeros: authentication failed")
 
-func NewClient(d config.Device) *Client {
+// Guard decides whether mtmon may open a connection to an address. It is applied to the address that is actually
+// dialled, i.e. after name resolution.
+type Guard func(netip.Addr) error
+
+// lookupNetIP resolves a host name (replaced in tests to simulate DNS changing between two lookups).
+var lookupNetIP = func(ctx context.Context, host string) ([]netip.Addr, error) {
+	return net.DefaultResolver.LookupNetIP(ctx, "ip", host)
+}
+
+// guardedDial resolves the host once, requires EVERY resulting address to pass the guard and then dials exactly one
+// of those addresses. There is no second lookup between check and connect, so DNS cannot be switched (rebinding)
+// to an address the guard would have refused.
+func guardedDial(allow Guard) func(ctx context.Context, network, addr string) (net.Conn, error) {
+	d := &net.Dialer{Timeout: 4 * time.Second}
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, err
+		}
+		var ips []netip.Addr
+		if ip, err := netip.ParseAddr(host); err == nil {
+			ips = []netip.Addr{ip}
+		} else if ips, err = lookupNetIP(ctx, host); err != nil || len(ips) == 0 {
+			return nil, fmt.Errorf("cannot resolve %q", host)
+		}
+		for _, ip := range ips {
+			if err := allow(ip.Unmap()); err != nil {
+				return nil, err
+			}
+		}
+		return d.DialContext(ctx, network, net.JoinHostPort(ips[0].String(), port))
+	}
+}
+
+// sameHostRedirects follows redirects only within the same scheme and host:port (RouterOS may redirect "/rest" to
+// "/rest/"). Anything else is refused: a device must not be able to send mtmon (and its credentials) elsewhere,
+// least of all to a plain-http URL that no certificate pin protects.
+func sameHostRedirects(req *http.Request, via []*http.Request) error {
+	if len(via) >= 5 {
+		return errors.New("too many redirects")
+	}
+	first := via[0].URL
+	if req.URL.Scheme != first.Scheme || req.URL.Host != first.Host {
+		return fmt.Errorf("refusing redirect to %s://%s", req.URL.Scheme, req.URL.Host)
+	}
+	return nil
+}
+
+func NewClient(d config.Device) *Client { return newClient(d, nil) }
+
+// NewGuardedClient is NewClient for connections made on behalf of the setup wizard: every address it connects to
+// must pass allow.
+func NewGuardedClient(d config.Device, allow Guard) *Client { return newClient(d, allow) }
+
+func newClient(d config.Device, allow Guard) *Client {
 	tr := &http.Transport{
 		MaxIdleConns: 2, IdleConnTimeout: 30 * time.Second,
 		DialContext: (&net.Dialer{Timeout: 4 * time.Second}).DialContext,
+	}
+	if allow != nil {
+		tr.DialContext = guardedDial(allow)
 	}
 	if d.Scheme == "https" {
 		tc := &tls.Config{MinVersion: tls.VersionTLS12}
@@ -58,7 +116,7 @@ func NewClient(d config.Device) *Client {
 	return &Client{
 		base: fmt.Sprintf("%s://%s/rest", d.Scheme, net.JoinHostPort(d.Addr, strconv.Itoa(d.Port))),
 		user: d.User, pass: d.Pass,
-		hc: &http.Client{Transport: tr, Timeout: 8 * time.Second},
+		hc: &http.Client{Transport: tr, Timeout: 8 * time.Second, CheckRedirect: sameHostRedirects},
 	}
 }
 
@@ -67,12 +125,26 @@ func normFP(s string) string {
 }
 
 // Fingerprint dials host:port and returns the SHA-256 fingerprint of the leaf certificate (TOFU helper).
-func Fingerprint(addr string) (string, error) {
-	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: 5 * time.Second}, "tcp", addr, &tls.Config{InsecureSkipVerify: true})
+func Fingerprint(addr string) (string, error) { return FingerprintGuarded(addr, nil) }
+
+// FingerprintGuarded is Fingerprint with the address check of NewGuardedClient (nil allow = no check).
+func FingerprintGuarded(addr string, allow Guard) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	dial := (&net.Dialer{Timeout: 5 * time.Second}).DialContext
+	if allow != nil {
+		dial = guardedDial(allow)
+	}
+	raw, err := dial(ctx, "tcp", addr)
 	if err != nil {
 		return "", err
 	}
+	host, _, _ := net.SplitHostPort(addr)
+	conn := tls.Client(raw, &tls.Config{InsecureSkipVerify: true, ServerName: host}) // trust on first use: the fingerprint is shown to the user
 	defer conn.Close()
+	if err := conn.HandshakeContext(ctx); err != nil {
+		return "", err
+	}
 	certs := conn.ConnectionState().PeerCertificates
 	if len(certs) == 0 {
 		return "", errors.New("no certificate presented")
