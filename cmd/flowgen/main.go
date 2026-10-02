@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/daniel/mtmon/internal/flow"
+	"github.com/napfkuchen1/mtmon/internal/flow"
 )
 
 var dests = []struct {

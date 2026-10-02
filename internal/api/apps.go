@@ -6,8 +6,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/daniel/mtmon/internal/enrich"
-	"github.com/daniel/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/enrich"
+	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
 // activeWindow is how recent traffic must be for an app to count as "active now". Rollups have

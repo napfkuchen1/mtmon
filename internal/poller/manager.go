@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/daniel/mtmon/internal/config"
-	"github.com/daniel/mtmon/internal/enrich"
-	"github.com/daniel/mtmon/internal/live"
-	"github.com/daniel/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/config"
+	"github.com/napfkuchen1/mtmon/internal/enrich"
+	"github.com/napfkuchen1/mtmon/internal/live"
+	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
 // Events lets the alert engine observe poll results without import cycles.

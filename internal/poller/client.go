@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/daniel/mtmon/internal/config"
+	"github.com/napfkuchen1/mtmon/internal/config"
 )
 
 type Client struct {

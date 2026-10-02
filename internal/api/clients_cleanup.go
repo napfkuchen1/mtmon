@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/daniel/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
 // clientsCleanup: POST /api/clients/cleanup {days, keep_labeled, dry_run}. Session + same-origin

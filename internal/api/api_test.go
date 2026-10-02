@@ -9,11 +9,11 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/daniel/mtmon/internal/config"
-	"github.com/daniel/mtmon/internal/enrich"
-	"github.com/daniel/mtmon/internal/flow"
-	"github.com/daniel/mtmon/internal/live"
-	"github.com/daniel/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/config"
+	"github.com/napfkuchen1/mtmon/internal/enrich"
+	"github.com/napfkuchen1/mtmon/internal/flow"
+	"github.com/napfkuchen1/mtmon/internal/live"
+	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
 func newTestServer(t *testing.T) (*httptest.Server, *Server) {

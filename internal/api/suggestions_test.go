@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/daniel/mtmon/internal/config"
+	"github.com/napfkuchen1/mtmon/internal/config"
 )
 
 func TestSuggestionsAPI(t *testing.T) {

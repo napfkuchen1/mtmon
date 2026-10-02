@@ -4,8 +4,8 @@ import (
 	"net/netip"
 	"testing"
 
-	"github.com/daniel/mtmon/internal/enrich"
-	"github.com/daniel/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/enrich"
+	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
 func testSources() nameSources {

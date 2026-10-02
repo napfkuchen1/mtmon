@@ -126,7 +126,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/napfkuchen1/mtmon/main/i
   install --ctid 210 --storage local-lvm --bridge vmbr0 --ip 192.168.88.50/24 --gw 192.168.88.1 --with-geo --yes
 
 # pin a version
-MTMON_VERSION=v2.0.0 bash -c "$(curl -fsSL https://raw.githubusercontent.com/napfkuchen1/mtmon/main/install.sh)"
+MTMON_VERSION=v0.7.0 bash -c "$(curl -fsSL https://raw.githubusercontent.com/napfkuchen1/mtmon/main/install.sh)"
 ```
 
 All options: `install.sh install --help`. You can also download `mtmon-linux-amd64.tar.gz` and its `.sha256` from the [releases page](https://github.com/napfkuchen1/mtmon/releases), unpack it on the host and run `./install-mtmon.sh --dry-run`.
@@ -249,7 +249,7 @@ make build        # static linux/amd64 binary with embedded UI
 make run-demo     # local demo with mock routers: http://127.0.0.1:18443 (admin / demo-password-1)
 ```
 
-Go (single static binary, pure-Go SQLite) and a Svelte 5 UI embedded with `go:embed`. A release is created by pushing a tag (`git tag v2.0.1 && git push origin v2.0.1`); GitHub Actions tests, builds and publishes the archive that `install.sh` downloads.
+Go (single static binary, pure-Go SQLite) and a Svelte 5 UI embedded with `go:embed`. A release is created by pushing a tag (`git tag v0.7.1 && git push origin v0.7.1`); GitHub Actions tests, builds and publishes the archive that `install.sh` downloads.
 
 Contributions, bug reports and feedback from real MikroTik setups are welcome: please open an issue.
 

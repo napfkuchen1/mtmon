@@ -1,4 +1,4 @@
-module github.com/daniel/mtmon
+module github.com/napfkuchen1/mtmon
 
 go 1.26.0
 
