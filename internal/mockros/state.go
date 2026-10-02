@@ -234,6 +234,10 @@ func (s *Server) dynamic(w http.ResponseWriter, r *http.Request, canWrite bool) 
 			rosErr(w, 400, "failure: item with the same name already exists")
 			return true
 		}
+		if menu == "/system/logging/action" && strings.ContainsAny(str(in["name"]), "-_. ") {
+			rosErr(w, 400, "failure: action name can contain only letters and numbers")
+			return true
+		}
 		if menu == "/user" && !s.hasGroup(str(in["group"])) {
 			rosErr(w, 400, "failure: no such group")
 			return true

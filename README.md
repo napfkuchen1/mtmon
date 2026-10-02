@@ -159,7 +159,7 @@ Only with *Auto-setup*, only after you confirm, all tagged `mtmon-managed`, all 
 | Backup | `/export` into a file on the router | stays as your safety net |
 | User | group `mtmon-ro` (`read, api, rest-api`) and user `mtmon`, login only from the mtmon address | removed |
 | Traffic Flow | `/ip traffic-flow` enabled, target = mtmon (routers only, not access points) | previous settings restored |
-| Syslog | log action `mtmon-syslog` and a rule for topic `firewall` | removed |
+| Syslog | log action `mtmonsyslog` and a rule for topic `firewall` | removed |
 | Firewall logging | existing drop/reject rules get `log=yes` and a prefix `MTM-<id>` | previous values restored |
 | Optional | a pass-through log rule for new connections; disabling FastTrack | removed / restored |
 

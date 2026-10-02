@@ -50,7 +50,7 @@ type action struct {
 }
 
 const monGroup = "mtmon-ro"
-const syslogAction = "mtmon-syslog"
+const syslogAction = "mtmonsyslog"
 
 func DefaultOptions(k *Caps, mtmonIP string) Options {
 	o := Options{Name: k.Identity, Role: k.Role, MtmonIP: mtmonIP, FlowPort: 2055, SyslogPort: 5514, MonUser: "mtmon",

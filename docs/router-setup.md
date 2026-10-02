@@ -8,7 +8,7 @@ Der Wizard liest per REST: Identität, Modell, Pakete, WLAN-Stack, Bridges/HW-Of
 | Backup | `/export` als Datei `mtmon-backup-…` | bleibt liegen |
 | User | Gruppe `mtmon-ro` (read,api,rest-api) + User `mtmon`, Login nur von mtmon-IP | löschen |
 | Traffic Flow | `/ip traffic-flow` enabled + Target → mtmon:2055 (nur Router, nicht APs) | alter Zustand |
-| Syslog | Log-Action `mtmon-syslog` → mtmon:5514 + Regel `topics=firewall` | löschen |
+| Syslog | Log-Action `mtmonsyslog` → mtmon:5514 + Regel `topics=firewall` | löschen |
 | Firewall-Log | bestehende drop/reject-Regeln: `log=yes`, Prefix `MTM-<id>` | alter Wert |
 | optional | `MTM-NEW` Passthrough-Logregel (neue Verbindungen), FastTrack aus | löschen / zurück |
 
