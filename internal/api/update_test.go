@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/daniel/mtmon/internal/update"
+	"github.com/napfkuchen1/mtmon/internal/update"
 )
 
 func newUpdateTestServer(t *testing.T) (*httptest.Server, *http.Client) {

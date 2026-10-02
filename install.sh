@@ -19,7 +19,7 @@ VER=${MTMON_VERSION:-latest}
 ASSET=mtmon-linux-amd64.tar.gz
 WT=${MTMON_WHIPTAIL:-whiptail}
 BT="mtmon - realtime monitor for MikroTik routers & access points"
-if [ -t 1 ]; then C_CY=$'\033[36m'; C_GR=$'\033[32m'; C_RD=$'\033[31m'; C_BD=$'\033[1m'; C_RS=$'\033[0m'; else C_CY=; C_GR=; C_RD=; C_BD=; C_RS=; fi
+if [ -t 1 ]; then C_CY=$'\033[36m'; C_GR=$'\033[32m'; C_RD=$'\033[31m'; C_YL=$'\033[33m'; C_BD=$'\033[1m'; C_RS=$'\033[0m'; else C_CY=; C_GR=; C_RD=; C_YL=; C_BD=; C_RS=; fi
 die() { printf '\n  %s✖ %s%s\n\n' "$C_RD" "$*" "$C_RS" >&2; exit 1; }
 say() { printf '  %s▸%s %s\n' "$C_CY" "$C_RS" "$*"; }
 # dark theme with cyan accents for the whiptail dialogs
@@ -202,6 +202,18 @@ curl -fsSL --retry 3 -o "$T/$ASSET.sha256" "$BASE/$ASSET.sha256" || die "checksu
 want=$(awk '{print $1}' "$T/$ASSET.sha256"); got=$(sha256sum "$T/$ASSET" | awk '{print $1}')
 if [ -z "$want" ] || [ "$want" != "$got" ]; then die "checksum mismatch - aborting (expected $want, got $got)"; fi
 printf '  %s✔%s checksum verified\n' "$C_GR" "$C_RS"
+# Release signature (minisign). The checksum only proves the download is intact; the signature proves it was built by the maintainer.
+MTMON_PUBKEY=RWSj18U8+XTlXnicS+OIExn6YF3O9+RC4U9VIaDLVtPFeMkp75YhedSK
+if curl -fsSL --retry 3 -o "$T/$ASSET.minisig" "$BASE/$ASSET.minisig" 2>/dev/null; then
+  if command -v minisign >/dev/null; then
+    minisign -Vqm "$T/$ASSET" -x "$T/$ASSET.minisig" -P "$MTMON_PUBKEY" || die "signature check FAILED - aborting (the archive was not signed by the mtmon maintainer)"
+    printf '  %s✔%s signature verified (minisign)\n' "$C_GR" "$C_RS"
+  else
+    printf '  %s!%s release is signed, but minisign is not installed here: signature not checked (apt install minisign)\n' "$C_YL" "$C_RS"
+  fi
+else
+  printf '  %s!%s this release has no signature (older than v0.8.0): only the checksum was verified\n' "$C_YL" "$C_RS"
+fi
 tar xzf "$T/$ASSET" -C "$T"
 [ -x "$T/mtmon/install-mtmon.sh" ] || die "unexpected archive layout"
 ( cd "$T/mtmon" && sha256sum -c SHA256SUMS >/dev/null ) || die "SHA256SUMS inside archive do not match"

@@ -126,7 +126,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/napfkuchen1/mtmon/main/i
   install --ctid 210 --storage local-lvm --bridge vmbr0 --ip 192.168.88.50/24 --gw 192.168.88.1 --with-geo --yes
 
 # pin a version
-MTMON_VERSION=v2.0.0 bash -c "$(curl -fsSL https://raw.githubusercontent.com/napfkuchen1/mtmon/main/install.sh)"
+MTMON_VERSION=v0.7.0 bash -c "$(curl -fsSL https://raw.githubusercontent.com/napfkuchen1/mtmon/main/install.sh)"
 ```
 
 All options: `install.sh install --help`. You can also download `mtmon-linux-amd64.tar.gz` and its `.sha256` from the [releases page](https://github.com/napfkuchen1/mtmon/releases), unpack it on the host and run `./install-mtmon.sh --dry-run`.
@@ -201,6 +201,7 @@ Your routers are **not** touched by this. Use *Offboarding* on each device **bef
 
 * **Read-only by default.** The only code that writes to a router is the setup/offboarding wizard, and only after your explicit confirmation.
 * **Admin credentials are used once and never stored.** The long-lived account is a generated read-only user restricted to the mtmon address. Its password is stored encrypted (AES-256-GCM, key file mode 0600).
+* **Signed releases.** Release archives are signed with minisign (public key in `minisign.pub`). The web updater refuses unsigned or mismatching releases; the installer verifies the signature when `minisign` is installed.
 * **Certificate pinning.** The router's TLS fingerprint is shown and must be confirmed (trust on first use); there is no silent "insecure" mode.
 * **The wizard only talks to private addresses** (RFC 1918, loopback, link-local, CGNAT or networks you configured), so it cannot be abused to probe the internet.
 * Web UI: argon2id passwords, 12-hour sessions, login rate limiting, origin checks on changes, strict security headers, CSV export protected against formula injection.
@@ -249,7 +250,7 @@ make build        # static linux/amd64 binary with embedded UI
 make run-demo     # local demo with mock routers: http://127.0.0.1:18443 (admin / demo-password-1)
 ```
 
-Go (single static binary, pure-Go SQLite) and a Svelte 5 UI embedded with `go:embed`. A release is created by pushing a tag (`git tag v2.0.1 && git push origin v2.0.1`); GitHub Actions tests, builds and publishes the archive that `install.sh` downloads.
+Go (single static binary, pure-Go SQLite) and a Svelte 5 UI embedded with `go:embed`. A release is created by pushing a tag (`git tag v0.7.1 && git push origin v0.7.1`); GitHub Actions tests, builds and publishes the archive that `install.sh` downloads.
 
 Contributions, bug reports and feedback from real MikroTik setups are welcome: please open an issue.
 

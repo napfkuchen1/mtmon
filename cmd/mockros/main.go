@@ -8,8 +8,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/daniel/mtmon/internal/api"
-	"github.com/daniel/mtmon/internal/mockros"
+	"github.com/napfkuchen1/mtmon/internal/api"
+	"github.com/napfkuchen1/mtmon/internal/mockros"
 )
 
 func main() {

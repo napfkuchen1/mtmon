@@ -40,6 +40,21 @@ jobs:
           cd dist
           cp mtmon-*-linux-amd64.tar.gz mtmon-linux-amd64.tar.gz
           sha256sum mtmon-linux-amd64.tar.gz > mtmon-linux-amd64.tar.gz.sha256
+      - name: sign archive (minisign)
+        env:
+          MINISIGN_KEY: ${{ secrets.MINISIGN_KEY }}
+          MINISIGN_PASSWORD: ${{ secrets.MINISIGN_PASSWORD }}
+        run: |
+          [ -n "$MINISIGN_KEY" ] || { echo "::error::secret MINISIGN_KEY is not set; refusing to publish an unsigned release"; exit 1; }
+          sudo apt-get install -y minisign
+          umask 077
+          key=$(mktemp); trap 'rm -f "$key"' EXIT
+          printf '%s\n' "$MINISIGN_KEY" > "$key"
+          # trusted comment binds the signature to this tag (the updater checks it)
+          printf '%s\n' "$MINISIGN_PASSWORD" | minisign -S -s "$key" -m dist/mtmon-linux-amd64.tar.gz -t "mtmon $GITHUB_REF_NAME"
+          # verify with the public key committed in the repo before anything is published
+          pub=$(sed -n 2p minisign.pub)
+          minisign -Vm dist/mtmon-linux-amd64.tar.gz -P "$pub"
       - name: publish
         env: { GH_TOKEN: "${{ github.token }}" }
-        run: gh release create "$GITHUB_REF_NAME" dist/mtmon-linux-amd64.tar.gz dist/mtmon-linux-amd64.tar.gz.sha256 --title "mtmon $GITHUB_REF_NAME" --notes-file /tmp/notes.md $( [[ "$GITHUB_REF_NAME" == *-* ]] && echo --prerelease )
+        run: gh release create "$GITHUB_REF_NAME" dist/mtmon-linux-amd64.tar.gz dist/mtmon-linux-amd64.tar.gz.sha256 dist/mtmon-linux-amd64.tar.gz.minisig --title "mtmon $GITHUB_REF_NAME" --notes-file /tmp/notes.md $( [[ "$GITHUB_REF_NAME" == *-* ]] && echo --prerelease )

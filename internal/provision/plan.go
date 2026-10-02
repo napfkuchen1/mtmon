@@ -6,8 +6,8 @@ import (
 	"net/netip"
 	"strings"
 
-	"github.com/daniel/mtmon/internal/poller"
-	"github.com/daniel/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/poller"
+	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
 type Options struct {

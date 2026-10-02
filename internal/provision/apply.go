@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/daniel/mtmon/internal/poller"
-	"github.com/daniel/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/poller"
+	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
 type StepResult struct {

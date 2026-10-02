@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/daniel/mtmon/internal/config"
-	"github.com/daniel/mtmon/internal/enrich"
-	"github.com/daniel/mtmon/internal/live"
-	"github.com/daniel/mtmon/internal/poller"
-	"github.com/daniel/mtmon/internal/provision"
-	"github.com/daniel/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/config"
+	"github.com/napfkuchen1/mtmon/internal/enrich"
+	"github.com/napfkuchen1/mtmon/internal/live"
+	"github.com/napfkuchen1/mtmon/internal/poller"
+	"github.com/napfkuchen1/mtmon/internal/provision"
+	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
 func (s *Server) mgmtRoutes(m *http.ServeMux, a func(http.HandlerFunc) http.HandlerFunc) {

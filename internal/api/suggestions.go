@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/daniel/mtmon/internal/advice"
+	"github.com/napfkuchen1/mtmon/internal/advice"
 )
 
 // The suggestion rules are evaluated on demand and cached for adviceTTL; there is no background job.

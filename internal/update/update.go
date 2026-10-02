@@ -84,6 +84,8 @@ type Options struct {
 	Dir     string // state directory (<data_dir>/update)
 	Meta    KV
 	Client  *http.Client
+	// PubKey overrides the embedded release-signing key (tests only).
+	PubKey string
 	// ExtraHosts (host[:port]) are additionally allowed for downloads and make plain http acceptable for them.
 	// Only for tests and the local demo; set through MTMON_UPDATE_API in production binaries.
 	ExtraHosts []string
@@ -509,7 +511,11 @@ func (m *Manager) stage(ctx context.Context, rel *release) error {
 	if !ok {
 		return fmt.Errorf("release %s has no %s.sha256 asset", rel.Tag, AssetName)
 	}
-	for _, a := range []asset{tarAsset, sumAsset} {
+	sigAsset, ok := m.findAsset(rel, SigAssetName)
+	if !ok {
+		return fmt.Errorf("release %s is not signed (no %s asset); nothing was installed", rel.Tag, SigAssetName)
+	}
+	for _, a := range []asset{tarAsset, sumAsset, sigAsset} {
 		pu, err := url.Parse(a.URL)
 		if err != nil {
 			return fmt.Errorf("bad asset URL: %w", err)
@@ -533,6 +539,17 @@ func (m *Manager) stage(ctx context.Context, rel *release) error {
 	got := sha256.Sum256(data)
 	if hex.EncodeToString(got[:]) != want {
 		return errors.New("checksum mismatch: the download is corrupt or was tampered with; nothing was installed")
+	}
+	sigData, err := m.download(ctx, sigAsset.URL, 4096)
+	if err != nil {
+		return fmt.Errorf("signature download: %w", err)
+	}
+	key := m.o.PubKey
+	if key == "" {
+		key = PublicKey
+	}
+	if err := verifyRelease(key, sigData, data, rel.Tag); err != nil {
+		return fmt.Errorf("signature check failed: %w; nothing was installed", err)
 	}
 	bin, err := extractBinary(data)
 	if err != nil {

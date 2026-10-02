@@ -5,10 +5,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/daniel/mtmon/internal/config"
-	"github.com/daniel/mtmon/internal/enrich"
-	"github.com/daniel/mtmon/internal/flow"
-	"github.com/daniel/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/config"
+	"github.com/napfkuchen1/mtmon/internal/enrich"
+	"github.com/napfkuchen1/mtmon/internal/flow"
+	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
 // Pipeline turns raw flow records into enriched, client-attributed rows.

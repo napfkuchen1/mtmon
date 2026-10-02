@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/daniel/mtmon/internal/advice"
-	"github.com/daniel/mtmon/internal/config"
-	"github.com/daniel/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/advice"
+	"github.com/napfkuchen1/mtmon/internal/config"
+	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
 // TestScale fills the DB with a realistic 100-client / 30-day data set and measures size + query latency.

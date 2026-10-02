@@ -3,7 +3,7 @@ package poller
 import (
 	"testing"
 
-	"github.com/daniel/mtmon/internal/config"
+	"github.com/napfkuchen1/mtmon/internal/config"
 )
 
 func TestIsSelf(t *testing.T) {

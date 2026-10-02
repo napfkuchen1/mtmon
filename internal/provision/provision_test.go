@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/daniel/mtmon/internal/config"
-	"github.com/daniel/mtmon/internal/mockros"
-	"github.com/daniel/mtmon/internal/poller"
-	"github.com/daniel/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/config"
+	"github.com/napfkuchen1/mtmon/internal/mockros"
+	"github.com/napfkuchen1/mtmon/internal/poller"
+	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
 func setup(t *testing.T, role string) (*mockros.Server, *httptest.Server, config.Device) {

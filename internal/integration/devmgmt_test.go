@@ -15,16 +15,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/daniel/mtmon/internal/api"
-	"github.com/daniel/mtmon/internal/config"
-	"github.com/daniel/mtmon/internal/enrich"
-	"github.com/daniel/mtmon/internal/flow"
-	"github.com/daniel/mtmon/internal/live"
-	"github.com/daniel/mtmon/internal/mockros"
-	"github.com/daniel/mtmon/internal/poller"
-	"github.com/daniel/mtmon/internal/secret"
-	"github.com/daniel/mtmon/internal/store"
-	"github.com/daniel/mtmon/internal/syslog"
+	"github.com/napfkuchen1/mtmon/internal/api"
+	"github.com/napfkuchen1/mtmon/internal/config"
+	"github.com/napfkuchen1/mtmon/internal/enrich"
+	"github.com/napfkuchen1/mtmon/internal/flow"
+	"github.com/napfkuchen1/mtmon/internal/live"
+	"github.com/napfkuchen1/mtmon/internal/mockros"
+	"github.com/napfkuchen1/mtmon/internal/poller"
+	"github.com/napfkuchen1/mtmon/internal/secret"
+	"github.com/napfkuchen1/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/syslog"
 )
 
 type apiRig struct {

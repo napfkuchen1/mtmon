@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/daniel/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
 // RuleKinds in precedence order (later = stronger): a rule for one exact IP beats a hostname rule,

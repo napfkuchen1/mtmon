@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/daniel/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
 func TestClassifyDests(t *testing.T) {

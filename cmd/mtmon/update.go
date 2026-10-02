@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/daniel/mtmon/internal/config"
-	"github.com/daniel/mtmon/internal/store"
-	"github.com/daniel/mtmon/internal/update"
+	"github.com/napfkuchen1/mtmon/internal/config"
+	"github.com/napfkuchen1/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/update"
 )
 
 // errUpdateRestart makes run() shut down cleanly (DB flushed) and main() exit with update.ExitCode,

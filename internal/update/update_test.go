@@ -5,10 +5,13 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"golang.org/x/crypto/blake2b"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -84,6 +87,31 @@ type fakeGH struct {
 	status   int
 	assetURL func(path string) string
 	prerel   bool
+	noSig    bool   // release carries no .minisig asset
+	sigTrust string // override the signed trusted comment (default "mtmon <tag>")
+	sigKey   ed25519.PrivateKey
+}
+
+var (
+	testPub, testPriv, _ = ed25519.GenerateKey(nil)
+	testKeyID            = []byte{1, 2, 3, 4, 5, 6, 7, 8}
+)
+
+func testPubB64() string {
+	return base64.StdEncoding.EncodeToString(append(append([]byte("Ed"), testKeyID...), testPub...))
+}
+
+// signMinisign produces a minisign signature file ("ED" = pre-hashed, "Ed" = legacy) like the minisign CLI.
+func signMinisign(priv ed25519.PrivateKey, data []byte, trusted string, prehash bool) []byte {
+	alg, msg := "Ed", data
+	if prehash {
+		h := blake2b.Sum512(data)
+		alg, msg = "ED", h[:]
+	}
+	sig := ed25519.Sign(priv, msg)
+	global := ed25519.Sign(priv, append(append([]byte{}, sig...), trusted...))
+	raw := append(append([]byte(alg), testKeyID...), sig...)
+	return []byte("untrusted comment: test\n" + base64.StdEncoding.EncodeToString(raw) + "\ntrusted comment: " + trusted + "\n" + base64.StdEncoding.EncodeToString(global) + "\n")
 }
 
 func newFake(t *testing.T, tag string, tarball []byte) *fakeGH {
@@ -101,10 +129,24 @@ func newFake(t *testing.T, tag string, tarball []byte) *fakeGH {
 		if f.assetURL != nil {
 			turl = f.assetURL("/dl/" + AssetName)
 		}
+		assets := []map[string]any{{"name": AssetName, "browser_download_url": turl}, {"name": AssetName + ".sha256", "browser_download_url": surl}}
+		if !f.noSig {
+			assets = append(assets, map[string]any{"name": SigAssetName, "browser_download_url": base + "/dl/" + SigAssetName})
+		}
 		json.NewEncoder(w).Encode(map[string]any{"tag_name": f.tag, "body": f.body, "html_url": base + "/rel", "published_at": "2026-10-01T10:00:00Z", "prerelease": f.prerel,
-			"assets": []map[string]any{{"name": AssetName, "browser_download_url": turl}, {"name": AssetName + ".sha256", "browser_download_url": surl}}})
+			"assets": assets})
 	})
 	mux.HandleFunc("/dl/"+AssetName, func(w http.ResponseWriter, r *http.Request) { w.Write(f.tarball) })
+	mux.HandleFunc("/dl/"+SigAssetName, func(w http.ResponseWriter, r *http.Request) {
+		key, trust := f.sigKey, f.sigTrust
+		if key == nil {
+			key = testPriv
+		}
+		if trust == "" {
+			trust = "mtmon " + f.tag
+		}
+		w.Write(signMinisign(key, f.tarball, trust, true))
+	})
 	mux.HandleFunc("/dl/"+AssetName+".sha256", func(w http.ResponseWriter, r *http.Request) {
 		if f.sum != "" {
 			w.Write([]byte(f.sum))
@@ -123,7 +165,7 @@ func (f *fakeGH) mgr(t *testing.T, cur string, mod ...func(*Options)) (*Manager,
 	u, _ := url.Parse(f.srv.URL)
 	restarted := make(chan struct{}, 1)
 	o := Options{Repo: "o/r", API: f.srv.URL, Current: cur, Dir: filepath.Join(t.TempDir(), "update"), Meta: &memKV{},
-		ExtraHosts: []string{u.Host}, ExitDelay: 10 * time.Millisecond, OnRestart: func() { restarted <- struct{}{} }}
+		PubKey: testPubB64(), ExtraHosts: []string{u.Host}, ExitDelay: 10 * time.Millisecond, OnRestart: func() { restarted <- struct{}{} }}
 	for _, m := range mod {
 		m(&o)
 	}
@@ -560,5 +602,74 @@ func TestExtractBinaryDirect(t *testing.T) {
 	}
 	if _, err := extractBinary(mkTar(t, tarEntry{name: "mtmon/mtmon", body: "a"}, tarEntry{name: "mtmon/mtmon", body: "b"})); err == nil {
 		t.Error("duplicate entry accepted")
+	}
+}
+
+func TestMinisignVerify(t *testing.T) {
+	data := []byte("archive bytes")
+	for _, pre := range []bool{true, false} {
+		sig := signMinisign(testPriv, data, "mtmon v1.2.3", pre)
+		if err := verifyRelease(testPubB64(), sig, data, "v1.2.3"); err != nil {
+			t.Fatalf("prehash=%v: %v", pre, err)
+		}
+		if err := verifyRelease(testPubB64(), sig, []byte("other"), "v1.2.3"); err == nil {
+			t.Fatalf("prehash=%v: modified data accepted", pre)
+		}
+	}
+	sig := signMinisign(testPriv, data, "mtmon v1.2.3", true)
+	if err := verifyRelease(testPubB64(), sig, data, "v1.2.4"); err == nil {
+		t.Fatal("signature for another tag accepted (replay)")
+	}
+	_, otherPriv, _ := ed25519.GenerateKey(nil)
+	if err := verifyRelease(testPubB64(), signMinisign(otherPriv, data, "mtmon v1.2.3", true), data, "v1.2.3"); err == nil {
+		t.Fatal("signature by another key accepted")
+	}
+	// trusted comment is covered by the global signature
+	tampered := strings.Replace(string(sig), "mtmon v1.2.3", "mtmon v9.9.9", 1)
+	if err := verifyRelease(testPubB64(), []byte(tampered), data, "v9.9.9"); err == nil {
+		t.Fatal("tampered trusted comment accepted")
+	}
+	for _, bad := range []string{"", "garbage", "untrusted comment: x\nAAAA\ntrusted comment: y\nAAAA\n"} {
+		if err := verifyRelease(testPubB64(), []byte(bad), data, "v1.2.3"); err == nil {
+			t.Fatalf("malformed signature %q accepted", bad)
+		}
+	}
+}
+
+func TestEmbeddedPublicKeyIsValid(t *testing.T) {
+	raw, err := base64.StdEncoding.DecodeString(PublicKey)
+	if err != nil || len(raw) != 42 || string(raw[:2]) != "Ed" {
+		t.Fatalf("embedded PublicKey invalid: %v", err)
+	}
+	if got := fmt.Sprintf("%X", []byte{raw[9], raw[8], raw[7], raw[6], raw[5], raw[4], raw[3], raw[2]}); got != "5EE574F93CC5D7A3" {
+		t.Fatalf("key id %s", got)
+	}
+}
+
+func TestApplyRejectsMissingOrBadSignature(t *testing.T) {
+	_, otherPriv, _ := ed25519.GenerateKey(nil)
+	for name, mod := range map[string]func(*fakeGH){
+		"unsigned":  func(f *fakeGH) { f.noSig = true },
+		"wrong key": func(f *fakeGH) { f.sigKey = otherPriv },
+		"wrong tag": func(f *fakeGH) { f.sigTrust = "mtmon v0.0.1" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newFake(t, "v0.8.0", goodTar(t, "v0.8.0"))
+			mod(f)
+			m, restarted := f.mgr(t, "v0.7.0")
+			m.Check(context.Background(), true)
+			if err := m.Apply(false); err != nil {
+				t.Fatal(err)
+			}
+			waitState(t, m, StateFailed)
+			if _, err := os.Stat(filepath.Join(m.o.Dir, "mtmon.new")); err == nil {
+				t.Fatal("binary staged despite bad signature")
+			}
+			select {
+			case <-restarted:
+				t.Fatal("restart triggered")
+			default:
+			}
+		})
 	}
 }

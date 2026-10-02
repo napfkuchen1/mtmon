@@ -12,14 +12,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/daniel/mtmon/internal/alert"
-	"github.com/daniel/mtmon/internal/config"
-	"github.com/daniel/mtmon/internal/enrich"
-	"github.com/daniel/mtmon/internal/flow"
-	"github.com/daniel/mtmon/internal/live"
-	"github.com/daniel/mtmon/internal/mockros"
-	"github.com/daniel/mtmon/internal/poller"
-	"github.com/daniel/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/alert"
+	"github.com/napfkuchen1/mtmon/internal/config"
+	"github.com/napfkuchen1/mtmon/internal/enrich"
+	"github.com/napfkuchen1/mtmon/internal/flow"
+	"github.com/napfkuchen1/mtmon/internal/live"
+	"github.com/napfkuchen1/mtmon/internal/mockros"
+	"github.com/napfkuchen1/mtmon/internal/poller"
+	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
 var clients = []mockros.Client{
