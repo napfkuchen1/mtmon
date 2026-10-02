@@ -11,6 +11,9 @@ on:
         required: true
 permissions:
   contents: write
+  actions: read        # CI gate
+  id-token: write      # build provenance attestation
+  attestations: write
 env:
   TAG: ${{ inputs.tag || github.ref_name }}
   VERSION: ${{ inputs.tag || github.ref_name }} # make uses it instead of git describe: the binary must report exactly the release tag
@@ -30,19 +33,12 @@ jobs:
         with: { go-version-file: go.mod }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
-      - run: cd web && npm ci --no-audit --no-fund && npm run build
-      - run: go install honnef.co/go/tools/cmd/staticcheck@latest
-      - run: sudo apt-get install -y shellcheck
-      - run: make test
-      - run: staticcheck ./...
-      - run: cd deploy && shellcheck -x -s bash lib.sh install-mtmon.sh update-mtmon.sh uninstall-mtmon.sh
-      - run: cd deploy && shellcheck -s sh update-geo.sh apply-update.sh
-      - run: shellcheck install.sh deploy/test/test-tui.sh deploy/test/test-apply-update.sh
-      - run: test -z "$(gofmt -l .)"
-      - run: make build
-      - name: deploy tests
+      - name: CI must be green for this commit
+        env: { GH_TOKEN: "${{ github.token }}" }
         run: |
-          { sudo deploy/test/test-deploy.sh bin/mtmon && sudo deploy/test/test-tui.sh && deploy/test/test-apply-update.sh; } > /tmp/dt.log 2>&1 || { m=$(grep -v '^PASS' /tmp/dt.log | tail -15 | sed ':a;N;$!ba;s/\n/%0A/g'); echo "::error::$m"; exit 1; }
+          # tests, lint and deploy tests already ran in ci.yml on this exact commit; no need to repeat them here
+          n=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&status=success&per_page=1" --jq '.total_count')
+          [ "${n:-0}" -ge 1 ] || { echo "::error::no successful CI run found for $GITHUB_SHA - merge to main and wait for CI first"; exit 1; }
       - name: release notes from CHANGELOG.md
         run: |
           v="${TAG#v}"
@@ -71,6 +67,9 @@ jobs:
           # verify with the public key committed in the repo before anything is published
           pub=$(sed -n 2p minisign.pub)
           minisign -Vm dist/mtmon-linux-amd64.tar.gz -P "$pub"
+      - name: build provenance attestation
+        uses: actions/attest-build-provenance@v4
+        with: { subject-path: dist/mtmon-linux-amd64.tar.gz }
       - name: publish
         env: { GH_TOKEN: "${{ github.token }}" }
         run: gh release create "$TAG" --target "$GITHUB_SHA" dist/mtmon-linux-amd64.tar.gz dist/mtmon-linux-amd64.tar.gz.sha256 dist/mtmon-linux-amd64.tar.gz.minisig --title "mtmon $TAG" --notes-file /tmp/notes.md $( [[ "$TAG" == *-* ]] && echo --prerelease )
