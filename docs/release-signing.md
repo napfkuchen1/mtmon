@@ -22,3 +22,8 @@ Installed versions only trust the key compiled into them, so a lost or leaked ke
 2. From release N+1 on, sign with the new key.
 If the old key is lost, installations cannot update in-app any more: users re-run the installer *update* once
 (it verifies only the checksum, plus the signature if `minisign` is installed and the key matches).
+
+## Releasing without a local Git checkout
+*Actions → release → Run workflow* with input `tag` (e.g. `v0.8.1`) on branch `main`. The run validates the tag,
+builds with `VERSION=<tag>` (the binary must report exactly the tag, otherwise the updater refuses it), signs, and
+creates the tag together with the GitHub release. The CHANGELOG section `## [x.y.z]` must exist on `main` first.
