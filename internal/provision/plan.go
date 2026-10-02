@@ -79,34 +79,34 @@ func buildActions(k *Caps, o Options) []action {
 	var a []action
 	ip := o.MtmonIP
 	if !o.SkipBackup {
-		a = append(a, action{Step: Step{Key: "backup", Title: "Konfiguration sichern (/export)",
-			Why:      "Vor jeder Änderung wird die komplette Router-Konfiguration als .rsc-Datei auf dem Router abgelegt (Files). Schlägt das fehl, ändert mtmon nichts.",
-			Commands: []string{"/export file=mtmon-before-<zeit>"}, Undo: "nichts zu tun (nur eine Datei)", Risk: "none"},
+		a = append(a, action{Step: Step{Key: "backup", Title: "Back up configuration (/export)",
+			Why:      "Before any change, the complete router configuration is saved as an .rsc file on the router (Files). If that fails, mtmon changes nothing.",
+			Commands: []string{"/export file=mtmon-before-<time>"}, Undo: "Nothing to do (just a file)", Risk: "none"},
 			run: func(ctx context.Context, r *runner) error { return r.backup(ctx) }})
 	}
-	a = append(a, action{Step: Step{Key: "user", Title: "Read-only-Benutzer für mtmon anlegen",
-		Why: "mtmon liest damit Status, WLAN-Clients, DHCP, ARP usw. Gruppe hat nur die Rechte read, api, rest-api (kein write, kein ssh/winbox/ftp) und der Login ist auf die IP von mtmon beschränkt.",
+	a = append(a, action{Step: Step{Key: "user", Title: "Create read-only user for mtmon",
+		Why: "mtmon uses it to read status, Wi-Fi clients, DHCP, ARP, etc. The group only has the policies read, api and rest-api (no write, no ssh/winbox/ftp) and the login is restricted to mtmon's IP.",
 		Commands: []string{
 			"/user group add name=" + monGroup + " policy=read,api,rest-api comment=" + ManagedTag,
-			"/user add name=" + o.MonUser + " group=" + monGroup + " password=<zufällig, 24 Zeichen> address=" + ip + "/32 comment=" + ManagedTag},
-		Undo: "Benutzer und Gruppe werden gelöscht", Risk: "low"},
+			"/user add name=" + o.MonUser + " group=" + monGroup + " password=<random, 24 chars> address=" + ip + "/32 comment=" + ManagedTag},
+		Undo: "User and group are deleted", Risk: "low"},
 		run: func(ctx context.Context, r *runner) error { return r.createUser(ctx, o) }})
 	if o.Flow {
-		a = append(a, action{Step: Step{Key: "flow", Title: "Traffic Flow (IPFIX) an mtmon exportieren",
-			Why: "Das ist die Datenquelle für 'wer verbindet sich wohin': Quelle, Ziel, Ports, Bytes pro Verbindung. Aktive Flows werden alle 30 s gemeldet (Echtzeit). Bestehende Ziele/Collector bleiben unberührt.",
+		a = append(a, action{Step: Step{Key: "flow", Title: "Export Traffic Flow (IPFIX) to mtmon",
+			Why: "This is the data source for 'who connects where': source, destination, ports and bytes per connection. Active flows are reported every 30 s (real time). Existing targets/collectors are left untouched.",
 			Commands: []string{
 				"/ip traffic-flow set enabled=yes interfaces=all cache-entries=16k active-flow-timeout=30s inactive-flow-timeout=15s",
 				fmt.Sprintf("/ip traffic-flow target add dst-address=%s port=%d version=ipfix%s", ip, o.FlowPort, srcArg(o))},
-			Undo: "Target wird gelöscht, die vorherigen Traffic-Flow-Einstellungen werden exakt wiederhergestellt", Risk: "low"},
+			Undo: "The target is deleted and the previous Traffic Flow settings are restored exactly", Risk: "low"},
 			run: func(ctx context.Context, r *runner) error { return r.flow(ctx, k, o) }})
 	}
 	if o.Syslog {
-		a = append(a, action{Step: Step{Key: "syslog", Title: "Firewall-Logs per Syslog an mtmon senden",
-			Why: "Damit mtmon sieht, welche Firewall-Regel eine Verbindung geblockt oder durchgelassen hat. Es wird nur das Topic 'firewall' an mtmon gesendet; lokales Logging bleibt wie es ist.",
+		a = append(a, action{Step: Step{Key: "syslog", Title: "Send firewall logs to mtmon via syslog",
+			Why: "This lets mtmon see which firewall rule blocked or allowed a connection. Only the 'firewall' topic is sent to mtmon; local logging stays as it is.",
 			Commands: []string{
 				fmt.Sprintf("/system logging action add name=%s target=remote remote=%s remote-port=%d%s", syslogAction, ip, o.SyslogPort, srcArg(o)),
 				"/system logging add topics=firewall action=" + syslogAction},
-			Undo: "Logging-Regel und -Action werden gelöscht", Risk: "low"},
+			Undo: "The logging rule and action are deleted", Risk: "low"},
 			run: func(ctx context.Context, r *runner) error { return r.syslog(ctx, o) }})
 		if len(o.FwRules) > 0 {
 			var cmds []string
@@ -115,29 +115,29 @@ func buildActions(k *Caps, o Options) []action {
 					cmds = append(cmds, fmt.Sprintf("/ip firewall filter set %s log=yes log-prefix=%s   # %s %s %s", id, prefixFor(id), f.Chain, f.Action, f.Comment))
 				}
 			}
-			a = append(a, action{Step: Step{Key: "fwlog", Title: fmt.Sprintf("Logging bei %d bestehenden Firewall-Regeln aktivieren", len(o.FwRules)),
-				Why:      "Nur 'log' und 'log-prefix' dieser Regeln werden gesetzt (Bedingungen/Aktion/Reihenfolge bleiben unverändert). Der Prefix verrät mtmon, welche Regel getroffen hat. Gedropptes Zeug taucht so in mtmon auf, das Traffic Flow nie sieht.",
-				Commands: cmds, Undo: "log und log-prefix jeder Regel werden auf den alten Wert zurückgesetzt", Risk: "medium"},
+			a = append(a, action{Step: Step{Key: "fwlog", Title: fmt.Sprintf("Enable logging on %d existing firewall rules", len(o.FwRules)),
+				Why:      "Only 'log' and 'log-prefix' of these rules are set (conditions, action and order stay unchanged). The prefix tells mtmon which rule matched. This way dropped traffic that Traffic Flow never sees shows up in mtmon.",
+				Commands: cmds, Undo: "log and log-prefix of each rule are reset to their previous values", Risk: "medium"},
 				run: func(ctx context.Context, r *runner) error { return r.fwLog(ctx, k, o) }})
 		}
 		if o.LogNew {
-			a = append(a, action{Step: Step{Key: "lognew", Title: "Regel am Ende der forward-Chain: neue Verbindungen loggen",
-				Why:      "Eine 'passthrough'-Regel ganz unten loggt jede NEUE Verbindung, die alle Drop-Regeln überlebt hat. Beweis: 'durchgelassen'. Kostet CPU/Log-Volumen auf dem Router.",
+			a = append(a, action{Step: Step{Key: "lognew", Title: "Rule at the end of the forward chain: log new connections",
+				Why:      "A 'passthrough' rule at the very bottom logs every NEW connection that survived all drop rules. Proof: 'allowed'. Costs CPU and log volume on the router.",
 				Commands: []string{"/ip firewall filter add chain=forward action=passthrough connection-state=new log=yes log-prefix=MTM-NEW comment=\"" + ManagedTag + ": log new connections\""},
-				Undo:     "Regel wird gelöscht", Risk: "medium"},
+				Undo:     "The rule is deleted", Risk: "medium"},
 				run: func(ctx context.Context, r *runner) error { return r.logNew(ctx) }})
 		}
 	}
 	if o.DisableFasttrack && k.Fasttrack {
-		a = append(a, action{Step: Step{Key: "fasttrack", Title: "FastTrack-Regeln deaktivieren",
-			Why:      "FastTrack umgeht große Teile des Pakettpfads; Traffic Flow sieht dann nur den Anfang jeder Verbindung. Ohne FastTrack zählt mtmon vollständig, der Router braucht aber mehr CPU.",
+		a = append(a, action{Step: Step{Key: "fasttrack", Title: "Disable FastTrack rules",
+			Why:      "FastTrack bypasses large parts of the packet path, so Traffic Flow only sees the start of each connection. Without FastTrack mtmon counts completely, but the router needs more CPU.",
 			Commands: []string{"/ip firewall filter disable [find where action=fasttrack-connection]"},
-			Undo:     "Regeln werden wieder aktiviert", Risk: "medium"},
+			Undo:     "The rules are re-enabled", Risk: "medium"},
 			run: func(ctx context.Context, r *runner) error { return r.fasttrack(ctx, k) }})
 	}
-	a = append(a, action{Step: Step{Key: "verify", Title: "Test: Login mit dem neuen Benutzer",
-		Why:      "mtmon meldet sich mit dem neuen Read-only-Benutzer an. Klappt das nicht (z.B. falsche IP aus Sicht des Routers), wird automatisch alles zurückgebaut.",
-		Commands: []string{"GET /rest/system/resource  (als " + o.MonUser + ")"}, Undo: "–", Risk: "none"},
+	a = append(a, action{Step: Step{Key: "verify", Title: "Test: log in with the new user",
+		Why:      "mtmon logs in with the new read-only user. If that fails (e.g. wrong IP from the router's point of view), everything is rolled back automatically.",
+		Commands: []string{"GET /rest/system/resource  (as " + o.MonUser + ")"}, Undo: "–", Risk: "none"},
 		run: func(ctx context.Context, r *runner) error { return r.verify(ctx) }})
 	return a
 }

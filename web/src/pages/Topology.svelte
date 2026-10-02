@@ -2,6 +2,7 @@
   import { api } from '../lib/api.js'
   import { go } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
+  import { t, tr } from '../lib/i18n.svelte.js'
   import { bps } from '../lib/format.js'
 
   const d = poll(() => api('/topology'), 5000)
@@ -33,12 +34,12 @@
   const col = e => e.kind === 'wifi' ? 'var(--accent)' : 'var(--border-2)'
 </script>
 
-<div class="head"><h1>Topology</h1><span class="muted">from LLDP/MNDP neighbors, wifi registrations and bridge hosts</span>
-  <div class="legend" style="margin-left:auto"><span><i style="background:var(--accent)"></i>Wi-Fi</span><span><i style="background:var(--border-2)"></i>Wired / uplink</span></div></div>
-{#if d.error}<div class="warnbox">{d.error}</div>{/if}
+<div class="head"><h1>{t('Topology')}</h1><span class="muted">{t('from LLDP/MNDP neighbors, wifi registrations and bridge hosts')}</span>
+  <div class="legend" style="margin-left:auto"><span><i style="background:var(--accent)"></i>{t('Wi-Fi')}</span><span><i style="background:var(--border-2)"></i>{t('Wired / uplink')}</span></div></div>
+{#if d.error}<div class="warnbox">{tr(d.error)}</div>{/if}
 <div class="card scroll" style="padding:12px">
   {#if d.data && d.data.nodes.length}
-    <svg width={layout.width} height={layout.height} role="img" aria-label="Network topology">
+    <svg width={layout.width} height={layout.height} role="img" aria-label={t('Network topology')}>
       {#each layout.edges as e}
         {@const a = layout.pos.get(e.from)} {@const b = layout.pos.get(e.to)}
         {#if a && b}<path d="M{a.x} {a.y + 18} C{a.x} {(a.y + b.y) / 2}, {b.x} {(a.y + b.y) / 2}, {b.x} {b.y - 18}" fill="none" stroke={col(e)} stroke-width={w(e)} stroke-dasharray={e.kind === 'wifi' ? '5 4' : ''} opacity=".85" />{/if}
@@ -63,6 +64,6 @@
         {/if}
       {/each}
     </svg>
-  {:else}<div class="empty">{d.loading ? 'Loading…' : 'No devices or clients yet'}</div>{/if}
+  {:else}<div class="empty">{d.loading ? t('Loading…') : t('No devices or clients yet')}</div>{/if}
 </div>
 <style>.head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; } .node { cursor: pointer; } .node:hover rect { stroke: var(--accent); }</style>

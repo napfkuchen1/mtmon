@@ -131,7 +131,7 @@ func (c *Classifier) Set(rs []store.ServiceRule) {
 		if r.Category != "" {
 			cats[r.Name] = r.Category
 		} else if cats[r.Name] == "" {
-			cats[r.Name] = "Eigene"
+			cats[r.Name] = "Custom"
 		}
 	}
 	c.mu.Lock()

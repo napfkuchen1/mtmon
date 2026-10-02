@@ -1,4 +1,5 @@
-const fmtN = (i, n) => (i === 0 || n >= 100 ? n.toFixed(0) : n.toFixed(1).replace(/\.0$/, ''))
+import { t, i18n } from './i18n.svelte.js'
+const fmtN = (i, n) => (i === 0 || n >= 100 ? Math.round(n) : Math.round(n * 10) / 10).toLocaleString(i18n.locale, { maximumFractionDigits: 1 })
 export function bytes(n) {
   n = Number(n) || 0
   const u = ['B', 'KB', 'MB', 'GB', 'TB']
@@ -13,7 +14,7 @@ export function bps(n) {
   while (n >= 1000 && i < u.length - 1) { n /= 1000; i++ }
   return fmtN(i, n) + ' ' + u[i]
 }
-export function num(n) { return (Number(n) || 0).toLocaleString('en-US') }
+export function num(n) { return (Number(n) || 0).toLocaleString(i18n.locale) }
 export function dur(s) {
   s = Math.floor(Number(s) || 0)
   const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60)
@@ -25,17 +26,17 @@ export function dur(s) {
 export function ago(ts) {
   if (!ts) return '—'
   const s = Math.floor(Date.now() / 1000 - ts)
-  if (s < 5) return 'just now'
-  if (s < 60) return s + 's ago'
-  if (s < 3600) return Math.floor(s / 60) + 'm ago'
-  if (s < 86400) return Math.floor(s / 3600) + 'h ago'
-  return Math.floor(s / 86400) + 'd ago'
+  if (s < 5) return t('just now')
+  if (s < 60) return t('{n}s ago', { n: s })
+  if (s < 3600) return t('{n}m ago', { n: Math.floor(s / 60) })
+  if (s < 86400) return t('{n}h ago', { n: Math.floor(s / 3600) })
+  return t('{n}d ago', { n: Math.floor(s / 86400) })
 }
 export function clock(ts) {
-  return new Date(ts * 1000).toLocaleTimeString([], { hour12: false })
+  return new Date(ts * 1000).toLocaleTimeString(i18n.locale, { hour12: false })
 }
 export function datetime(ts) {
-  return new Date(ts * 1000).toLocaleString([], { hour12: false, month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return new Date(ts * 1000).toLocaleString(i18n.locale, { hour12: false, month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 export function flag(cc) {
   if (!cc || cc.length !== 2) return ''

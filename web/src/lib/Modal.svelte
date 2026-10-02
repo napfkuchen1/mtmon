@@ -1,4 +1,5 @@
 <script>
+  import { t } from './i18n.svelte.js'
   let { title = '', onclose, wide = false, children, footer } = $props()
   function key(e) { if (e.key === 'Escape') onclose?.() }
 </script>
@@ -6,7 +7,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div class="ov" onclick={e => e.target === e.currentTarget && onclose?.()}>
   <div class="dlg" class:wide role="dialog" aria-modal="true" aria-label={title}>
-    <div class="h"><h2>{title}</h2><button class="x" aria-label="Close" onclick={() => onclose?.()}>✕</button></div>
+    <div class="h"><h2>{title}</h2><button class="x" aria-label={t('Close')} onclick={() => onclose?.()}>✕</button></div>
     <div class="b">{@render children?.()}</div>
     {#if footer}<div class="f">{@render footer()}</div>{/if}
   </div>

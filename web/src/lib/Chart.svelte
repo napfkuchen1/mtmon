@@ -1,8 +1,9 @@
 <script>
   // Lightweight SVG area/line chart. series: [{name,color,points:[{x,y}]}]
-  let { series = [], height = 190, fmt = v => String(v), xfmt: xf = null, empty = 'No data yet', bars = false, step = 0 } = $props()
+  import { t, i18n } from './i18n.svelte.js'
+  let { series = [], height = 190, fmt = v => String(v), xfmt: xf = null, empty = null, bars = false, step = 0 } = $props()
   let w = $state(600)
-  const xfmt = x => xf ? xf(x) : new Date(x * 1000).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', ...(x1 - x0 < 900 ? { second: '2-digit' } : {}) })
+  const xfmt = x => xf ? xf(x) : new Date(x * 1000).toLocaleTimeString(i18n.locale, { hour12: false, hour: '2-digit', minute: '2-digit', ...(x1 - x0 < 900 ? { second: '2-digit' } : {}) })
   const pad = { l: 78, r: 10, t: 10, b: 22 }
   let hover = $state(null)
 
@@ -48,9 +49,9 @@
 
 <div class="wrap" bind:clientWidth={w}>
   {#if !all.length}
-    <div class="empty" style="height:{height}px;display:flex;align-items:center;justify-content:center">{empty}</div>
+    <div class="empty" style="height:{height}px;display:flex;align-items:center;justify-content:center">{empty ?? t('No data yet')}</div>
   {:else}
-    <svg width={w} {height} role="img" aria-label="Traffic chart" onmousemove={move} onmouseleave={() => (hover = null)}>
+    <svg width={w} {height} role="img" aria-label={t('Traffic chart')} onmousemove={move} onmouseleave={() => (hover = null)}>
       <defs>
         {#each series as s, i}
           <linearGradient id="g{uid}{i}" x1="0" x2="0" y1="0" y2="1">

@@ -37,6 +37,7 @@ type Manager struct {
 	snaps  map[string]*devSnap
 	known  map[string]bool
 	primed bool
+	self   map[string]bool // MACs of the managed devices' own interfaces (never clients)
 }
 
 type devSnap struct {
@@ -50,7 +51,7 @@ type devSnap struct {
 
 func NewManager(c *config.Config, s *store.Store, h *live.Hub, e *enrich.Enricher, ev Events, log *slog.Logger) *Manager {
 	return &Manager{Cfg: c, St: s, Hub: h, En: e, Ev: ev, Log: log, Scale: 1,
-		snaps: map[string]*devSnap{}, known: map[string]bool{}, reload: make(chan struct{}, 1)}
+		snaps: map[string]*devSnap{}, known: map[string]bool{}, self: map[string]bool{}, reload: make(chan struct{}, 1)}
 }
 
 // Reload asks Run to reconcile workers with the current device list (add / remove / change).
@@ -330,6 +331,7 @@ func (w *worker) interfaces(ctx context.Context) error {
 	}
 	now := time.Now()
 	var rates []live.IfRate
+	w.m.noteSelfMACs(rows)
 	for _, r := range rows {
 		name := r["name"]
 		if name == "" || r.Bool("disabled") {
@@ -446,6 +448,34 @@ func parseSignal(s string) int {
 	return int((Row{"x": s}).Int("x"))
 }
 
+// noteSelfMACs remembers the MAC addresses of a managed device's own interfaces, so the router/AP itself
+// (seen by other devices through ARP or the bridge host table) is not listed as a client.
+func (m *Manager) noteSelfMACs(rows []Row) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, r := range rows {
+		if mac := store.NormMAC(r["mac-address"]); mac != "" {
+			m.self[mac] = true
+		}
+	}
+}
+
+// isSelf reports whether the observation is one of the managed devices themselves.
+func (m *Manager) isSelf(mac, ip string) bool {
+	if m.self[store.NormMAC(mac)] {
+		return true
+	}
+	if ip == "" {
+		return false
+	}
+	for _, d := range m.Cfg.AllDevices() {
+		if d.Addr == ip {
+			return true
+		}
+	}
+	return false
+}
+
 // merge builds client observations from all device snapshots and writes them.
 func (m *Manager) merge() {
 	m.mu.Lock()
@@ -533,6 +563,14 @@ func (m *Manager) merge() {
 	}
 	m.mu.Unlock()
 
+	m.mu.Lock()
+	for mac, o := range byMAC {
+		if m.isSelf(mac, o.IP) {
+			delete(byMAC, mac)
+			m.St.DB.Exec(`DELETE FROM clients WHERE mac=?`, mac) // cleanup of rows created by earlier versions
+		}
+	}
+	m.mu.Unlock()
 	obs := make([]store.Observation, 0, len(byMAC))
 	ipmac := map[string]string{}
 	names := map[string]string{}

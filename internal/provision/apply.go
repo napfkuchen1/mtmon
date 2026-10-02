@@ -140,7 +140,7 @@ func randPass(n int) string {
 
 func (r *runner) createUser(ctx context.Context, o Options) error {
 	if _, err := r.create(ctx, "/user/group", map[string]string{"name": monGroup, "policy": "read,api,rest-api", "comment": ManagedTag},
-		"Benutzergruppe "+monGroup+" (read, api, rest-api)", map[string]string{"name": monGroup}); err != nil {
+		"User group "+monGroup+" (read, api, rest-api)", map[string]string{"name": monGroup}); err != nil {
 		return fmt.Errorf("group %q: %w (already exists? run offboarding of an old setup first)", monGroup, err)
 	}
 	r.res.MonUser, r.res.MonPass = o.MonUser, randPass(24)
@@ -148,7 +148,7 @@ func (r *runner) createUser(ctx context.Context, o Options) error {
 	if o.MtmonIP != "" {
 		body["address"] = o.MtmonIP + "/32"
 	}
-	if _, err := r.create(ctx, "/user", body, "Benutzer "+o.MonUser+" (nur von "+o.MtmonIP+")", map[string]string{"name": o.MonUser}); err != nil {
+	if _, err := r.create(ctx, "/user", body, "User "+o.MonUser+" (only from "+o.MtmonIP+")", map[string]string{"name": o.MonUser}); err != nil {
 		return fmt.Errorf("user %q: %w (already exists?)", o.MonUser, err)
 	}
 	return nil
@@ -159,7 +159,7 @@ func (r *runner) flow(ctx context.Context, k *Caps, o Options) error {
 	if !k.Flow.Enabled {
 		set["enabled"], set["interfaces"], set["cache-entries"] = "yes", "all", "16k"
 	}
-	if err := r.modify(ctx, "/ip/traffic-flow", "", set, "Traffic-Flow Einstellungen (Timeouts"+map[bool]string{true: ", aktiviert"}[!k.Flow.Enabled]+")"); err != nil {
+	if err := r.modify(ctx, "/ip/traffic-flow", "", set, "Traffic Flow settings (timeouts"+map[bool]string{true: ", enabled"}[!k.Flow.Enabled]+")"); err != nil {
 		return err
 	}
 	port := fmt.Sprint(o.FlowPort)
@@ -168,7 +168,7 @@ func (r *runner) flow(ctx context.Context, k *Caps, o Options) error {
 		tgt["src-address"] = strings.TrimPrefix(sa, " src-address=")
 	}
 	_, err := r.create(ctx, "/ip/traffic-flow/target", tgt,
-		"Traffic-Flow Ziel "+o.MtmonIP+":"+port, map[string]string{"dst-address": o.MtmonIP, "port": port})
+		"Traffic Flow target "+o.MtmonIP+":"+port, map[string]string{"dst-address": o.MtmonIP, "port": port})
 	return err
 }
 
@@ -177,11 +177,11 @@ func (r *runner) syslog(ctx context.Context, o Options) error {
 	if sa := srcArg(o); sa != "" {
 		act["src-address"] = strings.TrimPrefix(sa, " src-address=")
 	}
-	if _, err := r.create(ctx, "/system/logging/action", act, "Logging-Action "+syslogAction, map[string]string{"name": syslogAction}); err != nil {
+	if _, err := r.create(ctx, "/system/logging/action", act, "Logging action "+syslogAction, map[string]string{"name": syslogAction}); err != nil {
 		return err
 	}
 	_, err := r.create(ctx, "/system/logging", map[string]string{"topics": "firewall", "action": syslogAction},
-		"Logging-Regel firewall → "+syslogAction, map[string]string{"action": syslogAction, "topics": "firewall"})
+		"Logging rule firewall → "+syslogAction, map[string]string{"action": syslogAction, "topics": "firewall"})
 	return err
 }
 
@@ -201,12 +201,12 @@ func (r *runner) fwLog(ctx context.Context, k *Caps, o Options) error {
 			meta.Prefix, meta.Managed = f.LogPrefix, false // already logs with its own prefix: leave untouched
 		case f.Log:
 			meta.Prefix = prefixFor(id)
-			if err := r.modify(ctx, "/ip/firewall/filter", id, map[string]string{"log-prefix": meta.Prefix}, "Log-Prefix "+meta.Prefix+" für "+f.Chain+"/"+f.Action); err != nil {
+			if err := r.modify(ctx, "/ip/firewall/filter", id, map[string]string{"log-prefix": meta.Prefix}, "Log prefix "+meta.Prefix+" for "+f.Chain+"/"+f.Action); err != nil {
 				return err
 			}
 		default:
 			meta.Prefix = prefixFor(id)
-			if err := r.modify(ctx, "/ip/firewall/filter", id, map[string]string{"log": "yes", "log-prefix": meta.Prefix}, "Logging an: "+f.Chain+"/"+f.Action+" "+f.Comment); err != nil {
+			if err := r.modify(ctx, "/ip/firewall/filter", id, map[string]string{"log": "yes", "log-prefix": meta.Prefix}, "Logging enabled: "+f.Chain+"/"+f.Action+" "+f.Comment); err != nil {
 				return err
 			}
 		}
@@ -217,7 +217,7 @@ func (r *runner) fwLog(ctx context.Context, k *Caps, o Options) error {
 
 func (r *runner) logNew(ctx context.Context) error {
 	_, err := r.create(ctx, "/ip/firewall/filter", map[string]string{"chain": "forward", "action": "passthrough", "connection-state": "new",
-		"log": "yes", "log-prefix": "MTM-NEW", "comment": ManagedTag + ": log new connections"}, "Regel: neue Verbindungen loggen (MTM-NEW)",
+		"log": "yes", "log-prefix": "MTM-NEW", "comment": ManagedTag + ": log new connections"}, "Rule: log new connections (MTM-NEW)",
 		map[string]string{"log-prefix": "MTM-NEW"})
 	if err == nil {
 		r.res.FwMeta = append(r.res.FwMeta, FwMeta{Prefix: "MTM-NEW", Chain: "forward", Action: "accept", Descr: "passed all drop rules (default accept)", Managed: true})
@@ -228,7 +228,7 @@ func (r *runner) logNew(ctx context.Context) error {
 func (r *runner) fasttrack(ctx context.Context, k *Caps) error {
 	for _, f := range k.Filter {
 		if f.Action == "fasttrack-connection" && !f.Disabled {
-			if err := r.modify(ctx, "/ip/firewall/filter", f.ID, map[string]string{"disabled": "yes"}, "FastTrack-Regel deaktiviert"); err != nil {
+			if err := r.modify(ctx, "/ip/firewall/filter", f.ID, map[string]string{"disabled": "yes"}, "FastTrack rule disabled"); err != nil {
 				return err
 			}
 		}
@@ -288,7 +288,7 @@ func Rollback(ctx context.Context, cl *poller.Client, entries []store.ManifestEn
 		if e.State == "reverted" {
 			continue
 		}
-		sr := StepResult{Key: e.Kind, Title: "Zurückgebaut: " + e.Descr, OK: true}
+		sr := StepResult{Key: e.Kind, Title: "Rolled back: " + e.Descr, OK: true}
 		st := "reverted"
 		if err := undoOne(ctx, cl, e); err != nil {
 			sr.OK, sr.Msg, st = false, err.Error(), "revert-failed"

@@ -518,8 +518,10 @@ func (s *Server) setup(w http.ResponseWriter, r *http.Request) {
 			"/ip traffic-flow target add dst-address=" + ip + " port=" + port + " version=ipfix",
 		"api_user": "/user group add name=mtmon-ro policy=read,api,rest-api,!local,!telnet,!ssh,!ftp,!reboot,!write,!policy,!test,!winbox,!password,!web,!sniff,!sensitive,!romon\n" +
 			"/user add name=mtmon group=mtmon-ro password=CHANGE_ME address=" + ip + "/32",
-		"rest_tls": "/certificate add name=mtmon-ssl common-name=$[/system identity get name] days-valid=3650 key-usage=tls-server\n" +
-			"/certificate sign mtmon-ssl\n" +
+		"rest_tls": "/certificate add name=mtmon-ca common-name=mtmon-ca days-valid=3650 key-usage=key-cert-sign,crl-sign\n" +
+			"/certificate sign mtmon-ca\n" +
+			"/certificate add name=mtmon-ssl common-name=<ROUTER-IP> subject-alt-name=IP:<ROUTER-IP> days-valid=3650 key-usage=digital-signature,key-encipherment,tls-server\n" +
+			"/certificate sign mtmon-ssl ca=mtmon-ca\n" +
 			"/ip service set www-ssl certificate=mtmon-ssl disabled=no address=" + ip + "/32",
 		"fasttrack": "Traffic-Flow only sees traffic that is processed by the router CPU (MikroTik docs: hardware-offloaded traffic, e.g. bridge HW offload/switch-chip forwarding, is not exported). " +
 			"FastTrack-ed connections also bypass most of the packet path, so their flows can be missing or incomplete (community-reported; verify on your router). " +

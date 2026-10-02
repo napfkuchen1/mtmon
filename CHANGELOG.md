@@ -8,6 +8,23 @@ Version `1.0.0` will mean "verified on a range of real MikroTik hardware".
 Every release lists what is **new**, what **changed**, and what was **fixed**. Upgrading is always the same:
 run the installer again and choose *update* (a snapshot of the container is taken first).
 
+## [0.6.0] - 2026-10-02
+
+### New
+- **English by default, German on request.** The whole interface is now in standard English. A language switch
+  (English / Deutsch) sits at the bottom of the sidebar and remembers your choice. Dates, numbers and the texts
+  that mtmon shows about your routers (setup steps, warnings, rollback messages) follow the chosen language.
+
+### Fixed
+- **Routers and access points no longer show up as clients.** A device could appear in the client list (and trigger a
+  "new client" notice) when another device saw it on the network. mtmon now recognises the addresses of its own managed
+  devices and ignores them; entries created by earlier versions are cleaned up automatically.
+- The manual certificate commands shown under Settings now work (they create a small certificate authority first,
+  which RouterOS requires).
+
+### Changed
+- Screenshots in the README are English.
+
 ## [0.5.0] - 2026-10-02
 
 First public beta. This release resets the version numbering: the earlier tags `v2.0.0` to `v2.0.3`
@@ -35,4 +52,3 @@ were internal milestones and are superseded by this one (same code, plus the cha
 ### Known limits
 - Tested against a RouterOS simulator and a first set of real devices (hEX S, wAP ax, Audience on RouterOS 7.24).
   Other models may behave differently. Please report issues.
-- A router or access point can show up in the client list when another device sees it on the network (it then appears with its own MAC and IP). Planned fix: recognise the managed devices' own addresses.

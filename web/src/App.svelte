@@ -1,6 +1,7 @@
 <script>
   import { app, checkSession, parseHash, go, openLive, closeLive, applyTheme, setTheme, setRange } from './lib/state.svelte.js'
   import { api } from './lib/api.js'
+  import { t, tr, i18n } from './lib/i18n.svelte.js'
   import Login from './pages/Login.svelte'
   import Overview from './pages/Overview.svelte'
   import Live from './pages/Live.svelte'
@@ -40,10 +41,10 @@
   let openAlerts = $state(0)
   $effect(() => {
     if (!app.user) return
-    let t, stop = false
-    const run = async () => { try { openAlerts = (await api('/alerts')).filter(a => !a.acked && a.severity !== 'info').length } catch {} if (!stop) t = setTimeout(run, 15000) }
+    let timer, stop = false
+    const run = async () => { try { openAlerts = (await api('/alerts')).filter(a => !a.acked && a.severity !== 'info').length } catch {} if (!stop) timer = setTimeout(run, 15000) }
     run()
-    return () => { stop = true; clearTimeout(t) }
+    return () => { stop = true; clearTimeout(timer) }
   })
   async function logout() { try { await api('/logout', { method: 'POST' }) } catch {} app.user = false }
 </script>
@@ -63,33 +64,38 @@
         {#each nav as [id, label, d]}
           <a href="#/{id}" class:on={active === id}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path {d} /></svg>
-            {label}
+            {t(label)}
             {#if id === 'alerts' && openAlerts}<span class="cnt">{openAlerts}</span>{/if}
           </a>
         {/each}
       </nav>
       <div class="foot">
-        <div class="conn"><span class="dot" class:ok={app.live.connected} class:bad={!app.live.connected}></span>{app.live.connected ? 'Live connected' : 'Reconnecting…'}</div>
+        <div class="conn"><span class="dot" class:ok={app.live.connected} class:bad={!app.live.connected}></span>{app.live.connected ? t('Live connected') : t('Reconnecting…')}</div>
         <div class="row2">
-          <select class="input sm" aria-label="Theme" value={app.theme} onchange={e => setTheme(e.target.value)}>
-            <option value="auto">Auto</option><option value="light">Light</option><option value="dark">Dark</option>
+          <select class="input sm" aria-label={t('Theme')} value={app.theme} onchange={e => setTheme(e.target.value)}>
+            <option value="auto">{t('Auto')}</option><option value="light">{t('Light')}</option><option value="dark">{t('Dark')}</option>
           </select>
-          <button class="btn sm" onclick={logout}>Sign out</button>
+          <select class="input sm" aria-label={t('Language')} value={i18n.lang} onchange={e => i18n.set(e.target.value)}>
+            <option value="en">English</option><option value="de">Deutsch</option>
+          </select>
+        </div>
+        <div class="row2">
+          <button class="btn sm" style="flex:1" onclick={logout}>{t('Sign out')}</button>
         </div>
       </div>
     </aside>
     <main>
       <header>
         <div class="mob">
-          <select class="input" aria-label="Navigate" value={active} onchange={e => go(e.target.value)}>
-            {#each nav as [id, label]}<option value={id}>{label}</option>{/each}
+          <select class="input" aria-label={t('Navigate')} value={active} onchange={e => go(e.target.value)}>
+            {#each nav as [id, label]}<option value={id}>{t(label)}</option>{/each}
           </select>
         </div>
         <div class="spacer"></div>
         {#if showRange}
-          <div class="tabs" role="tablist" aria-label="Time range">
+          <div class="tabs" role="tablist" aria-label={t('Time range')}>
             {#each ranges as [id, label]}
-              <button role="tab" aria-selected={app.range === id} class:on={app.range === id} onclick={() => setRange(id)}>{label}</button>
+              <button role="tab" aria-selected={app.range === id} class:on={app.range === id} onclick={() => setRange(id)}>{id === 'live' ? t(label) : label}</button>
             {/each}
           </div>
         {/if}
@@ -107,12 +113,12 @@
         {:else if app.route.name === 'topology'}<Topology />
         {:else if app.route.name === 'alerts'}<Alerts />
         {:else if app.route.name === 'settings'}<Settings />
-        {:else}<div class="empty">Page not found. <a href="#/overview">Go to Overview</a></div>{/if}
+        {:else}<div class="empty">{t('Page not found.')} <a href="#/overview">{t('Go to Overview')}</a></div>{/if}
       </div>
     </main>
   </div>
 {/if}
-{#if app.toast}<div class="toast" role="status">{app.toast}</div>{/if}
+{#if app.toast}<div class="toast" role="status">{tr(app.toast)}</div>{/if}
 
 <style>
   .boot { height: 100vh; display: grid; place-items: center; }

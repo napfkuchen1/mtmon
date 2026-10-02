@@ -214,7 +214,7 @@ mtmon is young. Please read this before relying on it:
 * **Dropped packets** appear only through the firewall log. *Allowed* is an inference ("no drop was logged") unless you enable the optional log rule for new connections.
 * Domain names come from the router's DNS cache and optional reverse DNS. HTTPS SNI is not visible; DoH/DoT clients show up as IP addresses.
 * The wizard needs `www-ssl` already enabled on the router and does not create certificates.
-* The web UI is currently a mix of English and German (the newer pages and the wizard are German). An English translation is planned.
+* The web UI is English by default; a language switch in the sidebar offers German. Some screenshots may still show older wording.
 * Access points and switches are monitored (status, Wi-Fi clients, interfaces) but do not export flows.
 
 ## Troubleshooting

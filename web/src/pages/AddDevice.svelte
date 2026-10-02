@@ -1,5 +1,6 @@
 <script>
   import { api } from '../lib/api.js'
+  import { t, tr } from '../lib/i18n.svelte.js'
   import { go, toast } from '../lib/state.svelte.js'
   import Modal from '../lib/Modal.svelte'
   let { onclose, ondone } = $props()
@@ -18,40 +19,40 @@
   const rIP = $derived(f.addr.trim() || '<ROUTER-IP>')
   const mIP = typeof location !== 'undefined' ? location.hostname : '<MTMON-IP>'
   const reqs = $derived([
-    { id: 'cert', title: 'HTTPS-Dienst www-ssl mit Zertifikat', why: 'mtmon spricht die REST-API per HTTPS (Port 443). Ohne Zertifikat bricht der TLS-Handshake ab („tls: handshake failure“).',
+    { id: 'cert', title: t('HTTPS service www-ssl with certificate'), why: t('mtmon talks to the REST API over HTTPS (port 443). Without a certificate the TLS handshake fails (“tls: handshake failure”).'),
       cmd: `/certificate add name=mtmon-ca common-name=mtmon-ca days-valid=3650 key-usage=key-cert-sign,crl-sign
 /certificate sign mtmon-ca
 /certificate add name=mtmon-ssl common-name=${rIP} subject-alt-name=IP:${rIP} days-valid=3650 key-usage=digital-signature,key-encipherment,tls-server
 /certificate sign mtmon-ssl ca=mtmon-ca
 /ip service set www-ssl certificate=mtmon-ssl disabled=no address=<LAN-NETZ>/24` },
-    { id: 'fw', title: 'Firewall: mtmon darf auf den Router', why: 'Hat der Router eine „drop all not from LAN“-Regel (Input-Chain), muss mtmon vorher erlaubt sein. Die Regel nach oben schieben.',
+    { id: 'fw', title: t('Firewall: allow mtmon to reach the router'), why: t('If the router has a “drop all not from LAN” rule (input chain), mtmon must be allowed before it. Move the rule to the top.'),
       cmd: `/ip firewall filter add chain=input action=accept protocol=tcp dst-port=443 src-address=${mIP} comment="mtmon REST" place-before=0` },
-    { id: 'user', title: 'Admin-Zugang für die Einrichtung', why: 'Einmaliger Login mit Gruppe full (oder write + api + rest-api + policy). mtmon legt einen eigenen Nur-Lese-Benutzer an und speichert den Admin-Login nicht.',
+    { id: 'user', title: t('Admin access for the setup'), why: t('One-time login with group full (or write + api + rest-api + policy). mtmon creates its own read-only user and does not store the admin login.'),
       cmd: `/user print where name=<ADMIN-USER>` },
-    { id: 'net', title: 'Netz: Router erreichen mtmon (UDP)', why: 'Traffic Flow geht per UDP 2055, Firewall-Syslog per UDP 5514 vom Router zu mtmon. Liegt mtmon in einem anderen Netz, muss die Firewall das erlauben.',
+    { id: 'net', title: t('Network: routers can reach mtmon (UDP)'), why: t('Traffic Flow goes via UDP 2055, firewall syslog via UDP 5514 from the router to mtmon. If mtmon is in a different network, the firewall must allow this.'),
       cmd: `/ip firewall filter add chain=forward action=accept protocol=udp dst-address=${mIP} dst-port=2055,5514 comment="mtmon flows+syslog" place-before=0` },
   ])
   let reqOpen = $state(false)
-  async function copy(t) { try { await navigator.clipboard.writeText(t); toast?.('Kopiert') } catch { toast?.('Kopieren nicht möglich – Text markieren') } }
-  $effect(() => { if (err && /TLS|Zertifikat|abgelehnt|Zeitüberschreitung|www-ssl/i.test(err)) reqOpen = true })
+  async function copy(t) { try { await navigator.clipboard.writeText(t); toast?.(t('Copied')) } catch { toast?.(t('Copy failed – select the text manually')) } }
+  $effect(() => { if (err && /TLS|certificate|Zertifikat|refused|abgelehnt|timeout|timed out|Zeitüberschreitung|www-ssl/i.test(err)) reqOpen = true })
 
   const caps = $derived(pr?.caps)
-  const risk = { none: ['ok', 'keine Auswirkung'], low: ['', 'gering'], medium: ['warn', 'mittel'] }
+  const risk = $derived({ none: ['ok', t('no impact')], low: ['', t('low')], medium: ['warn', t('medium')] })
 
   async function probe() {
     busy = true; err = ''
     try {
       pr = await api('/devices/probe', { method: 'POST', body: { addr: f.addr, port: +f.port || 443, user: f.user, pass: f.pass } })
       opt = JSON.parse(JSON.stringify(pr.options)); plan = pr.plan; fpOk = false; step = 'review'
-    } catch (e) { err = e.message } finally { busy = false }
+    } catch (e) { err = tr(e.message) } finally { busy = false }
   }
 
   // re-explain whenever options change
   $effect(() => {
     if (!opt || !pr || f.mode !== 'auto') return
     const o = JSON.parse(JSON.stringify(opt))
-    const t = setTimeout(async () => { try { plan = await api('/devices/plan', { method: 'POST', body: { caps: pr.caps, options: o } }) } catch {} }, 250)
-    return () => clearTimeout(t)
+    const tm = setTimeout(async () => { try { plan = await api('/devices/plan', { method: 'POST', body: { caps: pr.caps, options: o } }) } catch {} }, 250)
+    return () => clearTimeout(tm)
   })
 
   function toggleRule(id) { opt.fw_rules = opt.fw_rules?.includes(id) ? opt.fw_rules.filter(x => x !== id) : [...(opt.fw_rules || []), id] }
@@ -61,48 +62,48 @@
     try {
       if (f.mode === 'readonly') {
         await api('/devices/readonly', { method: 'POST', body: { addr: f.addr, port: +f.port || 443, user: f.user, pass: f.pass, fingerprint: pr.fingerprint, name: opt.name, role: opt.role, site: opt.site } })
-        result = { result: { ok: true, steps: [{ title: 'Gerät hinzugefügt (nur lesend)', ok: true }] }, name: opt.name }
+        result = { result: { ok: true, steps: [{ title: t('Device added (read-only)'), ok: true }] }, name: opt.name }
       } else {
         result = await api('/devices/provision', { method: 'POST', body: { addr: f.addr, port: +f.port || 443, user: f.user, pass: f.pass, fingerprint: pr.fingerprint, options: opt } })
       }
       f.pass = ''
       step = 'done'; ondone?.()
-    } catch (e) { err = e.message; step = 'review' } finally { busy = false }
+    } catch (e) { err = tr(e.message); step = 'review' } finally { busy = false }
   }
   const ok = $derived(result?.result?.ok)
 </script>
 
-<Modal title={step === 'connect' ? 'Gerät hinzufügen' : step === 'review' ? 'Gerät prüfen & Einrichtung bestätigen' : step === 'running' ? 'Richte ein …' : ok ? 'Fertig' : 'Einrichtung fehlgeschlagen'} wide={step !== 'connect'} {onclose}>
+<Modal title={step === 'connect' ? t('Add device') : step === 'review' ? t('Review device & confirm setup') : step === 'running' ? t('Setting up …') : ok ? t('Done') : t('Setup failed')} wide={step !== 'connect'} {onclose}>
   {#if step === 'connect'}
-    <p class="muted" style="margin-top:0">Gib die Adresse und einen <b>Admin-Zugang</b> des MikroTik ein. mtmon liest die Fähigkeiten des Geräts aus, zeigt dir genau, was es einrichten würde, und ändert erst nach deiner Bestätigung etwas.</p>
+    <p class="muted" style="margin-top:0">{t('Enter the address and an')} <b>{t('admin account')}</b> {t('of the MikroTik. mtmon reads the device’s capabilities, shows you exactly what it would set up, and only changes something after your confirmation.')}</p>
     <details class="req" bind:open={reqOpen}>
-      <summary><b>Voraussetzungen am Router</b> <span class="muted">· einmal prüfen, bevor du verbindest</span></summary>
-      <p class="muted" style="margin:8px 0">Die Befehle gelten für RouterOS 7 (Terminal oder WinBox → New Terminal). Platzhalter in <span class="mono">&lt;…&gt;</span> ersetzt du. Die Adresse unten wird automatisch eingesetzt.</p>
+      <summary><b>{t('Requirements on the router')}</b> <span class="muted">· {t('check once before you connect')}</span></summary>
+      <p class="muted" style="margin:8px 0">{t('The commands apply to RouterOS 7 (terminal or WinBox → New Terminal). You replace placeholders in')} <span class="mono">&lt;…&gt;</span>. {t('The address below is inserted automatically.')}</p>
       {#each reqs as r, i (r.id)}
         <div class="step">
           <div class="sh" style="cursor:default"><span class="n">{i + 1}</span><b>{r.title}</b>
-            <button type="button" class="btn sm" style="margin-left:auto" onclick={() => copy(r.cmd)}>Kopieren</button></div>
+            <button type="button" class="btn sm" style="margin-left:auto" onclick={() => copy(r.cmd)}>{t('Copy')}</button></div>
           <div class="why">{r.why}</div>
           <pre class="code">{r.cmd}</pre>
         </div>
       {/each}
     </details>
     <form class="form" onsubmit={e => { e.preventDefault(); probe() }}>
-      <div class="row"><label style="flex:1">Adresse (IP oder Hostname)<input class="input mono" bind:value={f.addr} placeholder="192.168.88.1" required autocomplete="off" /></label>
-        <label style="width:110px">REST-Port<input class="input mono" type="number" bind:value={f.port} /></label></div>
-      <div class="row"><label style="flex:1">Benutzer<input class="input" bind:value={f.user} autocomplete="off" required /></label>
-        <label style="flex:1">Passwort<input class="input" type="password" bind:value={f.pass} autocomplete="new-password" required /></label></div>
+      <div class="row"><label style="flex:1">{t('Address (IP or hostname)')}<input class="input mono" bind:value={f.addr} placeholder="192.168.88.1" required autocomplete="off" /></label>
+        <label style="width:110px">{t('REST port')}<input class="input mono" type="number" bind:value={f.port} /></label></div>
+      <div class="row"><label style="flex:1">{t('User')}<input class="input" bind:value={f.user} autocomplete="off" required /></label>
+        <label style="flex:1">{t('Password')}<input class="input" type="password" bind:value={f.pass} autocomplete="new-password" required /></label></div>
       <div class="tabs" style="justify-self:start" role="tablist">
-        <button type="button" role="tab" aria-selected={f.mode === 'auto'} class:on={f.mode === 'auto'} onclick={() => (f.mode = 'auto')}>Auto-Setup (empfohlen)</button>
-        <button type="button" role="tab" aria-selected={f.mode === 'readonly'} class:on={f.mode === 'readonly'} onclick={() => (f.mode = 'readonly')}>Nur überwachen</button>
+        <button type="button" role="tab" aria-selected={f.mode === 'auto'} class:on={f.mode === 'auto'} onclick={() => (f.mode = 'auto')}>{t('Auto setup (recommended)')}</button>
+        <button type="button" role="tab" aria-selected={f.mode === 'readonly'} class:on={f.mode === 'readonly'} onclick={() => (f.mode = 'readonly')}>{t('Monitor only')}</button>
       </div>
       {#if f.mode === 'auto'}
-        <div class="info">Der Admin-Zugang wird <b>einmalig</b> benutzt und <b>nicht gespeichert</b>. mtmon legt dafür einen eigenen Read-only-Benutzer an und merkt sich jede Änderung, damit sie später per Offboarding vollständig zurückgebaut werden kann.</div>
+        <div class="info">{t('The admin account is used')} <b>{t('once')}</b> {t('and')} <b>{t('not stored')}</b>. {t('mtmon creates its own read-only user for this and records every change so it can later be fully undone via offboarding.')}</div>
       {:else}
-        <div class="info">Es wird nichts am Router geändert. Du trägst einen bestehenden Benutzer ein (idealerweise nur mit read/api/rest-api). Traffic Flow und Syslog musst du dann selbst einrichten (Settings → Router setup).</div>
+        <div class="info">{t('Nothing is changed on the router. You enter an existing user (ideally with read/api/rest-api only). You then have to set up Traffic Flow and syslog yourself (Settings → Router setup).')}</div>
       {/if}
       {#if err}<div class="warnbox">{err}</div>{/if}
-      <button class="btn primary" style="justify-self:start" disabled={busy}>{busy ? 'Prüfe …' : 'Verbinden & prüfen'}</button>
+      <button class="btn primary" style="justify-self:start" disabled={busy}>{busy ? t('Checking …') : t('Connect & check')}</button>
     </form>
 
   {:else if step === 'review' && pr}
@@ -110,71 +111,71 @@
       <div class="box">
         <h3>{caps.model || 'MikroTik'} <span class="muted">· RouterOS {caps.version}</span></h3>
         <div class="kv"><span>Identity</span><b>{caps.identity || '—'}</b></div>
-        <div class="kv"><span>Architektur / CPU</span><b>{[caps.arch, caps.cpu_count ? caps.cpu_count + ' Kerne' : '', caps.mem_total ? Math.round(caps.mem_total / 1048576) + ' MB RAM' : ''].filter(Boolean).join(' · ') || '—'}</b></div>
-        <div class="kv"><span>Erkannte Rolle</span><b>{caps.role} <span class="muted">({caps.role_why})</span></b></div>
-        <div class="kv"><span>WLAN</span><b>{#if caps.wifi_stack === 'wifi'}wifi-Paket · {caps.wifi_ifs.map(w => w.name + (w.ssid ? ' “' + w.ssid + '”' : '') + (w.band ? ' ' + w.band : '')).join(', ')}{:else if caps.wifi_stack === 'wireless'}Legacy-wireless{:else}keins{/if}</b></div>
-        <div class="kv"><span>Netz</span><b>{caps.dhcp_server ? 'DHCP-Server' : 'kein DHCP'} · {caps.nat ? 'NAT' : 'kein NAT'} · {caps.bridges?.length || 0} Bridge(s){caps.hw_offload ? ' · HW-Offload' : ''}</b></div>
-        <div class="kv"><span>Traffic Flow</span><b>{caps.traffic_flow.supported ? (caps.traffic_flow.enabled ? 'aktiv' : 'aus') : 'nicht unterstützt'}{#if caps.traffic_flow.targets?.length} · Ziele: {caps.traffic_flow.targets.join(', ')}{/if}</b></div>
-        <div class="kv"><span>Firewall</span><b>{caps.filter_rules?.length || 0} Filterregeln{caps.fasttrack ? ' · FastTrack aktiv' : ''}</b></div>
-        <div class="kv"><span>REST (HTTPS)</span><b>{caps.www_ssl ? 'aktiv' : 'AUS'}{caps.www_ssl_address ? ' · beschränkt auf ' + caps.www_ssl_address : ''}</b></div>
+        <div class="kv"><span>{t('Architecture / CPU')}</span><b>{[caps.arch, caps.cpu_count ? t('{n} cores', { n: caps.cpu_count }) : '', caps.mem_total ? Math.round(caps.mem_total / 1048576) + ' MB RAM' : ''].filter(Boolean).join(' · ') || '—'}</b></div>
+        <div class="kv"><span>{t('Detected role')}</span><b>{caps.role} <span class="muted">({tr(caps.role_why)})</span></b></div>
+        <div class="kv"><span>{t('Wi-Fi')}</span><b>{#if caps.wifi_stack === 'wifi'}{t('wifi package')} · {caps.wifi_ifs.map(w => w.name + (w.ssid ? ' “' + w.ssid + '”' : '') + (w.band ? ' ' + w.band : '')).join(', ')}{:else if caps.wifi_stack === 'wireless'}{t('Legacy wireless')}{:else}{t('none')}{/if}</b></div>
+        <div class="kv"><span>{t('Network')}</span><b>{caps.dhcp_server ? t('DHCP server') : t('no DHCP')} · {caps.nat ? 'NAT' : t('no NAT')} · {t('{n} bridge(s)', { n: caps.bridges?.length || 0 })}{caps.hw_offload ? ' · ' + t('HW offload') : ''}</b></div>
+        <div class="kv"><span>Traffic Flow</span><b>{caps.traffic_flow.supported ? (caps.traffic_flow.enabled ? t('active') : t('off')) : t('not supported')}{#if caps.traffic_flow.targets?.length} · {t('Targets:')} {caps.traffic_flow.targets.join(', ')}{/if}</b></div>
+        <div class="kv"><span>Firewall</span><b>{t('{n} filter rules', { n: caps.filter_rules?.length || 0 })}{caps.fasttrack ? ' · ' + t('FastTrack active') : ''}</b></div>
+        <div class="kv"><span>REST (HTTPS)</span><b>{caps.www_ssl ? t('active') : t('OFF')}{caps.www_ssl_address ? ' · ' + t('restricted to') + ' ' + caps.www_ssl_address : ''}</b></div>
         <div class="chips">{#each caps.packages || [] as p}<span class="badge">{p}</span>{/each}</div>
       </div>
       <div class="box">
-        <h3>Zertifikat</h3>
-        <p class="muted" style="margin:0 0 6px">Fingerprint (SHA-256) des Routers. mtmon pinnt ihn für alle weiteren Verbindungen. Vergleiche ihn bei Bedarf mit <span class="mono">/certificate print</span>.</p>
+        <h3>{t('Certificate')}</h3>
+        <p class="muted" style="margin:0 0 6px">{t('Fingerprint (SHA-256) of the router. mtmon pins it for all further connections. Compare it with')} <span class="mono">/certificate print</span> {t('if needed.')}</p>
         <div class="mono fp">{pr.fingerprint.match(/.{1,2}/g)?.join(':')}</div>
-        <label class="chk"><input type="checkbox" bind:checked={fpOk} /> Passt – diesem Gerät vertrauen</label>
-        {#each caps.warnings || [] as w}<div class="warnbox" style="margin-top:10px;font-size:12.5px">{w}</div>{/each}
-        {#if f.mode === 'auto' && !pr.can_write}<div class="warnbox" style="margin-top:10px">Dieser Benutzer hat keine Schreibrechte – Auto-Setup nicht möglich. Nimm einen Admin oder wähle „Nur überwachen“.</div>{/if}
+        <label class="chk"><input type="checkbox" bind:checked={fpOk} /> {t('Matches – trust this device')}</label>
+        {#each caps.warnings || [] as w}<div class="warnbox" style="margin-top:10px;font-size:12.5px">{tr(w)}</div>{/each}
+        {#if f.mode === 'auto' && !pr.can_write}<div class="warnbox" style="margin-top:10px">{t('This user has no write permissions – auto setup is not possible. Use an admin or choose “Monitor only”.')}</div>{/if}
       </div>
     </div>
 
     <div class="box" style="margin-top:14px">
-      <h3>Einstellungen</h3>
+      <h3>{t('Settings')}</h3>
       <div class="row">
-        <label style="flex:1">Name in mtmon<input class="input" bind:value={opt.name} maxlength="40" /></label>
-        <label style="width:150px">Rolle<select class="input" bind:value={opt.role}><option value="router">Router</option><option value="ap">Access Point</option><option value="switch">Switch</option></select></label>
-        <label style="flex:1">Standort<input class="input" bind:value={opt.site} maxlength="40" placeholder="optional" /></label>
+        <label style="flex:1">{t('Name in mtmon')}<input class="input" bind:value={opt.name} maxlength="40" /></label>
+        <label style="width:150px">{t('Role')}<select class="input" bind:value={opt.role}><option value="router">{t('Router')}</option><option value="ap">{t('Access Point')}</option><option value="switch">{t('Switch')}</option></select></label>
+        <label style="flex:1">{t('Site')}<input class="input" bind:value={opt.site} maxlength="40" placeholder={t('optional')} /></label>
       </div>
       {#if f.mode === 'auto'}
         <div class="row" style="margin-top:10px">
-          <label style="flex:1">IP von mtmon aus Sicht des Routers<input class="input mono" bind:value={opt.mtmon_ip} /></label>
-          <label style="width:130px">Flow-Port (UDP)<input class="input mono" type="number" bind:value={opt.flow_port} /></label>
-          <label style="width:130px">Syslog-Port (UDP)<input class="input mono" type="number" bind:value={opt.syslog_port} /></label>
+          <label style="flex:1">{t('mtmon IP as seen by the router')}<input class="input mono" bind:value={opt.mtmon_ip} /></label>
+          <label style="width:130px">{t('Flow port (UDP)')}<input class="input mono" type="number" bind:value={opt.flow_port} /></label>
+          <label style="width:130px">{t('Syslog port (UDP)')}<input class="input mono" type="number" bind:value={opt.syslog_port} /></label>
         </div>
         <div class="opts">
-          <label class="chk"><input type="checkbox" bind:checked={opt.flow} disabled={!caps.traffic_flow.supported} /> <b>Traffic Flow</b> an mtmon exportieren <span class="muted">(wer verbindet sich wohin, Ports, Bytes)</span></label>
-          <label class="chk"><input type="checkbox" bind:checked={opt.syslog} /> <b>Firewall-Logs</b> per Syslog senden <span class="muted">(welche Regel hat geblockt)</span></label>
-          {#if caps.fasttrack}<label class="chk"><input type="checkbox" bind:checked={opt.disable_fasttrack} /> FastTrack deaktivieren <span class="muted">(vollständige Zahlen, mehr Router-CPU)</span></label>{/if}
-          {#if opt.syslog}<label class="chk"><input type="checkbox" bind:checked={opt.log_new} /> Neue Verbindungen am Ende der forward-Chain loggen <span class="muted">(Beleg „durchgelassen“, mehr Log-Volumen)</span></label>{/if}
+          <label class="chk"><input type="checkbox" bind:checked={opt.flow} disabled={!caps.traffic_flow.supported} /> <b>Traffic Flow</b> {t('export to mtmon')} <span class="muted">({t('who connects where, ports, bytes')})</span></label>
+          <label class="chk"><input type="checkbox" bind:checked={opt.syslog} /> <b>{t('Firewall logs')}</b> {t('send via syslog')} <span class="muted">({t('which rule blocked')})</span></label>
+          {#if caps.fasttrack}<label class="chk"><input type="checkbox" bind:checked={opt.disable_fasttrack} /> {t('Disable FastTrack')} <span class="muted">({t('complete numbers, more router CPU')})</span></label>{/if}
+          {#if opt.syslog}<label class="chk"><input type="checkbox" bind:checked={opt.log_new} /> {t('Log new connections at the end of the forward chain')} <span class="muted">({t('evidence of “allowed”, more log volume')})</span></label>{/if}
         </div>
         {#if opt.syslog && caps.filter_rules?.length}
-          <h3 style="margin-top:14px">Bei welchen Firewall-Regeln soll Logging an?</h3>
+          <h3 style="margin-top:14px">{t('Which firewall rules should have logging enabled?')}</h3>
           <div class="scroll" style="max-height:230px;overflow-y:auto"><table>
-            <thead><tr><th></th><th>Chain</th><th>Aktion</th><th>Regel</th></tr></thead>
+            <thead><tr><th></th><th>Chain</th><th>{t('Action')}</th><th>{t('Rule')}</th></tr></thead>
             <tbody>{#each caps.filter_rules.filter(r => r.chain && !r.managed) as r (r.id)}
-              <tr><td><input type="checkbox" checked={opt.fw_rules?.includes(r.id)} onchange={() => toggleRule(r.id)} disabled={r.disabled} aria-label="Logging für Regel {r.id}" /></td>
+              <tr><td><input type="checkbox" checked={opt.fw_rules?.includes(r.id)} onchange={() => toggleRule(r.id)} disabled={r.disabled} aria-label={t('Logging for rule {id}', { id: r.id })} /></td>
                 <td>{r.chain}</td><td><span class="badge" class:bad={r.action === 'drop' || r.action === 'reject'}>{r.action}</span></td>
-                <td><b>{r.comment || '—'}</b><div class="muted mono" style="font-size:11.5px">{r.summary}{r.disabled ? ' · deaktiviert' : ''}{r.log ? ' · loggt bereits' : ''}</div></td></tr>
+                <td><b>{r.comment || '—'}</b><div class="muted mono" style="font-size:11.5px">{r.summary}{r.disabled ? ' · ' + t('disabled') : ''}{r.log ? ' · ' + t('already logging') : ''}</div></td></tr>
             {/each}</tbody></table></div>
-          <p class="muted" style="font-size:12.5px;margin:6px 0 0">Vorausgewählt: alle aktiven Drop/Reject-Regeln. Nur <span class="mono">log</span> und <span class="mono">log-prefix</span> werden geändert.</p>
+          <p class="muted" style="font-size:12.5px;margin:6px 0 0">{t('Preselected: all active drop/reject rules. Only')} <span class="mono">log</span> {t('and')} <span class="mono">log-prefix</span> {t('are changed.')}</p>
         {/if}
       {/if}
     </div>
 
     {#if f.mode === 'auto'}
       <div class="box" style="margin-top:14px">
-        <h3>Was mtmon auf dem Router ändert <span class="muted">({plan.length} Schritte)</span></h3>
-        <p class="muted" style="margin:0 0 10px">Jeder Schritt wird mitprotokolliert und lässt sich per Offboarding zurückbauen. Schlägt irgendein Schritt fehl, baut mtmon automatisch alles wieder zurück.</p>
+        <h3>{t('What mtmon changes on the router')} <span class="muted">({t('{n} steps', { n: plan.length })})</span></h3>
+        <p class="muted" style="margin:0 0 10px">{t('Every step is recorded and can be undone via offboarding. If any step fails, mtmon automatically undoes everything again.')}</p>
         {#each plan as s, i (s.key)}
           <div class="step">
             <button class="sh" onclick={() => (open[s.key] = !open[s.key])} aria-expanded={!!open[s.key]}>
-              <span class="n">{i + 1}</span><b>{s.title}</b><span class="badge {risk[s.risk]?.[0]}">Risiko: {risk[s.risk]?.[1]}</span><span class="chev">{open[s.key] ? '▾' : '▸'}</span>
+              <span class="n">{i + 1}</span><b>{tr(s.title)}</b><span class="badge {risk[s.risk]?.[0]}">{t('Risk')}: {risk[s.risk]?.[1]}</span><span class="chev">{open[s.key] ? '▾' : '▸'}</span>
             </button>
-            <div class="why">{s.why}</div>
+            <div class="why">{tr(s.why)}</div>
             {#if open[s.key]}
               <pre class="code">{s.commands.join('\n')}</pre>
-              <div class="muted" style="font-size:12.5px">↩ Rückbau: {s.undo}</div>
+              <div class="muted" style="font-size:12.5px">↩ {t('Undo')}: {tr(s.undo)}</div>
             {/if}
           </div>
         {/each}
@@ -183,31 +184,31 @@
     {#if err}<div class="warnbox" style="margin-top:12px">{err}</div>{/if}
 
   {:else if step === 'running'}
-    <div class="empty"><span class="dot pulse"></span> Richte {opt.name} ein … (Backup, Benutzer, Traffic Flow, Syslog, Test)</div>
+    <div class="empty"><span class="dot pulse"></span> {t('Setting up {name} … (backup, user, Traffic Flow, syslog, test)', { name: opt.name })}</div>
 
   {:else if step === 'done' && result}
     <div class="warnbox" style="background:{ok ? 'var(--ok-bg)' : 'var(--bad-bg)'};border-color:{ok ? 'var(--ok)' : 'var(--bad)'}">
-      {#if ok}<b>{opt.name} ist eingerichtet.</b> Der Router sendet jetzt Flows{opt.syslog ? ' und Firewall-Logs' : ''} an mtmon. Die ersten Daten erscheinen nach wenigen Sekunden.
-      {:else}<b>Einrichtung fehlgeschlagen.</b> {result.result.error}
-        {#if result.result.rolled_back}<br>mtmon hat alle bereits gemachten Änderungen <b>automatisch zurückgebaut</b>.{/if}{/if}
+      {#if ok}<b>{t('{name} is set up.', { name: opt.name })}</b> {opt.syslog ? t('The router now sends flows and firewall logs to mtmon.') : t('The router now sends flows to mtmon.')} {t('The first data appears after a few seconds.')}
+      {:else}<b>{t('Setup failed.')}</b> {tr(result.result.error)}
+        {#if result.result.rolled_back}<br>{t('mtmon has')} <b>{t('automatically undone')}</b> {t('all changes already made.')}{/if}{/if}
     </div>
     <div class="steps">
-      {#each result.result.steps as s}<div class="srow"><span class="badge {s.ok ? 'ok' : 'bad'}">{s.ok ? '✓' : '✗'}</span> {s.title}{#if s.msg}<div class="muted" style="font-size:12.5px">{s.msg}</div>{/if}</div>{/each}
-      {#each result.result.rollback || [] as s}<div class="srow"><span class="badge {s.ok ? 'ok' : 'bad'}">↩</span> {s.title}{#if s.msg}<div class="muted" style="font-size:12.5px">{s.msg}</div>{/if}</div>{/each}
+      {#each result.result.steps as s}<div class="srow"><span class="badge {s.ok ? 'ok' : 'bad'}">{s.ok ? '✓' : '✗'}</span> {tr(s.title)}{#if s.msg}<div class="muted" style="font-size:12.5px">{tr(s.msg)}</div>{/if}</div>{/each}
+      {#each result.result.rollback || [] as s}<div class="srow"><span class="badge {s.ok ? 'ok' : 'bad'}">↩</span> {tr(s.title)}{#if s.msg}<div class="muted" style="font-size:12.5px">{tr(s.msg)}</div>{/if}</div>{/each}
     </div>
-    {#if result.result.backup}<p class="muted">Konfig-Sicherung auf dem Router: <span class="mono">{result.result.backup}</span> (Files)</p>{/if}
-    {#if result.manual_script}<p><b>Rückbau war unvollständig.</b> Diese Befehle im RouterOS-Terminal ausführen:</p><pre class="code">{result.manual_script}</pre>{/if}
+    {#if result.result.backup}<p class="muted">{t('Config backup on the router:')} <span class="mono">{result.result.backup}</span> ({t('Files')})</p>{/if}
+    {#if result.manual_script}<p><b>{t('The undo was incomplete.')}</b> {t('Run these commands in the RouterOS terminal:')}</p><pre class="code">{result.manual_script}</pre>{/if}
   {/if}
 
   {#snippet footer()}
     {#if step === 'review'}
-      <button class="btn" onclick={() => { step = 'connect'; err = '' }}>Zurück</button>
+      <button class="btn" onclick={() => { step = 'connect'; err = '' }}>{t('Back')}</button>
       <button class="btn primary" disabled={busy || !fpOk || !opt.name || (f.mode === 'auto' && !pr.can_write)} onclick={apply}>
-        {f.mode === 'auto' ? 'Jetzt einrichten' : 'Hinzufügen'}</button>
+        {f.mode === 'auto' ? t('Set up now') : t('Add')}</button>
     {:else if step === 'done'}
-      {#if ok}<button class="btn primary" onclick={() => { onclose(); go('device/' + encodeURIComponent(result.name)) }}>Zum Gerät</button>
-      {:else}<button class="btn" onclick={() => { step = 'review'; result = null }}>Zurück zur Prüfung</button>{/if}
-      <button class="btn" onclick={onclose}>Schließen</button>
+      {#if ok}<button class="btn primary" onclick={() => { onclose(); go('device/' + encodeURIComponent(result.name)) }}>{t('Go to device')}</button>
+      {:else}<button class="btn" onclick={() => { step = 'review'; result = null }}>{t('Back to review')}</button>{/if}
+      <button class="btn" onclick={onclose}>{t('Close')}</button>
     {/if}
   {/snippet}
 </Modal>

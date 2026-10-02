@@ -1,6 +1,7 @@
 <script>
   import { app, checkSession } from '../lib/state.svelte.js'
   import { api } from '../lib/api.js'
+  import { t, tr } from '../lib/i18n.svelte.js'
   let user = $state('admin'), password = $state(''), err = $state(''), busy = $state(false)
   async function submit(e) {
     e.preventDefault(); busy = true; err = ''
@@ -13,12 +14,12 @@
   <form class="card" onsubmit={submit}>
     <div class="logo">
       <svg width="34" height="34" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"/><path d="M6 21l5-7 4 4 5-9 6 12" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <h1>Sign in to mtmon</h1>
+      <h1>{t('Sign in to mtmon')}</h1>
     </div>
-    <label>Username<input class="input" bind:value={user} autocomplete="username" required /></label>
-    <label>Password<input class="input" type="password" bind:value={password} autocomplete="current-password" required /></label>
-    {#if err}<div class="badge bad" role="alert">{err}</div>{/if}
-    <button class="btn primary" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+    <label>{t('Username')}<input class="input" bind:value={user} autocomplete="username" required /></label>
+    <label>{t('Password')}<input class="input" type="password" bind:value={password} autocomplete="current-password" required /></label>
+    {#if err}<div class="badge bad" role="alert">{tr(err)}</div>{/if}
+    <button class="btn primary" disabled={busy}>{busy ? t('Signing in…') : t('Sign in')}</button>
   </form>
 </div>
 

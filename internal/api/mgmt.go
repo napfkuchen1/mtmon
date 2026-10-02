@@ -159,13 +159,13 @@ func readJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 func friendlyConnErr(err error) string {
 	switch {
 	case errors.Is(err, poller.ErrAuth):
-		return "Login abgelehnt - Benutzer/Passwort prüfen."
+		return "Login rejected - check user name and password."
 	case strings.Contains(err.Error(), "connection refused"):
-		return "Verbindung abgelehnt - ist www-ssl (HTTPS, Port 443) am Router aktiv? (/ip service enable www-ssl)"
+		return "Connection refused - is www-ssl (HTTPS, port 443) enabled on the router? (/ip service enable www-ssl)"
 	case strings.Contains(err.Error(), "handshake failure") || strings.Contains(err.Error(), "tls: protocol version"):
-		return "TLS-Handshake fehlgeschlagen - dem Dienst www-ssl am Router fehlt vermutlich ein Zertifikat (/ip service set www-ssl certificate=<name>)."
+		return "TLS handshake failed - the www-ssl service on the router probably has no certificate (/ip service set www-ssl certificate=<name>)."
 	case strings.Contains(err.Error(), "timeout") || strings.Contains(err.Error(), "deadline"):
-		return "Zeitüberschreitung - Adresse/Firewall prüfen (mtmon muss den Router auf dem REST-Port erreichen)."
+		return "Timed out - check the address and firewall (mtmon must be able to reach the router on the REST port)."
 	}
 	return err.Error()
 }

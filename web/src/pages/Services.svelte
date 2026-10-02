@@ -3,6 +3,7 @@
   import { app, go, toast } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
   import { bytes, bps, num, flag, protoName, ago, display } from '../lib/format.js'
+  import { t, tr } from '../lib/i18n.svelte.js'
   import Chart from '../lib/Chart.svelte'
   import ClassifyDialog from '../lib/ClassifyDialog.svelte'
   const rg = () => (app.range === 'live' ? '1h' : app.range)
@@ -22,87 +23,87 @@
   const bucket = $derived({ '1h': 60, '24h': 900, '7d': 3600, '30d': 14400 }[rg()] || 60)
   const eff = $derived(rg() === '1h' ? 60 : Math.max(bucket, 3600))
   const chart = $derived([
-    { name: 'Download', color: 'var(--down)', points: (d?.series || []).map(p => ({ x: p.ts, y: (p.down * 8) / eff })) },
-    { name: 'Upload', color: 'var(--up)', points: (d?.series || []).map(p => ({ x: p.ts, y: (p.up * 8) / eff })) }
+    { name: t('Download'), color: 'var(--down)', points: (d?.series || []).map(p => ({ x: p.ts, y: (p.down * 8) / eff })) },
+    { name: t('Upload'), color: 'var(--up)', points: (d?.series || []).map(p => ({ x: p.ts, y: (p.up * 8) / eff })) }
   ])
   const dsts = $derived((d?.dests || []))
   function classifyDest(x) {
-    dlg = { kind: 'ip', value: x.rip, name: '', hint: `Alle Verbindungen zu ${x.host || x.rip} einem Service zuordnen.`, alt: x }
+    dlg = { kind: 'ip', value: x.rip, name: '', hint: t('Assign all connections to {target} to a service.', { target: x.host || x.rip }), alt: x }
   }
   function classifyPort(x) {
-    dlg = { kind: 'port', value: String(x.port), proto: x.proto === 17 ? 17 : x.proto === 6 ? 6 : 0, name: '', hint: `Alles auf ${protoName(x.proto)}/${x.port} einem Service zuordnen.` }
+    dlg = { kind: 'port', value: String(x.port), proto: x.proto === 17 ? 17 : x.proto === 6 ? 6 : 0, name: '', hint: t('Assign everything on {target} to a service.', { target: protoName(x.proto) + '/' + x.port }) }
   }
   async function delRule(r) {
-    if (!confirm(`Regel „${r.name}“ (${r.kind} ${r.value}) löschen?`)) return
-    try { await api('/service-rules/' + r.id, { method: 'DELETE' }); toast('Regel gelöscht – Zuordnung wird zurückgesetzt'); rules.data = await api('/service-rules') } catch (e) { toast(e.message) }
+    if (!confirm(t('Delete rule “{name}” ({kind} {value})?', { name: r.name, kind: r.kind, value: r.value }))) return
+    try { await api('/service-rules/' + r.id, { method: 'DELETE' }); toast(t('Rule deleted – assignment will be reset')); rules.data = await api('/service-rules') } catch (e) { toast(tr(e.message)) }
   }
   const saved = async () => { rules.data = await api('/service-rules'); list.data = await api('/services?range=' + rg()) }
 </script>
 
 {#if !name}
-  <div class="head"><h1>Services</h1><span class="muted">Welcher Dienst wird von welchen Geräten genutzt · letzte {rg()}</span>
-    <span style="flex:1"></span><button class="btn" onclick={() => (showRules = !showRules)}>Eigene Regeln ({rules.data?.length || 0})</button>
-    <button class="btn primary" onclick={() => (dlg = { kind: 'port', value: '', name: '', hint: 'Lege eine neue Zuordnung an – z. B. Port 123/UDP → „NTP“, oder einen Hostnamen → „Bambu Cloud“.' })}>＋ Service definieren</button></div>
-  {#if list.error}<div class="warnbox">{list.error}</div>{/if}
-  {#if list.data?.reclassifying}<div class="warnbox" style="margin-bottom:12px">Alte Daten werden gerade neu zugeordnet … die Zahlen aktualisieren sich in Kürze.</div>{/if}
+  <div class="head"><h1>{t('Services')}</h1><span class="muted">{t('Which service is used by which devices · last {range}', { range: rg() })}</span>
+    <span style="flex:1"></span><button class="btn" onclick={() => (showRules = !showRules)}>{t('Custom rules ({n})', { n: rules.data?.length || 0 })}</button>
+    <button class="btn primary" onclick={() => (dlg = { kind: 'port', value: '', name: '', hint: t('Create a new assignment – e.g. port 123/UDP → “NTP”, or a hostname → “Bambu Cloud”.') })}>＋ {t('Define service')}</button></div>
+  {#if list.error}<div class="warnbox">{tr(list.error)}</div>{/if}
+  {#if list.data?.reclassifying}<div class="warnbox" style="margin-bottom:12px">{t('Old data is being reclassified … the numbers will update shortly.')}</div>{/if}
 
   {#if showRules}
-    <div class="card" style="margin-bottom:16px"><div class="card-h"><h2>Eigene Klassifizierungsregeln</h2><span class="muted" style="font-size:12.5px">IP &gt; Netz &gt; Hostname &gt; AS &gt; Port &gt; Standardname</span></div>
-      <table><thead><tr><th>Service</th><th>Kategorie</th><th>Typ</th><th>Wert</th><th></th></tr></thead>
-        <tbody>{#each rules.data || [] as r (r.id)}<tr><td><b>{r.name}</b></td><td class="muted">{r.category || '—'}</td><td>{r.kind}</td><td class="mono">{r.value}{r.kind === 'port' && r.proto ? '/' + protoName(r.proto) : ''}</td><td class="r"><button class="btn sm" onclick={() => delRule(r)}>Löschen</button></td></tr>{/each}</tbody></table>
-      {#if !rules.data?.length}<div class="empty">Noch keine eigenen Regeln. Klicke bei Zielen oder Ports auf „Klassifizieren“.</div>{/if}</div>
+    <div class="card" style="margin-bottom:16px"><div class="card-h"><h2>{t('Custom classification rules')}</h2><span class="muted" style="font-size:12.5px">{t('IP > network > hostname > AS > port > default name')}</span></div>
+      <table><thead><tr><th>{t('Service')}</th><th>{t('Category')}</th><th>{t('Type')}</th><th>{t('Value')}</th><th></th></tr></thead>
+        <tbody>{#each rules.data || [] as r (r.id)}<tr><td><b>{r.name}</b></td><td class="muted">{r.category ? tr(r.category) : '—'}</td><td>{r.kind}</td><td class="mono">{r.value}{r.kind === 'port' && r.proto ? '/' + protoName(r.proto) : ''}</td><td class="r"><button class="btn sm" onclick={() => delRule(r)}>{t('Delete')}</button></td></tr>{/each}</tbody></table>
+      {#if !rules.data?.length}<div class="empty">{t('No custom rules yet. Click “Classify” on destinations or ports.')}</div>{/if}</div>
   {/if}
 
   <div class="card">
     <div class="card-h">
-      <div class="pill-row"><button class="btn sm" class:primary={!cat} onclick={() => (cat = '')}>Alle</button>
-        {#each cats as c}<button class="btn sm" class:primary={cat === c} onclick={() => (cat = c)}>{c}</button>{/each}</div>
-      <input class="input" placeholder="Service suchen …" bind:value={q} aria-label="Service suchen" />
+      <div class="pill-row"><button class="btn sm" class:primary={!cat} onclick={() => (cat = '')}>{t('All')}</button>
+        {#each cats as c}<button class="btn sm" class:primary={cat === c} onclick={() => (cat = c)}>{tr(c)}</button>{/each}</div>
+      <input class="input" placeholder={t('Search service …')} bind:value={q} aria-label={t('Search service')} />
     </div>
     <div class="scroll"><table>
-      <thead><tr><th>Service</th><th>Kategorie</th><th class="r">Clients</th><th class="r">Ziele</th><th class="r">↓ Down</th><th class="r">↑ Up</th><th style="width:150px">Anteil</th><th class="r">Flows</th></tr></thead>
+      <thead><tr><th>{t('Service')}</th><th>{t('Category')}</th><th class="r">{t('Clients')}</th><th class="r">{t('Destinations')}</th><th class="r">{t('↓ Down')}</th><th class="r">{t('↑ Up')}</th><th style="width:150px">{t('Share')}</th><th class="r">{t('Flows')}</th></tr></thead>
       <tbody>{#each shown as s (s.name)}
         <tr class="click" onclick={() => go('services/' + encodeURIComponent(s.name))}>
-          <td><b>{s.name}</b></td><td><span class="badge">{s.category}</span></td><td class="r num" title={app.range === '30d' ? 'Clients der letzten 48 h' : ''}>{num(s.clients)}</td><td class="r num">{num(s.dests)}</td>
+          <td><b>{tr(s.name)}</b></td><td><span class="badge">{tr(s.category)}</span></td><td class="r num" title={app.range === '30d' ? t('Clients of the last 48 h') : ''}>{num(s.clients)}</td><td class="r num">{num(s.dests)}</td>
           <td class="r num">{bytes(s.down)}</td><td class="r num">{bytes(s.up)}</td><td><div class="bar"><i style="width:{(tot(s) / max) * 100}%"></i></div></td><td class="r num muted">{num(s.flows)}</td></tr>
       {/each}</tbody></table>
-      {#if !shown.length}<div class="empty">{list.loading ? 'Lade …' : 'Keine Services mit Traffic in diesem Zeitraum'}</div>{/if}
+      {#if !shown.length}<div class="empty">{list.loading ? t('Loading…') : t('No services with traffic in this range')}</div>{/if}
     </div>
   </div>
 
 {:else}
-  <div class="head"><a href="#/services">← Services</a><h1>{name}</h1>{#if det.data}<span class="badge">{det.data.category}</span>{/if}</div>
-  {#if det.error}<div class="warnbox">{det.error}</div>{/if}
+  <div class="head"><a href="#/services">{t('← Services')}</a><h1>{tr(name)}</h1>{#if det.data}<span class="badge">{tr(det.data.category)}</span>{/if}</div>
+  {#if det.error}<div class="warnbox">{tr(det.error)}</div>{/if}
   {#if d}
     <div class="grid g4" style="margin-bottom:16px">
-      <div class="card card-b kpi"><div class="l">Clients</div><div class="v num">{d.clients.length}</div><div class="l">nutzen diesen Service</div></div>
-      <div class="card card-b kpi"><div class="l">Ziele</div><div class="v num">{d.dests.length}{d.dests.length >= 50 ? '+' : ''}</div><div class="l">Adresse/Port-Kombinationen</div></div>
-      <div class="card card-b kpi"><div class="l">↓ Download</div><div class="v num">{bytes(d.down)}</div><div class="l">in {rg()}</div></div>
-      <div class="card card-b kpi"><div class="l">↑ Upload</div><div class="v num">{bytes(d.up)}</div><div class="l">{num(d.flows)} Flows</div></div>
+      <div class="card card-b kpi"><div class="l">{t('Clients')}</div><div class="v num">{d.clients.length}</div><div class="l">{t('use this service')}</div></div>
+      <div class="card card-b kpi"><div class="l">{t('Destinations')}</div><div class="v num">{d.dests.length}{d.dests.length >= 50 ? '+' : ''}</div><div class="l">{t('address/port combinations')}</div></div>
+      <div class="card card-b kpi"><div class="l">{t('↓ Download')}</div><div class="v num">{bytes(d.down)}</div><div class="l">{t('in {range}', { range: rg() })}</div></div>
+      <div class="card card-b kpi"><div class="l">{t('↑ Upload')}</div><div class="v num">{bytes(d.up)}</div><div class="l">{t('{n} flows', { n: num(d.flows) })}</div></div>
     </div>
 
-    <div class="card"><div class="card-h"><h2>Wer nutzt „{name}“?</h2><span class="muted" style="font-size:12.5px">{d.clients_since ? 'Clients: nur letzte 48 h (lange Zeiträume ohne Client-Detail) · ' : ''}Klick öffnet den Client</span></div>
+    <div class="card"><div class="card-h"><h2>{t('Who uses “{name}”?', { name: tr(name) })}</h2><span class="muted" style="font-size:12.5px">{d.clients_since ? t('Clients: last 48 h only (long ranges have no client detail) · ') : ''}{t('Click opens the client')}</span></div>
       <div class="scroll"><table>
-        <thead><tr><th>Client</th><th>Verbunden mit</th><th class="r">Ziele</th><th class="r">↓ Down</th><th class="r">↑ Up</th><th class="r">Flows</th></tr></thead>
+        <thead><tr><th>{t('Client')}</th><th>{t('Connected to')}</th><th class="r">{t('Destinations')}</th><th class="r">{t('↓ Down')}</th><th class="r">{t('↑ Up')}</th><th class="r">{t('Flows')}</th></tr></thead>
         <tbody>{#each d.clients as c (c.mac)}
           <tr class="click" onclick={() => go('client/' + encodeURIComponent(c.mac))}>
-            <td><b>{c.label || c.mac}</b><div class="muted mono" style="font-size:11.5px">{c.ip} · {c.vendor || c.mac}</div></td><td>{c.device || '—'}</td>
+            <td><b>{c.label || c.mac}</b><div class="muted mono" style="font-size:11.5px">{c.ip} · {c.vendor ? tr(c.vendor) : c.mac}</div></td><td>{c.device || '—'}</td>
             <td class="r num">{num(c.dests)}</td><td class="r num">{bytes(c.down)}</td><td class="r num">{bytes(c.up)}</td><td class="r num muted">{num(c.flows)}</td></tr>
         {/each}</tbody></table>
-        {#if !d.clients.length}<div class="empty">Keine Clients in diesem Zeitraum</div>{/if}</div></div>
+        {#if !d.clients.length}<div class="empty">{t('No clients in this range')}</div>{/if}</div></div>
 
-    <div class="card" style="margin-top:16px"><div class="card-h"><h2>Traffic</h2><div class="legend"><span><i style="background:var(--down)"></i>Download</span><span><i style="background:var(--up)"></i>Upload</span></div></div>
+    <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Traffic')}</h2><div class="legend"><span><i style="background:var(--down)"></i>{t('Download')}</span><span><i style="background:var(--up)"></i>{t('Upload')}</span></div></div>
       <div class="card-b"><Chart series={chart} fmt={bps} height={150} /></div></div>
 
-    <div class="card" style="margin-top:16px"><div class="card-h"><h2>Ziele</h2><span class="muted" style="font-size:12.5px">wohin geht der Traffic</span></div>
+    <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Destinations')}</h2><span class="muted" style="font-size:12.5px">{t('where the traffic goes')}</span></div>
       <div class="scroll"><table>
-        <thead><tr><th>Ziel</th><th>Port</th><th>Land / Anbieter</th><th class="r">Clients</th><th class="r">↓ Down</th><th class="r">↑ Up</th><th></th></tr></thead>
+        <thead><tr><th>{t('Destination')}</th><th>{t('Port')}</th><th>{t('Country / Provider')}</th><th class="r">{t('Clients')}</th><th class="r">{t('↓ Down')}</th><th class="r">{t('↑ Up')}</th><th></th></tr></thead>
         <tbody>{#each dsts as x (x.rip + x.port + x.proto)}
           <tr><td><span class="mono">{x.rip}</span>{#if x.host}<div class="muted">{x.host}</div>{/if}</td><td class="mono">{protoName(x.proto)}/{x.port}</td>
             <td>{flag(x.cc)} {x.cc} <span class="muted">{x.asorg}</span></td><td class="r num">{x.clients < 0 ? '–' : x.clients}</td><td class="r num">{bytes(x.down)}</td><td class="r num">{bytes(x.up)}</td>
-            <td class="r" style="white-space:nowrap"><button class="btn sm" onclick={() => classifyDest(x)}>Ziel</button> <button class="btn sm" onclick={() => classifyPort(x)}>Port</button></td></tr>
+            <td class="r" style="white-space:nowrap"><button class="btn sm" onclick={() => classifyDest(x)}>{t('Destination')}</button> <button class="btn sm" onclick={() => classifyPort(x)}>{t('Port')}</button></td></tr>
         {/each}</tbody></table>
-        {#if !dsts.length}<div class="empty">Keine Ziele</div>{/if}</div></div>
+        {#if !dsts.length}<div class="empty">{t('No destinations')}</div>{/if}</div></div>
   {/if}
 {/if}
 

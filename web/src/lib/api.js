@@ -1,3 +1,4 @@
+import { tr } from './i18n.svelte.js'
 export class AuthError extends Error {}
 
 export async function api(path, opts = {}) {
@@ -9,7 +10,7 @@ export async function api(path, opts = {}) {
   })
   if (res.status === 401 && path !== '/login') throw new AuthError('unauthorized')
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.error || res.statusText)
+  if (!res.ok) throw new Error(tr(data.error || res.statusText))
   return data
 }
 

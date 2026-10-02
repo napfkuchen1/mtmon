@@ -144,7 +144,7 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 		for _, x := range w {
 			k.WifiIfs = append(k.WifiIfs, WifiIf{Name: x["name"], SSID: x["ssid"], Band: x["band"]})
 		}
-		k.Warnings = append(k.Warnings, "Altes „wireless“-Paket: WLAN-Clients liest mtmon nur aus dem neuen „wifi“-Paket (wifi-qcom). Clients werden weiter über DHCP/ARP/Bridge-Hosts gefunden, aber Signal, SSID und Band fehlen.")
+		k.Warnings = append(k.Warnings, "Legacy “wireless” package: mtmon only reads Wi-Fi clients from the new “wifi” package (wifi-qcom). Clients are still found via DHCP/ARP/bridge hosts, but signal, SSID and band are missing.")
 	} else {
 		k.WifiStack = "none"
 	}
@@ -229,26 +229,26 @@ func ruleSummary(f poller.Row) string {
 func (k *Caps) suggestRole() {
 	switch {
 	case k.DHCPServer || k.NAT:
-		k.Role, k.RoleWhy = "router", "hat DHCP-Server und/oder NAT"
+		k.Role, k.RoleWhy = "router", "has a DHCP server and/or NAT"
 		k.ExportsFlow = k.Flow.Supported
 	case k.WifiStack != "none" && len(k.WifiIfs) > 0:
-		k.Role, k.RoleWhy = "ap", "hat WLAN-Interfaces, aber weder DHCP-Server noch NAT"
+		k.Role, k.RoleWhy = "ap", "has Wi-Fi interfaces, but neither a DHCP server nor NAT"
 	default:
-		k.Role, k.RoleWhy = "switch", "keine Routing-Dienste und kein WLAN"
+		k.Role, k.RoleWhy = "switch", "no routing services and no Wi-Fi"
 	}
 	if k.Role != "router" && k.Flow.Supported {
-		k.Warnings = append(k.Warnings, "Access Points und Switches bridgen Traffic meist in Hardware – Traffic Flow ist dort unvollständig und zählt teils doppelt. mtmon richtet Traffic Flow deshalb nur auf Routern ein; das Gerät wird trotzdem überwacht (Status, WLAN-Clients, Interfaces).")
+		k.Warnings = append(k.Warnings, "Access points and switches usually bridge traffic in hardware – Traffic Flow is incomplete there and partly double-counts. That is why mtmon only sets up Traffic Flow on routers; the device is still monitored (status, Wi-Fi clients, interfaces).")
 	}
 	if k.Fasttrack {
-		k.Warnings = append(k.Warnings, "FastTrack ist aktiv: beschleunigte Pakete umgehen große Teile des Pakettpfads, Traffic Flow kann dadurch zu wenig zählen. Optional kann FastTrack deaktiviert werden (mehr CPU-Last).")
+		k.Warnings = append(k.Warnings, "FastTrack is active: accelerated packets bypass large parts of the packet path, so Traffic Flow may undercount. FastTrack can optionally be disabled (higher CPU load).")
 	}
 	if k.HWOffload && k.Role == "router" {
-		k.Warnings = append(k.Warnings, "Bridge-Hardware-Offload ist an: vom Switch-Chip weitergeleiteter LAN-zu-LAN-Traffic wird nicht exportiert (Internet-Traffic über die Router-CPU schon).")
+		k.Warnings = append(k.Warnings, "Bridge hardware offload is on: LAN-to-LAN traffic forwarded by the switch chip is not exported (internet traffic via the router CPU is).")
 	}
 	if !k.WwwSSL {
-		k.Warnings = append(k.Warnings, "www-ssl (HTTPS/REST) ist am Gerät deaktiviert – mtmon braucht es zum Überwachen.")
+		k.Warnings = append(k.Warnings, "www-ssl (HTTPS/REST) is disabled on the device – mtmon needs it for monitoring.")
 	}
 	if k.Managed {
-		k.Warnings = append(k.Warnings, "Auf diesem Gerät liegen schon Objekte mit dem Tag „mtmon-managed“ (frühere Einrichtung). Erst Offboarding bzw. Aufräumen, sonst gibt es Duplikate.")
+		k.Warnings = append(k.Warnings, "This device already holds objects tagged “mtmon-managed” (earlier setup). Run offboarding or clean up first, otherwise duplicates will be created.")
 	}
 }
