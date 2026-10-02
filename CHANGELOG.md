@@ -10,6 +10,12 @@ run the installer again and choose *update* (a snapshot of the container is take
 
 ## [0.8.1] - unreleased
 
+### Security
+- **Built with a current Go toolchain (1.26.8).** Earlier releases (up to 0.8.0) were built with Go 1.26.0, whose standard
+  library has 19 publicly known vulnerabilities that mtmon's code can reach (TLS/HTTPS server and client, HTTP, certificate
+  checks, unpacking of update archives, name parsing). They are fixed by the newer Go version. Please update.
+- A vulnerability scan (`govulncheck`) now runs on every change and reports new findings in CI.
+
 ### Fixed
 - **Phone layout.** The time range buttons (24 h, 7 d, 30 d) no longer break into two lines, the Live page no longer
   scrolls sideways because of the filter row, and the Settings page fits narrow screens in German too.
