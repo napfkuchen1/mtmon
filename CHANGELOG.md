@@ -8,21 +8,25 @@ Version `1.0.0` will mean "verified on a range of real MikroTik hardware".
 Every release lists what is **new**, what **changed**, and what was **fixed**. Upgrading is always the same:
 run the installer again and choose *update* (a snapshot of the container is taken first).
 
-## [0.8.0] - unreleased
+## [0.8.0] - 2026-10-02
 
 ### New
-- **Signed releases.** Every release archive now carries a minisign signature (`.minisig`). The in-app updater only
-  installs a release whose signature matches the mtmon release key built into the program, and the signature is tied
-  to the exact version, so an old signed file cannot be passed off as a new one. The installer checks the signature too
-  when `minisign` is installed (`apt install minisign`).
+- **Signed releases.** Every release is now signed by the maintainer (minisign, file `*.tar.gz.minisig`). This proves an
+  update really comes from the mtmon project and was not swapped on the way. The checksum alone only proves that the
+  download is intact.
+  - The in-app updater (*Settings → Updates*) only installs a release whose signature matches the mtmon key built into
+    the program. The signature is tied to the exact version, so an older signed file cannot be passed off as a new one.
+  - The installer checks the signature as well when `minisign` is installed (`apt install minisign`); otherwise it
+    says so and falls back to the checksum.
+  - You can verify a download by hand, see `docs/release-signing.md`.
 
 ### Changed
-- Updates from the web UI now refuse releases without a valid signature. Upgrade from 0.7.x to 0.8.0 works as before
-  (0.7.x does not check signatures); from 0.8.0 on every update is verified.
-- The Go module path is now `github.com/napfkuchen1/mtmon`.
+- Updates from the web UI now refuse releases without a valid signature. Updating from 0.7.x to 0.8.0 works as before
+  (0.7.x does not check signatures); from 0.8.0 on, every update is verified.
+- Internal: the Go module path is now `github.com/napfkuchen1/mtmon`. No effect on installed systems.
 
 ### Fixed
-- README examples no longer mention non-existent versions (v2.x).
+- README examples no longer mention versions that do not exist (v2.x).
 
 ## [0.7.0] - 2026-10-02
 
