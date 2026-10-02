@@ -14,6 +14,27 @@
   let result = $state(null)
   let open = $state({})               // expanded plan steps
 
+  // --- requirements checklist (shown before connecting) ---
+  const rIP = $derived(f.addr.trim() || '<ROUTER-IP>')
+  const mIP = typeof location !== 'undefined' ? location.hostname : '<MTMON-IP>'
+  const reqs = $derived([
+    { id: 'cert', title: 'HTTPS-Dienst www-ssl mit Zertifikat', why: 'mtmon spricht die REST-API per HTTPS (Port 443). Ohne Zertifikat bricht der TLS-Handshake ab („tls: handshake failure“).',
+      cmd: `/certificate add name=mtmon-ca common-name=mtmon-ca days-valid=3650 key-usage=key-cert-sign,crl-sign
+/certificate sign mtmon-ca
+/certificate add name=mtmon-ssl common-name=${rIP} subject-alt-name=IP:${rIP} days-valid=3650 key-usage=digital-signature,key-encipherment,tls-server
+/certificate sign mtmon-ssl ca=mtmon-ca
+/ip service set www-ssl certificate=mtmon-ssl disabled=no address=<LAN-NETZ>/24` },
+    { id: 'fw', title: 'Firewall: mtmon darf auf den Router', why: 'Hat der Router eine „drop all not from LAN“-Regel (Input-Chain), muss mtmon vorher erlaubt sein. Die Regel nach oben schieben.',
+      cmd: `/ip firewall filter add chain=input action=accept protocol=tcp dst-port=443 src-address=${mIP} comment="mtmon REST" place-before=0` },
+    { id: 'user', title: 'Admin-Zugang für die Einrichtung', why: 'Einmaliger Login mit Gruppe full (oder write + api + rest-api + policy). mtmon legt einen eigenen Nur-Lese-Benutzer an und speichert den Admin-Login nicht.',
+      cmd: `/user print where name=<ADMIN-USER>` },
+    { id: 'net', title: 'Netz: Router erreichen mtmon (UDP)', why: 'Traffic Flow geht per UDP 2055, Firewall-Syslog per UDP 5514 vom Router zu mtmon. Liegt mtmon in einem anderen Netz, muss die Firewall das erlauben.',
+      cmd: `/ip firewall filter add chain=forward action=accept protocol=udp dst-address=${mIP} dst-port=2055,5514 comment="mtmon flows+syslog" place-before=0` },
+  ])
+  let reqOpen = $state(false)
+  async function copy(t) { try { await navigator.clipboard.writeText(t); toast?.('Kopiert') } catch { toast?.('Kopieren nicht möglich – Text markieren') } }
+  $effect(() => { if (err && /TLS|Zertifikat|abgelehnt|Zeitüberschreitung|www-ssl/i.test(err)) reqOpen = true })
+
   const caps = $derived(pr?.caps)
   const risk = { none: ['ok', 'keine Auswirkung'], low: ['', 'gering'], medium: ['warn', 'mittel'] }
 
@@ -54,6 +75,18 @@
 <Modal title={step === 'connect' ? 'Gerät hinzufügen' : step === 'review' ? 'Gerät prüfen & Einrichtung bestätigen' : step === 'running' ? 'Richte ein …' : ok ? 'Fertig' : 'Einrichtung fehlgeschlagen'} wide={step !== 'connect'} {onclose}>
   {#if step === 'connect'}
     <p class="muted" style="margin-top:0">Gib die Adresse und einen <b>Admin-Zugang</b> des MikroTik ein. mtmon liest die Fähigkeiten des Geräts aus, zeigt dir genau, was es einrichten würde, und ändert erst nach deiner Bestätigung etwas.</p>
+    <details class="req" bind:open={reqOpen}>
+      <summary><b>Voraussetzungen am Router</b> <span class="muted">· einmal prüfen, bevor du verbindest</span></summary>
+      <p class="muted" style="margin:8px 0">Die Befehle gelten für RouterOS 7 (Terminal oder WinBox → New Terminal). Platzhalter in <span class="mono">&lt;…&gt;</span> ersetzt du. Die Adresse unten wird automatisch eingesetzt.</p>
+      {#each reqs as r, i (r.id)}
+        <div class="step">
+          <div class="sh" style="cursor:default"><span class="n">{i + 1}</span><b>{r.title}</b>
+            <button type="button" class="btn sm" style="margin-left:auto" onclick={() => copy(r.cmd)}>Kopieren</button></div>
+          <div class="why">{r.why}</div>
+          <pre class="code">{r.cmd}</pre>
+        </div>
+      {/each}
+    </details>
     <form class="form" onsubmit={e => { e.preventDefault(); probe() }}>
       <div class="row"><label style="flex:1">Adresse (IP oder Hostname)<input class="input mono" bind:value={f.addr} placeholder="192.168.88.1" required autocomplete="off" /></label>
         <label style="width:110px">REST-Port<input class="input mono" type="number" bind:value={f.port} /></label></div>
@@ -191,6 +224,10 @@
   .fp { word-break: break-all; padding: 8px 10px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; }
   label.chk { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; margin-top: 6px; } label.chk input { margin-top: 3px; }
   .opts { margin-top: 12px; display: grid; gap: 2px; }
+  .req { border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; margin: 0 0 14px; }
+  .req summary { cursor: pointer; }
+  .req pre.code { white-space: pre-wrap; word-break: break-all; }
+  .btn.sm { padding: 3px 10px; font-size: 12px; }
   .step { padding: 10px 0; border-top: 1px solid var(--border); } .step:first-of-type { border-top: 0; }
   .sh { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: 0; padding: 0; text-align: left; }
   .n { width: 22px; height: 22px; border-radius: 50%; background: var(--accent-bg); color: var(--accent-strong); display: grid; place-items: center; font-size: 12px; font-weight: 600; flex-shrink: 0; }

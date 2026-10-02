@@ -1,5 +1,5 @@
 name: release
-# Tag setzen (z. B. v2.0.0) -> Build -> GitHub Release mit festem Asset-Namen (wird von install.sh geladen)
+# Tag setzen (z. B. v0.5.0, SemVer; Eintrag in CHANGELOG.md Pflicht) -> Build -> GitHub Release mit festem Asset-Namen (wird von install.sh geladen)
 on:
   push: { tags: ["v*"] }
 permissions:
@@ -27,6 +27,13 @@ jobs:
       - name: deploy tests
         run: |
           { sudo deploy/test/test-deploy.sh bin/mtmon && sudo deploy/test/test-tui.sh; } > /tmp/dt.log 2>&1 || { m=$(grep -v '^PASS' /tmp/dt.log | tail -15 | sed ':a;N;$!ba;s/\n/%0A/g'); echo "::error::$m"; exit 1; }
+      - name: release notes from CHANGELOG.md
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          echo "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$' || { echo "::error::tag $GITHUB_REF_NAME is not SemVer (vMAJOR.MINOR.PATCH)"; exit 1; }
+          awk -v v="$v" '$0 ~ "^## \\[" v "\\]" {on=1; next} /^## \[/ {on=0} on' CHANGELOG.md | sed '/./,$!d' > /tmp/notes.md
+          [ -s /tmp/notes.md ] || { echo "::error::CHANGELOG.md has no section '## [$v]'"; exit 1; }
+          printf '\n---\n**Install / update on Proxmox VE 9:** `bash -c "$(curl -fsSL https://raw.githubusercontent.com/%s/main/install.sh)"` and choose *install* or *update*.\n' "$GITHUB_REPOSITORY" >> /tmp/notes.md
       - run: make release
       - name: stable asset names
         run: |
@@ -35,4 +42,4 @@ jobs:
           sha256sum mtmon-linux-amd64.tar.gz > mtmon-linux-amd64.tar.gz.sha256
       - name: publish
         env: { GH_TOKEN: "${{ github.token }}" }
-        run: gh release create "$GITHUB_REF_NAME" dist/mtmon-linux-amd64.tar.gz dist/mtmon-linux-amd64.tar.gz.sha256 --title "$GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" dist/mtmon-linux-amd64.tar.gz dist/mtmon-linux-amd64.tar.gz.sha256 --title "mtmon $GITHUB_REF_NAME" --notes-file /tmp/notes.md $( [[ "$GITHUB_REF_NAME" == *-* ]] && echo --prerelease )

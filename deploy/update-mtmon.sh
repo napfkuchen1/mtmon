@@ -17,6 +17,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+banner "update"
 need_root
 need_cmds pct sha256sum
 ct_exists "$CTID" || die "CT $CTID does not exist"

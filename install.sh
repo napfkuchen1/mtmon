@@ -19,7 +19,11 @@ VER=${MTMON_VERSION:-latest}
 ASSET=mtmon-linux-amd64.tar.gz
 WT=${MTMON_WHIPTAIL:-whiptail}
 BT="mtmon - realtime monitor for MikroTik routers & access points"
-die() { echo "ERROR: $*" >&2; exit 1; }
+if [ -t 1 ]; then C_CY=$'\033[36m'; C_GR=$'\033[32m'; C_RD=$'\033[31m'; C_BD=$'\033[1m'; C_RS=$'\033[0m'; else C_CY=; C_GR=; C_RD=; C_BD=; C_RS=; fi
+die() { printf '\n  %s✖ %s%s\n\n' "$C_RD" "$*" "$C_RS" >&2; exit 1; }
+say() { printf '  %s▸%s %s\n' "$C_CY" "$C_RS" "$*"; }
+# dark theme with cyan accents for the whiptail dialogs
+export NEWT_COLORS=${NEWT_COLORS:-'root=,black window=white,black border=cyan,black title=cyan,black button=black,cyan actbutton=black,white compactbutton=white,black checkbox=white,black actcheckbox=black,cyan entry=white,blue label=white,black listbox=white,black actlistbox=black,cyan sellistbox=white,black actsellistbox=black,cyan textbox=white,black acttextbox=black,cyan helpline=white,black roottext=cyan,black emptyscale=,black fullscale=,cyan'}
 
 # ------------------------------------------------------------------ dialog helpers
 wt_menu() { # title text menu-height tag item ... (WT_DEFAULT = preselected tag)
@@ -191,12 +195,13 @@ else
 fi
 
 T=$(mktemp -d /tmp/mtmon-boot.XXXXXX); trap 'rm -rf "$T"' EXIT
-echo "==> downloading $BASE/$ASSET"
+printf '\n  %smtmon%s - installer\n\n' "$C_BD" "$C_RS"
+say "downloading $ASSET"
 curl -fsSL --retry 3 -o "$T/$ASSET" "$BASE/$ASSET" || die "download failed (release exists? repo public?)"
 curl -fsSL --retry 3 -o "$T/$ASSET.sha256" "$BASE/$ASSET.sha256" || die "checksum download failed"
 want=$(awk '{print $1}' "$T/$ASSET.sha256"); got=$(sha256sum "$T/$ASSET" | awk '{print $1}')
 if [ -z "$want" ] || [ "$want" != "$got" ]; then die "checksum mismatch - aborting (expected $want, got $got)"; fi
-echo "==> checksum ok"
+printf '  %s✔%s checksum verified\n' "$C_GR" "$C_RS"
 tar xzf "$T/$ASSET" -C "$T"
 [ -x "$T/mtmon/install-mtmon.sh" ] || die "unexpected archive layout"
 ( cd "$T/mtmon" && sha256sum -c SHA256SUMS >/dev/null ) || die "SHA256SUMS inside archive do not match"

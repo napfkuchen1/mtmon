@@ -86,7 +86,10 @@ on_error() {
 trap 'on_error $LINENO' ERR
 
 # ---------------- preflight ----------------
-info "preflight checks"
+MTMON_VERSION_STR=$("$BINARY" version 2>/dev/null || true)
+export MTMON_VERSION_STR
+banner "install"
+section "Preflight"
 need_root
 need_cmds pct pveam pvesm pveversion ip awk sed sha256sum
 MAJOR=$(pve_major || true)
@@ -137,23 +140,20 @@ NET="name=eth0,bridge=$BRIDGE,firewall=1"
 [ -n "$GW" ] && NET="$NET,gw=$GW"
 [ -n "$VLAN" ] && NET="$NET,tag=$VLAN"
 
-cat <<PLAN
-
-  Plan
-  ----
-  CT id / hostname   : $CTID / $HOSTNAME_CT   (unprivileged, Debian 13, nesting=1, onboot)
-  Resources          : $CORES vCPU, ${MEMORY} MB RAM, ${SWAP} MB swap, ${DISK} GB on $STORAGE
-  Network            : $NET
-  mtmon $VERSION      : UI :$UI_PORT (TLS self-signed), IPFIX/NetFlow UDP :$FLOW_PORT
-  Devices            : ${DEVICES_FILE:-none yet (add in /etc/mtmon/config.json inside the CT)}
-  Rollback           : pct stop $CTID; pct destroy $CTID --purge 1   (nothing else on the host is modified)
-
-PLAN
+section "Plan"
+box "Container   $CTID  ($HOSTNAME_CT) - unprivileged Debian 13, nesting, autostart" \
+    "Resources   $CORES vCPU, ${MEMORY} MB RAM, ${SWAP} MB swap, ${DISK} GB on $STORAGE" \
+    "Network     $NET" \
+    "mtmon       UI https :$UI_PORT (self-signed), NetFlow/IPFIX udp :$FLOW_PORT, syslog udp :5514" \
+    "Devices     ${DEVICES_FILE:-add them in the web UI after the install}" \
+    "Rollback    pct stop $CTID; pct destroy $CTID --purge 1"
+printf '\n'
 if [ "$ASSUME_YES" != 1 ] && [ "$DRY_RUN" != 1 ]; then
   read -r -p "Proceed? [y/N] " ans; [[ $ans =~ ^[Yy]$ ]] || die "aborted by user"
 fi
 
 # ---------------- create ----------------
+section "Container"
 info "creating container $CTID"
 CREATED=1
 run pct create "$CTID" "$TEMPLATE" \
@@ -170,7 +170,7 @@ fi
 ok "container running"
 
 # ---------------- install inside ----------------
-info "installing mtmon"
+section "Installing mtmon"
 ct_exec "$CTID" sh -c 'id mtmon >/dev/null 2>&1 || useradd --system --user-group --home-dir /var/lib/mtmon --shell /usr/sbin/nologin mtmon'
 ct_exec "$CTID" install -d -m 0750 -o root -g mtmon /etc/mtmon
 run pct push "$CTID" "$BINARY" /usr/local/bin/mtmon --perms 0755
@@ -221,19 +221,17 @@ if [ "$DRY_RUN" != 1 ]; then
   CT_IP=$(pct exec "$CTID" -- hostname -I 2>/dev/null | awk '{print $1}')
   CRED=/root/mtmon-$CTID-credentials.txt
   ( umask 077; printf 'url: https://%s:%s\nuser: admin\npassword: %s\n' "${CT_IP:-<ct-ip>}" "$UI_PORT" "$PASS" > "$CRED" )
-  cat <<DONE
-
-  ${GRN}mtmon is running.${RST}
-    UI        : https://${CT_IP:-<ct-ip>}:$UI_PORT      (self-signed certificate)
-    user      : admin
-    password  : $PASS
-    (also saved to $CRED - mode 0600 - delete it after storing the password safely)
-
-  Next steps
-    1. Open the UI -> Devices -> Add device: enter router IP + one-time admin login.
-       mtmon shows the plan, sets up read-only user + Traffic Flow + syslog, forgets the admin login.
-       (Removal later: device page -> Offboarding restores everything.)
-    2. Allow from your routers: UDP $FLOW_PORT (flows) and UDP 5514 (firewall syslog); TCP $UI_PORT from your admin network
-    Rollback: pct stop $CTID; pct destroy $CTID --purge 1
-DONE
+  section "Done"
+  box "mtmon is running" "" \
+      "Open      https://${CT_IP:-<ct-ip>}:$UI_PORT   (self-signed certificate)" \
+      "User      admin" \
+      "Password  $PASS" "" \
+      "Saved to  $CRED (mode 0600) - delete it once the password is stored safely"
+  printf '\n  %sNext steps%s\n' "$BLD" "$RST"
+  printf '   1. Open the UI, change the password, then Devices %s Add device.\n' "$G_INFO"
+  printf '      The page lists what each router needs first (HTTPS service + certificate).\n'
+  printf '   2. Allow from your routers to this container: udp %s (flows), udp 5514 (firewall syslog).\n' "$FLOW_PORT"
+  printf '      Allow tcp %s from your admin network.\n' "$UI_PORT"
+  printf '   3. Reserve %s in your DHCP server so the address never changes.\n' "${CT_IP:-the container IP}"
+  printf '\n  %sRollback%s  pct stop %s; pct destroy %s --purge 1\n\n' "$DIM" "$RST" "$CTID" "$CTID"
 fi

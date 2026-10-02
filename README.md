@@ -230,6 +230,12 @@ mtmon is young. Please read this before relying on it:
 
 More (German): [runbook](docs/runbook.md) · [router setup](docs/router-setup.md) · [architecture](docs/architecture.md) · [test report](docs/testreport.md)
 
+## Versioning & changelog
+
+mtmon uses [Semantic Versioning](https://semver.org). Versions below `1.0.0` are **beta**: they work and are tested,
+but minor releases can still change behaviour. Every release has a plain-language summary in
+[CHANGELOG.md](CHANGELOG.md) and on the [Releases](https://github.com/napfkuchen1/mtmon/releases) page.
+
 ## Development
 
 ```bash

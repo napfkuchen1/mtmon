@@ -13,6 +13,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ -n "$CTID" ] || { usage >&2; die "--ctid is required"; }
+banner "uninstall"
 need_root
 need_cmds pct
 ct_exists "$CTID" || die "CT $CTID does not exist"

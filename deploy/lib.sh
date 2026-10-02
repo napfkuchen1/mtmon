@@ -2,17 +2,40 @@
 # Shared helpers for install/update/uninstall. Sourced, not executed.
 
 DRY_RUN=${DRY_RUN:-0}
-RED=$'\033[31m'; GRN=$'\033[32m'; YLW=$'\033[33m'; DIM=$'\033[2m'; RST=$'\033[0m'
-[ -t 1 ] || { RED=; GRN=; YLW=; DIM=; RST=; }
+RED=$'\033[31m'; GRN=$'\033[32m'; YLW=$'\033[33m'; CYN=$'\033[36m'; DIM=$'\033[2m'; BLD=$'\033[1m'; RST=$'\033[0m'
+[ -t 1 ] || { RED=; GRN=; YLW=; CYN=; DIM=; BLD=; RST=; }
+case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+  *UTF-8*|*utf8*|*UTF8*) G_OK='✔'; G_INFO='▸'; G_WARN='▲'; G_ERR='✖'; G_DOT='·'; B_TL='╭'; B_TR='╮'; B_BL='╰'; B_BR='╯'; B_H='─'; B_V='│' ;;
+  *) G_OK='ok'; G_INFO='>>'; G_WARN='!!'; G_ERR='xx'; G_DOT='-'; B_TL='+'; B_TR='+'; B_BL='+'; B_BR='+'; B_H='-'; B_V='|' ;;
+esac
 
-info()  { printf '%s[..]%s %s\n' "$DIM" "$RST" "$*"; }
-ok()    { printf '%s[ok]%s %s\n' "$GRN" "$RST" "$*"; }
-warn()  { printf '%s[!!]%s %s\n' "$YLW" "$RST" "$*" >&2; }
-die()   { printf '%s[xx]%s %s\n' "$RED" "$RST" "$*" >&2; exit 1; }
+info()  { printf '  %s%s%s %s\n' "$CYN" "$G_INFO" "$RST" "$*"; }
+ok()    { printf '  %s%s%s %s\n' "$GRN" "$G_OK" "$RST" "$*"; }
+warn()  { printf '  %s%s%s %s\n' "$YLW" "$G_WARN" "$RST" "$*" >&2; }
+die()   { printf '\n  %s%s %s%s\n\n' "$RED" "$G_ERR" "$*" "$RST" >&2; exit 1; }
+# section TITLE : bold heading with a rule
+section() { printf '\n%s%s%s\n' "$BLD" "$*" "$RST"; }
+
+# box LINE... : rounded box around the given lines (no colour codes inside the lines)
+box() {
+  local w=0 l n
+  for l in "$@"; do n=${#l}; [ "$n" -gt "$w" ] && w=$n; done
+  local rule; rule=$(printf '%*s' $((w + 2)) '' | sed "s/ /$B_H/g")
+  printf '  %s%s%s%s%s\n' "$CYN" "$B_TL" "$rule" "$B_TR" "$RST"
+  for l in "$@"; do printf '  %s%s%s %-*s %s%s%s\n' "$CYN" "$B_V" "$RST" "$w" "$l" "$CYN" "$B_V" "$RST"; done
+  printf '  %s%s%s%s%s\n' "$CYN" "$B_BL" "$rule" "$B_BR" "$RST"
+}
+
+# banner [ACTION] : product header
+banner() {
+  printf '\n'
+  box "mtmon  ${MTMON_VERSION_STR:-}" "Realtime monitor for MikroTik routers & access points${1:+  $G_DOT  $1}"
+  printf '\n'
+}
 
 # run CMD... : execute, or only print in --dry-run mode.
 run() {
-  if [ "$DRY_RUN" = 1 ]; then printf '%s[dry]%s %s\n' "$DIM" "$RST" "$*"; return 0; fi
+  if [ "$DRY_RUN" = 1 ]; then printf '  %s%s dry%s %s\n' "$DIM" "$G_DOT" "$RST" "$*"; return 0; fi
   "$@"
 }
 

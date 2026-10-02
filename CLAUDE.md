@@ -17,3 +17,8 @@ Go-Backend (single static binary, SQLite via modernc, kein CGO) + Svelte-5-UI (`
 - RouterOS-Syntax nur gegen help.mikrotik.com verifiziert verwenden.
 - Commits: Conventional Commits, klein; vor Commit `make test lint`.
 - Kein Zugriff auf echte Proxmox-Hosts/Router aus der Entwicklungsumgebung; Skripte laufen nur gegen die Stubs.
+
+## Releases
+- SemVer, tag `vMAJOR.MINOR.PATCH` (beta until 1.0.0). Add a `## [x.y.z] - date` section to CHANGELOG.md first (New / Changed / Fixed, plain language):
+  the release workflow fails without it and uses it as the GitHub release notes.
+- Tag only after CI is green on main. Never delete or rewrite published tags/releases.
