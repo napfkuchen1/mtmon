@@ -3,6 +3,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/netip"
 	"os"
@@ -47,7 +48,7 @@ type Config struct {
 	GeoCityDB    string   `json:"geo_country_db,omitempty"` // mmdb path (optional)
 	GeoASNDB     string   `json:"geo_asn_db,omitempty"`
 	OUIFile      string   `json:"oui_file,omitempty"`
-	RawRetention int      `json:"raw_retention_days"` // default 7
+	RawRetention int      `json:"raw_retention_days"` // default 3
 	Retention    int      `json:"retention_days"`     // default 30
 	ReverseDNS   bool     `json:"reverse_dns"`
 	Webhook      string   `json:"alert_webhook,omitempty"`  // generic JSON POST
@@ -166,12 +167,22 @@ func (c *Config) Path() string { return c.path }
 
 // Save writes atomically with 0600.
 func (c *Config) Save() error {
-	b, _ := json.MarshalIndent(c, "", "  ")
+	if c.path == "" {
+		return errors.New("config has no file path (use SetPath)")
+	}
+	b, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return err
+	}
 	tmp := c.path + ".tmp"
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return err
 	}
-	return os.Rename(tmp, c.path)
+	if err := os.Rename(tmp, c.path); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 // SetDynamic replaces the set of UI-managed devices.

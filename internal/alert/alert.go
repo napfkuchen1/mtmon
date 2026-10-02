@@ -91,13 +91,26 @@ func (e *Engine) DeviceState(name string, up bool, errMsg string, cpu, temp floa
 	}
 }
 
-var dynamicPrefixes = []string{"pppoe-", "l2tp-", "sstp-", "ovpn-", "<", "veth", "lo", "cap", "wifi-cap", "wg-peer"}
+// dynamicPrefixes name interfaces that RouterOS creates and removes by itself (tunnels, CAP/CAPsMAN, virtual
+// ethernet); their going down or up is normal and never alerts. The loopback "lo" is matched exactly (see
+// isDynamicIface): as a prefix it would also hide user-named ports like "lounge" or "lo-bridge".
+var dynamicPrefixes = []string{"pppoe-", "l2tp-", "sstp-", "ovpn-", "<", "veth", "cap", "wifi-cap", "wg-peer"}
+
+func isDynamicIface(name string) bool {
+	if name == "lo" {
+		return true
+	}
+	for _, p := range dynamicPrefixes {
+		if strings.HasPrefix(name, p) {
+			return true
+		}
+	}
+	return false
+}
 
 func (e *Engine) InterfaceState(device, iface string, running bool) {
-	for _, p := range dynamicPrefixes {
-		if strings.HasPrefix(iface, p) {
-			return
-		}
+	if isDynamicIface(iface) {
+		return
 	}
 	if !running {
 		e.Raise("iface_down", device+"/"+iface, "warning", fmt.Sprintf("Interface %s on %s went down", iface, device), 5*time.Minute)
