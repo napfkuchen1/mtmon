@@ -10,8 +10,6 @@ var portName = map[int]string{21: "FTP", 23: "Telnet", 139: "SMB", 445: "SMB", 3
 
 const minConns = 3 // connections in 24 h before a protocol use is worth mentioning
 
-type pairKey struct{ mac, dst string }
-
 // useLines turns port rows into short evidence lines "client → destination: n connections, size".
 func useLines(idx map[string]Client, rows []PortUse, max int) []string {
 	sort.Slice(rows, func(i, j int) bool { return rows[i].Flows > rows[j].Flows })
