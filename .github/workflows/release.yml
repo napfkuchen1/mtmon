@@ -1,13 +1,29 @@
 name: release
 # Tag setzen (z. B. v0.5.0, SemVer; Eintrag in CHANGELOG.md Pflicht) -> Build -> GitHub Release mit festem Asset-Namen (wird von install.sh geladen)
+# Alternativ ohne lokales Git: Actions -> release -> Run workflow, Eingabe "tag" (z. B. v0.8.0). Der Lauf nimmt den aktuellen Stand von main
+# und legt das Tag beim Veroeffentlichen selbst an.
 on:
   push: { tags: ["v*"] }
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create from main, e.g. v0.8.0"
+        required: true
 permissions:
   contents: write
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+  VERSION: ${{ inputs.tag || github.ref_name }} # make uses it instead of git describe: the binary must report exactly the release tag
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      - name: manual runs only from main
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: echo "::error::run this workflow on branch main"; exit 1
+      - name: validate tag
+        run: |
+          echo "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$' || { echo "::error::tag '$TAG' is not SemVer (vMAJOR.MINOR.PATCH)"; exit 1; }
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
       - uses: actions/setup-go@v5
@@ -29,8 +45,8 @@ jobs:
           { sudo deploy/test/test-deploy.sh bin/mtmon && sudo deploy/test/test-tui.sh && deploy/test/test-apply-update.sh; } > /tmp/dt.log 2>&1 || { m=$(grep -v '^PASS' /tmp/dt.log | tail -15 | sed ':a;N;$!ba;s/\n/%0A/g'); echo "::error::$m"; exit 1; }
       - name: release notes from CHANGELOG.md
         run: |
-          v="${GITHUB_REF_NAME#v}"
-          echo "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$' || { echo "::error::tag $GITHUB_REF_NAME is not SemVer (vMAJOR.MINOR.PATCH)"; exit 1; }
+          v="${TAG#v}"
+          echo "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$' || { echo "::error::tag $TAG is not SemVer (vMAJOR.MINOR.PATCH)"; exit 1; }
           awk -v v="$v" '$0 ~ "^## \\[" v "\\]" {on=1; next} /^## \[/ {on=0} on' CHANGELOG.md | sed '/./,$!d' > /tmp/notes.md
           [ -s /tmp/notes.md ] || { echo "::error::CHANGELOG.md has no section '## [$v]'"; exit 1; }
           printf '\n---\n**Install / update on Proxmox VE 9:** `bash -c "$(curl -fsSL https://raw.githubusercontent.com/%s/main/install.sh)"` and choose *install* or *update*.\n' "$GITHUB_REPOSITORY" >> /tmp/notes.md
@@ -51,10 +67,10 @@ jobs:
           key=$(mktemp); trap 'rm -f "$key"' EXIT
           printf '%s\n' "$MINISIGN_KEY" > "$key"
           # trusted comment binds the signature to this tag (the updater checks it)
-          printf '%s\n' "$MINISIGN_PASSWORD" | minisign -S -s "$key" -m dist/mtmon-linux-amd64.tar.gz -t "mtmon $GITHUB_REF_NAME"
+          printf '%s\n' "$MINISIGN_PASSWORD" | minisign -S -s "$key" -m dist/mtmon-linux-amd64.tar.gz -t "mtmon $TAG"
           # verify with the public key committed in the repo before anything is published
           pub=$(sed -n 2p minisign.pub)
           minisign -Vm dist/mtmon-linux-amd64.tar.gz -P "$pub"
       - name: publish
         env: { GH_TOKEN: "${{ github.token }}" }
-        run: gh release create "$GITHUB_REF_NAME" dist/mtmon-linux-amd64.tar.gz dist/mtmon-linux-amd64.tar.gz.sha256 dist/mtmon-linux-amd64.tar.gz.minisig --title "mtmon $GITHUB_REF_NAME" --notes-file /tmp/notes.md $( [[ "$GITHUB_REF_NAME" == *-* ]] && echo --prerelease )
+        run: gh release create "$TAG" --target "$GITHUB_SHA" dist/mtmon-linux-amd64.tar.gz dist/mtmon-linux-amd64.tar.gz.sha256 dist/mtmon-linux-amd64.tar.gz.minisig --title "mtmon $TAG" --notes-file /tmp/notes.md $( [[ "$TAG" == *-* ]] && echo --prerelease )
