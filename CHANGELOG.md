@@ -8,7 +8,7 @@ Version `1.0.0` will mean "verified on a range of real MikroTik hardware".
 Every release lists what is **new**, what **changed**, and what was **fixed**. Upgrading is always the same:
 run the installer again and choose *update* (a snapshot of the container is taken first).
 
-## [0.8.1] - unreleased
+## [0.8.1] - 2026-10-02
 
 ### Security
 - **Built with a current Go toolchain (1.26.8).** Earlier releases (up to 0.8.0) were built with Go 1.26.0, whose standard
