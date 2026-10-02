@@ -109,3 +109,12 @@ func toLowerTrim(s string) string {
 	}
 	return string(b)
 }
+
+// Apps returns the curated application table (read-only copy of the metadata); only the tests need it.
+func Apps() []App {
+	out := make([]App, len(appRules))
+	for i, a := range appRules {
+		out[i] = a.App
+	}
+	return out
+}
