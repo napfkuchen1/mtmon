@@ -230,7 +230,7 @@ mtmon is young. Please read this before relying on it:
 | Forgot the admin password | `pct exec <CTID> -- mtmon passwd -c /etc/mtmon/config.json --generate` |
 | New service rule shows nothing yet | Retroactive relabeling runs in the background; large histories take a few minutes. |
 
-More (German): [runbook](docs/runbook.md) · [router setup](docs/router-setup.md) · [architecture](docs/architecture.md) · [test report](docs/testreport.md)
+More (German): [runbook](docs/runbook.md) · [router setup](docs/router-setup.md) · [architecture](docs/architecture.md)
 
 ## Versioning & changelog
 

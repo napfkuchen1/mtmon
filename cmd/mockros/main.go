@@ -37,7 +37,7 @@ func main() {
 
 func DemoClients() []mockros.Client {
 	return []mockros.Client{
-		{MAC: "3C:22:FB:10:00:01", IP: "192.168.88.23", Host: "daniel-iphone", WiFi: true, Signal: -52, SSID: "Home"},
+		{MAC: "3C:22:FB:10:00:01", IP: "192.168.88.23", Host: "alex-iphone", WiFi: true, Signal: -52, SSID: "Home"},
 		{MAC: "DC:A6:32:10:00:02", IP: "192.168.88.30", Host: "homeassistant", WiFi: false},
 		{MAC: "02:AA:BB:10:00:03", IP: "192.168.88.41", Host: "galaxy-s24", WiFi: true, Signal: -67, SSID: "Home"},
 		{MAC: "B8:27:EB:10:00:04", IP: "192.168.88.50", Host: "printer", WiFi: false},

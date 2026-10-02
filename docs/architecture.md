@@ -45,7 +45,7 @@ Live-Raten sind ein 30-s-Mittel (Router exportieren aktive Flows alle `active-fl
 | `dev_metrics`, `if_metrics` | 1 Sample/min | 30 Tage |
 | `alerts`, `neighbors`, `devices_state` | | 30 Tage |
 
-**Abfrage-Stufen** (`store/queries.go`): ≤ 2 h → Minute; ≤ 8 d → Stunde; darüber → Tag (Ziele) bzw. `rollup_1h_client` (Clients, Charts, Summen). Grund: gemessen auf 100 Clients × 30 Tage kostete eine einzelne Stufe bis zu 4,4 s; gestuft bleibt alles < 320 ms ([Testreport](testreport.md)). Bei 24 h/7 d sind Top-Listen auf die volle Stunde ausgerichtet (bis zu 59 min mehr Daten als „24 h“).
+**Abfrage-Stufen** (`store/queries.go`): ≤ 2 h → Minute; ≤ 8 d → Stunde; darüber → Tag (Ziele) bzw. `rollup_1h_client` (Clients, Charts, Summen). Grund: gemessen auf 100 Clients × 30 Tage kostete eine einzelne Stufe bis zu 4,4 s; gestuft bleibt alles < 320 ms. Bei 24 h/7 d sind Top-Listen auf die volle Stunde ausgerichtet (bis zu 59 min mehr Daten als „24 h“).
 Schreibpfad: Channel-freier Puffer (max. 200 000 Zeilen, danach Drop mit Zähler), 1-s-Flush, Rollups werden vor dem Upsert im Speicher voraggregiert.
 
 ## Sicherheit

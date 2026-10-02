@@ -9,3 +9,8 @@
 config.json
 *.mmdb
 .env
+
+# local / maintainer-only
+CLAUDE.md
+docs/testreport.md
+scripts/.demo_b.sh
