@@ -8,6 +8,27 @@ Version `1.0.0` will mean "verified on a range of real MikroTik hardware".
 Every release lists what is **new**, what **changed**, and what was **fixed**. Upgrading is always the same:
 run the installer again and choose *update* (a snapshot of the container is taken first).
 
+## [0.8.1] - 2026-10-02
+
+### Security
+- **Built with a current Go toolchain (1.26.8).** Earlier releases (up to 0.8.0) were built with Go 1.26.0, whose standard
+  library has 19 publicly known vulnerabilities that mtmon's code can reach (TLS/HTTPS server and client, HTTP, certificate
+  checks, unpacking of update archives, name parsing). They are fixed by the newer Go version. Please update.
+- A vulnerability scan (`govulncheck`) now runs on every change and reports new findings in CI.
+
+### Fixed
+- **Phone layout.** The time range buttons (24 h, 7 d, 30 d) no longer break into two lines, the Live page no longer
+  scrolls sideways because of the filter row, and the Settings page fits narrow screens in German too.
+- Dates in English are unambiguous now (`2 Oct 2026, 14:18:39` instead of `02/10/2026`).
+- Charts show fewer time labels on narrow screens, so they no longer overlap.
+- The device card shows a space before the separator (`127.0.0.1 · RB5009`).
+
+### Changed
+- New installations show "Collecting data…" instead of a single dot until the first chart data exists.
+- Releases: the build now requires a successful CI run for the exact commit and publishes a build-provenance
+  attestation next to the signature (`gh attestation verify`, see `docs/release-signing.md`).
+- Added `SECURITY.md` (how to report a vulnerability) and a quick start at the top of the README.
+
 ## [0.8.0] - 2026-10-02
 
 ### New

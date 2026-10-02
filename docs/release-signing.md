@@ -16,6 +16,17 @@ secret is missing or the signature does not verify against `minisign.pub`. The u
 minisign -Vm mtmon-linux-amd64.tar.gz -P RWSj18U8+XTlXnicS+OIExn6YF3O9+RC4U9VIaDLVtPFeMkp75YhedSK
 ```
 
+## Build provenance
+The workflow also publishes a GitHub build-provenance attestation for the archive (proves which workflow run on which
+commit built it). Check it with:
+```bash
+gh attestation verify mtmon-linux-amd64.tar.gz --repo napfkuchen1/mtmon
+```
+
+## CI gate
+The release workflow does not repeat tests and lint: it requires a successful `ci` run for exactly the commit being
+released (merge to `main`, wait for CI, then release). Without one, the run stops before building anything.
+
 ## Key rotation / loss
 Installed versions only trust the key compiled into them, so a lost or leaked key needs a two-step release:
 1. Release N is signed with the **old** key and embeds the **new** public key.

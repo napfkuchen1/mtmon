@@ -38,7 +38,7 @@
 
 <div class="card" style="margin-top:16px">
   <div class="card-h"><h2>{t('Connections')}</h2>
-    <div style="display:flex;gap:8px;align-items:center">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
       <input class="input" placeholder={t('Filter client, host, port, service…')} bind:value={filter} aria-label={t('Filter connections')} />
       <button class="btn" onclick={() => setPaused(!app.paused)}>{app.paused ? t('Resume') : t('Pause')}</button>
       <button class="btn" onclick={() => (app.feed = [])}>{t('Clear')}</button>

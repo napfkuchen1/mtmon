@@ -180,5 +180,6 @@
   @media (max-width: 860px) {
     .shell { grid-template-columns: 1fr; } aside { display: none; } .mob { display: block; } .mobv { display: inline-block; }
     header, .page { padding-left: 16px; padding-right: 16px; }
+    header { flex-wrap: wrap; gap: 8px 12px; }
   }
 </style>

@@ -1,6 +1,6 @@
 module github.com/napfkuchen1/mtmon
 
-go 1.26.0
+go 1.26.8
 
 require (
 	github.com/gorilla/websocket v1.5.3
