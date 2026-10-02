@@ -4,6 +4,7 @@
   import { toast } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
   import { bytes, dur, num } from '../lib/format.js'
+  import UpdateCard from './UpdateCard.svelte'
   const setup = poll(() => api('/setup'), 0)
   const sys = poll(() => api('/system'), 5000)
   const dev = poll(() => api('/devices'), 0)
@@ -45,6 +46,8 @@
     <div class="card-b muted" style="border-top:1px solid var(--border)">{t('Router DNS caches are always used as the primary IP→domain source. GeoIP/ASN need offline {f} files: run {c} in the container (see {d}).', { f: '.mmdb', c: 'mtmon-update-geo', d: 'docs/runbook.md' })}
       {#if s?.enrich.geo || s?.enrich.asn}<div style="margin-top:6px">{t('IP geolocation data by')} <a href="https://db-ip.com" target="_blank" rel="noopener noreferrer">DB-IP</a> (CC BY 4.0).</div>{/if}</div></div>
 </div>
+
+<UpdateCard />
 
 <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Router setup')}</h2><span class="muted">{t('mtmon address detected:')} <span class="mono">{u?.mtmon_ip}</span></span></div>
   <div class="card-b" style="display:flex;flex-direction:column;gap:16px">

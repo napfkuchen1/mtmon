@@ -57,6 +57,7 @@ type Config struct {
 	DNSResolvers []string `json:"dns_resolvers,omitempty"` // allowed resolvers; empty = disable "rogue DNS" alert
 	AdminHash    string   `json:"admin_hash,omitempty"`    // argon2id, set via `mtmon passwd`
 	AdminUser    string   `json:"admin_user,omitempty"`
+	UpdateRepo   string   `json:"update_repo,omitempty"` // GitHub owner/name for update checks (default napfkuchen1/mtmon)
 
 	localPrefixes []netip.Prefix
 	path          string

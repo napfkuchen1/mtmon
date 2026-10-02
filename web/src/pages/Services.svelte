@@ -6,6 +6,7 @@
   import { t, tr } from '../lib/i18n.svelte.js'
   import Chart from '../lib/Chart.svelte'
   import ClassifyDialog from '../lib/ClassifyDialog.svelte'
+  import AppList from '../lib/AppList.svelte'
   const rg = () => (app.range === 'live' ? '1h' : app.range)
   const name = $derived(app.route.params.id)
 
@@ -13,6 +14,10 @@
   const rules = poll(() => api('/service-rules'), 0)
   const det = poll(() => app.route.params.id ? api('/services/' + encodeURIComponent(app.route.params.id) + '?range=' + rg()) : Promise.resolve(null), 6000)
 
+  // "Apps" view: applications recognised from the busiest destinations' DNS names (not from port-based services)
+  let view = $state('services'), acat = $state('')
+  const appsq = poll(() => view === 'apps' ? api('/apps?range=' + rg()) : Promise.resolve(null), 8000)
+  const appRows = $derived((appsq.data?.apps || []).filter(a => !acat || a.category === acat))
   let q = $state(''), cat = $state(''), dlg = $state(null), showRules = $state(false)
   const services = $derived(list.data?.services || [])
   const cats = $derived([...new Set(services.map(s => s.category))].sort())
@@ -54,6 +59,22 @@
       {#if !rules.data?.length}<div class="empty">{t('No custom rules yet. Click “Classify” on destinations or ports.')}</div>{/if}</div>
   {/if}
 
+  <div class="tabs" role="tablist" style="margin-bottom:14px">
+    <button role="tab" class:on={view === 'services'} aria-selected={view === 'services'} onclick={() => (view = 'services')}>{t('Services')}</button>
+    <button role="tab" class:on={view === 'apps'} aria-selected={view === 'apps'} onclick={() => (view = 'apps')}>{t('Apps')}</button>
+  </div>
+
+  {#if view === 'apps'}
+    {#if appsq.error}<div class="warnbox">{tr(appsq.error)}</div>{/if}
+    <div class="card">
+      <div class="card-h">
+        <div class="pill-row"><button class="btn sm" class:primary={!acat} onclick={() => (acat = '')}>{t('All')}</button>
+          {#each appsq.data?.categories || [] as c}<button class="btn sm" class:primary={acat === c} onclick={() => (acat = c)}>{tr(c)}</button>{/each}</div>
+        <span class="muted" style="font-size:12.5px">{t('Detected from DNS names of the busiest destinations · all clients')}</span>
+      </div>
+      <AppList apps={appRows} unknown={appsq.data?.unknown_bytes || 0} known={appsq.data?.known_bytes || 0} truncated={appsq.data?.truncated} showActive={false} empty={appsq.loading ? t('Loading…') : null} />
+    </div>
+  {:else}
   <div class="card">
     <div class="card-h">
       <div class="pill-row"><button class="btn sm" class:primary={!cat} onclick={() => (cat = '')}>{t('All')}</button>
@@ -70,6 +91,7 @@
       {#if !shown.length}<div class="empty">{list.loading ? t('Loading…') : t('No services with traffic in this range')}</div>{/if}
     </div>
   </div>
+  {/if}
 
 {:else}
   <div class="head"><a href="#/services">{t('← Services')}</a><h1>{tr(name)}</h1>{#if det.data}<span class="badge">{tr(det.data.category)}</span>{/if}</div>

@@ -4,6 +4,8 @@
 //   tr(serverText)                       -> text produced by the Go backend (English); translated via templates
 import { de } from './i18n/de.js'
 import server from './i18n/server.js'
+import v07 from './i18n/v07_server.js'
+const srv = { ...server, ...v07 }
 
 function load() {
   try { const v = localStorage.getItem('mtmon.lang'); if (v === 'de' || v === 'en') return v } catch {}
@@ -28,17 +30,17 @@ export function t(key, vars) {
 let tpl = null
 function templates() {
   if (tpl) return tpl
-  tpl = Object.keys(server).filter(k => k.includes('{')).map(k => {
+  tpl = Object.keys(srv).filter(k => k.includes('{')).map(k => {
     const names = []
     const re = new RegExp('^' + k.replace(/[.*+?^$()|[\]\\]/g, '\\$&').replace(/\{(\w+)\}/g, (m, n) => { names.push(n); return '(.+?)' }) + '$', 's')
-    return { re, names, to: server[k] }
+    return { re, names, to: srv[k] }
   })
   return tpl
 }
 export function tr(s) {
   if (lang !== 'de' || !s) return s
   if (de[s]) return de[s]
-  if (server[s]) return server[s]
+  if (srv[s]) return srv[s]
   for (const { re, names, to } of templates()) {
     const m = re.exec(s)
     if (m) return fill(to, Object.fromEntries(names.map((n, i) => [n, m[i + 1]])))

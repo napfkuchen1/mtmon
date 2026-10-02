@@ -32,6 +32,7 @@ import (
 	"github.com/daniel/mtmon/internal/secret"
 	"github.com/daniel/mtmon/internal/store"
 	"github.com/daniel/mtmon/internal/syslog"
+	"github.com/daniel/mtmon/internal/update"
 	"github.com/daniel/mtmon/web"
 )
 
@@ -62,6 +63,9 @@ func main() {
 	default:
 		usage()
 		os.Exit(2)
+	}
+	if errors.Is(err, errUpdateRestart) {
+		os.Exit(update.ExitCode)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
@@ -124,6 +128,11 @@ func run(args []string) error {
 	if err := srv.LoadDevices(); err != nil {
 		return fmt.Errorf("devices: %w", err)
 	}
+	errc := make(chan error, 4)
+	srv.Upd, err = newUpdater(cfg, st, log, func() { errc <- errUpdateRestart })
+	if err != nil {
+		return fmt.Errorf("updater: %w", err)
+	}
 	h := api.New(srv)
 	hs := &http.Server{Addr: cfg.Listen, Handler: h, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
 	if !cfg.NoTLS {
@@ -141,8 +150,8 @@ func run(args []string) error {
 
 	backup := filepath.Join(cfg.DataDir, "backups")
 	os.MkdirAll(backup, 0o750)
-	errc := make(chan error, 4)
 	go st.Writer(ctx)
+	go srv.Upd.Run(ctx)
 	go st.Maintain(ctx, cfg.RawRetention, cfg.Retention, backup)
 	go en.RunReverseDNS(ctx)
 	go pm.Run(ctx)
@@ -176,7 +185,11 @@ func run(args []string) error {
 	case <-ctx.Done():
 	case err := <-errc:
 		stop()
-		log.Error("fatal", "err", err)
+		if errors.Is(err, errUpdateRestart) {
+			log.Info("update staged: exiting so systemd restarts mtmon", "code", update.ExitCode)
+		} else {
+			log.Error("fatal", "err", err)
+		}
 		shutdown(hs, st)
 		return err
 	}

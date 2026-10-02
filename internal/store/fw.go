@@ -25,6 +25,13 @@ type FwEvent struct {
 	Verdict string `json:"verdict,omitempty"` // blocked | allowed | logged (from the rule meta)
 	Rule    string `json:"rule,omitempty"`    // human description of the rule
 	Count   int    `json:"count,omitempty"`
+	// Human names for the two endpoints, filled in by the API layer (never stored).
+	SrcName string `json:"src_name,omitempty"`
+	SrcOrg  string `json:"src_org,omitempty"`
+	SrcCC   string `json:"src_country,omitempty"`
+	DstName string `json:"dst_name,omitempty"`
+	DstOrg  string `json:"dst_org,omitempty"`
+	DstCC   string `json:"dst_country,omitempty"`
 }
 
 type FwRule struct {
@@ -236,6 +243,11 @@ type FwTop struct {
 	Port  int    `json:"port,omitempty"`
 	Hits  int64  `json:"hits"`
 	Label string `json:"label,omitempty"`
+	// Filled in by the API layer: name (client label / DNS name), AS organisation, country code.
+	Name    string `json:"name,omitempty"`
+	Org     string `json:"org,omitempty"`
+	Country string `json:"country,omitempty"`
+	Local   bool   `json:"local,omitempty"`
 }
 
 func (s *Store) FwSummary(since int64) (*FwSummary, error) {

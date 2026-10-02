@@ -140,6 +140,18 @@ func (e *Enricher) Name(ip netip.Addr) string {
 	return n.name
 }
 
+// NameCached returns a known, unexpired name for ip without ever scheduling a lookup. Request
+// handlers use it so that listing pages never trigger (or wait for) network traffic.
+func (e *Enricher) NameCached(ip netip.Addr) string {
+	e.mu.RLock()
+	n, ok := e.names[ip]
+	e.mu.RUnlock()
+	if ok && time.Now().Before(n.exp) {
+		return n.name
+	}
+	return ""
+}
+
 // RunReverseDNS resolves queued addresses (rate limited) until ctx is done.
 func (e *Enricher) RunReverseDNS(ctx context.Context) {
 	lim := time.NewTicker(50 * time.Millisecond) // 20 lookups/s max

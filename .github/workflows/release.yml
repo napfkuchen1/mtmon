@@ -20,13 +20,13 @@ jobs:
       - run: make test
       - run: staticcheck ./...
       - run: cd deploy && shellcheck -x -s bash lib.sh install-mtmon.sh update-mtmon.sh uninstall-mtmon.sh
-      - run: cd deploy && shellcheck -s sh update-geo.sh
-      - run: shellcheck install.sh deploy/test/test-tui.sh
+      - run: cd deploy && shellcheck -s sh update-geo.sh apply-update.sh
+      - run: shellcheck install.sh deploy/test/test-tui.sh deploy/test/test-apply-update.sh
       - run: test -z "$(gofmt -l .)"
       - run: make build
       - name: deploy tests
         run: |
-          { sudo deploy/test/test-deploy.sh bin/mtmon && sudo deploy/test/test-tui.sh; } > /tmp/dt.log 2>&1 || { m=$(grep -v '^PASS' /tmp/dt.log | tail -15 | sed ':a;N;$!ba;s/\n/%0A/g'); echo "::error::$m"; exit 1; }
+          { sudo deploy/test/test-deploy.sh bin/mtmon && sudo deploy/test/test-tui.sh && deploy/test/test-apply-update.sh; } > /tmp/dt.log 2>&1 || { m=$(grep -v '^PASS' /tmp/dt.log | tail -15 | sed ':a;N;$!ba;s/\n/%0A/g'); echo "::error::$m"; exit 1; }
       - name: release notes from CHANGELOG.md
         run: |
           v="${GITHUB_REF_NAME#v}"

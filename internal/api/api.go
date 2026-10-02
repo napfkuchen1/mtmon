@@ -25,6 +25,7 @@ import (
 	"github.com/daniel/mtmon/internal/secret"
 	"github.com/daniel/mtmon/internal/store"
 	"github.com/daniel/mtmon/internal/syslog"
+	"github.com/daniel/mtmon/internal/update"
 	"github.com/gorilla/websocket"
 )
 
@@ -47,8 +48,10 @@ type Server struct {
 	Mgr     *poller.Manager    // device workers; Reload() after device changes
 	Cls     *enrich.Classifier // service classification
 	Sys     *syslog.Server     // firewall log receiver
+	Upd     *update.Manager    // self-update (nil in tests that do not use it)
 	provMu  sync.Mutex         // one provisioning / offboarding at a time
 	reclass atomic.Bool        // service relabelling in progress
+	adv     adviceState        // cached suggestion evaluation (suggestions.go)
 }
 
 func New(s *Server) http.Handler {
@@ -67,6 +70,9 @@ func New(s *Server) http.Handler {
 	m.HandleFunc("GET /api/overview", a(s.overview))
 	m.HandleFunc("GET /api/devices", a(s.devices))
 	s.mgmtRoutes(m, a)
+	s.featureRoutes(m, a) // clients clean-up, app detection
+	s.updateRoutes(m, a)
+	s.adviceRoutes(m, a) // suggestions
 	m.HandleFunc("GET /api/devices/{name}", a(s.deviceDetail))
 	m.HandleFunc("GET /api/clients", a(s.clients))
 	m.HandleFunc("GET /api/clients/{mac}", a(s.clientDetail))

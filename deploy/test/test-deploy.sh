@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2015,SC2016
 # Tests install/update/uninstall against fake Proxmox tools (stubs/). Needs a built mtmon binary.
 # Usage: deploy/test/test-deploy.sh [path/to/mtmon-binary]   (the binary is only used for its `version` output)
 set -uo pipefail
@@ -38,6 +39,7 @@ reset; t "full install" 0 "$I" --yes --ip 192.168.88.50/24 --gw 192.168.88.1 --v
 has "mtmon is running"; has "Fake-Pass-123456"
 called "pct create 210"; called "--unprivileged 1"; called "--features nesting=1"; called "--rootfs local-lvm:8"
 called "ip=192.168.88.50/24,gw=192.168.88.1,tag=20"; called "--onboot 1"; called "pct push 210"; called "systemctl enable --now mtmon"
+called "pct push 210 .*apply-update.sh /usr/local/bin/mtmon-apply-update --perms 0755"
 [ "$(stat -c %a /root/mtmon-210-credentials.txt 2>/dev/null)" = 600 ] && { pass=$((pass+1)); echo "PASS  credentials file is 0600"; } || { fail=$((fail+1)); echo "FAIL  credentials file mode"; }
 reset; t "failed create keeps host clean (no destroy by default)" 1 env STUB_CREATE_FAIL=1 "$I" --yes; notcalled "pct destroy"
 reset; t "cleanup-on-fail removes only our CT" 1 env STUB_CREATE_FAIL=1 "$I" --yes --cleanup-on-fail; called "pct destroy 210"
@@ -47,6 +49,7 @@ reset; "$I" --yes >/dev/null 2>&1; : > "$FAKE_STATE/calls.log"
 cp "$WORK/mtmon-1.0.0" "$WORK/d/mtmon"; "$WORK/d/install-mtmon.sh" --yes --ctid 210 >/dev/null 2>&1 || true
 reset; touch "$FAKE_STATE/ct_210"; echo "mtmon" > "$FAKE_STATE/ct_210.conf"; echo 0.9.0 > "$FAKE_STATE/ct_version"
 t "update to good version" 0 "$U" --ctid 210 --binary "$WORK/mtmon-1.0.0"; has "updated to 1.0.0"; called "pct snapshot 210"; called "systemctl stop mtmon"
+called "mtmon-apply-update --perms 0755"; called "/etc/systemd/system/mtmon.service --perms 0644"; called "rm -f /var/lib/mtmon/update/mtmon.new"; called "systemctl daemon-reload"
 [ "$(cat "$FAKE_STATE/ct_version")" = 1.0.0 ] && { pass=$((pass+1)); echo "PASS  CT now runs 1.0.0"; } || { fail=$((fail+1)); echo "FAIL  CT version"; }
 t "same binary is a no-op" 0 "$U" --ctid 210 --binary "$WORK/mtmon-1.0.0"; has "nothing to do"
 reset; touch "$FAKE_STATE/ct_210"; echo "mtmon" > "$FAKE_STATE/ct_210.conf"; echo 1.0.0 > "$FAKE_STATE/ct_version"

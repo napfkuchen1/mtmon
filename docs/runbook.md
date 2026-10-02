@@ -45,6 +45,10 @@ Firewall-Empfehlung: UDP 2055 nur von Router-IPs; TCP 8443 nur aus dem Admin-Net
 ```
 Ablauf: Prüfung (ist es ein mtmon-CT? Binary lauffähig?) → Snapshot (Fallback vzdump; ohne Backup **Abbruch**) → Dienst stoppen, Kopie von Binary + DB + Config nach `/var/lib/mtmon/backups/pre-update-<ts>/` → neues Binary → Start → Self-Test + Versionsprüfung. **Bei Fehler:** altes Binary und DB-Kopie werden automatisch zurückgespielt und erneut geprüft. Gleiche Binary-Version ⇒ „nothing to do“.
 
+### Update aus der Web-UI (Settings → Updates)
+mtmon prüft alle 6 h `api.github.com` (Repo per `update_repo` in der Config änderbar) und zeigt neue Releases in der Seitenleiste. Modus (Aus / Benachrichtigen / nachts 03–04 Uhr automatisch) wird in der DB gespeichert. „Update now“ lädt `mtmon-linux-amd64.tar.gz` + `.sha256`, prüft SHA-256, testet das Binary und legt es nach `/var/lib/mtmon/update/mtmon.new`; der Dienst beendet sich (Exit 75), systemd startet neu und der Root-Helfer `/usr/local/bin/mtmon-apply-update` (`ExecStartPre=-+…`) tauscht das Binary. Wird die neue Version nicht innerhalb von 60 s „healthy“ (Marker `confirm-pending`), stellt der Helfer beim nächsten Start `mtmon.prev` wieder her (`last-rollback`, Anzeige in der UI). Log: `journalctl -t mtmon-apply-update -u mtmon`.
+**Bestehende Container** (vor dieser Funktion installiert) haben den Helfer noch nicht: einmal `update-mtmon.sh` / Installer-„update“ ausführen (installiert Helfer + neue Unit); bis dahin bietet die UI kein „Update now“ an.
+
 ## 4. DB wiederherstellen
 ```bash
 pct exec 210 -- systemctl stop mtmon

@@ -1,0 +1,28 @@
+// German translations (key = English source text)
+export default {
+  // clean-up / firewall names / apps
+  "Clean up…": "Aufräumen…",
+  "Clean up stale clients": "Veraltete Clients aufräumen",
+  "Removes clients that have not been seen for a long time, together with their address and roaming history. Traffic statistics stay. Online clients and your routers/APs are never removed.": "Entfernt Clients, die lange nicht gesehen wurden, samt Adress- und Roaming-Verlauf. Die Verkehrsstatistik bleibt erhalten. Online-Clients und deine Router/APs werden nie entfernt.",
+  "Not seen for at least": "Nicht gesehen seit mindestens",
+  "{n} days": "{n} Tage",
+  "Keep devices that have a label": "Geräte mit Bezeichnung behalten",
+  "{n} clients would be removed": "{n} Clients würden entfernt",
+  "… and {n} more": "… und {n} weitere",
+  "Remove {n} clients": "{n} Clients entfernen",
+  "Nothing to remove": "Nichts zu entfernen",
+  "{n} stale clients removed": "{n} veraltete Clients entfernt",
+  "Apps": "Apps",
+  "Detected from DNS names of the destinations": "Erkannt anhand der DNS-Namen der Ziele",
+  "Detected from DNS names of the busiest destinations · all clients": "Erkannt anhand der DNS-Namen der verkehrsstärksten Ziele · alle Clients",
+  "No applications recognised in this range": "Keine Apps in diesem Zeitraum erkannt",
+  "Apps are recognised by DNS names; encrypted DNS (DoH) hides them.": "Apps werden anhand von DNS-Namen erkannt; verschlüsseltes DNS (DoH) verbirgt sie.",
+  "Active now": "Jetzt aktiv",
+  "active now": "jetzt aktiv",
+  "Not active in the last 2 minutes": "In den letzten 2 Minuten nicht aktiv",
+  "1 destination": "1 Ziel",
+  "{n} destinations": "{n} Ziele",
+  "last traffic {when}": "letzter Verkehr {when}",
+  "{p}% of the traffic could be attributed to an app; the rest has no known name.": "{p}% des Verkehrs konnten einer App zugeordnet werden; für den Rest ist kein Name bekannt.",
+  "Only the busiest destinations are analysed.": "Es werden nur die verkehrsstärksten Ziele ausgewertet.",
+}

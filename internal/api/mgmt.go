@@ -648,6 +648,7 @@ func (s *Server) fwSummary(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 500, err.Error())
 		return
 	}
+	s.nameTops(sum)
 	rules, _ := s.St.FwRules()
 	var recv, parsed, unk, drop uint64
 	if s.Sys != nil {
@@ -668,6 +669,7 @@ func (s *Server) fwEvents(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 500, err.Error())
 		return
 	}
+	s.nameEvents(ev)
 	jsonOut(w, ev)
 }
 
@@ -699,6 +701,7 @@ func (s *Server) clientFw(w http.ResponseWriter, r *http.Request) {
 	if len(out) > 300 {
 		out = out[:300]
 	}
+	s.nameEvents(out)
 	jsonOut(w, out)
 }
 

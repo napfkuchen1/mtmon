@@ -167,6 +167,8 @@ If any step fails, mtmon rolls back automatically. If the router is unreachable 
 
 ## Update
 
+Since v0.7.0 you can also update from the web UI: **Settings → Updates** (check, one-click install with automatic rollback, optional nightly auto-update). Containers installed earlier need one installer *update* first.
+
 Run the same command again and choose **update**:
 
 ```bash

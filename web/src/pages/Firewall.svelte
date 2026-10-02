@@ -5,13 +5,14 @@
   import { num, clock, datetime } from '../lib/format.js'
   import { t, tr } from '../lib/i18n.svelte.js'
   import Chart from '../lib/Chart.svelte'
+  import IPName from '../lib/IPName.svelte'
   const rg = () => (app.range === 'live' ? '1h' : app.range)
   const s = poll(() => api('/firewall/summary?range=' + rg()), 6000)
   let verdict = $state(''), q = $state('')
   const ev = poll(() => api(`/firewall/events?range=${rg()}&limit=300${verdict ? '&verdict=' + verdict : ''}`), 4000)
   const x = $derived(s.data)
   const sm = $derived(x?.summary)
-  const rows = $derived((ev.data || []).filter(e => !q || (e.src + e.dst + e.rule + e.dport + e.device + e.proto).toLowerCase().includes(q.toLowerCase())))
+  const rows = $derived((ev.data || []).filter(e => !q || (e.src + e.dst + e.rule + e.dport + e.device + e.proto + (e.src_name || '') + (e.dst_name || '') + (e.src_org || '') + (e.dst_org || '')).toLowerCase().includes(q.toLowerCase())))
   const chart = $derived([
     { name: t('Blocked'), color: 'var(--bad)', points: (sm?.series || []).map(p => ({ x: p.ts, y: p.blocked })) },
     { name: t('Allowed (logged)'), color: 'var(--ok)', points: (sm?.series || []).map(p => ({ x: p.ts, y: p.allowed })) }
@@ -45,10 +46,10 @@
       <table><tbody>{#each sm.rules as r}<tr><td><span class="badge {vcls[r.verdict]}">{vtxt[r.verdict]}</span></td><td>{tr(r.rule)}<div class="muted" style="font-size:12px">{r.device}</div></td><td class="r num"><b>{num(r.hits)}</b></td></tr>{/each}</tbody></table>
       {#if !sm.rules.length}<div class="empty">{t('No hits')}</div>{/if}</div>
     <div class="card"><div class="card-h"><h2>{t('Top blocked sources')}</h2></div>
-      <table><tbody>{#each sm.top_blocked_src as t}<tr><td class="mono">{t.key}</td><td class="r num"><b>{num(t.hits)}</b></td></tr>{/each}</tbody></table>
+      <table><tbody>{#each sm.top_blocked_src as x}<tr><td><IPName ip={x.key} name={x.name} org={x.org} cc={x.country} /></td><td class="r num"><b>{num(x.hits)}</b></td></tr>{/each}</tbody></table>
       {#if !sm.top_blocked_src.length}<div class="empty">—</div>{/if}</div>
     <div class="card"><div class="card-h"><h2>{t('Top blocked destinations')}</h2></div>
-      <table><tbody>{#each sm.top_blocked_dst as t}<tr><td class="mono">{t.key}{t.port ? ':' + t.port : ''}</td><td class="r num"><b>{num(t.hits)}</b></td></tr>{/each}</tbody></table>
+      <table><tbody>{#each sm.top_blocked_dst as x}<tr><td><IPName ip={x.key} port={x.port} name={x.name} org={x.org} cc={x.country} /></td><td class="r num"><b>{num(x.hits)}</b></td></tr>{/each}</tbody></table>
       {#if !sm.top_blocked_dst.length}<div class="empty">—</div>{/if}</div>
   </div>
 
@@ -64,8 +65,8 @@
         <tr><td class="mono muted" title={datetime(e.ts)}>{clock(e.ts)}</td><td>{e.device}</td>
           <td><span class="badge {vcls[e.verdict]}">{vtxt[e.verdict]}</span></td>
           <td>{tr(e.rule)}</td>
-          <td class="mono">{e.src}{e.sport ? ':' + e.sport : ''}</td>
-          <td class="mono">{e.dst}{e.dport ? ':' + e.dport : ''}{#if e.nat}<div class="muted" style="font-size:11.5px">NAT {e.nat}</div>{/if}</td>
+          <td><IPName ip={e.src} port={e.sport} name={e.src_name} org={e.src_org} cc={e.src_country} /></td>
+          <td><IPName ip={e.dst} port={e.dport} name={e.dst_name} org={e.dst_org} cc={e.dst_country} />{#if e.nat}<div class="muted" style="font-size:11.5px">NAT {e.nat}</div>{/if}</td>
           <td class="mono">{e.proto}{e.flags ? ' (' + e.flags + ')' : ''}</td>
           <td class="muted">{e.in_if} → {e.out_if}</td></tr>
       {/each}</tbody></table>

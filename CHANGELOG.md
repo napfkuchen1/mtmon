@@ -8,6 +8,29 @@ Version `1.0.0` will mean "verified on a range of real MikroTik hardware".
 Every release lists what is **new**, what **changed**, and what was **fixed**. Upgrading is always the same:
 run the installer again and choose *update* (a snapshot of the container is taken first).
 
+## [0.7.0] - 2026-10-02
+
+### New
+- **Updates from the web UI.** The sidebar footer shows the installed version (and a badge when a newer release exists).
+  *Settings → Updates* can check GitHub (every 6 hours), show the release notes and install the new version with one click.
+  Three modes: *Off*, *Notify only* (default) and *Auto-install nightly* (03:00-04:00). Downloads are checksum-verified and
+  mtmon rolls back by itself if the new version does not start. Existing installations need one normal installer
+  *update* first so the small helper for this feature gets installed.
+- **Suggestions tab.** mtmon looks at its own data and proposes improvements, each with the reason, the numbers behind it
+  and copy-ready RouterOS commands: high RAM/CPU, weak or 2.4 GHz-stuck Wi-Fi clients, insecure protocols (Telnet, FTP, SMB, RDP),
+  clients bypassing your DNS, one client using most of the traffic, missing flow/syslog setup, unnamed devices, and more.
+  You can hide or snooze a suggestion; the sidebar shows how many warnings there are.
+- **Apps per device.** The client page lists which apps a device uses (YouTube, Spotify, Netflix, Teams, WhatsApp ...)
+  with an "active now" marker, and the Services page has an *Apps* view. Detection uses the names routers see in DNS,
+  so it cannot see apps behind encrypted DNS (DoH).
+- **Clean up.** *Clients → Clean up…* removes devices that were not seen for 30/90/180/365 days, with a preview first.
+  Devices with a label can be kept.
+- **Names in the Firewall tab.** Blocked sources and destinations now show a readable name (device name or DNS name,
+  plus organisation and country) above the IP address.
+
+### Changed
+- Release titles are now short ("mtmon v0.7.0").
+
 ## [0.6.0] - 2026-10-02
 
 ### New
@@ -27,8 +50,8 @@ run the installer again and choose *update* (a snapshot of the container is take
 
 ## [0.5.0] - 2026-10-02
 
-First public beta. This release resets the version numbering: the earlier tags `v2.0.0` to `v2.0.3`
-were internal milestones and are superseded by this one (same code, plus the changes below).
+First public beta. This release resets the version numbering: the earlier internal builds were renumbered
+`0.1.0` to `0.4.0` (listed below); this release adds the changes shown here.
 
 ### New
 - **Requirements checklist on the "Add device" page.** Before you connect a router it now shows what the router needs
@@ -52,3 +75,26 @@ were internal milestones and are superseded by this one (same code, plus the cha
 ### Known limits
 - Tested against a RouterOS simulator and a first set of real devices (hEX S, wAP ax, Audience on RouterOS 7.24).
   Other models may behave differently. Please report issues.
+
+## [0.4.0] - 2026-10-01
+
+### Changed
+- When a router's HTTPS service has no certificate, the error now says exactly that and how to fix it
+  instead of a raw "tls: handshake failure".
+
+## [0.3.0] - 2026-10-01
+
+### Fixed
+- Enabling firewall logging no longer tries to change dynamic firewall rules (RouterOS refuses this).
+  If any setup step fails, everything done so far is rolled back automatically.
+
+## [0.2.0] - 2026-10-01
+
+### Fixed
+- The firewall log action got a name RouterOS refuses (letters and numbers only); it is now called `mtmonsyslog`.
+
+## [0.1.0] - 2026-10-01
+
+First complete build (internal, published here for the record): realtime monitoring of MikroTik routers and access points,
+add-device wizard with automatic setup and full rollback (read-only user, Traffic Flow, firewall logging), firewall verdicts,
+service classification, GeoIP and vendor names, and the one-command installer for Proxmox VE.

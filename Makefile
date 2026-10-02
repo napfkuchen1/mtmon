@@ -20,7 +20,7 @@ test:                     ## unit + integration tests (race detector on)
 
 lint:                     ## static analysis + shell checks
 	staticcheck ./...
-	cd deploy && shellcheck -x -s bash lib.sh install-mtmon.sh update-mtmon.sh uninstall-mtmon.sh test/test-deploy.sh test/test-tui.sh && shellcheck -s sh update-geo.sh
+	cd deploy && shellcheck -x -s bash lib.sh install-mtmon.sh update-mtmon.sh uninstall-mtmon.sh test/test-deploy.sh test/test-tui.sh test/test-apply-update.sh && shellcheck -s sh update-geo.sh apply-update.sh
 	gofmt -l . | (! grep .)
 
 scale:                    ## 100 clients x 30 days data set; asserts every query < 500 ms
@@ -29,13 +29,14 @@ scale:                    ## 100 clients x 30 days data set; asserts every query
 deploy-test: build        ## install/update/uninstall scripts against fake Proxmox tools
 	deploy/test/test-deploy.sh bin/mtmon
 	deploy/test/test-tui.sh
+	deploy/test/test-apply-update.sh
 
 release: build            ## dist/mtmon-<version>-linux-amd64.tar.gz with checksums
 	rm -rf dist && mkdir -p dist/mtmon
 	cp bin/mtmon dist/mtmon/mtmon
-	cp deploy/install-mtmon.sh deploy/update-mtmon.sh deploy/uninstall-mtmon.sh deploy/lib.sh deploy/mtmon.service deploy/relax.conf deploy/config.example.json deploy/update-geo.sh deploy/mtmon-geo.service deploy/mtmon-geo.timer dist/mtmon/
+	cp deploy/install-mtmon.sh deploy/update-mtmon.sh deploy/uninstall-mtmon.sh deploy/lib.sh deploy/mtmon.service deploy/relax.conf deploy/config.example.json deploy/update-geo.sh deploy/apply-update.sh deploy/mtmon-geo.service deploy/mtmon-geo.timer dist/mtmon/
 	cp README.md dist/mtmon/; cp -r docs dist/mtmon/docs
-	cd dist/mtmon && sha256sum mtmon install-mtmon.sh update-mtmon.sh uninstall-mtmon.sh lib.sh mtmon.service relax.conf update-geo.sh mtmon-geo.service mtmon-geo.timer > SHA256SUMS
+	cd dist/mtmon && sha256sum mtmon install-mtmon.sh update-mtmon.sh uninstall-mtmon.sh lib.sh mtmon.service relax.conf update-geo.sh apply-update.sh mtmon-geo.service mtmon-geo.timer > SHA256SUMS
 	cd dist && tar czf mtmon-$(VERSION)-linux-amd64.tar.gz mtmon && sha256sum mtmon-$(VERSION)-linux-amd64.tar.gz > mtmon-$(VERSION)-linux-amd64.tar.gz.sha256
 	@ls -la dist
 

@@ -8,6 +8,12 @@ Wants=network-online.target
 Type=simple
 User=mtmon
 Group=mtmon
+# Self-update swap/rollback helper (deploy/apply-update.sh). "+" runs it with full privileges and outside this
+# unit's sandbox (User=, ProtectSystem=strict, NoNewPrivileges ... do not apply to that one line), which is what
+# lets it replace /usr/local/bin/mtmon; "-" means a missing helper or a non-zero exit never blocks the start
+# (the prefixes combine, in any order). Containers installed before this feature get the helper via one normal
+# installer update; until then the UI offers no "Update now".
+ExecStartPre=-+/usr/local/bin/mtmon-apply-update
 ExecStart=/usr/local/bin/mtmon run -c /etc/mtmon/config.json
 Restart=on-failure
 RestartSec=3

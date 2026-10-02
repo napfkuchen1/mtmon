@@ -10,6 +10,7 @@
   import Clients from './pages/Clients.svelte'
   import ClientDetail from './pages/ClientDetail.svelte'
   import Insights from './pages/Insights.svelte'
+  import Suggestions from './pages/Suggestions.svelte'
   import Services from './pages/Services.svelte'
   import Firewall from './pages/Firewall.svelte'
   import Topology from './pages/Topology.svelte'
@@ -31,6 +32,7 @@
     ['services', 'Services', 'M4 6h7v5H4zM13 6h7v5h-7zM4 13h7v5H4zM13 13h7v5h-7z'],
     ['firewall', 'Firewall', 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4'],
     ['insights', 'Insights', 'M4 20V10M10 20V4M16 20v-7M22 20H2'],
+    ['suggestions', 'Suggestions', 'M9 18h6M10 21h4M12 3a6 6 0 00-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0012 3z'],
     ['topology', 'Topology', 'M12 5a2 2 0 100-4 2 2 0 000 4zM5 21a2 2 0 100-4 2 2 0 000 4zM19 21a2 2 0 100-4 2 2 0 000 4zM12 5v6M12 11l-7 6M12 11l7 6'],
     ['alerts', 'Alerts', 'M6 9a6 6 0 1112 0c0 6 3 7 3 8H3c0-1 3-2 3-8zM10 21h4'],
     ['settings', 'Settings', 'M12 15a3 3 0 100-6 3 3 0 000 6zM19 12a7 7 0 00-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 00-2-1.2L14 3h-4l-.6 2.7a7 7 0 00-2 1.2l-2.3-1-2 3.4 2 1.5a7 7 0 000 2.4l-2 1.5 2 3.4 2.3-1a7 7 0 002 1.2L10 21h4l.6-2.7a7 7 0 002-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z']
@@ -46,6 +48,27 @@
     run()
     return () => { stop = true; clearTimeout(timer) }
   })
+  let sugWarn = $state(0)
+  $effect(() => {
+    if (!app.user) return
+    let timer, stop = false
+    const run = async () => { try { sugWarn = (await api('/suggestions/summary')).warnings } catch {} if (!stop) timer = setTimeout(run, 120000) }
+    const again = () => { clearTimeout(timer); run() }
+    window.addEventListener('mtmon-suggestions-changed', again)
+    run()
+    return () => { stop = true; clearTimeout(timer); window.removeEventListener('mtmon-suggestions-changed', again) }
+  })
+  let upd = $state(null)
+  $effect(() => {
+    if (!app.user) return
+    let timer, stop = false
+    const run = async () => { try { upd = await api('/update') } catch {} if (!stop) timer = setTimeout(run, 30 * 60 * 1000) }
+    const onUpd = () => { clearTimeout(timer); run() }
+    window.addEventListener('mtmon:update', onUpd)
+    run()
+    return () => { stop = true; clearTimeout(timer); window.removeEventListener('mtmon:update', onUpd) }
+  })
+  const vlabel = v => (!v || v === 'dev' ? 'dev' : /^\d/.test(v) ? 'v' + v : v)
   async function logout() { try { await api('/logout', { method: 'POST' }) } catch {} app.user = false }
 </script>
 
@@ -66,6 +89,7 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path {d} /></svg>
             {t(label)}
             {#if id === 'alerts' && openAlerts}<span class="cnt">{openAlerts}</span>{/if}
+            {#if id === 'suggestions' && sugWarn}<span class="cnt w" title={t('Warnings in Suggestions')}>{sugWarn}</span>{/if}
           </a>
         {/each}
       </nav>
@@ -79,6 +103,12 @@
             <option value="en">English</option><option value="de">Deutsch</option>
           </select>
         </div>
+        {#if upd}
+          <div class="ver">
+            <a class="vtxt" href="#/settings/updates" title={t('Updates')}>mtmon {vlabel(upd.current)}</a>
+            {#if upd.available}<a class="vbadge" href="#/settings/updates">{t('Update {v}', { v: vlabel(upd.latest) })}</a>{/if}
+          </div>
+        {/if}
         <div class="row2">
           <button class="btn sm" style="flex:1" onclick={logout}>{t('Sign out')}</button>
         </div>
@@ -92,6 +122,7 @@
           </select>
         </div>
         <div class="spacer"></div>
+        {#if upd?.available}<a class="vbadge mobv" href="#/settings/updates">{t('Update {v}', { v: vlabel(upd.latest) })}</a>{/if}
         {#if showRange}
           <div class="tabs" role="tablist" aria-label={t('Time range')}>
             {#each ranges as [id, label]}
@@ -108,6 +139,7 @@
         {:else if app.route.name === 'clients'}<Clients />
         {:else if app.route.name === 'client'}<ClientDetail />
         {:else if app.route.name === 'insights'}<Insights />
+        {:else if app.route.name === 'suggestions'}<Suggestions />
         {:else if app.route.name === 'services'}<Services />
         {:else if app.route.name === 'firewall'}<Firewall />
         {:else if app.route.name === 'topology'}<Topology />
@@ -130,17 +162,23 @@
   nav a { display: flex; align-items: center; gap: 11px; padding: 8px 10px; border-radius: 8px; color: var(--muted); font-weight: 500; }
   nav a:hover { background: var(--card-2); color: var(--text); text-decoration: none; }
   nav a.on { background: var(--accent-bg); color: var(--accent-strong); }
+  .cnt.w { background: var(--warn); color: #1c1203; }
   .cnt { margin-left: auto; background: var(--bad); color: #fff; border-radius: 999px; font-size: 11px; padding: 0 7px; font-weight: 600; }
   .foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 8px 6px 0; border-top: 1px solid var(--border); }
   .conn { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; }
   .row2 { display: flex; gap: 8px; } .row2 select { flex: 1; padding: 4px 6px; }
+  .ver { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-size: 11.5px; min-width: 0; }
+  .ver .vtxt { color: var(--muted); } .ver .vtxt:hover { color: var(--text); text-decoration: none; }
+  .vbadge { background: var(--accent-bg); color: var(--accent-strong); border-radius: 999px; padding: 0 8px; font-weight: 600; white-space: nowrap; font-size: 11.5px; }
+  .mobv { display: none; }
+  .ver .vbadge:hover { text-decoration: none; filter: brightness(.96); }
   main { min-width: 0; }
   header { display: flex; align-items: center; gap: 12px; padding: 12px 28px; border-bottom: 1px solid var(--border); background: var(--card); position: sticky; top: 0; z-index: 5; min-height: 57px; }
   .spacer { flex: 1; }
   .mob { display: none; }
   .page { padding: 24px 28px 48px; max-width: 1500px; }
   @media (max-width: 860px) {
-    .shell { grid-template-columns: 1fr; } aside { display: none; } .mob { display: block; }
+    .shell { grid-template-columns: 1fr; } aside { display: none; } .mob { display: block; } .mobv { display: inline-block; }
     header, .page { padding-left: 16px; padding-right: 16px; }
   }
 </style>

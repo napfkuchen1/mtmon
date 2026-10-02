@@ -175,6 +175,7 @@ ct_exec "$CTID" sh -c 'id mtmon >/dev/null 2>&1 || useradd --system --user-group
 ct_exec "$CTID" install -d -m 0750 -o root -g mtmon /etc/mtmon
 run pct push "$CTID" "$BINARY" /usr/local/bin/mtmon --perms 0755
 run pct push "$CTID" "$HERE/mtmon.service" /etc/systemd/system/mtmon.service --perms 0644
+run pct push "$CTID" "$HERE/apply-update.sh" /usr/local/bin/mtmon-apply-update --perms 0755   # root swap/rollback helper for in-app updates
 INIT_ARGS=(-c /etc/mtmon/config.json -ui-port "$UI_PORT" -flow-port "$FLOW_PORT")
 if [ -n "$DEVICES_FILE" ]; then
   run pct push "$CTID" "$DEVICES_FILE" /root/devices.json --perms 0600

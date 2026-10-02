@@ -126,6 +126,9 @@ func Open(dir string) (*Store, error) {
 	if _, err := db.Exec(`INSERT OR IGNORE INTO meta(k,v) VALUES('schema','1')`); err != nil {
 		return nil, err
 	}
+	if err := migrateAdvice(db); err != nil {
+		return nil, fmt.Errorf("advice schema: %w", err)
+	}
 	return &Store{DB: db}, nil
 }
 

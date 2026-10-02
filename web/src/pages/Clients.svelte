@@ -4,6 +4,8 @@
   import { poll } from '../lib/Poll.svelte.js'
   import { t, tr } from '../lib/i18n.svelte.js'
   import { bps, bytes, ago, display, signalQuality } from '../lib/format.js'
+  import CleanupDialog from '../lib/CleanupDialog.svelte'
+  let cleanup = $state(false)
 
   let q = $state(''), kind = $state('all'), sortKey = $state('live'), desc = $state(true)
   const d = poll(() => api('/clients?range=' + (app.range === 'live' ? '1h' : app.range)), 5000)
@@ -27,7 +29,8 @@
   const counts = $derived({ all: d.data?.length || 0, online: (d.data || []).filter(x => x.client.online).length })
 </script>
 
-<div class="head"><h1>{t('Clients')}</h1><span class="muted">{t('{online} online · {all} known', { online: counts.online, all: counts.all })}</span></div>
+<div class="head"><h1>{t('Clients')}</h1><span class="muted">{t('{online} online · {all} known', { online: counts.online, all: counts.all })}</span>
+  <span style="flex:1"></span><button class="btn" onclick={() => (cleanup = true)}>{t('Clean up…')}</button></div>
 <div class="card">
   <div class="card-h">
     <input class="input" style="min-width:260px" placeholder={t('Search name, IP, MAC, vendor, SSID…')} bind:value={q} aria-label={t('Search clients')} />
@@ -65,5 +68,7 @@
     {#if !rows.length}<div class="empty">{d.loading ? t('Loading…') : t('No clients match')}</div>{/if}
   </div>
 </div>
+
+{#if cleanup}<CleanupDialog onclose={() => (cleanup = false)} ondone={async () => { try { d.data = await api('/clients?range=' + (app.range === 'live' ? '1h' : app.range)) } catch {} }} />{/if}
 
 <style>.head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; }</style>

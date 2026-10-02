@@ -59,6 +59,12 @@ trap 'rollback; exit 1' ERR
 # 3. swap binary, start, verify
 run pct push "$CTID" "$BINARY" /usr/local/bin/mtmon.new --perms 0755
 ct_exec "$CTID" mv -f /usr/local/bin/mtmon.new /usr/local/bin/mtmon
+# in-app update support: root helper + unit (ExecStartPre); drop any half-finished in-app update so the helper
+# cannot swap a stale staged binary over the one we just installed
+run pct push "$CTID" "$HERE/apply-update.sh" /usr/local/bin/mtmon-apply-update --perms 0755
+run pct push "$CTID" "$HERE/mtmon.service" /etc/systemd/system/mtmon.service --perms 0644
+ct_exec "$CTID" rm -f /var/lib/mtmon/update/mtmon.new /var/lib/mtmon/update/pending /var/lib/mtmon/update/confirm-pending /var/lib/mtmon/update/last-rollback
+ct_exec "$CTID" systemctl daemon-reload
 ct_exec "$CTID" systemctl start mtmon
 if [ "$DRY_RUN" != 1 ]; then
   WAIT_SECS=40 wait_for pct exec "$CTID" -- /usr/local/bin/mtmon selftest -c /etc/mtmon/config.json \

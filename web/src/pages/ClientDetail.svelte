@@ -7,9 +7,12 @@
   import Chart from '../lib/Chart.svelte'
   import TopList from '../lib/TopList.svelte'
   import ClassifyDialog from '../lib/ClassifyDialog.svelte'
+  import AppList from '../lib/AppList.svelte'
+  import IPName from '../lib/IPName.svelte'
   import { go } from '../lib/state.svelte.js'
   let dlg = $state(null)
   const blocked = poll(() => api('/clients/' + encodeURIComponent(app.route.params.id) + '/firewall?verdict=blocked&range=' + (app.range === 'live' ? '1h' : app.range)), 8000)
+  const apps = poll(() => api('/clients/' + encodeURIComponent(app.route.params.id) + '/apps?range=' + (app.range === 'live' ? '1h' : app.range)), 6000)
   const vc = { blocked: 'bad', allowed: 'ok', logged: '' }
   const vt = $derived({ blocked: t('blocked'), allowed: t('allowed'), logged: t('logged') })
 
@@ -88,6 +91,10 @@
   <div class="card"><div class="card-h"><h2>{t('Traffic')}</h2><div class="legend"><span><i style="background:var(--down)"></i>{t('Download')}</span><span><i style="background:var(--up)"></i>{t('Upload')}</span></div></div>
     <div class="card-b"><Chart series={chart} fmt={bps} height={180} /></div></div>
 
+  <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Apps')}</h2><span class="muted" style="font-size:12.5px">{t('Detected from DNS names of the destinations')}</span></div>
+    {#if apps.error}<div class="warnbox" style="margin:12px">{tr(apps.error)}</div>{/if}
+    <AppList apps={apps.data?.apps || []} unknown={apps.data?.unknown_bytes || 0} known={apps.data?.known_bytes || 0} truncated={apps.data?.truncated} empty={apps.loading ? t('Loading…') : null} /></div>
+
   <div class="grid g2" style="margin-top:16px">
     <div class="card"><div class="card-h"><h2>{t('Top destinations')}</h2></div><TopList rows={x.top_hosts} /></div>
     <div class="card"><div class="card-h"><h2>{t('Top services')}</h2><span class="muted" style="font-size:12.5px">{t('Click: who else uses this?')}</span></div><TopList rows={x.top_services} onpick={r => go('services/' + encodeURIComponent(r.key))} /></div>
@@ -125,7 +132,7 @@
   {#if blocked.data?.length}
     <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Blocked connection attempts')}</h2><span class="muted" style="font-size:12.5px">{t('dropped by the firewall – not visible in flows')}</span></div>
       <div class="scroll" style="max-height:300px;overflow-y:auto"><table><thead><tr><th>{t('Time')}</th><th>{t('Target')}</th><th>{t('Proto')}</th><th>{t('Rule')}</th><th>{t('Router')}</th></tr></thead>
-        <tbody>{#each blocked.data as e, i (e.ts + e.dst + e.dport + i)}<tr><td class="mono muted">{clock(e.ts)}</td><td class="mono">{e.dst}:{e.dport}</td><td class="mono">{e.proto}</td><td>{tr(e.rule)}</td><td class="muted">{e.device}</td></tr>{/each}</tbody></table></div></div>
+        <tbody>{#each blocked.data as e, i (e.ts + e.dst + e.dport + i)}<tr><td class="mono muted">{clock(e.ts)}</td><td><IPName ip={e.dst} port={e.dport} name={e.dst_name} org={e.dst_org} cc={e.dst_country} /></td><td class="mono">{e.proto}</td><td>{tr(e.rule)}</td><td class="muted">{e.device}</td></tr>{/each}</tbody></table></div></div>
   {/if}
 
   <div class="grid g2" style="margin-top:16px">
