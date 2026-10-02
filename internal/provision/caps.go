@@ -168,6 +168,9 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 		}
 	}
 	for _, f := range get(ctx, c, "/ip/firewall/filter") {
+		if f["dynamic"] == "true" || f["dynamic"] == "yes" { // RouterOS: "can't edit dynamic object"
+			continue
+		}
 		fr := FilterRule{ID: f[".id"], Chain: f["chain"], Action: f["action"], Comment: f["comment"],
 			Log: f["log"] == "true" || f["log"] == "yes", LogPrefix: f["log-prefix"], Disabled: f["disabled"] == "true"}
 		fr.Managed = strings.HasPrefix(fr.Comment, ManagedTag)

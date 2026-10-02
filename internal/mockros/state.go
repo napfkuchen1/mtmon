@@ -46,6 +46,7 @@ func (s *Server) initState() {
 		add("/ip/firewall/filter", obj{"chain": "forward", "action": "accept", "connection-state": "established,related,untracked", "log": "false", "disabled": "false", "comment": "defconf: accept established"})
 		add("/ip/firewall/filter", obj{"chain": "forward", "action": "drop", "connection-state": "invalid", "log": "false", "disabled": "false", "comment": "defconf: drop invalid"})
 		add("/ip/firewall/filter", obj{"chain": "forward", "action": "drop", "connection-state": "new", "connection-nat-state": "!dstnat", "in-interface-list": "WAN", "log": "false", "disabled": "false", "comment": "defconf: drop all from WAN not DSTNATed"})
+		add("/ip/firewall/filter", obj{"chain": "forward", "action": "passthrough", "dynamic": "true", "log": "false", "disabled": "false", "comment": "special dummy rule to show fasttrack counters"})
 		add("/ip/firewall/filter", obj{"chain": "input", "action": "drop", "in-interface-list": "!LAN", "log": "false", "disabled": "false", "comment": "defconf: drop all not coming from LAN"})
 	}
 }
@@ -270,6 +271,10 @@ func (s *Server) dynamic(w http.ResponseWriter, r *http.Request, canWrite bool) 
 		tid := str(in[".id"])
 		for _, o := range s.lists[menu] {
 			if str(o[".id"]) == tid {
+				if str(o["dynamic"]) == "true" {
+					rosErr(w, 400, "failure: can't edit dynamic object")
+					return true
+				}
 				for k, v := range in {
 					if k != ".id" {
 						o[k] = str(v)
