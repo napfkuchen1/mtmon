@@ -32,7 +32,7 @@
         <span class="badge">{x.role}</span>
       </div>
       <div class="card-b">
-        <div class="muted mono" style="margin-bottom:10px">{x.addr}{#if x.state?.model} · {x.state.model}{/if}</div>
+        <div class="muted mono" style="margin-bottom:10px">{x.addr}{#if x.state?.model}&nbsp;· {x.state.model}{/if}</div>
         {#if l?.up}
           <div class="m"><span>CPU</span><div class="bar"><i style="width:{l.cpu}%;background:{l.cpu > 80 ? 'var(--bad)' : 'var(--accent)'}"></i></div><b class="num">{l.cpu.toFixed(0)}%</b></div>
           <div class="m"><span>RAM</span><div class="bar"><i style="width:{l.mem_pct}%"></i></div><b class="num">{l.mem_pct.toFixed(0)}%</b></div>

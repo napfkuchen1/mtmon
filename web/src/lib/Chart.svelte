@@ -33,7 +33,9 @@
     return line(pts) + ` L${sx(pts[pts.length - 1].x).toFixed(1)} ${sy(0)} L${sx(pts[0].x).toFixed(1)} ${sy(0)} Z`
   }
   const ticks = $derived([0, .25, .5, .75, 1].map(f => f * ymax))
-  const xticks = $derived(xs.length ? [0, .25, .5, .75, 1].map(f => lo + f * (hi - lo)).filter((t, i, a) => i === 0 || xfmt(t) !== xfmt(a[i - 1])) : [])
+  const xfr = $derived(w < 480 ? [0, .5, 1] : [0, .25, .5, .75, 1]) // fewer labels on narrow screens so they do not overlap
+  const nx = $derived(new Set(xs).size)
+  const xticks = $derived(xs.length ? xfr.map(f => lo + f * (hi - lo)).filter((t, i, a) => i === 0 || xfmt(t) !== xfmt(a[i - 1])) : [])
 
   function move(e) {
     if (!xs.length) return
@@ -50,6 +52,8 @@
 <div class="wrap" bind:clientWidth={w}>
   {#if !all.length}
     <div class="empty" style="height:{height}px;display:flex;align-items:center;justify-content:center">{empty ?? t('No data yet')}</div>
+  {:else if !bars && nx < 2}
+    <div class="empty" style="height:{height}px;display:flex;align-items:center;justify-content:center">{t('Collecting data… the chart appears after a few minutes')}</div>
   {:else}
     <svg width={w} {height} role="img" aria-label={t('Traffic chart')} onmousemove={move} onmouseleave={() => (hover = null)}>
       <defs>

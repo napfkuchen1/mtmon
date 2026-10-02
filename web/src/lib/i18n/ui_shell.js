@@ -1,6 +1,7 @@
 // German translations (key = English source text)
 export default {
   "Live connected": "Live verbunden",
+  "Collecting data… the chart appears after a few minutes": "Daten werden gesammelt … das Diagramm erscheint nach wenigen Minuten",
   "Reconnecting…": "Verbinde neu …",
   "Theme": "Design",
   "Auto": "Auto",

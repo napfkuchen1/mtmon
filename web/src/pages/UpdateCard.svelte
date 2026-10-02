@@ -12,7 +12,7 @@
   let root = $state()
 
   const vlabel = v => (!v || v === 'dev' ? 'dev' : /^\d/.test(v) ? 'v' + v : v)
-  const when = ts => (ts ? new Date(ts * 1000).toLocaleString(i18n.locale) : '—')
+  const when = ts => (ts ? new Date(ts * 1000).toLocaleString(i18n.locale, { dateStyle: 'medium', timeStyle: 'medium', hour12: false }) : '—')
   const safeUrl = u => (/^https?:\/\//.test(u || '') ? u : '')
   const sleep = ms => new Promise(r => setTimeout(r, ms))
   const busy = $derived(waiting || ['downloading', 'staged', 'restarting'].includes(s?.apply?.state))
@@ -78,7 +78,7 @@
       <tr><td class="muted">{t('Last check')}</td><td class="r">{s.last_check ? `${ago(s.last_check)} · ${when(s.last_check)}` : t('never')}</td></tr>
       <tr><td class="muted">{t('Source')}</td><td class="r mono">{s.repo}</td></tr>
       <tr><td class="muted"><label for="upd-mode">{t('Update mode')}</label></td><td class="r">
-        <select id="upd-mode" class="input sm" value={s.mode} onchange={e => setMode(e.target.value)} disabled={busy}>
+        <select id="upd-mode" class="input sm" style="max-width:200px" value={s.mode} onchange={e => setMode(e.target.value)} disabled={busy}>
           <option value="off">{t('Off')}</option>
           <option value="notify">{t('Notify only')}</option>
           <option value="auto">{t('Install automatically at night')}</option>
