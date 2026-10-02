@@ -6,6 +6,7 @@ One small container, zero-touch device onboarding, fully reversible.</p>
 <p align="center">
   <a href="https://github.com/napfkuchen1/mtmon/actions/workflows/ci.yml"><img alt="ci" src="https://github.com/napfkuchen1/mtmon/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/napfkuchen1/mtmon/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/napfkuchen1/mtmon"></a>
+  <a href="docs/release-signing.md"><img alt="signed releases" src="https://img.shields.io/badge/releases-signed%20(minisign)-brightgreen"></a>
 </p>
 
 <p align="center"><img src="docs/img/overview.png" alt="mtmon overview dashboard" width="900"></p>
@@ -15,6 +16,19 @@ One small container, zero-touch device onboarding, fully reversible.</p>
 ## Table of contents
 
 [What it does](#what-it-does) · [Why mtmon](#why-mtmon) · [Screenshots](#screenshots) · [Requirements](#requirements) · [Install](#install) · [Usage](#usage) · [What mtmon changes on your router](#what-mtmon-changes-on-your-router) · [Update](#update) · [Uninstall](#uninstall) · [Security & privacy](#security--privacy) · [Known limits](#known-limits) · [Troubleshooting](#troubleshooting) · [Development](#development)
+
+## Quick start
+
+1. **Install** (on the Proxmox host, as root):
+   ```bash
+   bash -c "$(curl -fsSL https://raw.githubusercontent.com/napfkuchen1/mtmon/main/install.sh)"
+   ```
+   Answer the dialog; at the end you get the URL and the generated `admin` password.
+2. **Open** `https://<container-ip>:8443` and sign in (the self-signed certificate warning is expected).
+3. **Add your router:** *Devices → Add device*, enter its address and a one-time admin login, review the plan, confirm.
+   Data appears within seconds.
+
+Details, requirements and what changes on your router are below.
 
 ## What it does
 
@@ -126,10 +140,10 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/napfkuchen1/mtmon/main/i
   install --ctid 210 --storage local-lvm --bridge vmbr0 --ip 192.168.88.50/24 --gw 192.168.88.1 --with-geo --yes
 
 # pin a version
-MTMON_VERSION=v0.7.0 bash -c "$(curl -fsSL https://raw.githubusercontent.com/napfkuchen1/mtmon/main/install.sh)"
+MTMON_VERSION=v0.8.0 bash -c "$(curl -fsSL https://raw.githubusercontent.com/napfkuchen1/mtmon/main/install.sh)"
 ```
 
-All options: `install.sh install --help`. You can also download `mtmon-linux-amd64.tar.gz` and its `.sha256` from the [releases page](https://github.com/napfkuchen1/mtmon/releases), unpack it on the host and run `./install-mtmon.sh --dry-run`.
+All options: `install.sh install --help`. If `minisign` is installed on the host (`apt install minisign`), the installer also verifies the release signature (see [docs/release-signing.md](docs/release-signing.md)). You can also download `mtmon-linux-amd64.tar.gz` and its `.sha256` from the [releases page](https://github.com/napfkuchen1/mtmon/releases), unpack it on the host and run `./install-mtmon.sh --dry-run`.
 </details>
 
 ## Usage
@@ -212,7 +226,7 @@ Your routers are **not** touched by this. Use *Offboarding* on each device **bef
 
 mtmon is young. Please read this before relying on it:
 
-* **Not yet verified on real hardware.** It is tested against a RouterOS simulator, synthetic traffic and simulated Proxmox tools, not against production MikroTik routers or a real Proxmox node. Try it on a test router first and keep the backup. Reports are very welcome.
+* **Limited hardware testing.** mtmon is tested against a RouterOS simulator, synthetic traffic and simulated Proxmox tools, plus a first set of real devices (hEX S, wAP ax, Audience on RouterOS 7.24). Other models may behave differently. Try it on a test router first and keep the backup. Reports are very welcome.
 * Flow data only contains traffic the router CPU handles. Bridge hardware offload and FastTrack hide or distort flows (the wizard warns about both).
 * **Dropped packets** appear only through the firewall log. *Allowed* is an inference ("no drop was logged") unless you enable the optional log rule for new connections.
 * Domain names come from the router's DNS cache and optional reverse DNS. HTTPS SNI is not visible; DoH/DoT clients show up as IP addresses.
@@ -250,7 +264,7 @@ make build        # static linux/amd64 binary with embedded UI
 make run-demo     # local demo with mock routers: http://127.0.0.1:18443 (admin / demo-password-1)
 ```
 
-Go (single static binary, pure-Go SQLite) and a Svelte 5 UI embedded with `go:embed`. A release is created by pushing a tag (`git tag v0.7.1 && git push origin v0.7.1`); GitHub Actions tests, builds and publishes the archive that `install.sh` downloads.
+Go (single static binary, pure-Go SQLite) and a Svelte 5 UI embedded with `go:embed`. A release is created by pushing a tag (`git tag v0.8.1 && git push origin v0.8.1`) or without a local checkout via *Actions → release → Run workflow* (input `tag`, on `main`). It requires a green CI run for the commit, then builds, signs and publishes the archive that `install.sh` downloads (see [docs/release-signing.md](docs/release-signing.md)).
 
 Contributions, bug reports and feedback from real MikroTik setups are welcome: please open an issue.
 
