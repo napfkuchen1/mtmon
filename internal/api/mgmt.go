@@ -162,6 +162,8 @@ func friendlyConnErr(err error) string {
 		return "Login abgelehnt - Benutzer/Passwort prüfen."
 	case strings.Contains(err.Error(), "connection refused"):
 		return "Verbindung abgelehnt - ist www-ssl (HTTPS, Port 443) am Router aktiv? (/ip service enable www-ssl)"
+	case strings.Contains(err.Error(), "handshake failure") || strings.Contains(err.Error(), "tls: protocol version"):
+		return "TLS-Handshake fehlgeschlagen - dem Dienst www-ssl am Router fehlt vermutlich ein Zertifikat (/ip service set www-ssl certificate=<name>)."
 	case strings.Contains(err.Error(), "timeout") || strings.Contains(err.Error(), "deadline"):
 		return "Zeitüberschreitung - Adresse/Firewall prüfen (mtmon muss den Router auf dem REST-Port erreichen)."
 	}
