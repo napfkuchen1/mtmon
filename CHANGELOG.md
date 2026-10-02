@@ -8,6 +8,22 @@ Version `1.0.0` will mean "verified on a range of real MikroTik hardware".
 Every release lists what is **new**, what **changed**, and what was **fixed**. Upgrading is always the same:
 run the installer again and choose *update* (a snapshot of the container is taken first).
 
+## [0.8.0] - unreleased
+
+### New
+- **Signed releases.** Every release archive now carries a minisign signature (`.minisig`). The in-app updater only
+  installs a release whose signature matches the mtmon release key built into the program, and the signature is tied
+  to the exact version, so an old signed file cannot be passed off as a new one. The installer checks the signature too
+  when `minisign` is installed (`apt install minisign`).
+
+### Changed
+- Updates from the web UI now refuse releases without a valid signature. Upgrade from 0.7.x to 0.8.0 works as before
+  (0.7.x does not check signatures); from 0.8.0 on every update is verified.
+- The Go module path is now `github.com/napfkuchen1/mtmon`.
+
+### Fixed
+- README examples no longer mention non-existent versions (v2.x).
+
 ## [0.7.0] - 2026-10-02
 
 ### New

@@ -201,6 +201,7 @@ Your routers are **not** touched by this. Use *Offboarding* on each device **bef
 
 * **Read-only by default.** The only code that writes to a router is the setup/offboarding wizard, and only after your explicit confirmation.
 * **Admin credentials are used once and never stored.** The long-lived account is a generated read-only user restricted to the mtmon address. Its password is stored encrypted (AES-256-GCM, key file mode 0600).
+* **Signed releases.** Release archives are signed with minisign (public key in `minisign.pub`). The web updater refuses unsigned or mismatching releases; the installer verifies the signature when `minisign` is installed.
 * **Certificate pinning.** The router's TLS fingerprint is shown and must be confirmed (trust on first use); there is no silent "insecure" mode.
 * **The wizard only talks to private addresses** (RFC 1918, loopback, link-local, CGNAT or networks you configured), so it cannot be abused to probe the internet.
 * Web UI: argon2id passwords, 12-hour sessions, login rate limiting, origin checks on changes, strict security headers, CSV export protected against formula injection.
