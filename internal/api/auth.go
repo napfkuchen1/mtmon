@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -55,35 +56,62 @@ func CheckPassword(pw, enc string) bool {
 	return subtle.ConstantTimeCompare(got, want) == 1
 }
 
+// Sessions live in memory (a restart logs everybody out). A session expires after sessionIdle without use and in any
+// case sessionMax after login, even if it is used continuously.
+const (
+	sessionIdle = 12 * time.Hour
+	sessionMax  = 7 * 24 * time.Hour
+	failWindow  = time.Minute
+	failLimit   = 5
+)
+
+type session struct{ idleUntil, born time.Time }
+
 type sessions struct {
 	mu     sync.Mutex
-	tokens map[string]time.Time
+	tokens map[string]session
 	fails  map[string][]time.Time
+	now    func() time.Time
 }
 
 func newSessions() *sessions {
-	return &sessions{tokens: map[string]time.Time{}, fails: map[string][]time.Time{}}
+	return &sessions{tokens: map[string]session{}, fails: map[string][]time.Time{}, now: time.Now}
 }
 
 var ErrRate = errors.New("too many attempts")
 
+// allow reports whether ip may try to log in. Stale failure records are removed here, so the map cannot grow
+// without bound when many different addresses fail once.
 func (s *sessions) allow(ip string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	cut := time.Now().Add(-time.Minute)
+	cut := s.now().Add(-failWindow)
+	if len(s.fails) > 256 {
+		for k := range s.fails {
+			s.prune(k, cut)
+		}
+	}
+	return len(s.prune(ip, cut)) < failLimit
+}
+
+func (s *sessions) prune(ip string, cut time.Time) []time.Time {
 	f := s.fails[ip][:0]
 	for _, t := range s.fails[ip] {
 		if t.After(cut) {
 			f = append(f, t)
 		}
 	}
+	if len(f) == 0 {
+		delete(s.fails, ip)
+		return nil
+	}
 	s.fails[ip] = f
-	return len(f) < 5
+	return f
 }
 
 func (s *sessions) fail(ip string) {
 	s.mu.Lock()
-	s.fails[ip] = append(s.fails[ip], time.Now())
+	s.fails[ip] = append(s.fails[ip], s.now())
 	s.mu.Unlock()
 }
 
@@ -92,27 +120,49 @@ func (s *sessions) create() string {
 	rand.Read(b)
 	tok := base64.RawURLEncoding.EncodeToString(b)
 	s.mu.Lock()
-	s.tokens[tok] = time.Now().Add(12 * time.Hour)
+	now := s.now()
+	for k, v := range s.tokens { // drop sessions that can no longer be used (never touched again after expiry)
+		if s.expired(v, now) {
+			delete(s.tokens, k)
+		}
+	}
+	s.tokens[tok] = session{idleUntil: now.Add(sessionIdle), born: now}
 	s.mu.Unlock()
 	return tok
+}
+
+func (s *sessions) expired(v session, now time.Time) bool {
+	return now.After(v.idleUntil) || now.After(v.born.Add(sessionMax))
 }
 
 func (s *sessions) valid(tok string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	exp, ok := s.tokens[tok]
+	v, ok := s.tokens[tok]
 	if !ok {
 		return false
 	}
-	if time.Now().After(exp) {
+	now := s.now()
+	if s.expired(v, now) {
 		delete(s.tokens, tok)
 		return false
 	}
-	s.tokens[tok] = time.Now().Add(12 * time.Hour) // sliding
+	v.idleUntil = now.Add(sessionIdle) // sliding, but never beyond born+sessionMax
+	s.tokens[tok] = v
 	return true
 }
 
 func (s *sessions) drop(tok string) { s.mu.Lock(); delete(s.tokens, tok); s.mu.Unlock() }
+
+// sameOrigin reports whether the Origin header of a browser request names exactly this server (scheme is not
+// compared: the listener decides http/https). An empty Origin (non-browser client) is the caller's decision.
+func sameOrigin(origin, host string) bool {
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		return false
+	}
+	return strings.EqualFold(u.Host, host)
+}
 
 func clientIP(r *http.Request) string {
 	h, _, err := net.SplitHostPort(r.RemoteAddr)
