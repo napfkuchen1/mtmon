@@ -1,14 +1,15 @@
 <script>
   import Flag from './Flag.svelte'
+  import Empty from './Empty.svelte'
   import { bytes, num, countryName } from './format.js'
   import { t, tr, i18n } from './i18n.svelte.js'
-  let { rows = [], onpick = null, showFlows = false, mode = 'traffic', empty = null } = $props()
+  let { rows = [], onpick = null, showFlows = false, mode = 'traffic', empty = null, emptyIcon = 'generic', emptyHref = '', emptyAction = '' } = $props()
   const total = r => r.up + r.down + r.internal
   const max = $derived(rows.reduce((m, r) => Math.max(m, total(r)), 0) || 1)
 </script>
 
 {#if !rows.length}
-  <div class="empty">{empty ?? t('No traffic recorded in this range')}</div>
+  <Empty compact icon={emptyIcon} title={empty ?? t('No traffic recorded in this range')} href={emptyHref} action={emptyAction} />
 {:else}
   <div class="list">
     {#each rows as r (r.key + '|' + r.sub)}

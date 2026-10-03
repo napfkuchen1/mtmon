@@ -1,4 +1,5 @@
 <script>
+  import Avatar from '../lib/Avatar.svelte'
   import Flag from '../lib/Flag.svelte'
   import { api, download } from '../lib/api.js'
   import { app, toast } from '../lib/state.svelte.js'
@@ -76,7 +77,7 @@
 
 {#if c}
   <div class="title">
-    <span class="dot" class:ok={c.online} class:bad={!c.online}></span>
+    <Avatar client={c} online={c.online} size={40} />
     {#if editing}
       <input class="input" bind:value={label} maxlength="64" aria-label={t('Client label')} onkeydown={e => e.key === 'Enter' && saveLabel()} />
       <button class="btn sm primary" onclick={saveLabel}>{t('Save')}</button><button class="btn sm" onclick={() => (editing = false)}>{t('Cancel')}</button>

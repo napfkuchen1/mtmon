@@ -1,4 +1,5 @@
 <script>
+  import Empty from '../lib/Empty.svelte'
   import { api } from '../lib/api.js'
   import { poll } from '../lib/Poll.svelte.js'
   import { datetime, ago } from '../lib/format.js'
@@ -23,6 +24,6 @@
       </tr>
     {/each}
   </tbody></table>
-  {#if !rows.length}<div class="empty">{d.loading ? t('Loading…') : t('No alerts — all quiet')}</div>{/if}
+  {#if !rows.length}{#if d.loading}<div class="empty">{t('Loading…')}</div>{:else}<Empty icon="bulb" title={t('No alerts — all quiet')} hint={t('mtmon tells you here when a device goes down, a port flaps or something unusual happens.')} />{/if}{/if}
 </div></div>
 <style>.head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; }</style>

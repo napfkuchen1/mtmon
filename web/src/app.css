@@ -93,3 +93,18 @@ pre.code { margin: 0; padding: 12px 14px; background: var(--card-2); border: 1px
 .warnbox { border: 1px solid var(--warn); background: var(--warn-bg); color: var(--text); border-radius: 8px; padding: 10px 14px; }
 @media (prefers-reduced-motion: no-preference) { .dot.pulse { animation: pulse 2s infinite; } }
 @keyframes pulse { 50% { opacity: .45; } }
+
+/* density toggle (Settings → Appearance / header button) */
+html[data-density="compact"] td { padding: 4px 12px; }
+html[data-density="compact"] th { padding: 5px 12px; }
+html[data-density="compact"] .card-h { padding-top: 8px; padding-bottom: 8px; }
+html[data-density="compact"] .card-b { padding: 10px 14px; }
+html[data-density="compact"] .kpi .v { font-size: 21px; }
+html[data-density="compact"] .page { padding-top: 14px; }
+html[data-density="compact"] .row { padding-top: 6px; padding-bottom: 6px; }
+
+/* toggle switch */
+.sw { position: relative; width: 40px; height: 22px; border-radius: 999px; border: 1px solid var(--border-2); background: var(--border); cursor: pointer; padding: 0; transition: background .15s; }
+.sw i { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s; }
+.sw.on { background: var(--ok); border-color: var(--ok); } .sw.on i { transform: translateX(18px); }
+.sw:disabled { opacity: .6; cursor: progress; }

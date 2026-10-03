@@ -49,6 +49,39 @@ func New(geoDB, asnDB, ouiFile string, reverseDNS bool) *Enricher {
 	return e
 }
 
+// SetReverseDNS switches the reverse-lookup fallback on or off at runtime.
+func (e *Enricher) SetReverseDNS(on bool) {
+	e.mu.Lock()
+	e.rdns = on
+	e.mu.Unlock()
+}
+
+// ReloadGeo opens (new) country / ASN databases without a restart. Empty paths keep what is loaded.
+// The previous readers are left for the garbage collector: lookups may still be using them.
+func (e *Enricher) ReloadGeo(geoDB, asnDB string) error {
+	var g, a *maxminddb.Reader
+	var err error
+	if geoDB != "" {
+		if g, err = maxminddb.Open(geoDB); err != nil {
+			return err
+		}
+	}
+	if asnDB != "" {
+		if a, err = maxminddb.Open(asnDB); err != nil {
+			return err
+		}
+	}
+	e.mu.Lock()
+	if g != nil {
+		e.geo = g
+	}
+	if a != nil {
+		e.asn = a
+	}
+	e.mu.Unlock()
+	return nil
+}
+
 // Status tells the UI which enrichment sources are active.
 func (e *Enricher) Status() map[string]bool {
 	e.mu.RLock()
@@ -122,11 +155,12 @@ func (e *Enricher) SetName(ip netip.Addr, name string, ttl time.Duration) {
 func (e *Enricher) Name(ip netip.Addr) string {
 	e.mu.RLock()
 	n, ok := e.names[ip]
+	rdns := e.rdns
 	e.mu.RUnlock()
 	if ok && time.Now().Before(n.exp) {
 		return n.name
 	}
-	if e.rdns && !ok {
+	if rdns && !ok {
 		e.mu.Lock()
 		if _, q := e.queued[ip]; !q {
 			select {
@@ -202,22 +236,25 @@ type Geo struct {
 // Lookup returns country/ASN for public addresses (empty when DBs are absent).
 func (e *Enricher) Lookup(ip netip.Addr) Geo {
 	var g Geo
-	if e.geo != nil {
+	e.mu.RLock()
+	geo, asn := e.geo, e.asn
+	e.mu.RUnlock()
+	if geo != nil {
 		var rec struct {
 			Country struct {
 				ISO string `maxminddb:"iso_code"`
 			} `maxminddb:"country"`
 		}
-		if err := e.geo.Lookup(ip).Decode(&rec); err == nil {
+		if err := geo.Lookup(ip).Decode(&rec); err == nil {
 			g.CC = rec.Country.ISO
 		}
 	}
-	if e.asn != nil {
+	if asn != nil {
 		var rec struct {
 			N uint32 `maxminddb:"autonomous_system_number"`
 			O string `maxminddb:"autonomous_system_organization"`
 		}
-		if err := e.asn.Lookup(ip).Decode(&rec); err == nil {
+		if err := asn.Lookup(ip).Decode(&rec); err == nil {
 			g.ASN, g.ASOrg = rec.N, rec.O
 		}
 	}

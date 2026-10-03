@@ -8,6 +8,24 @@ Version `1.0.0` will mean "verified on a range of real MikroTik hardware".
 Every release lists what is **new**, what **changed**, and what was **fixed**. Upgrading is always the same:
 run the installer again and choose *update* (a snapshot of the container is taken first).
 
+## [0.10.0] - 2026-10-03
+
+### New
+- **Set up GeoIP/ASN/vendor data with one click** (Settings → Enrichment): mtmon downloads the free country, provider and
+  manufacturer lists itself and uses them right away. The reverse-DNS fallback is a switch now.
+- **Device icons** (phone, laptop, TV, printer, speaker, camera, server, smart-home …), guessed from name and vendor, in the
+  client list, client page, topology, search and the new-devices list.
+- **Trend lines on the Overview** (download/upload) and a **world map** next to the top countries.
+- **Topology redesigned:** devices are grouped per router/access point, groups can be collapsed, the layout wraps to the window
+  width (no sideways scrolling), hovering a device highlights its path to the router, and links that only exist "through"
+  another device are no longer drawn.
+- **Chart style:** smooth curves, peak values and night shading. Settings → Appearance switches back to the classic look.
+- **Density switch** (compact / comfortable) in the header and in Settings.
+- Friendlier empty screens that say what to do next (for example "Set up in Settings" when no GeoIP data is installed).
+
+### Fixed
+- Download/upload change badges no longer show absurd numbers when the previous period had almost no traffic.
+
 ## [0.9.2] - 2026-10-03
 
 ### Fixed

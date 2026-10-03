@@ -1,4 +1,6 @@
 <script>
+  import Avatar from '../lib/Avatar.svelte'
+  import Empty from '../lib/Empty.svelte'
   import { api, download } from '../lib/api.js'
   import { app, go } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
@@ -53,7 +55,7 @@
       <tbody>
         {#each rows as x (x.c.mac)}
           <tr class="click" onclick={() => go('client/' + encodeURIComponent(x.c.mac))}>
-            <td><div style="display:flex;gap:10px;align-items:center"><span class="dot" class:ok={x.c.online}></span>
+            <td><div style="display:flex;gap:10px;align-items:center"><Avatar client={x.c} online={x.c.online} />
               <div><b>{display(x.c)}</b><div class="muted mono" style="font-size:11.5px">{x.c.mac}{#if x.c.vendor} · {tr(x.c.vendor)}{/if}</div></div></div></td>
             <td class="mono">{x.c.ip || '—'}</td>
             <td>{#if x.c.device}{x.c.device}{#if x.c.wifi}<div><span class="badge acc">{x.c.ssid || t('Wi-Fi')}{x.c.band ? ' · ' + x.c.band : ''}</span></div>{:else}<div class="muted">{x.c.iface}</div>{/if}{:else}<span class="muted">—</span>{/if}</td>
@@ -65,7 +67,7 @@
         {/each}
       </tbody>
     </table>
-    {#if !rows.length}<div class="empty">{d.loading ? t('Loading…') : t('No clients match')}</div>{/if}
+    {#if !rows.length}{#if d.loading}<div class="empty">{t('Loading…')}</div>{:else if !(d.data || []).length}<Empty icon="laptop" title={t('No clients yet')} hint={t('Clients appear here as soon as your routers report them. Check Devices if nothing shows up.')} href="#/devices" action={t('Open Devices')} />{:else}<Empty compact icon="generic" title={t('No clients match')} hint={t('Try another search or filter.')} />{/if}{/if}
   </div>
 </div>
 

@@ -1,5 +1,5 @@
 <script>
-  import { app, checkSession, parseHash, go, openLive, closeLive, applyTheme, setTheme, setRange } from './lib/state.svelte.js'
+  import { app, checkSession, parseHash, go, openLive, closeLive, applyTheme, setTheme, setRange, setPref } from './lib/state.svelte.js'
   import { api } from './lib/api.js'
   import { t, tr, i18n } from './lib/i18n.svelte.js'
   import Login from './pages/Login.svelte'
@@ -141,6 +141,8 @@
           </select>
         </div>
         <div class="spacer"></div>
+        <button class="btn sm" title={t('Density: compact / comfortable')} aria-label={t('Density')} onclick={() => setPref('density', app.density === 'compact' ? 'comfortable' : 'compact')}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">{#if app.density === 'compact'}<path d="M4 6h16M4 12h16M4 18h16"/>{:else}<path d="M4 5h16M4 12h16M4 19h16"/>{/if}</svg></button>
         <button class="btn sm srch" onclick={() => (palette = true)} aria-label={t('Search')}>🔍 {t('Search')} <kbd>Ctrl K</kbd></button>
         {#if upd?.available}<a class="vbadge mobv" href="#/settings/updates">{t('Update {v}', { v: vlabel(upd.latest) })}</a>{/if}
         {#if showRange}

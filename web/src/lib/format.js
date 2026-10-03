@@ -58,3 +58,24 @@ export function signalQuality(dbm) {
   if (dbm >= -72) return { cls: 'warn', txt: dbm + ' dBm' }
   return { cls: 'bad', txt: dbm + ' dBm' }
 }
+
+// Guess an icon for a client from what we know about it (label, hostname, vendor). Order matters: first match wins.
+const KINDS = [
+  ['network', /mikrotik|routerboard|ubiquiti|tp-link|\bavm\b|fritz|netgear|zyxel|cisco|aruba|lancom|router|gateway|\bwap\b|\bap[-_ ]|switch.*(poe|port)/],
+  ['tv', /\btv\b|bravia|webos|roku|chromecast|fire ?tv|apple-?tv|smarttv|vizio|\bshield\b/],
+  ['speaker', /sonos|echo|alexa|homepod|speaker|\bmc-|musiccast|yamaha|bose|nest ?(mini|audio)|google-?home/],
+  ['printer', /printer|brother|epson|canon|laserjet|deskjet|officejet|lexmark|\bmfc-/],
+  ['camera', /\bcam\b|camera|reolink|hikvision|dahua|wyze|eufy|ipcam|doorbell/],
+  ['console', /playstation|\bps[45]\b|xbox|nintendo/],
+  ['server', /synology|qnap|proxmox|\bnas\b|server|docker|homeassistant|home-assistant|raspberry|alpine|ubuntu|debian|jellyfin|nginx|plex|pihole|esxi|truenas|unraid|automation|cloudflared|vaultwarden|portainer|\bvm\b|mtmon|immich|myspeed|esphome|nginx|realtek semi|asustek/],
+  ['bulb', /\bhue\b|signify|bulb|lamp|light|wled|ikea/],
+  ['iot', /esp[-_]|espressif|shelly|tasmota|tuya|sonoff|zigbee|plug|thermostat|dishwasher|neff|bosch|siemens|miele|washer|dryer|texas instruments|amazon tech|\bamazon-/],
+  ['phone', /iphone|ipad|pixel|galaxy|android|oneplus|xiaomi|redmi|huawei|phone|handy|poco|\bsm-|\bs2\d/],
+  ['laptop', /laptop|macbook|notebook|thinkpad|surface|dell|lenovo|desktop|\bpc\b|\bhp-|intel|apple|\bmac\b|ieee registration/]
+]
+export function deviceKind(c) {
+  const txt = [c.label, c.hostname, c.vendor, c.name].filter(Boolean).join(' ').toLowerCase()
+  for (const [kind, re] of KINDS) if (re.test(txt)) return kind
+  if (c.wifi && (c.vendor || '').startsWith('Private')) return 'phone' // randomized MAC on Wi-Fi: almost always a phone
+  return 'generic'
+}

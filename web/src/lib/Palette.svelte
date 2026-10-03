@@ -1,4 +1,5 @@
 <script>
+  import Avatar from './Avatar.svelte'
   import { api } from './api.js'
   import { go } from './state.svelte.js'
   import { t } from './i18n.svelte.js'
@@ -15,7 +16,7 @@
     const out = []
     for (const [id, l] of pages) if (has(t(l), id)) out.push({ k: t('Page'), name: t(l), sub: '', to: id })
     if (s && idx) {
-      for (const c of idx.clients) if (has(c.name, c.ip, c.mac, c.vendor)) out.push({ k: t('Client'), name: c.name, sub: [c.ip, c.mac].filter(Boolean).join(' · '), on: c.online, to: 'client/' + encodeURIComponent(c.mac) })
+      for (const c of idx.clients) if (has(c.name, c.ip, c.mac, c.vendor)) out.push({ k: t('Client'), name: c.name, sub: [c.ip, c.mac].filter(Boolean).join(' · '), on: c.online, c: { label: c.name, vendor: c.vendor, wifi: false }, to: 'client/' + encodeURIComponent(c.mac) })
       for (const d of idx.devices) if (has(d.name, d.addr)) out.push({ k: t('Device'), name: d.name, sub: d.addr, to: 'device/' + encodeURIComponent(d.name) })
       for (const v of idx.services) if (has(v)) out.push({ k: t('Service'), name: v, sub: '', to: 'services/' + encodeURIComponent(v) })
     }
@@ -36,7 +37,7 @@
   <ul>
     {#each results as r, i}
       <li><button class:on={i === cur} onclick={() => pick(r)} onmouseenter={() => (cur = i)}>
-        <span class="k">{r.k}</span>{#if r.on !== undefined}<span class="dot" class:ok={r.on}></span>{/if}<b>{r.name}</b><span class="muted sub">{r.sub}</span></button></li>
+        <span class="k">{r.k}</span>{#if r.c}<Avatar client={r.c} online={r.on} size={24} />{/if}<b>{r.name}</b><span class="muted sub">{r.sub}</span></button></li>
     {/each}
   </ul>
   {#if q && !results.length}<div class="empty">{t('Nothing found')}</div>{/if}
