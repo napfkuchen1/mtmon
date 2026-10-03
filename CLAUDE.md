@@ -39,3 +39,5 @@ Go-Backend (single static binary, SQLite via modernc, kein CGO) + Svelte-5-UI (`
 - „Online via“ (`clients.via`) zeigt, welche Beobachtung einen Client online hält – erste Anlaufstelle bei „zeigt online, ist aber weg“.
 - Verbindungslisten: `ConnectionsFiltered` (Filter svc/rip/port/cc) – bei neuen Filtern Index/`make scale` prüfen. UI-Polls mit `stop`-Flag nach jedem `await` prüfen (Race beim Client-Wechsel).
 - Keine Flaggen-Emojis (Windows zeigt „DE“ als Buchstaben): `lib/Flag.svelte` (SVG aus `country-flag-icons`, lazy je Land) + `countryName()` in `format.js`.
+- Enrichment-Download läuft in-App (`enrich.Fetch`, feste Quellen, atomar, Hot-Reload); `deploy/update-geo.sh` bleibt der Fallback. Neue UI-Bausteine: `Avatar`/`DeviceIcon` (`deviceKind` in `format.js`), `Spark`, `WorldMap` (world-atlas, lazy), `Empty`; Nutzerpräferenzen `density`/`chart` in `state.svelte.js` (localStorage).
+- Topology-Layout ist reines Frontend (`pages/Topology.svelte`): BFS-Baum über Neighbor-Kanten, Gruppen-Container, Umbruch nach Breite – keine festen Pixelbreiten.
