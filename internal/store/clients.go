@@ -23,6 +23,7 @@ type Client struct {
 	RxRate    string `json:"rx_rate"`
 	WiFi      bool   `json:"wifi"`
 	Online    bool   `json:"online"`
+	Via       string `json:"via"` // why the client counts as present, e.g. "Wi-Fi registration on wAP"
 }
 
 // Observation is what the poller learned about a client in one cycle.
@@ -39,7 +40,8 @@ type Observation struct {
 	TxRate   string
 	RxRate   string
 	WiFi     bool
-	Present  bool // seen on the network right now (wifi/bridge-host/ARP), not just a DHCP lease
+	Via      string // evidence behind Present
+	Present  bool   // seen on the network right now (wifi/bridge-host/ARP), not just a DHCP lease
 }
 
 func NormMAC(m string) string { return strings.ToUpper(strings.TrimSpace(m)) }
@@ -62,9 +64,9 @@ func (s *Store) UpsertClients(obs []Observation) ([]string, error) {
 		var prevWifi sql.NullInt64
 		err := tx.QueryRow(`SELECT device, wifi FROM clients WHERE mac=?`, o.MAC).Scan(&prevDev, &prevWifi)
 		if err == sql.ErrNoRows {
-			tx.Exec(`INSERT INTO clients(mac,hostname,vendor,ip,first_seen,last_seen,device,iface,ssid,band,signal,tx_rate,rx_rate,wifi,online)
-				VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, o.MAC, o.Hostname, o.Vendor, o.IP, now, now, o.Device, o.Iface, o.SSID,
-				o.Band, o.Signal, o.TxRate, o.RxRate, b2i(o.WiFi), b2i(o.Present))
+			tx.Exec(`INSERT INTO clients(mac,hostname,vendor,ip,first_seen,last_seen,device,iface,ssid,band,signal,tx_rate,rx_rate,wifi,online,via)
+				VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, o.MAC, o.Hostname, o.Vendor, o.IP, now, now, o.Device, o.Iface, o.SSID,
+				o.Band, o.Signal, o.TxRate, o.RxRate, b2i(o.WiFi), b2i(o.Present), o.Via)
 		} else if err == nil {
 			if o.WiFi && prevWifi.Int64 == 1 && prevDev.String != "" && o.Device != "" && prevDev.String != o.Device {
 				tx.Exec(`INSERT INTO roam(ts,mac,from_dev,to_dev) VALUES(?,?,?,?)`, now, o.MAC, prevDev.String, o.Device)
@@ -72,10 +74,10 @@ func (s *Store) UpsertClients(obs []Observation) ([]string, error) {
 			}
 			// Keep richer info: don't overwrite wifi data with a wired/arp observation.
 			if o.WiFi {
-				tx.Exec(`UPDATE clients SET last_seen=?, online=1, device=?, iface=?, ssid=?, band=?, signal=?, tx_rate=?, rx_rate=?, wifi=1,
+				tx.Exec(`UPDATE clients SET last_seen=?, online=1, via=?, device=?, iface=?, ssid=?, band=?, signal=?, tx_rate=?, rx_rate=?, wifi=1,
 					hostname=CASE WHEN ?<>'' THEN ? ELSE hostname END, ip=CASE WHEN ?<>'' THEN ? ELSE ip END,
 					vendor=CASE WHEN ?<>'' THEN ? ELSE vendor END WHERE mac=?`,
-					now, o.Device, o.Iface, o.SSID, o.Band, o.Signal, o.TxRate, o.RxRate,
+					now, o.Via, o.Device, o.Iface, o.SSID, o.Band, o.Signal, o.TxRate, o.RxRate,
 					o.Hostname, o.Hostname, o.IP, o.IP, o.Vendor, o.Vendor, o.MAC)
 			} else {
 				seen := int64(0)
@@ -83,12 +85,13 @@ func (s *Store) UpsertClients(obs []Observation) ([]string, error) {
 					seen = now
 				}
 				tx.Exec(`UPDATE clients SET last_seen=CASE WHEN ?>0 THEN ? ELSE last_seen END, online=CASE WHEN ?>0 THEN 1 ELSE online END,
+					via=CASE WHEN ?>0 THEN ? ELSE via END,
 					hostname=CASE WHEN ?<>'' THEN ? ELSE hostname END, ip=CASE WHEN ?<>'' THEN ? ELSE ip END,
 					vendor=CASE WHEN ?<>'' THEN ? ELSE vendor END,
 					device=CASE WHEN wifi=1 THEN device ELSE CASE WHEN ?<>'' THEN ? ELSE device END END,
 					iface=CASE WHEN wifi=1 THEN iface ELSE CASE WHEN ?<>'' THEN ? ELSE iface END END
 					WHERE mac=?`,
-					seen, seen, seen, o.Hostname, o.Hostname, o.IP, o.IP, o.Vendor, o.Vendor, o.Device, o.Device, o.Iface, o.Iface, o.MAC)
+					seen, seen, seen, seen, o.Via, o.Hostname, o.Hostname, o.IP, o.IP, o.Vendor, o.Vendor, o.Device, o.Device, o.Iface, o.Iface, o.MAC)
 			}
 		}
 		if o.IP != "" {
@@ -110,13 +113,13 @@ func (s *Store) SetLabel(mac, label string) error {
 }
 
 const clientCols = `mac,coalesce(hostname,''),coalesce(vendor,''),coalesce(ip,''),coalesce(label,''),first_seen,last_seen,
- coalesce(device,''),coalesce(iface,''),coalesce(ssid,''),coalesce(band,''),coalesce(signal,0),coalesce(tx_rate,''),coalesce(rx_rate,''),wifi,online`
+ coalesce(device,''),coalesce(iface,''),coalesce(ssid,''),coalesce(band,''),coalesce(signal,0),coalesce(tx_rate,''),coalesce(rx_rate,''),wifi,online,coalesce(via,'')`
 
 func scanClient(r interface{ Scan(...any) error }) (Client, error) {
 	var c Client
 	var w, o int
 	err := r.Scan(&c.MAC, &c.Hostname, &c.Vendor, &c.IP, &c.Label, &c.FirstSeen, &c.LastSeen, &c.Device, &c.Iface,
-		&c.SSID, &c.Band, &c.Signal, &c.TxRate, &c.RxRate, &w, &o)
+		&c.SSID, &c.Band, &c.Signal, &c.TxRate, &c.RxRate, &w, &o, &c.Via)
 	c.WiFi, c.Online = w == 1, o == 1
 	return c, err
 }
