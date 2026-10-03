@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/napfkuchen1/mtmon/internal/config"
+	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
 func TestIsSelf(t *testing.T) {
@@ -21,5 +22,23 @@ func TestIsSelf(t *testing.T) {
 		if got := m.isSelf(c.mac, c.ip); got != c.want {
 			t.Errorf("isSelf(%s,%s)=%v want %v", c.mac, c.ip, got, c.want)
 		}
+	}
+}
+
+func TestUplinkPorts(t *testing.T) {
+	st, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	// the AP sees the router on ether1 (trunk); the camera is an ordinary neighbor and must not count
+	st.SaveNeighbors("ap", []store.Neighbor{
+		{Device: "ap", Iface: "bridge/ether1", MAC: "AA:00:00:00:00:01", Ident: "hex"},
+		{Device: "ap", Iface: "ether3", MAC: "AA:00:00:00:00:02", Ident: "camera"},
+	})
+	m := &Manager{Cfg: &config.Config{Devices: []config.Device{{Name: "hex"}, {Name: "ap"}}}, St: st}
+	up := m.uplinkPorts()
+	if !up["ap|ether1"] || up["ap|ether3"] || len(up) != 1 {
+		t.Fatalf("uplinkPorts = %v", up)
 	}
 }
