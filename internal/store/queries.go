@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -198,28 +199,42 @@ func (s *Store) Connections(mac string, since int64, limit int, afterTS int64) (
 	return s.ConnectionsFiltered(mac, since, limit, afterTS, ConnFilter{})
 }
 
+// ConnectionsFiltered lists a client's connections, newest first: its own flows (matched by MAC, or by one of its
+// addresses for flows that could not be attributed yet) and, without filters, LAN flows other clients opened
+// towards it (shown from this client's point of view, so "who talked to me").
 func (s *Store) ConnectionsFiltered(mac string, since int64, limit int, afterTS int64, f ConnFilter) ([]Conn, error) {
 	key := NormMAC(mac)
-	q := `SELECT ts,rip,rport,cport,proto,dir,bytes,pkts,host,cc,asn,asorg,svc,cip,exporter FROM flows
-		WHERE (mac=? OR (mac='' AND cip=?)) AND ts>=? AND ts>?`
-	args := []any{key, mac, since, afterTS}
+	ips := `(SELECT ip FROM ip_history WHERE mac=?1)`
+	where := `(mac=?1 OR (mac='' AND cip IN ` + ips + `))`
+	args := []any{key}
+	filtered := f != ConnFilter{}
+	if !filtered {
+		where = `(` + where + ` OR (dir='i' AND rip IN ` + ips + ` AND mac<>?1))`
+	}
+	q := `SELECT ts,rip,rport,cport,proto,dir,bytes,pkts,host,cc,asn,asorg,svc,cip,exporter,mac FROM flows
+		WHERE ` + where + ` AND ts>=?2 AND ts>?3`
+	args = append(args, since, afterTS)
+	n := 3
+	add := func(cond string, v ...any) {
+		for range v {
+			n++
+		}
+		q += ` AND ` + cond
+		args = append(args, v...)
+	}
 	if f.Svc != "" {
-		q += ` AND svc=?`
-		args = append(args, f.Svc)
+		add(`svc=?`+itoa(n+1), f.Svc)
 	}
 	if f.RIP != "" {
-		q += ` AND rip=?`
-		args = append(args, f.RIP)
+		add(`rip=?`+itoa(n+1), f.RIP)
 	}
 	if f.RPort > 0 {
-		q += ` AND rport=? AND proto=?`
-		args = append(args, f.RPort, f.Proto)
+		add(`rport=?`+itoa(n+1)+` AND proto=?`+itoa(n+2), f.RPort, f.Proto)
 	}
 	if f.CC != "" {
-		q += ` AND cc=?`
-		args = append(args, f.CC)
+		add(`cc=?`+itoa(n+1), f.CC)
 	}
-	rows, err := s.DB.Query(q+` ORDER BY ts DESC LIMIT ?`, append(args, limit)...)
+	rows, err := s.DB.Query(q+` ORDER BY ts DESC LIMIT ?`+itoa(n+1), append(args, limit)...)
 	if err != nil {
 		return nil, err
 	}
@@ -227,11 +242,21 @@ func (s *Store) ConnectionsFiltered(mac string, since int64, limit int, afterTS 
 	out := []Conn{}
 	for rows.Next() {
 		var c Conn
-		rows.Scan(&c.TS, &c.RIP, &c.RPort, &c.CPort, &c.Proto, &c.Dir, &c.Bytes, &c.Pkts, &c.Host, &c.CC, &c.ASN, &c.ASOrg, &c.Svc, &c.CIP, &c.Exporter)
+		var owner string
+		if err := rows.Scan(&c.TS, &c.RIP, &c.RPort, &c.CPort, &c.Proto, &c.Dir, &c.Bytes, &c.Pkts, &c.Host, &c.CC, &c.ASN, &c.ASOrg, &c.Svc, &c.CIP, &c.Exporter, &owner); err != nil {
+			return nil, err
+		}
+		if owner != "" && owner != key { // someone else's flow towards this client: flip the point of view
+			c.RIP, c.CIP = c.CIP, c.RIP
+			c.RPort, c.CPort = c.CPort, c.RPort
+			c.Host, c.CC, c.ASN, c.ASOrg = "", "", 0, ""
+		}
 		out = append(out, c)
 	}
 	return out, rows.Err()
 }
+
+func itoa(n int) string { return strconv.Itoa(n) }
 
 type Overview struct {
 	DevicesUp, DevicesTotal int

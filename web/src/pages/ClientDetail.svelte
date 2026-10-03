@@ -42,6 +42,7 @@
     const run = async () => {
       try {
         const rows = await api(`/clients/${encodeURIComponent(id)}/connections?range=${range}&limit=300&after=${after}${dq}`)
+        if (stop) return // navigated to another client / filter while waiting: never mix its rows into this list
         if (rows.length) { after = Math.max(after, ...rows.map(r => r.ts)); conns = [...rows, ...conns].slice(0, 1500) }
         cerr = ''
       } catch (e) { cerr = e.message }
@@ -91,7 +92,7 @@
     <div class="card card-b kpi"><div class="l">{t('Address')}</div><div class="v mono" style="font-size:17px">{c.ip || '—'}</div><div class="l mono">{c.mac}</div></div>
     <div class="card card-b kpi"><div class="l">{t('Connected to')}</div><div class="v" style="font-size:17px">{c.device || '—'}</div><div class="l">{c.wifi ? (c.signal ? sq.txt + ' · ' : '') + (c.tx_rate || '') : c.iface}</div></div>
     <div class="card card-b kpi"><div class="l">{t('Right now')}</div><div class="v num" style="font-size:17px">↓ {bps(liveRate?.down_bps)} <span class="muted">↑ {bps(liveRate?.up_bps)}</span></div><div class="l">{t('30 s average')}</div></div>
-    <div class="card card-b kpi"><div class="l">{t('Seen')}</div><div class="v" style="font-size:17px">{datetime(c.last_seen)}</div><div class="l">{t('first {date}', { date: datetime(c.first_seen) })}</div></div>
+    <div class="card card-b kpi"><div class="l">{t('Seen')}</div><div class="v" style="font-size:17px">{datetime(c.last_seen)}</div><div class="l">{t('first {date}', { date: datetime(c.first_seen) })}</div>{#if c.online && c.via}<div class="l" title={t('What mtmon currently sees that proves this device is on the network')}>{t('Online via')}: {c.via}</div>{/if}</div>
   </div>
 
   {#if x.new_destinations?.length}
