@@ -8,6 +8,34 @@ Version `1.0.0` will mean "verified on a range of real MikroTik hardware".
 Every release lists what is **new**, what **changed**, and what was **fixed**. Upgrading is always the same:
 run the installer again and choose *update* (a snapshot of the container is taken first).
 
+## [0.9.0] - 2026-10-03
+
+### New
+- **"New devices" page.** Devices that appear on the network wait there until you have looked at them. mtmon proposes
+  a name (from the hostname, or from the vendor if there is none), you accept it with one click, type your own, or fill
+  several selected devices at once with a pattern like `Kids-{n}`. A counter in the menu shows how many are waiting.
+  Devices that mtmon already knows when you update count as seen, so the list starts empty.
+- **Search everywhere (Ctrl+K).** Jump to any client, router/AP, service or page by typing a few letters.
+- **Compare with the previous period.** Download, upload and flows on the Overview show how much they changed
+  compared with the equally long period before (for example "+12 %").
+- **Drill down from a client.** Click a destination, service, port or country in a client's top lists to see exactly
+  those connections (also in the CSV export).
+- **Clean up offline clients.** Besides "not seen for N days" you can now remove everything that is offline right now,
+  optionally only devices without any traffic in the last 7 days. A CSV download of all clients is one click away
+  in the dialog as a safety copy.
+- **Topology:** ports on the links between routers/APs, wired clients show their port, Wi-Fi clients are coloured and
+  sorted by network name (SSID).
+- **Better names:** clients without a DHCP host-name get a name from LLDP/MNDP, static DNS or reverse DNS; otherwise the
+  list shows "Vendor AB:CD" instead of a bare MAC address.
+
+### Changed
+- Suggestions are easier to read: a coloured edge shows the severity, "Problem" and "What to do" are separate blocks.
+
+### Fixed
+- **Topology showed wired devices on the wrong access point.** A device cabled to the router could appear connected to an
+  AP, because the AP also "sees" it through its uplink. Entries learned on a link to another of your devices are ignored now.
+  This needs LLDP/MNDP neighbor discovery between your devices (on by default in RouterOS).
+
 ## [0.8.2] - 2026-10-03
 
 ### Security
