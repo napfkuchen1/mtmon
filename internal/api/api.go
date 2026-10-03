@@ -236,8 +236,16 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	series, _ := s.St.Series(since, bucket, "")
+	// the equally long period before, for "+x %" deltas; nil when retention no longer covers it
+	var prev any
+	if rn != "live" {
+		now := time.Now().Unix()
+		if pu, pd, pf, ok := s.St.TotalsBetween(since-(now-since), since); ok {
+			prev = map[string]int64{"bytes_up": pu, "bytes_down": pd, "flows": pf}
+		}
+	}
 	jsonOut(w, map[string]any{
-		"range": rn, "bytes_up": up, "bytes_down": down, "flows": flows,
+		"range": rn, "bytes_up": up, "bytes_down": down, "flows": flows, "prev": prev,
 		"clients_online": on, "clients_total": total,
 		"devices_up": du, "devices_total": len(s.Cfg.AllDevices()), "alerts_open": s.St.OpenAlerts(),
 		"series":        series,
@@ -435,11 +443,15 @@ func (s *Server) topology(w http.ResponseWriter, r *http.Request) {
 		Bps    float64 `json:"bps"`
 		Sub    string  `json:"sub"`
 		WiFi   bool    `json:"wifi"`
+		SSID   string  `json:"ssid"` // wifi clients: network name
+		Port   string  `json:"port"` // wired clients: switch/router port
+		Band   string  `json:"band"`
 	}
 	type edge struct {
-		From string `json:"from"`
-		To   string `json:"to"`
-		Kind string `json:"kind"`
+		From  string `json:"from"`
+		To    string `json:"to"`
+		Kind  string `json:"kind"`
+		Label string `json:"label"` // port on the From side (device↔device links)
 	}
 	var nodes []node
 	var edges []edge
@@ -477,7 +489,7 @@ func (s *Server) topology(w http.ResponseWriter, r *http.Request) {
 			}
 			if !seen[a+"|"+b] {
 				seen[a+"|"+b] = true
-				edges = append(edges, edge{From: "d:" + n.Device, To: "d:" + n.Ident, Kind: "uplink"})
+				edges = append(edges, edge{From: "d:" + n.Device, To: "d:" + n.Ident, Kind: "uplink", Label: n.Iface})
 			}
 		}
 	}
@@ -505,7 +517,7 @@ func (s *Server) topology(w http.ResponseWriter, r *http.Request) {
 		if c.WiFi && c.Signal != 0 {
 			sub = fmt.Sprintf("%s · %d dBm", c.IP, c.Signal)
 		}
-		nodes = append(nodes, node{ID: "c:" + c.MAC, Type: "client", Label: name, Status: "up", Bps: rates[c.MAC], Sub: sub, WiFi: c.WiFi})
+		nodes = append(nodes, node{ID: "c:" + c.MAC, Type: "client", Label: name, Status: "up", Bps: rates[c.MAC], Sub: sub, WiFi: c.WiFi, SSID: c.SSID, Band: c.Band, Port: map[bool]string{true: "", false: c.Iface}[c.WiFi]})
 		if c.Device != "" {
 			edges = append(edges, edge{From: "d:" + c.Device, To: "c:" + c.MAC, Kind: map[bool]string{true: "wifi", false: "wired"}[c.WiFi]})
 		}
