@@ -7,11 +7,12 @@ import (
 	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
-// clientsCleanup: POST /api/clients/cleanup {days, keep_labeled, dry_run}. Session + same-origin
+// clientsCleanup: POST /api/clients/cleanup {days, unused_days, keep_labeled, dry_run}. Session + same-origin
 // protection come from the auth wrapper like every other mutating endpoint.
 func (s *Server) clientsCleanup(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Days        int  `json:"days"`
+		UnusedDays  int  `json:"unused_days"`
 		KeepLabeled bool `json:"keep_labeled"`
 		DryRun      bool `json:"dry_run"`
 	}
@@ -19,11 +20,11 @@ func (s *Server) clientsCleanup(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 400, "bad request")
 		return
 	}
-	if in.Days < store.MinCleanupDays || in.Days > 3650 {
-		jerr(w, 400, "days must be between 7 and 3650")
+	if in.Days < store.MinCleanupDays || in.Days > 3650 || in.UnusedDays < 0 || in.UnusedDays > 3650 {
+		jerr(w, 400, "days must be between 0 and 3650")
 		return
 	}
-	o := store.CleanupOpts{Days: in.Days, KeepLabeled: in.KeepLabeled, DryRun: in.DryRun}
+	o := store.CleanupOpts{Days: in.Days, UnusedDays: in.UnusedDays, KeepLabeled: in.KeepLabeled, DryRun: in.DryRun}
 	// managed devices: never remove a client that is (or sits on the address of) a configured router / AP
 	for _, d := range s.Cfg.AllDevices() {
 		o.ProtectIPs = append(o.ProtectIPs, d.Addr)
@@ -50,6 +51,10 @@ func (s *Server) clientsCleanup(w http.ResponseWriter, r *http.Request) {
 // featureRoutes registers the clean-up, app-detection endpoints.
 func (s *Server) featureRoutes(m *http.ServeMux, a func(http.HandlerFunc) http.HandlerFunc) {
 	m.HandleFunc("POST /api/clients/cleanup", a(s.clientsCleanup))
+	m.HandleFunc("GET /api/clients/inbox", a(s.clientsInbox))
+	m.HandleFunc("POST /api/clients/review", a(s.clientsReview))
+	m.HandleFunc("GET /api/search/index", a(s.searchIndex))
+	m.HandleFunc("GET /api/export/clients", a(s.exportClients))
 	m.HandleFunc("GET /api/clients/{mac}/apps", a(s.clientApps))
 	m.HandleFunc("GET /api/apps", a(s.apps))
 }

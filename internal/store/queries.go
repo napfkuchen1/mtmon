@@ -185,10 +185,41 @@ type Conn struct {
 }
 
 // Connections returns raw flows for one client (timeline view).
+// ConnFilter narrows a client's connection list (drill-down from the Top lists). Zero value = no filter.
+type ConnFilter struct {
+	Svc   string // detected service name
+	RIP   string // remote address
+	Proto int    // with RPort: protocol number (0 = any)
+	RPort int    // remote port (0 = any)
+	CC    string // remote country code
+}
+
 func (s *Store) Connections(mac string, since int64, limit int, afterTS int64) ([]Conn, error) {
+	return s.ConnectionsFiltered(mac, since, limit, afterTS, ConnFilter{})
+}
+
+func (s *Store) ConnectionsFiltered(mac string, since int64, limit int, afterTS int64, f ConnFilter) ([]Conn, error) {
 	key := NormMAC(mac)
-	rows, err := s.DB.Query(`SELECT ts,rip,rport,cport,proto,dir,bytes,pkts,host,cc,asn,asorg,svc,cip,exporter FROM flows
-		WHERE (mac=? OR (mac='' AND cip=?)) AND ts>=? AND ts>? ORDER BY ts DESC LIMIT ?`, key, mac, since, afterTS, limit)
+	q := `SELECT ts,rip,rport,cport,proto,dir,bytes,pkts,host,cc,asn,asorg,svc,cip,exporter FROM flows
+		WHERE (mac=? OR (mac='' AND cip=?)) AND ts>=? AND ts>?`
+	args := []any{key, mac, since, afterTS}
+	if f.Svc != "" {
+		q += ` AND svc=?`
+		args = append(args, f.Svc)
+	}
+	if f.RIP != "" {
+		q += ` AND rip=?`
+		args = append(args, f.RIP)
+	}
+	if f.RPort > 0 {
+		q += ` AND rport=? AND proto=?`
+		args = append(args, f.RPort, f.Proto)
+	}
+	if f.CC != "" {
+		q += ` AND cc=?`
+		args = append(args, f.CC)
+	}
+	rows, err := s.DB.Query(q+` ORDER BY ts DESC LIMIT ?`, append(args, limit)...)
 	if err != nil {
 		return nil, err
 	}

@@ -396,6 +396,17 @@ func (w *worker) l3Poll(ctx context.Context) {
 }
 
 func (w *worker) dnsCache(ctx context.Context) {
+	// static entries name local devices (A records); useful as reverse names for clients without a DHCP host-name
+	if st, err := w.c.Get(ctx, "/ip/dns/static"); err == nil {
+		for _, r := range st {
+			if r.Bool("disabled") || (r["type"] != "" && r["type"] != "A" && r["type"] != "AAAA") {
+				continue
+			}
+			if ip, err := netip.ParseAddr(r["address"]); err == nil && r["name"] != "" {
+				w.m.En.SetName(ip, r["name"], time.Hour)
+			}
+		}
+	}
 	rows, err := w.c.Get(ctx, "/ip/dns/cache")
 	if err != nil {
 		return
@@ -476,8 +487,64 @@ func (m *Manager) isSelf(mac, ip string) bool {
 	return false
 }
 
+// uplinkPorts returns "device|port" for every port on which another managed device was discovered as a
+// neighbor (LLDP/MNDP). A bridge host entry on such a port only says "reachable through that link", so it must
+// not decide where a client is attached.
+func (m *Manager) uplinkPorts() map[string]bool {
+	out := map[string]bool{}
+	ns, err := m.St.Neighbors()
+	if err != nil {
+		return out
+	}
+	managed := map[string]bool{}
+	for _, d := range m.Cfg.AllDevices() {
+		managed[d.Name] = true
+	}
+	for _, n := range ns {
+		if !managed[n.Ident] || n.Ident == n.Device {
+			continue
+		}
+		for _, p := range strings.Split(n.Iface, ",") {
+			p = strings.TrimSpace(p)
+			if i := strings.LastIndex(p, "/"); i >= 0 {
+				p = p[i+1:]
+			}
+			if p != "" {
+				out[n.Device+"|"+p] = true
+			}
+		}
+	}
+	return out
+}
+
+// neighborIdents maps MAC -> identity for devices announced via LLDP/MNDP (MikroTik, many APs and switches).
+func (m *Manager) neighborIdents() map[string]string {
+	out := map[string]string{}
+	if ns, err := m.St.Neighbors(); err == nil {
+		for _, n := range ns {
+			if n.Ident != "" && n.MAC != "" {
+				out[store.NormMAC(n.MAC)] = n.Ident
+			}
+		}
+	}
+	return out
+}
+
+// fallbackName names a client the DHCP server gave no host-name: neighbor identity first, then a
+// (static or reverse) DNS name for its address. Reverse lookups run in the background and show up on a later cycle.
+func (m *Manager) fallbackName(mac, ip string, idents map[string]string) string {
+	if id := idents[mac]; id != "" {
+		return id
+	}
+	if a, err := netip.ParseAddr(ip); err == nil {
+		return m.En.Name(a)
+	}
+	return ""
+}
+
 // merge builds client observations from all device snapshots and writes them.
 func (m *Manager) merge() {
+	uplinks := m.uplinkPorts()
 	m.mu.Lock()
 	byMAC := map[string]*store.Observation{}
 	rank := map[string]int{} // higher wins for location (Device/Iface)
@@ -509,6 +576,9 @@ func (m *Manager) merge() {
 				continue
 			}
 			iface := r["on-interface"]
+			if uplinks[dev+"|"+iface] {
+				continue // learned via a trunk to another managed device: not where the host is attached
+			}
 			upd(r["mac-address"], true, 1+apBonus, func(o *store.Observation) { o.Device, o.Iface, o.Present = dev, iface, true })
 		}
 		for _, r := range s.arp {
@@ -575,8 +645,12 @@ func (m *Manager) merge() {
 	ipmac := map[string]string{}
 	names := map[string]string{}
 	var newOnes []store.Observation
+	idents := m.neighborIdents()
 	for mac, o := range byMAC {
 		o.Vendor = m.En.Vendor(mac)
+		if o.Hostname == "" {
+			o.Hostname = m.fallbackName(mac, o.IP, idents)
+		}
 		obs = append(obs, *o)
 		if o.IP != "" {
 			ipmac[o.IP] = mac

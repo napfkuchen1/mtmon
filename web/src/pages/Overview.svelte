@@ -26,6 +26,15 @@
     ]
   })
   const xfmt = x => app.range === '7d' || app.range === '30d' ? new Date(x * 1000).toLocaleDateString(i18n.locale, { month: 'short', day: 'numeric' }) : new Date(x * 1000).toLocaleTimeString(i18n.locale, { hour12: false, hour: '2-digit', minute: '2-digit' })
+  // change vs. the equally long period before ("+12 %"); hidden when there is no comparable data
+  const delta = (cur, prev) => {
+    if (!o?.prev || !prev) return null
+    const p = Math.round(((cur - prev) / prev) * 100)
+    return { p, txt: (p > 0 ? '+' : '') + p + ' %', cls: Math.abs(p) < 10 ? 'flat' : p > 0 ? 'up' : 'down' }
+  }
+  const dDown = $derived(o ? delta(o.bytes_down, o.prev?.bytes_down) : null)
+  const dUp = $derived(o ? delta(o.bytes_up, o.prev?.bytes_up) : null)
+  const dFlows = $derived(o ? delta(o.flows, o.prev?.flows) : null)
   const pickClient = r => go('client/' + encodeURIComponent(r.key))
 </script>
 
@@ -36,9 +45,9 @@
 <div class="grid g6 kpis">
   <div class="card card-b kpi"><div class="l">{t('Clients online')}</div><div class="v num">{o ? num(o.clients_online) : '—'}</div><div class="l">{t('of {n} known', { n: o ? num(o.clients_total) : '—' })}</div></div>
   <div class="card card-b kpi"><div class="l">{t('Devices up')}</div><div class="v num">{o ? o.devices_up : '—'}<span class="muted" style="font-size:16px"> / {o ? o.devices_total : '—'}</span></div><div class="l">{o && o.devices_up < o.devices_total ? t('check Devices') : t('all reachable')}</div></div>
-  <div class="card card-b kpi"><div class="l">{t('Download')}</div><div class="v num" style="color:var(--down)">{o ? bytes(o.bytes_down) : '—'}</div><div class="l">{t('now {rate}', { rate: bps(app.live.down_bps) })}</div></div>
-  <div class="card card-b kpi"><div class="l">{t('Upload')}</div><div class="v num" style="color:var(--up)">{o ? bytes(o.bytes_up) : '—'}</div><div class="l">{t('now {rate}', { rate: bps(app.live.up_bps) })}</div></div>
-  <div class="card card-b kpi"><div class="l">{t('Flows')}</div><div class="v num">{o ? num(o.flows) : '—'}</div><div class="l">{app.live.flows_ps ? app.live.flows_ps.toFixed(0) + ' / s' : t('idle')}</div></div>
+  <div class="card card-b kpi"><div class="l">{t('Download')}</div><div class="v num" style="color:var(--down)">{o ? bytes(o.bytes_down) : '—'}</div><div class="l">{t('now {rate}', { rate: bps(app.live.down_bps) })}{#if dDown} <span class="dl {dDown.cls}" title={t('vs. the previous period')}>{dDown.txt}</span>{/if}</div></div>
+  <div class="card card-b kpi"><div class="l">{t('Upload')}</div><div class="v num" style="color:var(--up)">{o ? bytes(o.bytes_up) : '—'}</div><div class="l">{t('now {rate}', { rate: bps(app.live.up_bps) })}{#if dUp} <span class="dl {dUp.cls}" title={t('vs. the previous period')}>{dUp.txt}</span>{/if}</div></div>
+  <div class="card card-b kpi"><div class="l">{t('Flows')}</div><div class="v num">{o ? num(o.flows) : '—'}</div><div class="l">{app.live.flows_ps ? app.live.flows_ps.toFixed(0) + ' / s' : t('idle')}{#if dFlows} <span class="dl {dFlows.cls}" title={t('vs. the previous period')}>{dFlows.txt}</span>{/if}</div></div>
   <a class="card card-b kpi" href="#/alerts" style="color:inherit;text-decoration:none"><div class="l">{t('Open alerts')}</div><div class="v num" style="color:{o?.alerts_open ? 'var(--bad)' : 'inherit'}">{o ? o.alerts_open : '—'}</div><div class="l">{t('view alerts →')}</div></a>
 </div>
 
@@ -57,5 +66,7 @@
 </div>
 
 <style>
+  .dl { font-weight: 600; font-size: 11.5px; padding: 0 6px; border-radius: 999px; background: var(--card-2); border: 1px solid var(--border); white-space: nowrap; }
+  .dl.up { color: var(--warn); } .dl.down { color: var(--ok); } .dl.flat { color: var(--muted); }
   .head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; }
 </style>

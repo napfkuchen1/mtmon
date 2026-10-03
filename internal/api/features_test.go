@@ -81,8 +81,8 @@ func TestCleanupEndpointAndApps(t *testing.T) {
 		json.NewDecoder(r.Body).Decode(&m)
 		return r.StatusCode, m
 	}
-	if code, _ := post(`{"days":3}`, ""); code != 400 {
-		t.Errorf("days<7: %d", code)
+	if code, _ := post(`{"days":-1}`, ""); code != 400 {
+		t.Errorf("negative days: %d", code)
 	}
 	if code, _ := post(`{"days":90}`, "https://evil.example"); code != 403 {
 		t.Errorf("cross-origin: %d", code)
