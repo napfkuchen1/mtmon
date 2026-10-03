@@ -74,23 +74,38 @@ func (s *Server) LoadDevices() error {
 	return nil
 }
 
-// targetAllowed limits the setup wizard to private / loopback / link-local / CGNAT addresses (or configured
-// local networks), so it cannot be abused to probe the internet or cloud metadata endpoints.
+// metadataAddrs are cloud instance-metadata endpoints; never a router.
+var metadataAddrs = []netip.Addr{
+	netip.MustParseAddr("169.254.169.254"), netip.MustParseAddr("fd00:ec2::254"), netip.MustParseAddr("100.100.100.200"),
+}
+
+// addrAllowed is the policy of the setup wizard: private / loopback / link-local / CGNAT addresses and the configured
+// local networks only, so it cannot be abused to probe the internet or cloud metadata endpoints. It is enforced
+// when a connection is made (see poller.NewGuardedClient), not only once up front.
+func (s *Server) addrAllowed(a netip.Addr) error {
+	a = a.Unmap()
+	for _, m := range metadataAddrs {
+		if a == m {
+			return errors.New("address not allowed")
+		}
+	}
+	if !(a.IsPrivate() || a.IsLoopback() || a.IsLinkLocalUnicast() || cgnat.Contains(a) || s.Cfg.IsLocal(a)) {
+		return fmt.Errorf("%s is a public address - mtmon only sets up devices in private networks", a)
+	}
+	return nil
+}
+
+// targetAllowed resolves host and applies addrAllowed to every address, to give the user an early, clear error
+// before any connection is attempted. The connection itself is guarded again at dial time.
 func (s *Server) targetAllowed(host string) error {
 	ips, err := net.LookupIP(host)
 	if err != nil || len(ips) == 0 {
 		return fmt.Errorf("cannot resolve %q", host)
 	}
-	cgnat := netip.MustParsePrefix("100.64.0.0/10")
-	meta := netip.MustParseAddr("169.254.169.254")
 	for _, ip := range ips {
 		a, _ := netip.AddrFromSlice(ip)
-		a = a.Unmap()
-		if a == meta {
-			return errors.New("address not allowed")
-		}
-		if !(a.IsPrivate() || a.IsLoopback() || a.IsLinkLocalUnicast() || cgnat.Contains(a) || s.Cfg.IsLocal(a)) {
-			return fmt.Errorf("%s is a public address - mtmon only sets up devices in private networks", a)
+		if err := s.addrAllowed(a); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -182,7 +197,7 @@ func (s *Server) probe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if in.Scheme == "https" && in.Fingerprint == "" {
-		fp, err := poller.Fingerprint(net.JoinHostPort(in.Addr, strconv.Itoa(in.Port)))
+		fp, err := poller.FingerprintGuarded(net.JoinHostPort(in.Addr, strconv.Itoa(in.Port)), s.addrAllowed)
 		if err != nil {
 			jerr(w, 502, friendlyConnErr(err))
 			return
@@ -191,7 +206,7 @@ func (s *Server) probe(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 40*time.Second)
 	defer cancel()
-	cl := poller.NewClient(in.device(""))
+	cl := poller.NewGuardedClient(in.device(""), s.addrAllowed)
 	caps, err := provision.Probe(ctx, cl)
 	if err != nil {
 		jerr(w, 502, friendlyConnErr(err))
@@ -294,7 +309,7 @@ func (s *Server) provision(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
-	admin := poller.NewClient(in.device(""))
+	admin := poller.NewGuardedClient(in.device(""), s.addrAllowed)
 	caps, err := provision.Probe(ctx, admin)
 	if err != nil {
 		jerr(w, 502, friendlyConnErr(err))
@@ -303,7 +318,7 @@ func (s *Server) provision(w http.ResponseWriter, r *http.Request) {
 	roFor := func(u, p string) *poller.Client {
 		d := in.device(o.Name)
 		d.User, d.Pass = u, p
-		return poller.NewClient(d)
+		return poller.NewGuardedClient(d, s.addrAllowed)
 	}
 	res := provision.Apply(ctx, admin, roFor, caps, o, func(e store.ManifestEntry) { s.St.AddManifest(o.Name, e) })
 	out := map[string]any{"result": res, "name": o.Name}
@@ -368,7 +383,7 @@ func (s *Server) addReadonly(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if in.Scheme == "https" && in.Fingerprint == "" {
-		fp, err := poller.Fingerprint(net.JoinHostPort(in.Addr, strconv.Itoa(in.Port)))
+		fp, err := poller.FingerprintGuarded(net.JoinHostPort(in.Addr, strconv.Itoa(in.Port)), s.addrAllowed)
 		if err != nil {
 			jerr(w, 502, friendlyConnErr(err))
 			return
@@ -377,7 +392,7 @@ func (s *Server) addReadonly(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 40*time.Second)
 	defer cancel()
-	caps, err := provision.Probe(ctx, poller.NewClient(in.device(in.Name)))
+	caps, err := provision.Probe(ctx, poller.NewGuardedClient(in.device(in.Name), s.addrAllowed))
 	if err != nil {
 		jerr(w, 502, friendlyConnErr(err))
 		return
@@ -445,7 +460,7 @@ func (s *Server) offboard(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 		defer cancel()
 		d := config.Device{Name: name, Addr: row.Addr, Port: row.Port, Scheme: row.Scheme, User: in.User, Pass: in.Pass, Fingerprint: row.Fingerprint, Insecure: row.Insecure}
-		cl := poller.NewClient(d)
+		cl := poller.NewGuardedClient(d, s.addrAllowed)
 		if _, err := cl.Get(ctx, "/system/resource"); err != nil {
 			jerr(w, 502, friendlyConnErr(err))
 			return
