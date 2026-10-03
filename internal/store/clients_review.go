@@ -5,14 +5,15 @@ import (
 	"strings"
 )
 
-// migrateClients adds the "reviewed" flag. Clients that already exist when the column is created count as
-// reviewed, so the inbox starts empty and only fills with devices that appear afterwards.
+// migrateClients adds columns introduced after the first release. "reviewed": clients that already exist when
+// the column is created count as reviewed, so the inbox starts empty and only fills with devices that appear
+// afterwards. "via": which observation made mtmon consider the client present (shown in the client details).
 func migrateClients(db *sql.DB) error {
 	rows, err := db.Query(`PRAGMA table_info(clients)`)
 	if err != nil {
 		return err
 	}
-	has := false
+	has := map[string]bool{}
 	for rows.Next() {
 		var cid, nn, pk int
 		var name, typ string
@@ -21,19 +22,23 @@ func migrateClients(db *sql.DB) error {
 			rows.Close()
 			return err
 		}
-		if name == "reviewed" {
-			has = true
-		}
+		has[name] = true
 	}
 	rows.Close()
-	if has {
-		return nil
+	if !has["reviewed"] {
+		if _, err := db.Exec(`ALTER TABLE clients ADD COLUMN reviewed INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return err
+		}
+		if _, err := db.Exec(`UPDATE clients SET reviewed=1`); err != nil {
+			return err
+		}
 	}
-	if _, err := db.Exec(`ALTER TABLE clients ADD COLUMN reviewed INTEGER NOT NULL DEFAULT 0`); err != nil {
-		return err
+	if !has["via"] {
+		if _, err := db.Exec(`ALTER TABLE clients ADD COLUMN via TEXT NOT NULL DEFAULT ''`); err != nil {
+			return err
+		}
 	}
-	_, err = db.Exec(`UPDATE clients SET reviewed=1`)
-	return err
+	return nil
 }
 
 // InboxClient is one row of the "new / unnamed devices" inbox.
@@ -52,12 +57,12 @@ type InboxClient struct {
 	Reviewed  bool   `json:"reviewed"`
 }
 
-// Inbox lists clients to look at: mode "new" = not yet reviewed, "unnamed" = no label (reviewed or not).
+// Inbox lists clients to look at: mode "new" = not yet reviewed, "unnamed" = no label and no hostname (reviewed or not).
 // Online devices first, then newest first.
 func (s *Store) Inbox(mode string, limit int) ([]InboxClient, error) {
 	where := `reviewed=0`
-	if mode == "unnamed" {
-		where = `coalesce(label,'')=''`
+	if mode == "unnamed" { // really nameless: neither a label nor a hostname from DHCP/DNS/neighbors
+		where = `coalesce(label,'')='' AND coalesce(hostname,'')=''`
 	}
 	if limit <= 0 || limit > 1000 {
 		limit = 500

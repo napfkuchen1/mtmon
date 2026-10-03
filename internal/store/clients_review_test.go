@@ -27,6 +27,7 @@ func TestReviewInbox(t *testing.T) {
 	if c, _ := s.Client("AA:00:00:00:00:01"); c.Label != "TV" {
 		t.Fatalf("label %q", c.Label)
 	}
+	s.DB.Exec(`UPDATE clients SET hostname='h' WHERE mac='AA:00:00:00:00:01'`) // has a name already: not "unnamed"
 	if un, _ := s.Inbox("unnamed", 0); len(un) != 1 || un[0].MAC != "AA:00:00:00:00:02" {
 		t.Fatalf("unnamed: %+v", un)
 	}

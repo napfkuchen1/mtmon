@@ -26,7 +26,12 @@ func TestInboxReviewSearchEndpoints(t *testing.T) {
 		New     int                                   `json:"new"`
 	}
 	get("/api/clients/inbox", &inbox)
-	if inbox.New != 1 || len(inbox.Clients) != 1 || inbox.Clients[0].Suggest != "Max iPhone" {
+	if inbox.New != 1 || len(inbox.Clients) != 1 || inbox.Clients[0].Suggest != "" { // "Max-iPhone" is already a fine name
+		t.Fatalf("inbox: %+v", inbox)
+	}
+	s.St.DB.Exec(`UPDATE clients SET hostname='iphone-3f9a2c' WHERE mac='AA:00:00:00:00:01'`)
+	get("/api/clients/inbox", &inbox)
+	if len(inbox.Clients) != 1 || inbox.Clients[0].Suggest != "iphone" {
 		t.Fatalf("inbox: %+v", inbox)
 	}
 	req, _ := http.NewRequest("POST", ts.URL+"/api/clients/review", strings.NewReader(`{"items":[{"mac":"AA:00:00:00:00:01","label":"Max iPhone"}]}`))
@@ -45,5 +50,10 @@ func TestInboxReviewSearchEndpoints(t *testing.T) {
 	get("/api/search/index", &idx)
 	if len(idx.Clients) != 1 || idx.Clients[0].Name != "Max iPhone" || idx.Devices == nil || idx.Services == nil {
 		t.Fatalf("index: %+v", idx)
+	}
+	var diag map[string]any
+	get("/api/diagnostics", &diag)
+	if diag["neighbors"] == nil || diag["clients"] == nil || diag["version"] == nil {
+		t.Fatalf("diagnostics: %v", diag)
 	}
 }

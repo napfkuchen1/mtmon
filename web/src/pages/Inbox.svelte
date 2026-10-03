@@ -41,13 +41,13 @@
 </script>
 
 <div class="head"><h1>{t('New devices')}</h1>
-  <span class="muted">{t('Name devices once – they then show up with a proper name everywhere')}</span></div>
+  <span class="muted">{mode === 'new' ? t('Devices that appeared on the network – confirm the ones you know, name the rest') : t('Devices that only have a MAC address – a name makes them recognisable everywhere')}</span></div>
 
 <div class="card">
   <div class="card-h">
     <div class="tabs" role="tablist">
       <button role="tab" class:on={mode === 'new'} aria-selected={mode === 'new'} onclick={() => setMode('new')}>{t('New')}{#if d.data?.new} ({d.data.new}){/if}</button>
-      <button role="tab" class:on={mode === 'unnamed'} aria-selected={mode === 'unnamed'} onclick={() => setMode('unnamed')}>{t('Unnamed')}</button>
+      <button role="tab" class:on={mode === 'unnamed'} aria-selected={mode === 'unnamed'} onclick={() => setMode('unnamed')}>{t('MAC only')}</button>
     </div>
     {#if picked.length}
       <div class="bulk">
@@ -74,7 +74,7 @@
             <td>{#if r.device}{r.device}{#if r.wifi}<div><span class="badge acc">{r.ssid || t('Wi-Fi')}</span></div>{/if}{:else}<span class="muted">—</span>{/if}</td>
             <td class="muted">{ago(r.first_seen)}</td>
             <td>
-              <input class="input sm" style="min-width:200px" placeholder={r.suggest || t('Name…')} value={labelOf(r)} maxlength="64" aria-label={t('Client label')}
+              <input class="input sm" style="min-width:200px" placeholder={r.suggest || r.hostname || t('Name…')} value={labelOf(r)} maxlength="64" aria-label={t('Client label')}
                 oninput={e => (edits[r.mac] = e.target.value)} onkeydown={e => e.key === 'Enter' && saveRow(r)} />
               {#if r.suggest && !labelOf(r)}
                 <div><button class="chip" title={tr(r.reason)} onclick={() => (edits[r.mac] = r.suggest)}>{t('Suggestion')}: <b>{r.suggest}</b></button>

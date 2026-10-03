@@ -517,6 +517,47 @@ func (m *Manager) uplinkPorts() map[string]bool {
 	return out
 }
 
+// Diagnostics returns the raw tables the last poll cycle got from every device plus the derived uplink ports, so a
+// wrong location or presence can be explained from real data. No credentials are involved.
+func (m *Manager) Diagnostics() map[string]any {
+	up := []string{}
+	for k, v := range m.uplinkPorts() {
+		if v {
+			up = append(up, k)
+		}
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	devs := map[string]any{}
+	for name, s := range m.snaps {
+		devs[name] = map[string]any{"role": s.role, "polled": s.at.Unix(), "wifi": rowsOrEmpty(s.wifi), "bridge_hosts": rowsOrEmpty(s.bridge),
+			"arp": rowsOrEmpty(s.arp), "dhcp_leases": rowsOrEmpty(s.leases)}
+	}
+	return map[string]any{"devices": devs, "uplink_ports": up}
+}
+
+func rowsOrEmpty(r []Row) []Row {
+	if r == nil {
+		return []Row{}
+	}
+	return r
+}
+
+// capHint finds a managed device named in a registration row, e.g. the CAP a controller-side row belongs to.
+// RouterOS field names for that differ between versions, so any value that equals a managed device name counts
+// (the controller itself and the "interface"/"ssid" values are ignored).
+func capHint(r Row, names map[string]string, self string) string {
+	for k, v := range r {
+		if k == "interface" || k == "ssid" || k == "mac-address" {
+			continue
+		}
+		if n, ok := names[strings.ToLower(strings.TrimSpace(v))]; ok && n != self {
+			return n
+		}
+	}
+	return ""
+}
+
 // neighborIdents maps MAC -> identity for devices announced via LLDP/MNDP (MikroTik, many APs and switches).
 func (m *Manager) neighborIdents() map[string]string {
 	out := map[string]string{}
@@ -566,7 +607,23 @@ func (m *Manager) merge() {
 		}
 		f(o)
 	}
+	// where a client is really attached: a bridge host entry on a port that does not face another managed
+	// device (an "edge" port). With CAPsMAN the controller lists every Wi-Fi client, but the AP the client talks
+	// to learns its MAC on a non-uplink port, which is the better answer.
+	type edgeLoc struct {
+		dev, iface string
+		ap         bool
+	}
+	edge := map[string]edgeLoc{}
+	hint := map[string]string{} // MAC -> managed device named inside the registration row (CAP identity)
+	names := map[string]string{}
+	for _, d := range m.Cfg.AllDevices() {
+		names[strings.ToLower(d.Name)] = d.Name
+	}
 	for dev, s := range m.snaps {
+		if time.Since(s.at) > 3*time.Minute {
+			continue // device not answering: its last answers say nothing about the network now
+		}
 		apBonus := 0
 		if s.role == "ap" {
 			apBonus = 10 // a wifi registration on the AP itself beats the CAPsMAN manager's copy
@@ -579,21 +636,37 @@ func (m *Manager) merge() {
 			if uplinks[dev+"|"+iface] {
 				continue // learned via a trunk to another managed device: not where the host is attached
 			}
-			upd(r["mac-address"], true, 1+apBonus, func(o *store.Observation) { o.Device, o.Iface, o.Present = dev, iface, true })
+			mac := store.NormMAC(r["mac-address"])
+			if _, ok := edge[mac]; !ok || s.role == "ap" {
+				edge[mac] = edgeLoc{dev, iface, s.role == "ap"}
+			}
+			via := "bridge host on " + dev + "/" + iface
+			upd(r["mac-address"], true, 1+apBonus, func(o *store.Observation) {
+				o.Device, o.Iface, o.Present = dev, iface, true
+				if o.Via == "" || strings.HasPrefix(o.Via, "ARP") {
+					o.Via = via
+				}
+			})
 		}
 		for _, r := range s.arp {
 			if r.Bool("invalid") || r["status"] == "failed" || r["status"] == "incomplete" {
 				continue
 			}
-			pres := r["status"] == "reachable" || r["status"] == "permanent" || r["status"] == "delay" || r["status"] == "probe"
+			// DHCP-created ARP entries are "permanent" for as long as the lease lives: no sign of life
+			pres := r["status"] == "reachable" || r["status"] == "delay" || r["status"] == "probe" ||
+				(r["status"] == "permanent" && !r.Bool("dhcp") && !r.Bool("dynamic"))
 			addr := r["address"]
 			iface := r["interface"]
+			via := "ARP " + r["status"] + " on " + dev
 			upd(r["mac-address"], false, 0, func(o *store.Observation) {
 				if o.IP == "" {
 					o.IP = addr
 				}
 				if pres {
 					o.Present = true
+					if o.Via == "" {
+						o.Via = via
+					}
 					if o.Device == "" {
 						o.Device, o.Iface = dev, iface
 					}
@@ -625,10 +698,29 @@ func (m *Manager) merge() {
 		for _, r := range s.wifi {
 			sig := parseSignal(r["signal"])
 			iface, ssid, band, tx, rx := r["interface"], r["ssid"], r["band"], r["tx-rate"], r["rx-rate"]
+			via := "Wi-Fi registration on " + dev
+			if h := capHint(r, names, dev); h != "" {
+				hint[store.NormMAC(r["mac-address"])] = h
+			}
 			upd(r["mac-address"], true, 20+apBonus, func(o *store.Observation) {
-				o.WiFi, o.Present = true, true
+				o.WiFi, o.Present, o.Via = true, true, via
 				o.Device, o.Iface, o.SSID, o.Band, o.Signal, o.TxRate, o.RxRate = dev, iface, ssid, band, sig, tx, rx
 			})
+		}
+	}
+	// A Wi-Fi client reported only by a controller (router) but sitting on an AP's edge port belongs to that AP.
+	roleOf := map[string]string{}
+	for dev, s := range m.snaps {
+		roleOf[dev] = s.role
+	}
+	for mac, o := range byMAC {
+		if !o.WiFi {
+			continue
+		}
+		if h := hint[mac]; h != "" {
+			o.Device = h
+		} else if e, ok := edge[mac]; ok && e.ap && roleOf[o.Device] != "ap" {
+			o.Device, o.Iface = e.dev, e.iface
 		}
 	}
 	m.mu.Unlock()
@@ -643,7 +735,7 @@ func (m *Manager) merge() {
 	m.mu.Unlock()
 	obs := make([]store.Observation, 0, len(byMAC))
 	ipmac := map[string]string{}
-	names := map[string]string{}
+	hubNames := map[string]string{}
 	var newOnes []store.Observation
 	idents := m.neighborIdents()
 	for mac, o := range byMAC {
@@ -660,7 +752,7 @@ func (m *Manager) merge() {
 			n = o.IP
 		}
 		if n != "" {
-			names[mac] = n
+			hubNames[mac] = n
 		}
 		if !m.known[mac] {
 			m.known[mac] = true
@@ -688,7 +780,7 @@ func (m *Manager) merge() {
 			newOnes = nil // first ever run: everything is "new", suppress alerts
 		}
 	}
-	m.Hub.SetIPMap(ipmac, names)
+	m.Hub.SetIPMap(ipmac, hubNames)
 	if _, err := m.St.UpsertClients(obs); err != nil {
 		m.Log.Error("upsert clients", "err", err)
 	}

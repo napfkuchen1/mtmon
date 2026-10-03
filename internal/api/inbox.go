@@ -46,6 +46,9 @@ func (s *Server) clientsInbox(w http.ResponseWriter, r *http.Request) {
 				h = id
 			}
 			row.Suggest, row.Reason, row.Conf = GuessLabel(h, c.Vendor, c.MAC, c.IP)
+			if sameName(row.Suggest, c.Hostname) {
+				row.Suggest, row.Reason, row.Conf = "", "", "" // would only repeat the name the device already has
+			}
 		}
 		out = append(out, row)
 	}
@@ -127,4 +130,36 @@ func (s *Server) exportClients(w http.ResponseWriter, r *http.Request) {
 			time.Unix(c.FirstSeen, 0).Format(time.RFC3339), time.Unix(c.LastSeen, 0).Format(time.RFC3339), strconv.FormatBool(c.Online)})
 	}
 	cw.Flush()
+}
+
+// sameName compares names ignoring case and separators ("Max-iPhone" == "max iphone").
+func sameName(a, b string) bool {
+	norm := func(s string) string {
+		return strings.Map(func(r rune) rune {
+			if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' {
+				return r
+			}
+			if r >= 'A' && r <= 'Z' {
+				return r + 32
+			}
+			return -1
+		}, s)
+	}
+	return norm(a) != "" && norm(a) == norm(b)
+}
+
+// diagnostics: GET /api/diagnostics – raw poll tables, neighbors and what mtmon derived from them (for bug reports).
+func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
+	out := map[string]any{"version": s.Version, "generated_at": time.Now().Unix()}
+	if s.Mgr != nil {
+		for k, v := range s.Mgr.Diagnostics() {
+			out[k] = v
+		}
+	}
+	ns, _ := s.St.Neighbors()
+	out["neighbors"] = ns
+	cl, _ := s.St.Clients()
+	out["clients"] = cl
+	w.Header().Set("Content-Disposition", `attachment; filename="mtmon-diagnostics.json"`)
+	jsonOut(w, out)
 }

@@ -1,5 +1,5 @@
 <script>
-  import { api } from '../lib/api.js'
+  import { api, download } from '../lib/api.js'
   import { go } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
   import { t, tr } from '../lib/i18n.svelte.js'
@@ -42,7 +42,8 @@
 </script>
 
 <div class="head"><h1>{t('Topology')}</h1><span class="muted">{t('from LLDP/MNDP neighbors, wifi registrations and bridge hosts')}</span>
-  <div class="legend" style="margin-left:auto"><span><i style="background:var(--accent)"></i>{t('Wi-Fi')}</span><span><i style="background:var(--border-2)"></i>{t('Wired / uplink')}</span>
+  <button class="btn sm" style="margin-left:auto" title={t('Raw tables mtmon got from your devices (Wi-Fi registrations, bridge hosts, ARP, DHCP) – for troubleshooting')} onclick={() => download('/diagnostics')}>{t('Diagnostics')}</button>
+  <div class="legend"><span><i style="background:var(--accent)"></i>{t('Wi-Fi')}</span><span><i style="background:var(--border-2)"></i>{t('Wired / uplink')}</span>
     {#each ssids as sid}<span><i style="background:{palette[ssids.indexOf(sid) % palette.length]};border-radius:50%"></i>{sid}</span>{/each}</div></div>
 {#if d.error}<div class="warnbox">{tr(d.error)}</div>{/if}
 <div class="card scroll" style="padding:12px">
