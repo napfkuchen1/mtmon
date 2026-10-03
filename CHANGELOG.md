@@ -8,6 +8,24 @@ Version `1.0.0` will mean "verified on a range of real MikroTik hardware".
 Every release lists what is **new**, what **changed**, and what was **fixed**. Upgrading is always the same:
 run the installer again and choose *update* (a snapshot of the container is taken first).
 
+## [0.9.1] - 2026-10-03
+
+### Fixed
+- **Wi-Fi devices were listed under the router instead of the access point they use** (with CAPsMAN the router lists all
+  Wi-Fi clients). A client that an access point sees on its own radio port is now shown on that access point; the signal
+  and network name still come from the registration.
+- **Devices that had left stayed "online".** DHCP-created ARP entries (they live as long as the lease) no longer count as
+  proof that a device is present, and data from a device that stops answering is ignored after 3 minutes.
+  The client page shows **"Online via"** – what mtmon currently sees that keeps the device online.
+- **Client → Connections** also lists LAN connections other devices opened *to* this client, and no longer mixes in rows of
+  the previously opened client when you switch quickly.
+- **New devices:** the "unnamed" list now only contains devices with nothing but a MAC address, and a name suggestion is
+  only shown when it adds something to the name the device already has.
+
+### New
+- **Topology → Diagnostics:** downloads the raw Wi-Fi/bridge/ARP/DHCP tables mtmon received from your devices, to
+  find out why a device is shown in the wrong place.
+
 ## [0.9.0] - 2026-10-03
 
 ### New
