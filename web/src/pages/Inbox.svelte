@@ -1,4 +1,6 @@
 <script>
+  import Avatar from '../lib/Avatar.svelte'
+  import Empty from '../lib/Empty.svelte'
   import { api } from '../lib/api.js'
   import { go, toast } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
@@ -68,7 +70,7 @@
         {#each rows as r (r.mac)}
           <tr>
             <td><input type="checkbox" bind:checked={sel[r.mac]} aria-label={t('Select')} /></td>
-            <td><div style="display:flex;gap:10px;align-items:center"><span class="dot" class:ok={r.online}></span>
+            <td><div style="display:flex;gap:10px;align-items:center"><Avatar client={r} online={r.online} size={30} />
               <div><a href="#/client/{encodeURIComponent(r.mac)}"><b>{display(r)}</b></a>
                 <div class="muted mono" style="font-size:11.5px">{r.mac}{#if r.vendor} · {tr(r.vendor)}{/if}{#if r.ip} · {r.ip}{/if}</div></div></div></td>
             <td>{#if r.device}{r.device}{#if r.wifi}<div><span class="badge acc">{r.ssid || t('Wi-Fi')}</span></div>{/if}{:else}<span class="muted">—</span>{/if}</td>
@@ -86,7 +88,7 @@
         {/each}
       </tbody>
     </table>
-    {#if !rows.length}<div class="empty">{d.loading ? t('Loading…') : mode === 'new' ? t('No new devices – everything has been looked at') : t('Every device has a name')}</div>{/if}
+    {#if !rows.length}{#if d.loading}<div class="empty">{t('Loading…')}</div>{:else}<Empty icon="bulb" title={mode === 'new' ? t('No new devices – everything has been looked at') : t('Every device has a name')} hint={mode === 'new' ? t('New devices show up here the moment they join the network.') : ''} />{/if}{/if}
   </div>
 </div>
 

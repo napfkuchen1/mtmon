@@ -4,6 +4,8 @@ export const app = $state({
   user: null,          // null = unknown, false = logged out
   range: localStorage.getItem('mtmon.range') || '1h',
   theme: localStorage.getItem('mtmon.theme') || 'auto',
+  density: localStorage.getItem('mtmon.density') || 'comfortable', // comfortable | compact
+  chart: localStorage.getItem('mtmon.chart') || 'modern',          // modern | classic
   route: { name: 'overview', params: {} },
   live: { connected: false, up_bps: 0, down_bps: 0, clients: [], devices: [], ifaces: [], flows_ps: 0 },
   history: [],         // rolling live totals [{t, up, down}]
@@ -18,7 +20,13 @@ export function setTheme(t) {
   try { localStorage.setItem('mtmon.theme', t) } catch {}
   applyTheme()
 }
+export function setPref(key, val) { // key: density | chart
+  app[key] = val
+  try { localStorage.setItem('mtmon.' + key, val) } catch {}
+  applyTheme()
+}
 export function applyTheme() {
+  document.documentElement.setAttribute('data-density', app.density)
   const el = document.documentElement
   if (app.theme === 'auto') el.removeAttribute('data-theme'); else el.setAttribute('data-theme', app.theme)
 }
