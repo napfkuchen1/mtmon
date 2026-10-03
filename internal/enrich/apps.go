@@ -199,28 +199,6 @@ func buildIndex() {
 	}
 }
 
-// Apps returns the curated application table (read-only copy of the metadata).
-func Apps() []App {
-	out := make([]App, len(appRules))
-	for i, a := range appRules {
-		out[i] = a.App
-	}
-	return out
-}
-
-// AppCategories returns the distinct categories in table order.
-func AppCategories() []string {
-	seen := map[string]bool{}
-	out := []string{}
-	for _, a := range appRules {
-		if !seen[a.Category] {
-			seen[a.Category] = true
-			out = append(out, a.Category)
-		}
-	}
-	return out
-}
-
 // ClassifyApp maps a destination to an application. host is a DNS / reverse-DNS name (may be empty),
 // org the AS organisation (may be empty). It returns ok=false when nothing is recognised – callers must
 // then show nothing rather than guess. Order: well-known UDP port → hostname suffix (most specific
