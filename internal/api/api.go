@@ -52,6 +52,7 @@ type Server struct {
 	provMu  sync.Mutex         // one provisioning / offboarding at a time
 	reclass atomic.Bool        // service relabelling in progress
 	adv     adviceState        // cached suggestion evaluation (suggestions.go)
+	enr     enrichJob          // GeoIP/ASN/OUI download (enrich_setup.go)
 }
 
 func New(s *Server) http.Handler {
@@ -446,6 +447,7 @@ func (s *Server) topology(w http.ResponseWriter, r *http.Request) {
 		SSID   string  `json:"ssid"` // wifi clients: network name
 		Port   string  `json:"port"` // wired clients: switch/router port
 		Band   string  `json:"band"`
+		Vendor string  `json:"vendor"` // for the device icon
 	}
 	type edge struct {
 		From  string `json:"from"`
@@ -482,13 +484,12 @@ func (s *Server) topology(w http.ResponseWriter, r *http.Request) {
 	ns, _ := s.St.Neighbors()
 	seen := map[string]bool{}
 	for _, n := range ns {
+		// both directions are kept: each side reports its own port (Label = port on the From side); the UI
+		// builds a tree out of them, so links that only exist as "seen through the switch" are not drawn
 		if _, ok := roleOf[n.Ident]; ok && n.Ident != n.Device {
-			a, b := n.Device, n.Ident
-			if a > b {
-				a, b = b, a
-			}
-			if !seen[a+"|"+b] {
-				seen[a+"|"+b] = true
+			k := n.Device + "|" + n.Ident + "|" + n.Iface
+			if !seen[k] {
+				seen[k] = true
 				edges = append(edges, edge{From: "d:" + n.Device, To: "d:" + n.Ident, Kind: "uplink", Label: n.Iface})
 			}
 		}
@@ -517,7 +518,7 @@ func (s *Server) topology(w http.ResponseWriter, r *http.Request) {
 		if c.WiFi && c.Signal != 0 {
 			sub = fmt.Sprintf("%s · %d dBm", c.IP, c.Signal)
 		}
-		nodes = append(nodes, node{ID: "c:" + c.MAC, Type: "client", Label: name, Status: "up", Bps: rates[c.MAC], Sub: sub, WiFi: c.WiFi, SSID: c.SSID, Band: c.Band, Port: map[bool]string{true: "", false: c.Iface}[c.WiFi]})
+		nodes = append(nodes, node{ID: "c:" + c.MAC, Type: "client", Label: name, Status: "up", Bps: rates[c.MAC], Sub: sub, WiFi: c.WiFi, SSID: c.SSID, Band: c.Band, Vendor: c.Vendor, Port: map[bool]string{true: "", false: c.Iface}[c.WiFi]})
 		if c.Device != "" {
 			edges = append(edges, edge{From: "d:" + c.Device, To: "c:" + c.MAC, Kind: map[bool]string{true: "wifi", false: "wired"}[c.WiFi]})
 		}
