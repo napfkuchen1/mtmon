@@ -8,7 +8,7 @@ Version `1.0.0` will mean "verified on a range of real MikroTik hardware".
 Every release lists what is **new**, what **changed**, and what was **fixed**. Upgrading is always the same:
 run the installer again and choose *update* (a snapshot of the container is taken first).
 
-## [0.8.2] - unreleased
+## [0.8.2] - 2026-10-03
 
 ### Security
 - **Stricter origin check for the live view and for changes.** The check that only lets your own mtmon page talk to
@@ -20,6 +20,24 @@ run the installer again and choose *update* (a snapshot of the container is take
 - **The live connection accepts only tiny messages** (it only ever needs "pause"/"resume").
 - **Tighter browser policy (CSP):** the UI may only load from mtmon itself, cannot be embedded in other pages, and
   can only connect back to mtmon (before, it could open connections to any address).
+- **The setup wizard now checks the address it really connects to.** It only accepts private addresses (so it
+  cannot be used to probe the internet), but the check and the connection used two separate name lookups, which a
+  prepared DNS server could exploit. Now the name is looked up once, every answer is checked, and exactly that address
+  is used. The list of blocked cloud "metadata" addresses is longer, too.
+- **Routers can no longer redirect mtmon elsewhere.** mtmon only follows redirects that stay on the same address and
+  protocol, so a device cannot send it to another host or to an unencrypted page.
+
+### Fixed
+- **Interface alerts for ports whose name starts with "lo".** A port called `lounge`, `lo-bridge` or `lobby-ap` never
+  raised an "interface down" alert, because every name starting with `lo` was treated as the loopback interface. Only
+  the real loopback `lo` is ignored now.
+- Saving the configuration without a file path no longer leaves a stray `.tmp` file behind; it reports an error instead.
+
+### Changed
+- Internal clean-up: test-only code moved out of the program, one unused function removed, two libraries updated
+  (`go-humanize`, `go-strftime`).
+- Alerts (webhook, ntfy, e-mail, device/interface/traffic/DNS/port-scan detection) and the configuration code now have
+  automated tests (about 91 % and 95 % of the code), which is how the two fixes above were found.
 
 ## [0.8.1] - 2026-10-02
 
