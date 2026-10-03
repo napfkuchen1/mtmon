@@ -43,7 +43,13 @@ export function flag(cc) {
   return String.fromCodePoint(...[...cc.toUpperCase()].map(c => 127397 + c.charCodeAt(0)))
 }
 export const protoName = p => ({ 1: 'ICMP', 6: 'TCP', 17: 'UDP', 47: 'GRE', 50: 'ESP', 58: 'ICMPv6' }[p] || 'P' + p)
-export function display(c) { return c.label || c.hostname || c.ip || c.mac }
+// label > hostname > "Vendor AB:CD" (MAC tail) > IP > MAC
+export function display(c) {
+  if (c.label || c.hostname) return c.label || c.hostname
+  const tail = (c.mac || '').slice(-5).toUpperCase()
+  if (c.vendor && tail) return (c.vendor.startsWith('Private') ? 'Randomized MAC' : c.vendor) + ' ' + tail
+  return c.ip || c.mac
+}
 export function signalQuality(dbm) {
   if (!dbm) return { cls: '', txt: '—' }
   if (dbm >= -60) return { cls: 'ok', txt: dbm + ' dBm' }
