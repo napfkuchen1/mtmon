@@ -38,9 +38,11 @@ export function clock(ts) {
 export function datetime(ts) {
   return new Date(ts * 1000).toLocaleString(i18n.locale, { hour12: false, month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
-export function flag(cc) {
-  if (!cc || cc.length !== 2) return ''
-  return String.fromCodePoint(...[...cc.toUpperCase()].map(c => 127397 + c.charCodeAt(0)))
+// "DE" -> "Germany" / "Deutschland" (browser locale data); falls back to the code
+const regionNames = {}
+export function countryName(cc, lang = 'en') {
+  if (!cc || cc.length !== 2) return cc || ''
+  try { return (regionNames[lang] ||= new Intl.DisplayNames([lang], { type: 'region' })).of(cc.toUpperCase()) || cc } catch { return cc }
 }
 export const protoName = p => ({ 1: 'ICMP', 6: 'TCP', 17: 'UDP', 47: 'GRE', 50: 'ESP', 58: 'ICMPv6' }[p] || 'P' + p)
 // label > hostname > "Vendor AB:CD" (MAC tail) > IP > MAC

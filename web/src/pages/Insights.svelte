@@ -1,9 +1,10 @@
 <script>
+  import Flag from '../lib/Flag.svelte'
   import { api, download } from '../lib/api.js'
   import { app, go } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
-  import { bytes, num, flag } from '../lib/format.js'
-  import { t, tr } from '../lib/i18n.svelte.js'
+  import { bytes, num, countryName } from '../lib/format.js'
+  import { t, tr, i18n } from '../lib/i18n.svelte.js'
   import ClassifyDialog from '../lib/ClassifyDialog.svelte'
   let dlg = $state(null)
 
@@ -39,7 +40,7 @@
       {#each rows as r, i (r.key + '|' + r.sub + i)}
         <tr class:click={what === 'clients' || what === 'internal' || what === 'services'} onclick={() => pick(r)}>
           <td class="muted num">{i + 1}</td>
-          <td><b>{#if what === 'country'}{flag(r.key)} {/if}{nameOf(r)}</b>{#if (what === 'hosts') && r.label !== r.key}<div class="muted mono" style="font-size:11.5px">{r.key}</div>{/if}</td>
+          <td><b>{#if what === 'country'}<Flag cc={r.key} />{countryName(r.key, i18n.lang)} <span class="muted">{r.key}</span>{:else}{nameOf(r)}{/if}</b>{#if (what === 'hosts') && r.label !== r.key}<div class="muted mono" style="font-size:11.5px">{r.key}</div>{/if}</td>
           <td class="muted">{tr(r.sub)}</td>
           <td class="r num">{bytes(r.down)}</td><td class="r num">{bytes(r.up)}</td>
           {#if what === 'internal' || what === 'clients'}<td class="r num">{bytes(r.internal)}</td>{/if}

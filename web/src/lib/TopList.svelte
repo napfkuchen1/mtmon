@@ -1,6 +1,7 @@
 <script>
-  import { bytes, num, flag } from './format.js'
-  import { t, tr } from './i18n.svelte.js'
+  import Flag from './Flag.svelte'
+  import { bytes, num, countryName } from './format.js'
+  import { t, tr, i18n } from './i18n.svelte.js'
   let { rows = [], onpick = null, showFlows = false, mode = 'traffic', empty = null } = $props()
   const total = r => r.up + r.down + r.internal
   const max = $derived(rows.reduce((m, r) => Math.max(m, total(r)), 0) || 1)
@@ -15,7 +16,7 @@
       <div class="row" class:click={!!onpick} role={onpick ? 'button' : undefined} tabindex={onpick ? 0 : undefined}
            onclick={() => onpick?.(r)} onkeydown={e => e.key === 'Enter' && onpick?.(r)}>
         <div class="top">
-          <div class="name" title={tr(r.label)}>{#if mode === 'country' && r.key}{flag(r.key)} {/if}{tr(r.label || r.key)}
+          <div class="name" title={tr(r.label)}>{#if mode === 'country' && r.key}<Flag cc={r.key} />{countryName(r.key, i18n.lang)} <span class="sub">{r.key}</span>{:else}{tr(r.label || r.key)}{/if}
             {#if r.sub && r.sub !== r.label}<span class="sub">{tr(r.sub)}</span>{/if}</div>
           <div class="val num">{bytes(total(r))}</div>
         </div>

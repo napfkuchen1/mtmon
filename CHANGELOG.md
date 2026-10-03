@@ -8,6 +8,12 @@ Version `1.0.0` will mean "verified on a range of real MikroTik hardware".
 Every release lists what is **new**, what **changed**, and what was **fixed**. Upgrading is always the same:
 run the installer again and choose *update* (a snapshot of the container is taken first).
 
+## [0.9.2] - 2026-10-03
+
+### Fixed
+- **Countries showed doubled codes ("DEDE") on Windows.** Windows cannot display flag emoji, so they appeared as letters.
+  Countries now show a real flag image, the country name in your language and the two-letter code.
+
 ## [0.9.1] - 2026-10-03
 
 ### Fixed

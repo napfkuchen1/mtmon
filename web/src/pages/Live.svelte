@@ -1,6 +1,7 @@
 <script>
+  import Flag from '../lib/Flag.svelte'
   import { app, go, setPaused } from '../lib/state.svelte.js'
-  import { bps, bytes, clock, protoName, flag } from '../lib/format.js'
+  import { bps, bytes, clock, protoName } from '../lib/format.js'
   import { t, tr } from '../lib/i18n.svelte.js'
   import Chart from '../lib/Chart.svelte'
 
@@ -55,7 +56,7 @@
             <td><span class="mono">{c.rip}</span>{#if c.host}<span class="muted"> · {c.host}</span>{/if}</td>
             <td class="mono">{protoName(c.proto)}/{c.rport}</td>
             <td>{#if c.svc}<span class="badge">{tr(c.svc)}</span>{/if}</td>
-            <td>{flag(c.cc)} {c.cc}</td>
+            <td><Flag cc={c.cc} />{c.cc}</td>
             <td class="r num">{bytes(c.bytes)}</td>
           </tr>
         {/each}
