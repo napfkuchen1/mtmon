@@ -126,7 +126,7 @@ func (s *Store) ReviewClients(items []ReviewItem) (int, error) {
 func (s *Store) TotalsBetween(from, to int64) (up, down, flows int64, ok bool) {
 	tbl, al := seriesTable(from, "")
 	var oldest sql.NullInt64
-	s.DB.QueryRow(`SELECT min(ts) FROM `+tbl).Scan(&oldest)
+	s.DB.QueryRow(`SELECT min(ts) FROM ` + tbl).Scan(&oldest)
 	if !oldest.Valid || oldest.Int64 > from+al {
 		return 0, 0, 0, false
 	}
@@ -134,4 +134,3 @@ func (s *Store) TotalsBetween(from, to int64) (up, down, flows int64, ok bool) {
 		from/al*al, to/al*al).Scan(&up, &down, &flows)
 	return up, down, flows, true
 }
-

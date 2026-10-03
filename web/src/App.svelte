@@ -16,6 +16,8 @@
   import Topology from './pages/Topology.svelte'
   import Alerts from './pages/Alerts.svelte'
   import Settings from './pages/Settings.svelte'
+  import Inbox from './pages/Inbox.svelte'
+  import Palette from './lib/Palette.svelte'
 
   applyTheme()
   parseHash()
@@ -29,6 +31,7 @@
     ['live', 'Live', 'M3 12h4l3-8 4 16 3-8h4'],
     ['devices', 'Devices', 'M4 6h16v5H4zM4 13h16v5H4zM7 8.5h.01M7 15.5h.01'],
     ['clients', 'Clients', 'M16 11a4 4 0 10-8 0 4 4 0 008 0zM4 21c0-4 4-6 8-6s8 2 8 6'],
+    ['inbox', 'New devices', 'M12 5v14M5 12h14M4 4h16v16H4z'],
     ['services', 'Services', 'M4 6h7v5H4zM13 6h7v5h-7zM4 13h7v5H4zM13 13h7v5h-7z'],
     ['firewall', 'Firewall', 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4'],
     ['insights', 'Insights', 'M4 20V10M10 20V4M16 20v-7M22 20H2'],
@@ -48,6 +51,20 @@
     run()
     return () => { stop = true; clearTimeout(timer) }
   })
+  let newDev = $state(0)
+  $effect(() => {
+    if (!app.user) return
+    let timer, stop = false
+    const run = async () => { try { newDev = (await api('/clients/inbox?mode=new')).new } catch {} if (!stop) timer = setTimeout(run, 60000) }
+    const again = () => { clearTimeout(timer); run() }
+    window.addEventListener('mtmon-inbox-changed', again)
+    run()
+    return () => { stop = true; clearTimeout(timer); window.removeEventListener('mtmon-inbox-changed', again) }
+  })
+  let palette = $state(false)
+  function onkey(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); if (app.user) palette = !palette }
+  }
   let sugWarn = $state(0)
   $effect(() => {
     if (!app.user) return
@@ -72,6 +89,7 @@
   async function logout() { try { await api('/logout', { method: 'POST' }) } catch {} app.user = false }
 </script>
 
+<svelte:window onkeydown={onkey} />
 {#if app.user === null}
   <div class="boot"><span class="dot pulse"></span></div>
 {:else if app.user === false}
@@ -89,6 +107,7 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path {d} /></svg>
             {t(label)}
             {#if id === 'alerts' && openAlerts}<span class="cnt">{openAlerts}</span>{/if}
+            {#if id === 'inbox' && newDev}<span class="cnt w" title={t('New devices to look at')}>{newDev}</span>{/if}
             {#if id === 'suggestions' && sugWarn}<span class="cnt w" title={t('Warnings in Suggestions')}>{sugWarn}</span>{/if}
           </a>
         {/each}
@@ -122,6 +141,7 @@
           </select>
         </div>
         <div class="spacer"></div>
+        <button class="btn sm srch" onclick={() => (palette = true)} aria-label={t('Search')}>🔍 {t('Search')} <kbd>Ctrl K</kbd></button>
         {#if upd?.available}<a class="vbadge mobv" href="#/settings/updates">{t('Update {v}', { v: vlabel(upd.latest) })}</a>{/if}
         {#if showRange}
           <div class="tabs" role="tablist" aria-label={t('Time range')}>
@@ -140,6 +160,7 @@
         {:else if app.route.name === 'client'}<ClientDetail />
         {:else if app.route.name === 'insights'}<Insights />
         {:else if app.route.name === 'suggestions'}<Suggestions />
+        {:else if app.route.name === 'inbox'}<Inbox />
         {:else if app.route.name === 'services'}<Services />
         {:else if app.route.name === 'firewall'}<Firewall />
         {:else if app.route.name === 'topology'}<Topology />
@@ -150,6 +171,7 @@
     </main>
   </div>
 {/if}
+{#if palette}<Palette onclose={() => (palette = false)} />{/if}
 {#if app.toast}<div class="toast" role="status">{tr(app.toast)}</div>{/if}
 
 <style>
@@ -171,6 +193,7 @@
   .ver .vtxt { color: var(--muted); } .ver .vtxt:hover { color: var(--text); text-decoration: none; }
   .vbadge { background: var(--accent-bg); color: var(--accent-strong); border-radius: 999px; padding: 0 8px; font-weight: 600; white-space: nowrap; font-size: 11.5px; }
   .mobv { display: none; }
+  .srch kbd { font: inherit; font-size: 11px; color: var(--muted); border: 1px solid var(--border-2); border-radius: 5px; padding: 0 5px; margin-left: 6px; }
   .ver .vbadge:hover { text-decoration: none; filter: brightness(.96); }
   main { min-width: 0; }
   header { display: flex; align-items: center; gap: 12px; padding: 12px 28px; border-bottom: 1px solid var(--border); background: var(--card); position: sticky; top: 0; z-index: 5; min-height: 57px; }
