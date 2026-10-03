@@ -53,6 +53,7 @@ func (s *Server) featureRoutes(m *http.ServeMux, a func(http.HandlerFunc) http.H
 	m.HandleFunc("POST /api/clients/cleanup", a(s.clientsCleanup))
 	m.HandleFunc("GET /api/clients/inbox", a(s.clientsInbox))
 	m.HandleFunc("POST /api/clients/review", a(s.clientsReview))
+	m.HandleFunc("GET /api/diagnostics", a(s.diagnostics))
 	m.HandleFunc("GET /api/search/index", a(s.searchIndex))
 	m.HandleFunc("GET /api/export/clients", a(s.exportClients))
 	m.HandleFunc("GET /api/clients/{mac}/apps", a(s.clientApps))
