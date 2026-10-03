@@ -1,8 +1,9 @@
 <script>
+  import Flag from '../lib/Flag.svelte'
   import { api, download } from '../lib/api.js'
   import { app, toast } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
-  import { bps, bytes, datetime, clock, display, protoName, flag, signalQuality } from '../lib/format.js'
+  import { bps, bytes, datetime, clock, display, protoName, signalQuality } from '../lib/format.js'
   import { t, tr } from '../lib/i18n.svelte.js'
   import Chart from '../lib/Chart.svelte'
   import TopList from '../lib/TopList.svelte'
@@ -138,7 +139,7 @@
               <td>{#if r.svc}<a class="badge" href="#/services/{encodeURIComponent(r.svc)}">{tr(r.svc)}</a>{/if}</td>
               <td>{#if r.verdict}<span class="badge {vc[r.verdict]}" title={tr(r.rule)}>{vt[r.verdict]}</span>{:else}<span class="muted" title={t('No firewall logging active for this router')}>–</span>{/if}</td>
               <td class="muted">{r.device || ''}</td>
-              <td>{flag(r.cc)} {r.cc} <span class="muted">{r.asorg}</span></td><td class="r num">{bytes(r.bytes)}</td>
+              <td><Flag cc={r.cc} />{r.cc} <span class="muted">{r.asorg}</span></td><td class="r num">{bytes(r.bytes)}</td>
               <td class="r"><button class="btn sm" title={t('Classify as service')} onclick={() => (dlg = { kind: r.host ? 'host' : 'ip', value: r.host ? r.host.split('.').slice(-2).join('.') : r.rip, name: r.svc || '', hint: t('Connection to {target}', { target: (r.host || r.rip) + ':' + r.rport }) })}>＋</button></td></tr>
           {/each}
         </tbody></table>

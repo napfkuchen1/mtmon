@@ -1,8 +1,9 @@
 <script>
+  import Flag from '../lib/Flag.svelte'
   import { api } from '../lib/api.js'
   import { app, go, toast } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
-  import { bytes, bps, num, flag, protoName, ago, display } from '../lib/format.js'
+  import { bytes, bps, num, protoName, ago, display } from '../lib/format.js'
   import { t, tr } from '../lib/i18n.svelte.js'
   import Chart from '../lib/Chart.svelte'
   import ClassifyDialog from '../lib/ClassifyDialog.svelte'
@@ -122,7 +123,7 @@
         <thead><tr><th>{t('Destination')}</th><th>{t('Port')}</th><th>{t('Country / Provider')}</th><th class="r">{t('Clients')}</th><th class="r">{t('↓ Down')}</th><th class="r">{t('↑ Up')}</th><th></th></tr></thead>
         <tbody>{#each dsts as x (x.rip + x.port + x.proto)}
           <tr><td><span class="mono">{x.rip}</span>{#if x.host}<div class="muted">{x.host}</div>{/if}</td><td class="mono">{protoName(x.proto)}/{x.port}</td>
-            <td>{flag(x.cc)} {x.cc} <span class="muted">{x.asorg}</span></td><td class="r num">{x.clients < 0 ? '–' : x.clients}</td><td class="r num">{bytes(x.down)}</td><td class="r num">{bytes(x.up)}</td>
+            <td><Flag cc={x.cc} />{x.cc} <span class="muted">{x.asorg}</span></td><td class="r num">{x.clients < 0 ? '–' : x.clients}</td><td class="r num">{bytes(x.down)}</td><td class="r num">{bytes(x.up)}</td>
             <td class="r" style="white-space:nowrap"><button class="btn sm" onclick={() => classifyDest(x)}>{t('Destination')}</button> <button class="btn sm" onclick={() => classifyPort(x)}>{t('Port')}</button></td></tr>
         {/each}</tbody></table>
         {#if !dsts.length}<div class="empty">{t('No destinations')}</div>{/if}</div></div>

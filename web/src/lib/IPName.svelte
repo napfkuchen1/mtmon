@@ -1,11 +1,12 @@
 <script>
+  import Flag from './Flag.svelte'
   // Human name + IP for an address: name (bold) on the first line, IP (+ org · country) muted below.
   // The raw IP stays selectable. Falls back to the bare IP when nothing is known.
-  import { flag } from './format.js'
+  
   import { tr } from './i18n.svelte.js'
   let { ip, name = '', org = '', cc = '', port = 0, local = false } = $props()
   const primary = $derived(tr(name) || org || '')
-  const second = $derived([org && name ? org : '', cc ? flag(cc) + ' ' + cc : ''].filter(Boolean).join(' · '))
+  const second = $derived([org && name ? org : '', cc ? cc : ''].filter(Boolean).join(' · '))
   const addr = $derived(ip + (port ? ':' + port : ''))
   const tip = $derived([primary, addr, org && org !== primary ? org : '', cc].filter(Boolean).join(' · '))
 </script>
@@ -15,7 +16,7 @@
     <div class="s"><span class="mono ip">{addr}</span>{#if second}<span class="muted"> · {second}</span>{/if}</div>
   </div>
 {:else}
-  <div class="ipn" title={tip || addr}><span class="mono ip">{addr}</span>{#if cc}<div class="s muted">{flag(cc)} {cc}</div>{/if}</div>
+  <div class="ipn" title={tip || addr}><span class="mono ip">{addr}</span>{#if cc}<div class="s muted"><Flag {cc} />{cc}</div>{/if}</div>
 {/if}
 <style>
   .ipn { min-width: 0; }

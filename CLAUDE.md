@@ -38,3 +38,4 @@ Go-Backend (single static binary, SQLite via modernc, kein CGO) + Svelte-5-UI (`
   Wi-Fi-Clients, die nur der Controller (CAPsMAN) meldet, wandern zum AP, der sie auf einem Edge-Port lernt. DHCP-ARP-Einträge (`permanent`+`dhcp`) beweisen keine Präsenz.
 - „Online via“ (`clients.via`) zeigt, welche Beobachtung einen Client online hält – erste Anlaufstelle bei „zeigt online, ist aber weg“.
 - Verbindungslisten: `ConnectionsFiltered` (Filter svc/rip/port/cc) – bei neuen Filtern Index/`make scale` prüfen. UI-Polls mit `stop`-Flag nach jedem `await` prüfen (Race beim Client-Wechsel).
+- Keine Flaggen-Emojis (Windows zeigt „DE“ als Buchstaben): `lib/Flag.svelte` (SVG aus `country-flag-icons`, lazy je Land) + `countryName()` in `format.js`.
