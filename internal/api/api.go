@@ -339,6 +339,17 @@ func (s *Server) clientDetail(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// connFilter reads the optional drill-down filters: svc, rip, port ("proto/port" as in the ports top list), cc.
+func connFilter(r *http.Request) store.ConnFilter {
+	q := r.URL.Query()
+	f := store.ConnFilter{Svc: q.Get("svc"), RIP: q.Get("rip"), CC: strings.ToUpper(q.Get("cc"))}
+	if p, pt, ok := strings.Cut(q.Get("port"), "/"); ok {
+		f.Proto, _ = strconv.Atoi(p)
+		f.RPort, _ = strconv.Atoi(pt)
+	}
+	return f
+}
+
 func (s *Server) clientConns(w http.ResponseWriter, r *http.Request) {
 	since, _, _ := parseRange(r)
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
@@ -346,7 +357,7 @@ func (s *Server) clientConns(w http.ResponseWriter, r *http.Request) {
 		limit = 200
 	}
 	after, _ := strconv.ParseInt(r.URL.Query().Get("after"), 10, 64)
-	c, err := s.St.Connections(r.PathValue("mac"), since, limit, after)
+	c, err := s.St.ConnectionsFiltered(r.PathValue("mac"), since, limit, after, connFilter(r))
 	if err != nil {
 		jerr(w, 500, err.Error())
 		return
@@ -489,13 +500,7 @@ func (s *Server) topology(w http.ResponseWriter, r *http.Request) {
 		if !c.Online {
 			continue
 		}
-		name := c.Label
-		if name == "" {
-			name = c.Hostname
-		}
-		if name == "" {
-			name = c.MAC
-		}
+		name := ClientName(c)
 		sub := c.IP
 		if c.WiFi && c.Signal != 0 {
 			sub = fmt.Sprintf("%s · %d dBm", c.IP, c.Signal)
@@ -590,7 +595,7 @@ func (s *Server) exportTop(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) exportConns(w http.ResponseWriter, r *http.Request) {
 	since, _, _ := parseRange(r)
-	rows, err := s.St.Connections(r.PathValue("mac"), since, 100000, 0)
+	rows, err := s.St.ConnectionsFiltered(r.PathValue("mac"), since, 100000, 0, connFilter(r))
 	if err != nil {
 		jerr(w, 500, err.Error())
 		return

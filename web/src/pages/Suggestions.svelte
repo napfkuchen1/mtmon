@@ -85,31 +85,36 @@
 {:else}
   <div class="list">
     {#each visible as s (s.id)}
-      <article class="card sg" class:dim={s.hidden}>
+      <article class="card sg {s.severity}" class:dim={s.hidden}>
         <div class="top">
           <span class="badge {sevCls[s.severity]}">{sevLabel(s.severity)}</span>
           <span class="badge">{t(s.category)}</span>
           {#if confLabel(s.confidence)}<span class="badge" title={tr(s.limits || '')}>{confLabel(s.confidence)}</span>{/if}
           {#if s.hidden}<span class="muted">{until(s)}</span>{/if}
         </div>
-        <h2>{tr(s.title)}</h2>
-        <p class="why">{tr(s.why)}</p>
-        {#if s.evidence.length}
-          <div class="lbl">{t('What we saw')}</div>
-          <ul class="ev">{#each s.evidence as e}<li>{tr(e)}</li>{/each}</ul>
-        {/if}
+        <section class="problem">
+          <div class="lbl">{t('Problem')}</div>
+          <h2>{tr(s.title)}</h2>
+          <p class="why">{tr(s.why)}</p>
+          {#if s.evidence.length}
+            <div class="lbl ev-l">{t('What we saw')}</div>
+            <ul class="ev">{#each s.evidence as e}<li>{tr(e)}</li>{/each}</ul>
+          {/if}
+          {#if s.limits}<div class="muted note">{t('Limits')}: {tr(s.limits)}</div>{/if}
+        </section>
         {#if s.steps.length || s.commands}
-          <details>
-            <summary>{t('How to fix')}</summary>
-            {#if s.steps.length}<ol class="steps">{#each s.steps as st}<li>{tr(st)}</li>{/each}</ol>{/if}
-            {#if s.commands}
-              <div class="cmdh"><span class="muted">{t('RouterOS terminal')}</span><button class="btn sm" onclick={() => copy(s.commands)}>{t('Copy')}</button></div>
-              <pre class="code">{s.commands}</pre>
-              <div class="muted note">{t('Review the commands before you run them, and adapt names and addresses to your setup. mtmon never changes your devices on its own here.')}</div>
-            {/if}
-          </details>
+          <section class="fix">
+            <details open={s.severity === 'warning'}>
+              <summary>{t('What to do')} · {t('How to fix')}</summary>
+              {#if s.steps.length}<ol class="steps">{#each s.steps as st}<li>{tr(st)}</li>{/each}</ol>{/if}
+              {#if s.commands}
+                <div class="cmdh"><span class="muted">{t('RouterOS terminal')}</span><button class="btn sm" onclick={() => copy(s.commands)}>{t('Copy')}</button></div>
+                <pre class="code">{s.commands}</pre>
+                <div class="muted note">{t('Review the commands before you run them, and adapt names and addresses to your setup. mtmon never changes your devices on its own here.')}</div>
+              {/if}
+            </details>
+          </section>
         {/if}
-        {#if s.limits}<div class="muted note">{t('Limits')}: {tr(s.limits)}</div>{/if}
         <div class="acts">
           {#if s.link}<a class="btn sm" href={href(s.link)}>{linkLabel(s.link)}</a>{/if}
           <span class="sp"></span>
@@ -139,25 +144,29 @@
   .filters .chk { color: var(--text); }
   .filters select { padding: 4px 8px; }
   .list { display: flex; flex-direction: column; gap: 12px; }
-  .sg { padding: 16px 18px; }
+  .sg { --sc: var(--faint); padding: 0; overflow: hidden; border-left: 4px solid var(--sc); }
+  .sg.warning { --sc: var(--warn); } .sg.tip { --sc: var(--accent); } .sg.info { --sc: var(--faint); }
   .sg.dim { opacity: .62; }
-  .top { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
-  h2 { font-size: 16px; letter-spacing: -.005em; }
+  .top { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 12px 18px 0; }
+  .problem { padding: 10px 18px 14px; }
+  .fix { margin: 0 18px 14px; padding: 10px 14px; background: var(--accent-bg); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; }
+  h2 { font-size: 16px; letter-spacing: -.005em; margin-top: 2px; }
   .why { margin: 6px 0 10px; color: var(--muted); max-width: 78ch; }
-  .lbl { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
-  .ev { margin: 0 0 10px; padding-left: 18px; }
+  .lbl { font-size: 11.5px; font-weight: 700; color: var(--sc); text-transform: uppercase; letter-spacing: .06em; }
+  .lbl.ev-l { color: var(--muted); margin-bottom: 4px; }
+  .ev { margin: 0 0 6px; padding: 8px 12px 8px 28px; background: var(--card-2); border: 1px solid var(--border); border-radius: 8px; }
   .ev li { margin: 2px 0; overflow-wrap: anywhere; }
-  details { margin: 8px 0; }
+  details { margin: 0; }
   summary { cursor: pointer; font-weight: 600; color: var(--accent-strong); }
   .steps { margin: 8px 0; padding-left: 20px; max-width: 80ch; }
   .steps li { margin: 3px 0; }
   .cmdh { display: flex; justify-content: space-between; align-items: center; margin: 8px 0 4px; }
   .note { font-size: 12.5px; margin-top: 6px; }
-  .acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 18px; background: var(--card-2); border-top: 1px solid var(--border); }
   .sp { flex: 1; }
   .empty.big { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 44px 16px; }
   .empty.big b { color: var(--text); font-size: 16px; }
   .skip { margin-top: 18px; font-size: 12.5px; }
   .skip summary { color: var(--muted); font-weight: 500; }
-  @media (max-width: 600px) { .sg { padding: 14px; } .acts .sp { display: none; } }
+  @media (max-width: 600px) { .top, .problem, .acts { padding-left: 14px; padding-right: 14px; } .fix { margin: 0 14px 12px; } .acts .sp { display: none; } }
 </style>
