@@ -41,8 +41,8 @@ func TestCleanupClients(t *testing.T) {
 	seedClient(t, s, "AA:00:00:00:00:06", "", "192.168.1.14", 300, false)   // managed device by MAC
 	base := CleanupOpts{Days: 90, KeepLabeled: true, ProtectIPs: []string{"192.168.1.1"}, ProtectMACs: []string{"aa:00:00:00:00:06"}}
 
-	if _, err := s.CleanupClients(CleanupOpts{Days: 3}); err == nil {
-		t.Fatal("days<7 must be refused")
+	if _, err := s.CleanupClients(CleanupOpts{Days: -1}); err == nil {
+		t.Fatal("negative days must be refused")
 	}
 
 	dry := base
@@ -66,6 +66,23 @@ func TestCleanupClients(t *testing.T) {
 	long.Days = 365
 	if r, _ := s.CleanupClients(long); r.Count != 0 || r.Sample == nil {
 		t.Fatalf("365d: %+v", r)
+	}
+
+	// offline right now (days=0), unlabeled, protected ones excluded: 01 (200d) + 03 (10d)
+	now := dry
+	now.Days = 0
+	if r, _ := s.CleanupClients(now); r.Count != 2 {
+		t.Fatalf("offline now: %+v", r)
+	}
+	// ...and only those without traffic in the last 7 days: 03 had traffic 10 days ago, so both qualify;
+	// with a 30 day window 03 is excluded because its traffic is inside the window
+	now.UnusedDays = 7
+	if r, _ := s.CleanupClients(now); r.Count != 2 {
+		t.Fatalf("unused 7d: %+v", r)
+	}
+	now.UnusedDays = 30
+	if r, _ := s.CleanupClients(now); r.Count != 1 || r.Sample[0].MAC != "AA:00:00:00:00:01" {
+		t.Fatalf("unused 30d: %+v", r)
 	}
 
 	r, err = s.CleanupClients(base)

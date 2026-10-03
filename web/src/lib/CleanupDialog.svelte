@@ -5,12 +5,13 @@
   import { ago, num } from './format.js'
   import Modal from './Modal.svelte'
   let { onclose, ondone } = $props()
-  let days = $state(90), keep = $state(true), prev = $state(null), err = $state(''), busy = $state(false), loading = $state(false)
-  const choices = [30, 90, 180, 365]
+  let days = $state(90), keep = $state(true), unused = $state(false), prev = $state(null), err = $state(''), busy = $state(false), loading = $state(false)
+  const choices = [0, 1, 7, 30, 90, 180, 365]
+  const dayLabel = n => (n === 0 ? t('Offline right now') : t('{n} days', { n }))
 
   // live dry-run preview whenever the settings change
   $effect(() => {
-    const body = { days, keep_labeled: keep, dry_run: true }
+    const body = { days, unused_days: unused ? 7 : 0, keep_labeled: keep, dry_run: true }
     let stop = false
     loading = true
     const h = setTimeout(async () => {
@@ -23,17 +24,18 @@
   async function run() {
     busy = true
     try {
-      const r = await api('/clients/cleanup', { method: 'POST', body: { days, keep_labeled: keep, dry_run: false } })
+      const r = await api('/clients/cleanup', { method: 'POST', body: { days, unused_days: unused ? 7 : 0, keep_labeled: keep, dry_run: false } })
       toast(t('{n} stale clients removed', { n: num(r.removed) }))
       ondone?.(r); onclose()
     } catch (e) { err = e.message } finally { busy = false }
   }
 </script>
 <Modal title={t('Clean up stale clients')} {onclose}>
-  <p class="muted" style="margin-top:0">{t('Removes clients that have not been seen for a long time, together with their address and roaming history. Traffic statistics stay. Online clients and your routers/APs are never removed.')}</p>
+  <p class="muted" style="margin-top:0">{t('Removes clients that are offline, together with their address and roaming history. Traffic statistics stay. Online clients and your routers/APs are never removed. A removed device that returns is simply listed again.')}</p>
   <div class="form">
-    <label>{t('Not seen for at least')}
-      <select class="input" bind:value={days}>{#each choices as d}<option value={d}>{t('{n} days', { n: d })}</option>{/each}</select></label>
+    <label>{t('Offline for at least')}
+      <select class="input" bind:value={days}>{#each choices as d}<option value={d}>{dayLabel(d)}</option>{/each}</select></label>
+    <label class="chk"><input type="checkbox" bind:checked={unused} /> {t('Only devices without any traffic in the last 7 days')}</label>
     <label class="chk"><input type="checkbox" bind:checked={keep} /> {t('Keep devices that have a label')}</label>
   </div>
   <div class="prev" aria-live="polite">

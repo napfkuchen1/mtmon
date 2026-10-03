@@ -7,11 +7,12 @@ import (
 	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
-// clientsCleanup: POST /api/clients/cleanup {days, keep_labeled, dry_run}. Session + same-origin
+// clientsCleanup: POST /api/clients/cleanup {days, unused_days, keep_labeled, dry_run}. Session + same-origin
 // protection come from the auth wrapper like every other mutating endpoint.
 func (s *Server) clientsCleanup(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Days        int  `json:"days"`
+		UnusedDays  int  `json:"unused_days"`
 		KeepLabeled bool `json:"keep_labeled"`
 		DryRun      bool `json:"dry_run"`
 	}
@@ -19,11 +20,11 @@ func (s *Server) clientsCleanup(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 400, "bad request")
 		return
 	}
-	if in.Days < store.MinCleanupDays || in.Days > 3650 {
-		jerr(w, 400, "days must be between 7 and 3650")
+	if in.Days < store.MinCleanupDays || in.Days > 3650 || in.UnusedDays < 0 || in.UnusedDays > 3650 {
+		jerr(w, 400, "days must be between 0 and 3650")
 		return
 	}
-	o := store.CleanupOpts{Days: in.Days, KeepLabeled: in.KeepLabeled, DryRun: in.DryRun}
+	o := store.CleanupOpts{Days: in.Days, UnusedDays: in.UnusedDays, KeepLabeled: in.KeepLabeled, DryRun: in.DryRun}
 	// managed devices: never remove a client that is (or sits on the address of) a configured router / AP
 	for _, d := range s.Cfg.AllDevices() {
 		o.ProtectIPs = append(o.ProtectIPs, d.Addr)

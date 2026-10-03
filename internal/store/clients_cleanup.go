@@ -6,12 +6,14 @@ import (
 	"time"
 )
 
-// MinCleanupDays is the hard lower bound for the inactivity threshold of CleanupClients.
-const MinCleanupDays = 7
+// MinCleanupDays is the lower bound for the offline threshold of CleanupClients (0 = every client that is
+// offline right now). Online clients are never removed, so there is no safety need for a higher floor.
+const MinCleanupDays = 0
 
 // CleanupOpts selects which stale client identities CleanupClients removes.
 type CleanupOpts struct {
 	Days        int      // not seen for at least this many days (>= MinCleanupDays)
+	UnusedDays  int      // >0: additionally require that no traffic was recorded for the client in the last N days
 	KeepLabeled bool     // keep clients that carry a user label
 	DryRun      bool     // only count / preview, delete nothing
 	ProtectMACs []string // never remove these (managed devices, known neighbours)
@@ -44,15 +46,20 @@ type CleanupResult struct {
 // device simply shows up as a new client with its old traffic still attributed to the same MAC.
 // Online clients, and protected (managed-device) clients, are never touched.
 func (s *Store) CleanupClients(o CleanupOpts) (*CleanupResult, error) {
-	if o.Days < MinCleanupDays {
-		return nil, errors.New("days must be at least 7")
+	if o.Days < MinCleanupDays || o.UnusedDays < 0 {
+		return nil, errors.New("days must not be negative")
 	}
 	if o.Preview <= 0 {
 		o.Preview = 15
 	}
 	cut := time.Now().Add(-time.Duration(o.Days) * 24 * time.Hour).Unix()
-	where := ` online=0 AND last_seen>0 AND last_seen<?`
+	where := ` online=0 AND last_seen>0 AND last_seen<=?`
 	args := []any{cut}
+	if o.UnusedDays > 0 {
+		// rollup_1h is indexed by (mac, ts): one index probe per candidate
+		where += ` AND NOT EXISTS (SELECT 1 FROM rollup_1h r WHERE r.mac=clients.mac AND r.ts>=?)`
+		args = append(args, time.Now().Add(-time.Duration(o.UnusedDays)*24*time.Hour).Unix())
+	}
 	if o.KeepLabeled {
 		where += ` AND coalesce(label,'')=''`
 	}
