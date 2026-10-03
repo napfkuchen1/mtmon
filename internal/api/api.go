@@ -59,7 +59,7 @@ func New(s *Server) http.Handler {
 	s.Started = time.Now()
 	s.up = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
 		o := r.Header.Get("Origin")
-		return o == "" || strings.HasSuffix(strings.TrimPrefix(strings.TrimPrefix(o, "https://"), "http://"), r.Host)
+		return o == "" || sameOrigin(o, r.Host)
 	}}
 	m := http.NewServeMux()
 	s.mux = m
@@ -93,12 +93,17 @@ func New(s *Server) http.Handler {
 	return secure(m)
 }
 
+// csp: everything from this origin only (the UI is one embedded bundle); no framing, no <base>, forms only to ourselves.
+// style-src needs 'unsafe-inline' because Svelte sets element styles; scripts stay strictly 'self'.
+const csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; " +
+	"object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+
 func secure(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:")
+		w.Header().Set("Content-Security-Policy", csp)
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			w.Header().Set("Cache-Control", "no-store")
 		}
@@ -168,7 +173,7 @@ func (s *Server) auth(h http.HandlerFunc) http.HandlerFunc {
 		}
 		// CSRF: state-changing requests must be same-origin JSON (SameSite=Strict cookie is the primary defence)
 		if r.Method != "GET" && r.Method != "HEAD" {
-			if o := r.Header.Get("Origin"); o != "" && !strings.HasSuffix(o, "//"+r.Host) {
+			if o := r.Header.Get("Origin"); o != "" && !sameOrigin(o, r.Host) {
 				jerr(w, 403, "cross-origin request blocked")
 				return
 			}
@@ -628,6 +633,7 @@ func (s *Server) liveWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer c.Close()
+	c.SetReadLimit(1024) // the only message the client sends is {"Pause":bool}
 	done := make(chan struct{})
 	paused := make(chan bool, 4)
 	go func() { // reader: handles close + pause/resume messages

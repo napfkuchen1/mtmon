@@ -8,6 +8,19 @@ Version `1.0.0` will mean "verified on a range of real MikroTik hardware".
 Every release lists what is **new**, what **changed**, and what was **fixed**. Upgrading is always the same:
 run the installer again and choose *update* (a snapshot of the container is taken first).
 
+## [0.8.2] - unreleased
+
+### Security
+- **Stricter origin check for the live view and for changes.** The check that only lets your own mtmon page talk to
+  mtmon compared only the end of the address, so a look-alike address such as `evilmtmon.lan` could pass for
+  `mtmon.lan`. It now compares the exact address. The session cookie (`SameSite=Strict`) already blocked this in
+  practice; this closes the gap on the server side as well.
+- **Sessions end for good after 7 days** even if the page is used continuously (idle sessions still end after
+  12 hours). Unused sessions and old failed-login records are cleaned up instead of piling up in memory.
+- **The live connection accepts only tiny messages** (it only ever needs "pause"/"resume").
+- **Tighter browser policy (CSP):** the UI may only load from mtmon itself, cannot be embedded in other pages, and
+  can only connect back to mtmon (before, it could open connections to any address).
+
 ## [0.8.1] - 2026-10-02
 
 ### Security
