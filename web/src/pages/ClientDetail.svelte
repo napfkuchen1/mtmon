@@ -24,13 +24,24 @@
 
   // connection timeline with live tail
   let conns = $state([]), tail = $state(true), filter = $state(''), dirF = $state('all'), cerr = $state('')
+  // drill-down from the Top lists: server-side filter {kind: svc|rip|port|cc, value, label}
+  let drill = $state(null)
+  const drillQ = $derived(drill ? `&${drill.kind}=${encodeURIComponent(drill.value)}` : '')
+  const kindLabel = $derived({ svc: t('Service'), rip: t('Destination'), port: t('Port'), cc: t('Country') })
+  function pick(kind, r) {
+    drill = { kind, value: r.key, label: r.label || r.key }
+    filter = ''; dirF = 'all'
+    setTimeout(() => document.getElementById('conns')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
+  }
+  // a different client must not inherit the previous client's filter
+  $effect(() => { app.route.params.id; drill = null })
   $effect(() => {
-    const id = app.route.params.id, range = rg()
+    const id = app.route.params.id, range = rg(), dq = drillQ
     let stop = false, t, after = 0
     conns = []
     const run = async () => {
       try {
-        const rows = await api(`/clients/${encodeURIComponent(id)}/connections?range=${range}&limit=300&after=${after}`)
+        const rows = await api(`/clients/${encodeURIComponent(id)}/connections?range=${range}&limit=300&after=${after}${dq}`)
         if (rows.length) { after = Math.max(after, ...rows.map(r => r.ts)); conns = [...rows, ...conns].slice(0, 1500) }
         cerr = ''
       } catch (e) { cerr = e.message }
@@ -96,19 +107,24 @@
     <AppList apps={apps.data?.apps || []} unknown={apps.data?.unknown_bytes || 0} known={apps.data?.known_bytes || 0} truncated={apps.data?.truncated} empty={apps.loading ? t('Loading…') : null} /></div>
 
   <div class="grid g2" style="margin-top:16px">
-    <div class="card"><div class="card-h"><h2>{t('Top destinations')}</h2></div><TopList rows={x.top_hosts} /></div>
-    <div class="card"><div class="card-h"><h2>{t('Top services')}</h2><span class="muted" style="font-size:12.5px">{t('Click: who else uses this?')}</span></div><TopList rows={x.top_services} onpick={r => go('services/' + encodeURIComponent(r.key))} /></div>
-    <div class="card"><div class="card-h"><h2>{t('Top ports')}</h2></div><TopList rows={x.top_ports} /></div>
-    <div class="card"><div class="card-h"><h2>{t('Countries')}</h2></div><TopList rows={x.top_countries} mode="country" empty={t('No GeoIP database configured')} /></div>
+    <div class="card"><div class="card-h"><h2>{t('Top destinations')}</h2></div><TopList rows={x.top_hosts} onpick={r => pick('rip', r)} /></div>
+    <div class="card"><div class="card-h"><h2>{t('Top services')}</h2><span class="muted" style="font-size:12.5px">{t('Click: show connections')}</span></div><TopList rows={x.top_services} onpick={r => pick('svc', r)} /></div>
+    <div class="card"><div class="card-h"><h2>{t('Top ports')}</h2></div><TopList rows={x.top_ports} onpick={r => pick('port', r)} /></div>
+    <div class="card"><div class="card-h"><h2>{t('Countries')}</h2></div><TopList rows={x.top_countries} onpick={r => pick('cc', r)} mode="country" empty={t('No GeoIP database configured')} /></div>
   </div>
 
-  <div class="card" style="margin-top:16px">
+  <div class="card" id="conns" style="margin-top:16px">
     <div class="card-h"><h2>{t('Connections')}</h2>
+      {#if drill}
+        <span class="chip"><span class="muted">{kindLabel[drill.kind]}</span> <b>{tr(drill.label)}</b>
+          {#if drill.kind === 'svc'}<a href="#/services/{encodeURIComponent(drill.value)}" title={t('Who else uses this?')}>{t('All clients →')}</a>{/if}
+          <button class="x" aria-label={t('Clear filter')} onclick={() => (drill = null)}>✕</button></span>
+      {/if}
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <input class="input" placeholder={t('Filter IP, host, port, service…')} bind:value={filter} aria-label={t('Filter')} />
         <div class="tabs">{#each [['all', t('All')], ['u', t('↑ Out')], ['d', t('↓ In')], ['i', t('⇄ LAN')]] as [id, l]}<button class:on={dirF === id} onclick={() => (dirF = id)}>{l}</button>{/each}</div>
         <button class="btn" onclick={() => (tail = !tail)}>{tail ? t('Pause live tail') : t('Resume live tail')}</button>
-        <button class="btn" onclick={() => download('/export/connections/' + encodeURIComponent(mac) + '?range=' + rg())}>{t('CSV')}</button>
+        <button class="btn" onclick={() => download('/export/connections/' + encodeURIComponent(mac) + '?range=' + rg() + drillQ)}>{t('CSV')}</button>
       </div></div>
     <div class="scroll" style="max-height:520px;overflow-y:auto">
       <table>
@@ -148,5 +164,7 @@
 
 <style>
   .head { margin-bottom: 14px; } .title { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; padding: 3px 6px 3px 10px; border-radius: 999px; background: var(--accent-bg, var(--card-2)); border: 1px solid var(--accent); font-size: 13px; }
+  .chip a { font-size: 12.5px; } .chip .x { border: 0; background: none; cursor: pointer; color: var(--muted); padding: 2px 6px; border-radius: 999px; } .chip .x:hover { color: var(--text); background: var(--card-2); }
   .dn { color: var(--down); font-weight: 600; white-space: nowrap; } .upc { color: var(--up); font-weight: 600; white-space: nowrap; }
 </style>
