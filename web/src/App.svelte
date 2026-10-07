@@ -1,0 +1,234 @@
+<script>
+  import { app, checkSession, parseHash, go, openLive, closeLive, applyTheme, setTheme, setRange, setPref } from './lib/state.svelte.js'
+  import { api } from './lib/api.js'
+  import { t, tr, i18n } from './lib/i18n.svelte.js'
+  import Login from './pages/Login.svelte'
+  import Overview from './pages/Overview.svelte'
+  import Live from './pages/Live.svelte'
+  import Devices from './pages/Devices.svelte'
+  import DeviceDetail from './pages/DeviceDetail.svelte'
+  import Clients from './pages/Clients.svelte'
+  import ClientDetail from './pages/ClientDetail.svelte'
+  import Insights from './pages/Insights.svelte'
+  import Suggestions from './pages/Suggestions.svelte'
+  import Services from './pages/Services.svelte'
+  import Firewall from './pages/Firewall.svelte'
+  import Topology from './pages/Topology.svelte'
+  import Alerts from './pages/Alerts.svelte'
+  import Settings from './pages/Settings.svelte'
+  import Inbox from './pages/Inbox.svelte'
+  import Palette from './lib/Palette.svelte'
+
+  applyTheme()
+  parseHash()
+  window.addEventListener('hashchange', () => { parseHash(); window.scrollTo(0, 0) })
+  checkSession()
+
+  $effect(() => { if (app.user) openLive(); else if (app.user === false) closeLive() })
+
+  const nav = [
+    ['overview', 'Overview', 'M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10'],
+    ['live', 'Live', 'M3 12h4l3-8 4 16 3-8h4'],
+    ['devices', 'Devices', 'M4 6h16v5H4zM4 13h16v5H4zM7 8.5h.01M7 15.5h.01'],
+    ['clients', 'Clients', 'M16 11a4 4 0 10-8 0 4 4 0 008 0zM4 21c0-4 4-6 8-6s8 2 8 6'],
+    ['inbox', 'New devices', 'M12 5v14M5 12h14M4 4h16v16H4z'],
+    ['services', 'Services', 'M4 6h7v5H4zM13 6h7v5h-7zM4 13h7v5H4zM13 13h7v5h-7z'],
+    ['firewall', 'Firewall', 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4'],
+    ['insights', 'Insights', 'M4 20V10M10 20V4M16 20v-7M22 20H2'],
+    ['suggestions', 'Suggestions', 'M9 18h6M10 21h4M12 3a6 6 0 00-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0012 3z'],
+    ['topology', 'Topology', 'M12 5a2 2 0 100-4 2 2 0 000 4zM5 21a2 2 0 100-4 2 2 0 000 4zM19 21a2 2 0 100-4 2 2 0 000 4zM12 5v6M12 11l-7 6M12 11l7 6'],
+    ['alerts', 'Alerts', 'M6 9a6 6 0 1112 0c0 6 3 7 3 8H3c0-1 3-2 3-8zM10 21h4']
+  ]
+  const settingsIcon = 'M12 15a3 3 0 100-6 3 3 0 000 6zM19 12a7 7 0 00-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 00-2-1.2L14 3h-4l-.6 2.7a7 7 0 00-2 1.2l-2.3-1-2 3.4 2 1.5a7 7 0 000 2.4l-2 1.5 2 3.4 2.3-1a7 7 0 002 1.2L10 21h4l.6-2.7a7 7 0 002-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z'
+  const ranges = [['live', 'Live'], ['1h', '1 h'], ['24h', '24 h'], ['7d', '7 d'], ['30d', '30 d']]
+  const showRange = $derived(['overview', 'clients', 'client', 'insights', 'device', 'services', 'firewall'].includes(app.route.name))
+  const active = $derived(app.route.name === 'client' ? 'clients' : app.route.name === 'device' ? 'devices' : app.route.name)
+  let openAlerts = $state(0)
+  $effect(() => {
+    if (!app.user) return
+    let timer, stop = false
+    const run = async () => { try { openAlerts = (await api('/alerts')).filter(a => !a.acked && a.severity !== 'info').length } catch {} if (!stop) timer = setTimeout(run, 15000) }
+    run()
+    return () => { stop = true; clearTimeout(timer) }
+  })
+  let newDev = $state(0)
+  $effect(() => {
+    if (!app.user) return
+    let timer, stop = false
+    const run = async () => { try { newDev = (await api('/clients/inbox?mode=new')).new } catch {} if (!stop) timer = setTimeout(run, 60000) }
+    const again = () => { clearTimeout(timer); run() }
+    window.addEventListener('mtmon-inbox-changed', again)
+    run()
+    return () => { stop = true; clearTimeout(timer); window.removeEventListener('mtmon-inbox-changed', again) }
+  })
+  // sidebar: desktop = collapsible rail (remembered), mobile = drawer opened from the header
+  let rail = $state((() => { try { return localStorage.getItem('mtmon.sidebar') === 'rail' } catch { return false } })())
+  let drawer = $state(false)
+  const isMobile = () => window.matchMedia('(max-width: 860px)').matches
+  function toggleMenu() {
+    if (isMobile()) drawer = !drawer
+    else { rail = !rail; try { localStorage.setItem('mtmon.sidebar', rail ? 'rail' : 'full') } catch {} }
+  }
+  $effect(() => { app.route.name; app.route.params.id; drawer = false })
+  const nextTheme = { auto: 'light', light: 'dark', dark: 'auto' }
+  let palette = $state(false)
+  function onkey(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); if (app.user) palette = !palette }
+  }
+  let sugWarn = $state(0)
+  $effect(() => {
+    if (!app.user) return
+    let timer, stop = false
+    const run = async () => { try { sugWarn = (await api('/suggestions/summary')).warnings } catch {} if (!stop) timer = setTimeout(run, 120000) }
+    const again = () => { clearTimeout(timer); run() }
+    window.addEventListener('mtmon-suggestions-changed', again)
+    run()
+    return () => { stop = true; clearTimeout(timer); window.removeEventListener('mtmon-suggestions-changed', again) }
+  })
+  let upd = $state(null)
+  $effect(() => {
+    if (!app.user) return
+    let timer, stop = false
+    const run = async () => { try { upd = await api('/update') } catch {} if (!stop) timer = setTimeout(run, 30 * 60 * 1000) }
+    const onUpd = () => { clearTimeout(timer); run() }
+    window.addEventListener('mtmon:update', onUpd)
+    run()
+    return () => { stop = true; clearTimeout(timer); window.removeEventListener('mtmon:update', onUpd) }
+  })
+  const vlabel = v => (!v || v === 'dev' ? 'dev' : /^\d/.test(v) ? 'v' + v : v)
+  async function logout() { try { await api('/logout', { method: 'POST' }) } catch {} app.user = false }
+</script>
+
+<svelte:window onkeydown={onkey} />
+{#if app.user === null}
+  <div class="boot"><span class="dot pulse"></span></div>
+{:else if app.user === false}
+  <Login />
+{:else}
+  <div class="shell" class:rail>
+    {#if drawer}<button class="backdrop" aria-label={t('Close menu')} onclick={() => (drawer = false)}></button>{/if}
+    <aside class:open={drawer}>
+      <a class="brand" href="#/overview">
+        <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"/><path d="M6 21l5-7 4 4 5-9 6 12" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="lbl">mtmon</span>
+      </a>
+      <nav>
+        {#each nav as [id, label, d]}
+          <a href="#/{id}" class:on={active === id} title={t(label)}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path {d} /></svg>
+            <span class="lbl">{t(label)}</span>
+            {#if id === 'alerts' && openAlerts}<span class="cnt">{openAlerts}</span>{/if}
+            {#if id === 'inbox' && newDev}<span class="cnt w" title={t('New devices to look at')}>{newDev}</span>{/if}
+            {#if id === 'suggestions' && sugWarn}<span class="cnt w" title={t('Warnings in Suggestions')}>{sugWarn}</span>{/if}
+          </a>
+        {/each}
+      </nav>
+      <div class="foot">
+        <a class="sl" href="#/settings" class:on={active === 'settings'} title={t('Settings')}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={settingsIcon} /></svg><span class="lbl">{t('Settings')}</span>
+        </a>
+        <div class="conn" title={app.live.connected ? t('Live connected') : t('Reconnecting…')}><span class="dot" class:ok={app.live.connected} class:bad={!app.live.connected}></span><span class="lbl">{app.live.connected ? t('Live connected') : t('Reconnecting…')}</span></div>
+        <div class="row2 full">
+          <select class="input sm" aria-label={t('Theme')} value={app.theme} onchange={e => setTheme(e.target.value)}>
+            <option value="auto">{t('Auto')}</option><option value="light">{t('Light')}</option><option value="dark">{t('Dark')}</option>
+          </select>
+          <select class="input sm" aria-label={t('Language')} value={i18n.lang} onchange={e => i18n.set(e.target.value)}>
+            <option value="en">English</option><option value="de">Deutsch</option>
+          </select>
+        </div>
+        <button class="btn sm mini" title={t('Theme') + ': ' + app.theme} aria-label={t('Theme')} onclick={() => setTheme(nextTheme[app.theme])}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 000 18z" fill="currentColor"/></svg></button>
+        {#if upd}
+          <div class="ver full">
+            <a class="vtxt" href="#/settings/updates" title={t('Updates')}>mtmon {vlabel(upd.current)}</a>
+            {#if upd.available}<a class="vbadge" href="#/settings/updates">{t('Update {v}', { v: vlabel(upd.latest) })}</a>{/if}
+          </div>
+        {/if}
+        <button class="btn sm" style="width:100%" onclick={logout} title={t('Sign out')}><span class="full">{t('Sign out')}</span><span class="mini"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8M6.3 6.8a8 8 0 1011.4 0"/></svg></span></button>
+      </div>
+    </aside>
+    <main>
+      <header>
+        <button class="btn sm menu" aria-label={t('Menu')} title={t('Menu')} onclick={toggleMenu}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+        <div class="spacer"></div>
+        <button class="btn sm" title={t('Density: compact / comfortable')} aria-label={t('Density')} onclick={() => setPref('density', app.density === 'compact' ? 'comfortable' : 'compact')}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{#if app.density === 'compact'}<path d="M12 3v5m0 0l-3-3m3 3l3-3M12 21v-5m0 0l-3 3m3-3l3 3M4 12h16"/>{:else}<path d="M12 8V3m0 0L9 6m3-3l3 3M12 16v5m0 0l-3-3m3 3l3-3M4 12h16"/>{/if}</svg></button>
+        <button class="btn sm srch" onclick={() => (palette = true)} aria-label={t('Search')}>🔍 {t('Search')} <kbd>Ctrl K</kbd></button>
+        {#if upd?.available}<a class="vbadge mobv" href="#/settings/updates">{t('Update {v}', { v: vlabel(upd.latest) })}</a>{/if}
+        {#if showRange}
+          <div class="tabs" role="tablist" aria-label={t('Time range')}>
+            {#each ranges as [id, label]}
+              <button role="tab" aria-selected={app.range === id} class:on={app.range === id} onclick={() => setRange(id)}>{id === 'live' ? t(label) : label}</button>
+            {/each}
+          </div>
+        {/if}
+      </header>
+      <div class="page">
+        {#if app.route.name === 'overview'}<Overview />
+        {:else if app.route.name === 'live'}<Live />
+        {:else if app.route.name === 'devices'}<Devices />
+        {:else if app.route.name === 'device'}<DeviceDetail />
+        {:else if app.route.name === 'clients'}<Clients />
+        {:else if app.route.name === 'client'}<ClientDetail />
+        {:else if app.route.name === 'insights'}<Insights />
+        {:else if app.route.name === 'suggestions'}<Suggestions />
+        {:else if app.route.name === 'inbox'}<Inbox />
+        {:else if app.route.name === 'services'}<Services />
+        {:else if app.route.name === 'firewall'}<Firewall />
+        {:else if app.route.name === 'topology'}<Topology />
+        {:else if app.route.name === 'alerts'}<Alerts />
+        {:else if app.route.name === 'settings'}<Settings />
+        {:else}<div class="empty">{t('Page not found.')} <a href="#/overview">{t('Go to Overview')}</a></div>{/if}
+      </div>
+    </main>
+  </div>
+{/if}
+{#if palette}<Palette onclose={() => (palette = false)} />{/if}
+{#if app.toast}<div class="toast" role="status">{tr(app.toast)}</div>{/if}
+
+<style>
+  .boot { height: 100vh; display: grid; place-items: center; }
+  .shell { display: grid; grid-template-columns: var(--sidebar) 1fr; min-height: 100vh; transition: grid-template-columns .18s; }
+  .shell.rail { grid-template-columns: 64px 1fr; }
+  aside { position: sticky; top: 0; height: 100vh; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 14px 10px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; color: var(--text); padding: 6px 10px 16px; letter-spacing: -.01em; }
+  .brand:hover { text-decoration: none; }
+  nav { display: flex; flex-direction: column; gap: 2px; }
+  nav a { display: flex; align-items: center; gap: 11px; padding: 8px 10px; border-radius: 8px; color: var(--muted); font-weight: 500; }
+  nav a:hover { background: var(--card-2); color: var(--text); text-decoration: none; }
+  nav a.on { background: var(--accent-bg); color: var(--accent-strong); }
+  .cnt.w { background: var(--warn); color: #1c1203; }
+  .cnt { margin-left: auto; background: var(--bad); color: #fff; border-radius: 999px; font-size: 11px; padding: 0 7px; font-weight: 600; }
+  .foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 8px 6px 0; border-top: 1px solid var(--border); }
+  .conn { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; }
+  .row2 { display: flex; gap: 8px; } .row2 select { flex: 1; padding: 4px 6px; }
+  .ver { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-size: 11.5px; min-width: 0; }
+  .ver .vtxt { color: var(--muted); } .ver .vtxt:hover { color: var(--text); text-decoration: none; }
+  .vbadge { background: var(--accent-bg); color: var(--accent-strong); border-radius: 999px; padding: 0 8px; font-weight: 600; white-space: nowrap; font-size: 11.5px; }
+  .mobv { display: none; }
+  .backdrop { position: fixed; inset: 0; z-index: 29; border: 0; background: rgba(0,0,0,.45); }
+  .sl { display: flex; align-items: center; gap: 11px; padding: 8px 10px; border-radius: 8px; color: var(--muted); font-weight: 500; }
+  .sl:hover { background: var(--card-2); color: var(--text); text-decoration: none; } .sl.on { background: var(--accent-bg); color: var(--accent-strong); }
+  .mini { display: none; }
+  .rail .lbl, .rail .full { display: none; } .rail .mini { display: inline-flex; justify-content: center; }
+  .rail aside { padding-left: 8px; padding-right: 8px; } .rail nav a, .rail .sl { justify-content: center; padding-left: 0; padding-right: 0; }
+  .rail .brand { justify-content: center; padding-left: 0; padding-right: 0; } .rail .cnt { position: absolute; margin: -16px 0 0 18px; font-size: 10px; padding: 0 5px; }
+  .rail nav a, .rail .sl { position: relative; } .rail .conn { justify-content: center; }
+  .rail .foot button { width: 100%; justify-content: center; }
+  .srch kbd { font: inherit; font-size: 11px; color: var(--muted); border: 1px solid var(--border-2); border-radius: 5px; padding: 0 5px; margin-left: 6px; }
+  .ver .vbadge:hover { text-decoration: none; filter: brightness(.96); }
+  main { min-width: 0; }
+  header { display: flex; align-items: center; gap: 12px; padding: 12px 28px; border-bottom: 1px solid var(--border); background: var(--card); position: sticky; top: 0; z-index: 5; min-height: 57px; }
+  .spacer { flex: 1; }
+  .mob { display: none; }
+  .page { padding: 24px 28px 48px; max-width: 1500px; }
+  @media (max-width: 860px) {
+    .shell, .shell.rail { grid-template-columns: 1fr; }
+    aside { position: fixed; z-index: 30; left: 0; top: 0; bottom: 0; width: min(280px, 84vw); transform: translateX(-100%); transition: transform .2s; box-shadow: none; overflow-y: auto; }
+    aside.open { transform: none; box-shadow: 0 0 40px rgba(0,0,0,.4); }
+    .rail .lbl, .rail .full { display: revert; } .rail .mini { display: none; } .rail nav a, .rail .sl { justify-content: flex-start; padding-left: 10px; }
+    .mobv { display: inline-block; } .srch kbd { display: none; }
+    header, .page { padding-left: 16px; padding-right: 16px; }
+    header { flex-wrap: wrap; gap: 8px 12px; }
+  }
+</style>

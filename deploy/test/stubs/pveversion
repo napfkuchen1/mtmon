@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+echo "pve-manager/${STUB_PVE:-9.0.3}/deadbeef (running kernel: 6.14.8-2-pve)"

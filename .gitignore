@@ -1,0 +1,15 @@
+/dist/
+/bin/
+/web/node_modules/
+/web/dist/*
+!/web/dist/.gitkeep
+*.db
+*.db-wal
+*.db-shm
+config.json
+*.mmdb
+.env
+
+# local / maintainer-only
+docs/testreport.md
+scripts/.demo_b.sh

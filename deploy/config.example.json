@@ -1,0 +1,37 @@
+{
+  "listen": ":8443",
+  "flow_listen": ":2055",
+  "syslog_listen": ":5514",
+  "data_dir": "/var/lib/mtmon",
+  "local_nets": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
+  "raw_retention_days": 3,
+  "retention_days": 30,
+  "reverse_dns": false,
+  "_comment": "Geräte besser per Web-UI hinzufügen (Devices > Add device). Einträge hier bleiben möglich (read-only, nicht verwaltet).",
+  "devices": [
+    {
+      "name": "gw-main",
+      "addr": "192.168.88.1",
+      "role": "router",
+      "site": "home",
+      "user": "mtmon",
+      "pass": "CHANGE_ME",
+      "fingerprint": "sha256 of the router cert: mtmon fingerprint 192.168.88.1:443",
+      "flow_sources": []
+    },
+    {
+      "name": "ap-living",
+      "addr": "192.168.88.2",
+      "role": "ap",
+      "user": "mtmon",
+      "pass": "CHANGE_ME",
+      "fingerprint": ""
+    }
+  ],
+  "geo_country_db": "",
+  "geo_asn_db": "",
+  "oui_file": "",
+  "alert_webhook": "",
+  "alert_ntfy_url": "",
+  "dns_resolvers": []
+}

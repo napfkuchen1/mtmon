@@ -1,0 +1,38 @@
+name: ci
+on:
+  push: { branches: [main] }
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version-file: go.mod }
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: cd web && npm ci --no-audit --no-fund && npm run build
+      - run: go install honnef.co/go/tools/cmd/staticcheck@v0.8.1 # pinned: a new staticcheck release must not turn CI red on its own
+      - run: sudo apt-get install -y shellcheck
+      - run: make test
+      - run: staticcheck ./...
+      - run: cd deploy && shellcheck -x -s bash lib.sh install-mtmon.sh update-mtmon.sh uninstall-mtmon.sh
+      - run: cd deploy && shellcheck -s sh update-geo.sh apply-update.sh
+      - run: shellcheck install.sh deploy/test/test-tui.sh deploy/test/test-apply-update.sh
+      - run: test -z "$(gofmt -l .)"
+      - run: make build
+      - name: deploy tests
+        run: |
+          { sudo deploy/test/test-deploy.sh bin/mtmon && sudo deploy/test/test-tui.sh && deploy/test/test-apply-update.sh; } > /tmp/dt.log 2>&1 || { m=$(grep -v '^PASS' /tmp/dt.log | tail -15 | sed ':a;N;$!ba;s/\n/%0A/g'); echo "::error::$m"; exit 1; }
+  # Known-vulnerability scan of the Go dependencies and standard library. Reports only (does not block) so that a newly
+  # published advisory cannot stop unrelated work; read the log and bump go.mod / dependencies when it lists something.
+  vuln:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version-file: go.mod }
+      - run: mkdir -p web/dist && touch web/dist/.gitkeep   # go:embed needs the directory to exist
+      - run: go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+      - run: govulncheck ./...

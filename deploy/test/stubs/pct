@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Fake `pct`: records calls, keeps tiny CT state in $FAKE_STATE, never executes guest commands.
+S=$FAKE_STATE; mkdir -p "$S"
+echo "pct $*" >> "$S/calls.log"
+cmd=$1; shift
+case $cmd in
+  status) [ -f "$S/ct_$1" ] && { echo "status: running"; exit 0; } || exit 2 ;;
+  create) id=$1; shift; touch "$S/ct_$id"; echo "$*" > "$S/ct_$id.conf"
+          [ -n "${STUB_CREATE_FAIL:-}" ] && exit 1; echo 0.9.0 > "$S/ct_version"; exit 0 ;;
+  list) echo 'VMID       Status     Lock         Name'; for f in "$S"/ct_*.conf; do [ -e "$f" ] || continue; i=$(basename "$f" .conf); i=${i#ct_}; printf '%-10s %-10s %-12s %s\n' "$i" running '' mtmon; done; exit 0 ;;
+  config) cat "$S/ct_$1.conf" 2>/dev/null; exit 0 ;;
+  destroy) rm -f "$S/ct_$1" "$S/ct_$1.conf"; exit 0 ;;
+  start|stop|snapshot) [ "$cmd" = snapshot ] && [ -n "${STUB_NO_SNAPSHOT:-}" ] && exit 1; exit 0 ;;
+  push) # push <id> <src> <dest>
+        if [ "$3" = /usr/local/bin/mtmon.new ] || [ "$3" = /usr/local/bin/mtmon ]; then "$2" version > "$S/pushed_version"; cp "$2" "$S/pushed_bin" 2>/dev/null; [ "$3" = /usr/local/bin/mtmon ] && cp "$S/pushed_version" "$S/ct_version"; fi; exit 0 ;;
+  exec) id=$1; shift; [ "$1" = -- ] && shift; all="$*"
+        case $all in
+          *"mtmon passwd"*"--generate"*) printf 'user: admin\npassword: Fake-Pass-123456\n'; exit 0 ;;
+          *"mtmon selftest"*) [ "$(cat "$S/ct_version")" = "${STUB_BAD_VERSION:-none}" ] && exit 1; exit 0 ;;
+          *"mtmon version"*) cat "$S/ct_version"; exit 0 ;;
+          *"sha256sum /usr/local/bin/mtmon"*) echo "$(sha256sum "$S/pushed_bin" 2>/dev/null | cut -d' ' -f1)  /usr/local/bin/mtmon"; exit 0 ;;
+          *"mv -f /usr/local/bin/mtmon.new"*) cp "$S/pushed_version" "$S/ct_version"; exit 0 ;;
+          *"mkdir -p"*"mtmon.prev"*) cp "$S/ct_version" "$S/ct_version_prev"; exit 0 ;;
+          *"rm -f /var/lib/mtmon/mtmon.db"*) cp "$S/ct_version_prev" "$S/ct_version"; exit 0 ;;
+          *"hostname -I"*) echo "192.168.88.50"; exit 0 ;;
+          *"is-system-running"*|*"is-active"*|true|*"journalctl"*) exit 0 ;;
+        esac; exit 0 ;;
+esac
+exit 0

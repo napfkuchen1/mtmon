@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+printf 'Name Type Status Total Used Available %%\n'
+printf 'local dir active 100 10 90 10%%\n'
+printf 'local-lvm lvmthin active 500 50 450 10%%\n'
+printf 'cold dir inactive 0 0 0 0%%\n'
