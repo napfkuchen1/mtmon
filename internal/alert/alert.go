@@ -28,6 +28,8 @@ type Engine struct {
 	mu       sync.Mutex
 	last     map[string]time.Time
 	devUp    map[string]bool
+	ifDown   map[string]time.Time // device/iface -> when it went down
+	wan      map[string]*wanState // device -> WAN uplinks currently down
 	cpuHigh  map[string]int
 	baseline float64
 	hc       *http.Client
@@ -36,7 +38,7 @@ type Engine struct {
 
 func New(c *config.Config, s *store.Store, h *live.Hub, log *slog.Logger) *Engine {
 	return &Engine{Cfg: c, St: s, Hub: h, Log: log, start: time.Now(), last: map[string]time.Time{},
-		devUp: map[string]bool{}, cpuHigh: map[string]int{}, hc: &http.Client{Timeout: 8 * time.Second}}
+		devUp: map[string]bool{}, ifDown: map[string]time.Time{}, wan: map[string]*wanState{}, cpuHigh: map[string]int{}, hc: &http.Client{Timeout: 8 * time.Second}}
 }
 
 // Raise stores and delivers an alert unless the same kind|subject fired within cooldown.
@@ -108,15 +110,97 @@ func isDynamicIface(name string) bool {
 	return false
 }
 
+// wanPrefixes name the interfaces that make up an internet uplink (PPPoE and the tunnels on top of it). A modem
+// resync takes several of them down together, so they are reported as one WAN event per device.
+var wanPrefixes = []string{"pppoe-out", "ipip", "ipv6-", "gre", "sit", "6to4", "eoip"}
+
+func isWANIface(name string) bool {
+	for _, p := range wanPrefixes {
+		if strings.HasPrefix(name, p) {
+			return true
+		}
+	}
+	return false
+}
+
+type wanState struct {
+	since time.Time
+	down  map[string]bool
+	seen  []string // every member that was down during this outage, in order
+}
+
+func fmtDur(d time.Duration) string {
+	d = d.Round(time.Second)
+	switch {
+	case d < time.Minute:
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	case d < time.Hour:
+		return fmt.Sprintf("%dm %02ds", int(d.Minutes()), int(d.Seconds())%60)
+	}
+	return fmt.Sprintf("%dh %02dm", int(d.Hours()), int(d.Minutes())%60)
+}
+
+// wanState bundles uplink interfaces: one alert when the first goes down, one when the last is back, with duration.
+func (e *Engine) wanEvent(device, iface string, running bool) {
+	now := time.Now()
+	e.mu.Lock()
+	st := e.wan[device]
+	if !running {
+		if st == nil {
+			st = &wanState{since: now, down: map[string]bool{}}
+			e.wan[device] = st
+		}
+		first := len(st.down) == 0
+		if !st.down[iface] {
+			st.down[iface] = true
+			st.seen = append(st.seen, iface)
+		}
+		e.mu.Unlock()
+		if first {
+			e.Raise("wan_down", device, "warning", fmt.Sprintf("WAN link on %s went down (%s)", device, iface), time.Minute)
+		}
+		return
+	}
+	if st == nil || !st.down[iface] {
+		e.mu.Unlock()
+		return
+	}
+	delete(st.down, iface)
+	if len(st.down) > 0 {
+		e.mu.Unlock()
+		return
+	}
+	delete(e.wan, device)
+	dur, members := now.Sub(st.since), strings.Join(st.seen, ", ")
+	e.mu.Unlock()
+	e.Raise("wan_up", device, "info", fmt.Sprintf("WAN link on %s is back after %s (affected: %s)", device, fmtDur(dur), members), 0)
+}
+
 func (e *Engine) InterfaceState(device, iface string, running bool) {
+	if isWANIface(iface) {
+		e.wanEvent(device, iface, running)
+		return
+	}
 	if isDynamicIface(iface) {
 		return
 	}
+	key := device + "/" + iface
 	if !running {
-		e.Raise("iface_down", device+"/"+iface, "warning", fmt.Sprintf("Interface %s on %s went down", iface, device), 5*time.Minute)
-	} else {
-		e.Raise("iface_up", device+"/"+iface, "info", fmt.Sprintf("Interface %s on %s is up", iface, device), 5*time.Minute)
+		e.mu.Lock()
+		e.ifDown[key] = time.Now()
+		e.mu.Unlock()
+		e.Raise("iface_down", key, "warning", fmt.Sprintf("Interface %s on %s went down", iface, device), 5*time.Minute)
+		return
 	}
+	e.mu.Lock()
+	since, wasDown := e.ifDown[key]
+	delete(e.ifDown, key)
+	e.mu.Unlock()
+	if wasDown { // recovery after a down is always reported, with the outage length
+		e.Raise("iface_up", key, "info", fmt.Sprintf("Interface %s on %s is up again after %s", iface, device, fmtDur(time.Since(since))), 0)
+		return
+	}
+	e.Raise("iface_up", key, "info", fmt.Sprintf("Interface %s on %s is up", iface, device), 5*time.Minute)
 }
 
 func (e *Engine) NewClient(mac, name, ip string) {

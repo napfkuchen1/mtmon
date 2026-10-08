@@ -135,7 +135,7 @@ func TestTemperature(t *testing.T) {
 
 func TestInterfaceState(t *testing.T) {
 	e, got := newEngine(t)
-	for _, dyn := range []string{"pppoe-out1", "l2tp-vpn", "sstp-x", "ovpn-client", "<ovpn-user>", "veth1", "lo", "wifi-cap-1", "wg-peer-7"} {
+	for _, dyn := range []string{"pppoe-in1", "l2tp-vpn", "sstp-x", "ovpn-client", "<ovpn-user>", "veth1", "lo", "wifi-cap-1", "wg-peer-7"} {
 		e.InterfaceState("gw", dyn, false)
 	}
 	if len(*got) != 0 {
@@ -145,6 +145,27 @@ func TestInterfaceState(t *testing.T) {
 	e.InterfaceState("gw", "ether2", true)
 	if kinds(*got) != "iface_down/gw/ether1,iface_up/gw/ether2" || (*got)[0].Severity != "warning" || (*got)[1].Severity != "info" {
 		t.Fatalf("static interfaces: %+v", *got)
+	}
+}
+
+// A modem resync takes PPPoE and the tunnel on top down together: one alert out, one back with the outage length.
+func TestWANFlapIsBundled(t *testing.T) {
+	e, got := newEngine(t)
+	e.InterfaceState("gw", "pppoe-out1", false)
+	e.InterfaceState("gw", "ipipv6-tunnel1", false)
+	e.InterfaceState("gw", "pppoe-out1", true)
+	if kinds(*got) != "wan_down/gw" {
+		t.Fatalf("one down alert, no up while a member is still down: %s", kinds(*got))
+	}
+	e.InterfaceState("gw", "ipipv6-tunnel1", true)
+	if kinds(*got) != "wan_down/gw,wan_up/gw" || !strings.Contains((*got)[1].Msg, "pppoe-out1, ipipv6-tunnel1") {
+		t.Fatalf("%+v", *got)
+	}
+	// a plain port: recovery is reported even inside the cooldown, with the duration
+	e.InterfaceState("gw", "ether3", false)
+	e.InterfaceState("gw", "ether3", true)
+	if kinds(*got) != "wan_down/gw,wan_up/gw,iface_down/gw/ether3,iface_up/gw/ether3" || !strings.Contains((*got)[3].Msg, "up again after") {
+		t.Fatalf("%+v", *got)
 	}
 }
 

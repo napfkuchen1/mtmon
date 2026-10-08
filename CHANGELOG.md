@@ -8,6 +8,14 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.13.4] - 2026-10-09
+
+### Fixed
+- **DNS traffic counted twice:** when the router redirects DNS (dst-nat), MikroTik exports the same query twice (original and redirected target). mtmon now counts it once.
+
+### Changed
+- **WAN flaps bundled:** when an uplink (e.g. `pppoe-out1`) goes down and up repeatedly, mtmon raises one down alert and one up alert, and the up alert states how long the outage lasted.
+
 ## [0.13.3] - 2026-10-09
 
 ### Fixed
