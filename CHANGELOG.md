@@ -8,6 +8,11 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.13.3] - 2026-10-09
+
+### Fixed
+- **False roaming:** with a CAPsMAN controller, a Wi-Fi client that stayed on one access point could be counted as "roaming" between the controller and the access point whenever the access point did not list it for a single poll. mtmon now keeps the access point the client was last seen on, and only counts a roam when the client really moves to a different one.
+
 ## [0.13.2] - 2026-10-09
 
 ### Fixed
