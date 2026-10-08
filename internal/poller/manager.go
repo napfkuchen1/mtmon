@@ -729,6 +729,15 @@ func (m *Manager) merge() {
 			o.Device = h
 		} else if e, ok := edge[mac]; ok && e.ap && roleOf[o.Device] != "ap" {
 			o.Device, o.Iface = e.dev, e.iface
+		} else if roleOf[o.Device] != "ap" && o.Device != "" {
+			// Only the controller reports this client and no AP showed it on an edge port this cycle (aged-out
+			// bridge host, slow poll). Keep the AP it was last seen on instead of flipping to the controller,
+			// otherwise every gap counts as a roam.
+			var prev, iface string
+			if m.St.DB.QueryRow(`SELECT device, iface FROM clients WHERE mac=? AND wifi=1`, mac).Scan(&prev, &iface) == nil &&
+				prev != o.Device && roleOf[prev] == "ap" {
+				o.Device, o.Iface = prev, iface
+			}
 		}
 	}
 	m.mu.Unlock()
