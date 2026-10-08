@@ -69,3 +69,33 @@ func TestMergeLocatesClientsBehindAPs(t *testing.T) {
 		t.Errorf("a DHCP-created permanent ARP entry is not proof of presence: %+v", c)
 	}
 }
+
+// A cycle in which the AP does not list the client (aged-out bridge host) must not move it to the controller:
+// that would be counted as a roam, and back again on the next cycle.
+func TestMergeKeepsAPWhenEvidenceGapsOut(t *testing.T) {
+	st, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	st.SaveNeighbors("hex", []store.Neighbor{{Device: "hex", Iface: "ether2", MAC: "AA:00:00:00:00:A1", Ident: "ap"}})
+	st.SaveNeighbors("ap", []store.Neighbor{{Device: "ap", Iface: "ether1", MAC: "AA:00:00:00:00:B1", Ident: "hex"}})
+	m := NewManager(&config.Config{Devices: []config.Device{{Name: "hex", Role: "router", Addr: "10.0.0.1"}, {Name: "ap", Role: "ap", Addr: "10.0.0.2"}}},
+		st, live.NewHub(), enrich.New("", "", "", false), nopEvents{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	const mac = "02:00:00:00:00:01"
+	wifi := []Row{{"mac-address": mac, "interface": "cap-wifi1", "ssid": "Home", "signal": "-50"}}
+	m.snaps["hex"] = &devSnap{role: "router", at: time.Now(), wifi: wifi}
+	m.snaps["ap"] = &devSnap{role: "ap", at: time.Now(), bridge: []Row{{"mac-address": mac, "on-interface": "wifi1"}}}
+	m.merge()
+	m.snaps["ap"] = &devSnap{role: "ap", at: time.Now()} // gap
+	m.merge()
+	m.snaps["ap"] = &devSnap{role: "ap", at: time.Now(), bridge: []Row{{"mac-address": mac, "on-interface": "wifi1"}}}
+	m.merge()
+	c, err := st.Client(mac)
+	if err != nil || c.Device != "ap" {
+		t.Fatalf("client must stay on the AP: %+v %v", c, err)
+	}
+	if r, _ := st.Roams(mac); len(r) != 0 {
+		t.Fatalf("no roam expected: %+v", r)
+	}
+}
