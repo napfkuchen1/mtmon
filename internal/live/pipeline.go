@@ -30,6 +30,7 @@ type Pipeline struct {
 	Cls               *enrich.Classifier
 	mu                sync.Mutex
 	seen              map[dkey]int64
+	dnsSeen           map[rkey]int64
 	Ignored, Internal uint64
 }
 
@@ -41,16 +42,63 @@ type dkey struct {
 	sec         int64
 }
 
+// rkey identifies a DNS query by client address, client port and protocol.
+type rkey struct {
+	s     netip.Addr
+	sp    uint16
+	proto uint8
+}
+
 func NewPipeline(c *config.Config, s *store.Store, e *enrich.Enricher, h *Hub) *Pipeline {
-	return &Pipeline{Cfg: c, St: s, En: e, Hub: h, seen: map[dkey]int64{}}
+	return &Pipeline{Cfg: c, St: s, En: e, Hub: h, seen: map[dkey]int64{}, dnsSeen: map[rkey]int64{}}
+}
+
+// dnsRedirected reports whether r is the original-destination copy of a DNS query that the router redirected to
+// itself (dst-nat): the same client port was also exported with a local destination on port 53. Only the copy
+// that went to the router counts; the one to "8.8.8.8" never left the network.
+// local lists the keys of redirected copies seen in the current batch.
+func (p *Pipeline) dnsRedirected(r flow.Record, local map[rkey]bool, now int64) bool {
+	if r.DstPort != 53 || (r.Proto != 17 && r.Proto != 6) {
+		return false
+	}
+	k := rkey{r.Src.Unmap(), r.SrcPort, r.Proto}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.Cfg.IsLocal(r.Dst.Unmap()) {
+		p.dnsSeen[k] = now
+		return false
+	}
+	if local[k] {
+		return true
+	}
+	if t, ok := p.dnsSeen[k]; ok && now-t <= 10 {
+		return true
+	}
+	if len(p.dnsSeen) > 20000 {
+		for kk, t := range p.dnsSeen {
+			if now-t > 30 {
+				delete(p.dnsSeen, kk)
+			}
+		}
+	}
+	return false
 }
 
 // Handle is the flow.Collector handler.
 func (p *Pipeline) Handle(recs []flow.Record) {
 	now := time.Now()
 	rows := make([]store.FlowRow, 0, len(recs))
+	local := map[rkey]bool{}
+	for _, r := range recs {
+		if r.DstPort == 53 && p.Cfg.IsLocal(r.Src.Unmap()) && p.Cfg.IsLocal(r.Dst.Unmap()) {
+			local[rkey{r.Src.Unmap(), r.SrcPort, r.Proto}] = true
+		}
+	}
 	for _, r := range recs {
 		src, dst := r.Src.Unmap(), r.Dst.Unmap()
+		if p.dnsRedirected(r, local, now.Unix()) {
+			continue
+		}
 		sl, dl := p.Cfg.IsLocal(src), p.Cfg.IsLocal(dst)
 		var row store.FlowRow
 		row.Exporter = r.Exporter.String()
