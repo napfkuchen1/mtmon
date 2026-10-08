@@ -16,6 +16,7 @@ type Data struct {
 	RoamV   []RoamStat
 	Churn   map[string]int
 	Blocked []BlockedSrc
+	Contact map[string]bool
 	Rules   []FwRule
 	FwHist  time.Duration
 }
@@ -25,6 +26,15 @@ func (d *Data) Now() time.Time {
 		return time.Now()
 	}
 	return d.NowT
+}
+func (d *Data) ContactedByLAN(ips []string) map[string]bool {
+	m := map[string]bool{}
+	for _, ip := range ips {
+		if d.Contact[ip] {
+			m[ip] = true
+		}
+	}
+	return m
 }
 func (d *Data) ProcessUptime() time.Duration    { return d.Uptime }
 func (d *Data) Devices() []Device               { return d.Devs }
