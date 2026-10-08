@@ -320,6 +320,27 @@ func TestBlockOrigin(t *testing.T) {
 	skipped(t, base(), "fw-origin")
 }
 
+func TestBlockOriginReplies(t *testing.T) {
+	d := base()
+	d.Blocked = []BlockedSrc{
+		{IP: "20.67.76.32", Hits: 1712, CC: "NL", ASN: 8075, ASOrg: "Microsoft"},
+		{IP: "20.67.76.33", Hits: 40, CC: "NL", ASN: 8075, ASOrg: "Microsoft"},
+	}
+	d.Contact = map[string]bool{"20.67.76.32": true}
+	out := expect(t, d, "fw-origin", 1) // only the info card, no raw-drop advice
+	if out[0].Severity != SevInfo || out[0].Commands != "" || !strings.Contains(out[0].Title, "late replies") {
+		t.Fatalf("%+v", out[0])
+	}
+	// one dominant address that nobody contacted: single-address wording
+	d.Contact = nil
+	d.Blocked[1].Hits = 100
+	d.Blocked[0].Hits = 1500
+	out = expect(t, d, "fw-origin", 2)
+	if !strings.Contains(out[0].Title, "one address") {
+		t.Fatalf("%s", out[0].Title)
+	}
+}
+
 func TestMgmtOpen(t *testing.T) {
 	d := base()
 	d.Devs = []Device{{Name: "gw", Role: "router", Caps: &Caps{WwwSSL: true}}}
@@ -377,6 +398,31 @@ func TestDNSBypass(t *testing.T) {
 	d.Ports[0].Flows = 5
 	expect(t, d, "dns-bypass", 0)
 	skipped(t, base(), "dns-bypass")
+}
+
+func TestDNSRedirected(t *testing.T) {
+	d := withFlows(base())
+	d.Devs = []Device{{Name: "gw", Role: "router", Addr: "10.0.0.1", Caps: &Caps{DNSRedirectUDP: true, DNSRedirectTCP: true}}}
+	d.Ports = []PortUse{{MAC: "A", RIP: "8.8.8.8", Port: 53, Proto: 17, Flows: 200}, {MAC: "A", RIP: "1.1.1.1", Port: 53, Proto: 6, Flows: 40}}
+	s := expect(t, d, "dns-bypass", 1) // only the info card
+	if s[0].Severity != SevInfo || s[0].Commands != "" {
+		t.Fatalf("redirected DNS must be info without commands: %+v", s[0])
+	}
+	// UDP redirected, TCP not: the TCP part is still a bypass.
+	d.Devs[0].Caps.DNSRedirectTCP = false
+	expect(t, d, "dns-bypass", 2) // info + tip
+	// DNS-over-TLS is never covered by the redirect.
+	d.Devs[0].Caps.DNSRedirectTCP = true
+	d.Ports = append(d.Ports, PortUse{MAC: "B", RIP: "9.9.9.9", Port: 853, Proto: 6, Flows: 90})
+	var dot bool
+	for _, x := range expect(t, d, "dns-bypass", 2) {
+		if x.Subject == "dot" && strings.Contains(x.Commands, "dst-port=853") && x.Severity == SevTip {
+			dot = true
+		}
+	}
+	if !dot {
+		t.Fatal("DoT tip missing")
+	}
 }
 
 func TestDoH(t *testing.T) {

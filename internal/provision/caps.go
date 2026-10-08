@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/napfkuchen1/mtmon/internal/poller"
@@ -59,15 +60,22 @@ type Caps struct {
 		Ifaces    string   `json:"interfaces"`
 		Targets   []string `json:"targets"`
 	} `json:"traffic_flow"`
-	WwwSSL      bool         `json:"www_ssl"`
-	WwwSSLAddr  string       `json:"www_ssl_address"`
-	LogActions  []string     `json:"log_actions"`
-	Filter      []FilterRule `json:"filter_rules"`
-	Role        string       `json:"role"` // suggested: router | ap | switch
-	RoleWhy     string       `json:"role_why"`
-	ExportsFlow bool         `json:"suggest_flow"` // this device should export Traffic Flow
-	Warnings    []string     `json:"warnings"`
-	Managed     bool         `json:"already_managed"` // carries mtmon-managed objects from an earlier setup
+	WwwSSL     bool         `json:"www_ssl"`
+	WwwSSLAddr string       `json:"www_ssl_address"`
+	LogActions []string     `json:"log_actions"`
+	Filter     []FilterRule `json:"filter_rules"`
+	// DNSRedirect: active dst-nat/redirect rules that send port-53 traffic to the router (hit counters from the probe).
+	DNSRedirect struct {
+		UDP        bool  `json:"udp"`
+		TCP        bool  `json:"tcp"`
+		UDPPackets int64 `json:"udp_packets"`
+		TCPPackets int64 `json:"tcp_packets"`
+	} `json:"dns_redirect"`
+	Role        string   `json:"role"` // suggested: router | ap | switch
+	RoleWhy     string   `json:"role_why"`
+	ExportsFlow bool     `json:"suggest_flow"` // this device should export Traffic Flow
+	Warnings    []string `json:"warnings"`
+	Managed     bool     `json:"already_managed"` // carries mtmon-managed objects from an earlier setup
 }
 
 const ManagedTag = "mtmon-managed"
@@ -166,6 +174,15 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 		if n["chain"] == "srcnat" && n["disabled"] != "true" && (n["action"] == "masquerade" || n["action"] == "src-nat") {
 			k.NAT = true
 		}
+		if n["chain"] == "dstnat" && n["disabled"] != "true" && (n["action"] == "dst-nat" || n["action"] == "redirect") && portListHas(n["dst-port"], "53") {
+			pk, _ := strconv.ParseInt(n["packets"], 10, 64)
+			switch n["protocol"] {
+			case "udp":
+				k.DNSRedirect.UDP, k.DNSRedirect.UDPPackets = true, k.DNSRedirect.UDPPackets+pk
+			case "tcp":
+				k.DNSRedirect.TCP, k.DNSRedirect.TCPPackets = true, k.DNSRedirect.TCPPackets+pk
+			}
+		}
 	}
 	for _, f := range get(ctx, c, "/ip/firewall/filter") {
 		if f["dynamic"] == "true" || f["dynamic"] == "yes" { // RouterOS: "can't edit dynamic object"
@@ -216,6 +233,27 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 	}
 	k.suggestRole()
 	return k, nil
+}
+
+// portListHas reports whether a RouterOS port list ("53", "53,5353", "50-60") contains the port.
+func portListHas(list, port string) bool {
+	p, err := strconv.Atoi(port)
+	if err != nil {
+		return false
+	}
+	for _, it := range strings.Split(list, ",") {
+		it = strings.TrimSpace(it)
+		if lo, hi, ok := strings.Cut(it, "-"); ok {
+			a, e1 := strconv.Atoi(lo)
+			b, e2 := strconv.Atoi(hi)
+			if e1 == nil && e2 == nil && a <= p && p <= b {
+				return true
+			}
+		} else if it == port {
+			return true
+		}
+	}
+	return false
 }
 
 func ruleSummary(f poller.Row) string {

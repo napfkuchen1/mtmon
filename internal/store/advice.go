@@ -243,6 +243,32 @@ func (s *Store) InboundUse(since int64, ports []int) ([]InboundRow, error) {
 	return out, rows.Err()
 }
 
+// ContactedRemotes returns those of the given remote addresses that exchanged traffic with a LAN client
+// since the timestamp (any direction). Blocked packets create no flow, so a hit means a real connection existed.
+func (s *Store) ContactedRemotes(since int64, ips []string) (map[string]bool, error) {
+	out := map[string]bool{}
+	if len(ips) == 0 {
+		return out, nil
+	}
+	ph := strings.TrimSuffix(strings.Repeat("?,", len(ips)), ",")
+	args := []any{since / 3600 * 3600}
+	for _, ip := range ips {
+		args = append(args, ip)
+	}
+	rows, err := s.DB.Query(`SELECT DISTINCT rip FROM rollup_1h WHERE ts>=? AND mac<>'' AND rip IN (`+ph+`)`, args...)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var ip string
+		if rows.Scan(&ip) == nil {
+			out[ip] = true
+		}
+	}
+	return out, rows.Err()
+}
+
 type BlockedSource struct {
 	IP   string
 	Hits int64

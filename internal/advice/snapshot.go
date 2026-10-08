@@ -27,6 +27,8 @@ type Snapshot interface {
 	Roams24h() []RoamStat
 	IPChurn30d() map[string]int
 	BlockedSources24h() []BlockedSrc
+	// ContactedByLAN: which of the remote addresses exchanged traffic with a LAN client in the last 24 h.
+	ContactedByLAN(ips []string) map[string]bool
 	FwRules() []FwRule
 	// FwHistory: how long firewall log history exists (0 = none).
 	FwHistory() time.Duration
@@ -54,6 +56,8 @@ type Caps struct {
 	WwwSSL                     bool
 	WwwSSLAddr                 string
 	Filter                     []FilterRule
+	DNSRedirectUDP             bool // active dst-nat rule sends UDP/53 to the router and has matched packets
+	DNSRedirectTCP             bool
 	WifiIfs                    []WifiIf
 }
 

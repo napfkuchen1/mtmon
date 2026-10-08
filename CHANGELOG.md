@@ -8,6 +8,12 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.13.2] - 2026-10-09
+
+### Fixed
+- **DNS bypass tip:** no longer a false alarm when the router already redirects port-53 traffic to itself. In that case mtmon shows an info card instead of a security tip. Encrypted DNS (DoT, port 853) is judged separately.
+- **Blocked-origin tip:** blocked packets from an address that your own devices talked to are now shown as late replies after a connection loss, not as a scan, and mtmon no longer suggests a raw drop rule for them. When one address causes almost all blocks, the tip names that address instead of the whole provider.
+
 ## [0.13.1] - 2026-10-07
 
 ### Included

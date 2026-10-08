@@ -274,6 +274,41 @@ func ruleBlockOrigin(s Snapshot) ([]Suggestion, string) {
 	if len(bs) == 0 {
 		return nil, "no blocked inbound events with a logging drop rule in the last 24 h"
 	}
+	// Sources our own devices talked to are not scanners: their packets are blocked when they arrive after the
+	// connection was lost (WAN reconnect, router restart), because the firewall no longer knows the connection.
+	var cand []string
+	for _, b := range bs {
+		if len(cand) < 30 && IsPublic(b.IP) {
+			cand = append(cand, b.IP)
+		}
+	}
+	contacted := s.ContactedByLAN(cand)
+	var out []Suggestion
+	var scans []BlockedSrc
+	for _, b := range bs {
+		if !contacted[b.IP] {
+			scans = append(scans, b)
+			continue
+		}
+		if b.Hits < OriginMinHits {
+			continue
+		}
+		who := b.IP
+		if b.ASN != 0 {
+			who = fmt.Sprintf("%s (AS%d %s)", b.IP, b.ASN, b.ASOrg)
+		}
+		out = append(out, Suggestion{
+			Subject: "replies-" + b.IP, Severity: SevInfo, Category: CatSecurity, Link: "firewall", Confidence: "medium",
+			Title: fmt.Sprintf("Blocked packets from %s look like late replies, not a scan", b.IP),
+			Why:   "Devices in your network talked to this address, and the firewall now blocks packets coming back from it. That usually happens after a connection was lost (WAN reconnect, modem resync, router restart): the replies arrive, the router no longer knows the connection and drops them. This is normal. A raw drop rule for this address would only break the connection.",
+			Evidence: []string{
+				fmt.Sprintf("%d blocked inbound events from %s in the last 24 h", b.Hits, who),
+				"A LAN client exchanged traffic with this address in the last 24 h",
+			},
+			Limits: "mtmon cannot see the packets themselves, only that this address talked to your network and was blocked at the same time. If you do not recognise the connection, look it up under Clients.",
+		})
+	}
+	bs = scans
 	var total int64
 	known := false
 	for _, b := range bs {
@@ -284,10 +319,10 @@ func ruleBlockOrigin(s Snapshot) ([]Suggestion, string) {
 		known = known || b.CC != "" || b.ASN != 0
 	}
 	if !known {
-		return nil, "no GeoIP/ASN database configured"
+		return out, "no GeoIP/ASN database configured"
 	}
 	if total < OriginMinTotal {
-		return nil, ""
+		return out, ""
 	}
 	type grp struct {
 		key, label string
@@ -321,6 +356,7 @@ func ruleBlockOrigin(s Snapshot) ([]Suggestion, string) {
 	mk := func(kind string, g *grp, share float64) Suggestion {
 		sort.Slice(g.ips, func(i, j int) bool { return g.ips[i].Hits > g.ips[j].Hits })
 		var tops, cmds []string
+		single := len(g.ips) > 0 && float64(g.ips[0].Hits) >= 0.8*float64(g.hits)
 		for i, b := range g.ips {
 			if i >= 5 {
 				break
@@ -329,10 +365,16 @@ func ruleBlockOrigin(s Snapshot) ([]Suggestion, string) {
 			cmds = append(cmds, fmt.Sprintf("/ip firewall address-list add list=blocked-scanners address=%s timeout=7d comment=\"mtmon suggestion\"", b.IP))
 		}
 		cmds = append(cmds, "/ip firewall raw add chain=prerouting action=drop src-address-list=blocked-scanners in-interface-list=WAN comment=\"drop known scanners early\"")
+		title := fmt.Sprintf("Most blocked attempts come from %s", g.label)
+		why := "Your firewall already blocks these attempts, so this is not an emergency. But a large share from one place means automated scanning, and dropping known sources very early (in the raw table) saves router CPU and keeps the logs readable."
+		if single {
+			title = fmt.Sprintf("Most blocked attempts come from one address, %s (%s)", g.ips[0].IP, g.label)
+			why = "Your firewall already blocks these attempts, so this is not an emergency. Almost all of them come from a single address, so this is one persistent source rather than a wide scan by the whole provider or country. Dropping that address very early (in the raw table) is enough."
+		}
 		return Suggestion{
 			Subject: kind + "-" + strings.ToLower(g.key), Severity: SevInfo, Category: CatSecurity, Link: "firewall", Confidence: "medium",
-			Title: fmt.Sprintf("Most blocked attempts come from %s", g.label),
-			Why:   "Your firewall already blocks these attempts, so this is not an emergency. But a large share from one place means automated scanning, and dropping known sources very early (in the raw table) saves router CPU and keeps the logs readable.",
+			Title: title,
+			Why:   why,
 			Evidence: []string{
 				fmt.Sprintf("%d blocked inbound events came from %s in the last 24 h (%s%% of all blocked events with a known source)", g.hits, g.label, pct(share*100)),
 				fmt.Sprintf("Busiest sources: %s", list(tops, 5)),
@@ -345,7 +387,6 @@ func ruleBlockOrigin(s Snapshot) ([]Suggestion, string) {
 			Limits:   "Based on the most recent blocked events (at most 60,000 within 24 h) and the 300 busiest sources. The commands assume the default interface list WAN.",
 		}
 	}
-	var out []Suggestion
 	tf := float64(total)
 	for _, g := range byCC {
 		if g.hits >= OriginMinHits && float64(g.hits)/tf >= OriginShareCC {
@@ -511,40 +552,49 @@ func routerLAN(s Snapshot) string {
 	return "192.168.88.1"
 }
 
-func ruleDNSBypass(s Snapshot) ([]Suggestion, string) {
-	if len(s.Traffic24h()) == 0 {
-		return nil, "no flow data in the last 24 h"
-	}
-	idx := clientIndex(s)
-	type agg struct {
-		flows int64
-		dst   map[string]bool
-	}
-	by := map[string]*agg{}
-	for _, r := range portRows(s, 53, 853) {
-		if !IsPublic(r.RIP) {
+// dnsRedirected reports whether a router already sends the given protocol's port-53 traffic to itself
+// (an active dst-nat rule with matched packets). Flows are exported with the original destination, so
+// without this check a working redirect looks like a bypass.
+func dnsRedirected(s Snapshot, proto int) bool {
+	for _, d := range routers(s) {
+		if d.Caps == nil {
 			continue
 		}
-		a := by[r.MAC]
-		if a == nil {
-			a = &agg{dst: map[string]bool{}}
-			by[r.MAC] = a
+		if (proto == 17 && d.Caps.DNSRedirectUDP) || (proto == 6 && d.Caps.DNSRedirectTCP) {
+			return true
 		}
-		a.flows += r.Flows
-		a.dst[r.RIP] = true
 	}
+	return false
+}
+
+type dnsAgg struct {
+	flows int64
+	dst   map[string]bool
+}
+
+type dnsGroup map[string]*dnsAgg
+
+func (g dnsGroup) add(r PortUse) {
+	a := g[r.MAC]
+	if a == nil {
+		a = &dnsAgg{dst: map[string]bool{}}
+		g[r.MAC] = a
+	}
+	a.flows += r.Flows
+	a.dst[r.RIP] = true
+}
+
+// evidence lists the clients above the flow threshold, busiest first.
+func (g dnsGroup) evidence(idx map[string]Client, what string) (int, []string) {
 	type row struct {
 		name string
-		a    *agg
+		a    *dnsAgg
 	}
 	var rows []row
-	for mac, a := range by {
+	for mac, a := range g {
 		if a.flows >= dnsMinFlows {
 			rows = append(rows, row{nameOf(idx, mac), a})
 		}
-	}
-	if len(rows) == 0 {
-		return nil, ""
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].a.flows > rows[j].a.flows })
 	var ev []string
@@ -554,22 +604,70 @@ func ruleDNSBypass(s Snapshot) ([]Suggestion, string) {
 			ds = append(ds, d)
 		}
 		sort.Strings(ds)
-		ev = append(ev, fmt.Sprintf("%s: %d DNS connections to %s", r.name, r.a.flows, list(ds, 3)))
+		ev = append(ev, fmt.Sprintf("%s: %d %s to %s", r.name, r.a.flows, what, list(ds, 3)))
+	}
+	return len(rows), ev
+}
+
+func ruleDNSBypass(s Snapshot) ([]Suggestion, string) {
+	if len(s.Traffic24h()) == 0 {
+		return nil, "no flow data in the last 24 h"
+	}
+	idx := clientIndex(s)
+	open, redir, dot := dnsGroup{}, dnsGroup{}, dnsGroup{}
+	for _, r := range portRows(s, 53, 853) {
+		if !IsPublic(r.RIP) {
+			continue
+		}
+		switch {
+		case r.Port == 853:
+			dot.add(r)
+		case dnsRedirected(s, r.Proto):
+			redir.add(r)
+		default:
+			open.add(r)
+		}
 	}
 	rip := routerLAN(s)
-	return []Suggestion{{
-		Severity: SevTip, Category: CatSecurity, Link: "insights/ports", Confidence: "high",
-		Title:    "Some clients ask public DNS servers directly instead of the router",
-		Why:      "When a device uses its own DNS server (for example 8.8.8.8), the router never sees which names it looks up. mtmon then cannot name destinations or recognise apps by their host name, DNS-based filtering on the router is bypassed, and local names do not resolve. Many smart TVs and gadgets have a fixed DNS server built in.",
-		Evidence: append([]string{fmt.Sprintf("%d clients sent DNS traffic (port 53/853) to public servers in the last 24 h", len(rows))}, list0(ev, 5)...),
-		Steps: []string{
-			"Hand out the router as DNS server in DHCP and let it answer DNS requests.",
-			"Redirect all other DNS traffic from the LAN to the router (dst-nat); devices with a fixed DNS server then still end up at the router without noticing.",
-			"Optional: block DNS-over-TLS (port 853), which cannot be redirected. Put these rules above any FastTrack or accept-all rules.",
-		},
-		Commands: fmt.Sprintf("/ip dns set allow-remote-requests=yes\n/ip firewall nat add chain=dstnat action=dst-nat protocol=udp dst-port=53 in-interface-list=LAN dst-address=!%[1]s to-addresses=%[1]s to-ports=53 comment=\"redirect DNS to router\"\n/ip firewall nat add chain=dstnat action=dst-nat protocol=tcp dst-port=53 in-interface-list=LAN dst-address=!%[1]s to-addresses=%[1]s to-ports=53 comment=\"redirect DNS to router\"\n/ip firewall filter add chain=forward action=reject reject-with=icmp-admin-prohibited protocol=tcp dst-port=853 in-interface-list=LAN comment=\"block DNS-over-TLS\"", rip),
-		Limits:   "The router address in the commands is taken from your device list; adjust it if your LAN gateway is different. The redirect needs the interface list LAN.",
-	}}, ""
+	var out []Suggestion
+	if n, ev := open.evidence(idx, "DNS connections"); n > 0 {
+		out = append(out, Suggestion{
+			Severity: SevTip, Category: CatSecurity, Link: "insights/ports", Confidence: "high",
+			Title:    "Some clients ask public DNS servers directly instead of the router",
+			Why:      "When a device uses its own DNS server (for example 8.8.8.8), the router never sees which names it looks up. mtmon then cannot name destinations or recognise apps by their host name, DNS-based filtering on the router is bypassed, and local names do not resolve. Many smart TVs and gadgets have a fixed DNS server built in.",
+			Evidence: append([]string{fmt.Sprintf("%d clients sent DNS traffic (port 53) to public servers in the last 24 h", n)}, list0(ev, 5)...),
+			Steps: []string{
+				"Hand out the router as DNS server in DHCP and let it answer DNS requests.",
+				"Redirect all other DNS traffic from the LAN to the router (dst-nat); devices with a fixed DNS server then still end up at the router without noticing.",
+			},
+			Commands: fmt.Sprintf("/ip dns set allow-remote-requests=yes\n/ip firewall nat add chain=dstnat action=dst-nat protocol=udp dst-port=53 in-interface-list=LAN dst-address=!%[1]s to-addresses=%[1]s to-ports=53 comment=\"redirect DNS to router\"\n/ip firewall nat add chain=dstnat action=dst-nat protocol=tcp dst-port=53 in-interface-list=LAN dst-address=!%[1]s to-addresses=%[1]s to-ports=53 comment=\"redirect DNS to router\"", rip),
+			Limits:   "The router address in the commands is taken from your device list; adjust it if your LAN gateway is different. The redirect needs the interface list LAN.",
+		})
+	}
+	if n, ev := redir.evidence(idx, "DNS connections"); n > 0 {
+		out = append(out, Suggestion{
+			Subject: "redirected", Severity: SevInfo, Category: CatSecurity, Link: "insights/ports", Confidence: "high",
+			Title: "Clients ask public DNS servers, but the router redirects them",
+			Why:   "These devices use their own DNS server (for example 8.8.8.8). A DNS redirect rule on the router already sends those requests to the router, so name lookups, filtering and host names in mtmon still work. Nothing to do.",
+			Evidence: append([]string{fmt.Sprintf("%d clients sent port 53 traffic to public servers; the redirect rule on the router has matched packets", n)},
+				list0(ev, 5)...),
+			Limits: "Flows show the original destination (before the redirect). mtmon read the redirect rule and its packet counter from the router; it is refreshed hourly.",
+		})
+	}
+	if n, ev := dot.evidence(idx, "DNS-over-TLS connections"); n > 0 {
+		out = append(out, Suggestion{
+			Subject: "dot", Severity: SevTip, Category: CatSecurity, Link: "insights/ports", Confidence: "high",
+			Title:    "Some clients use encrypted DNS (DNS-over-TLS) to public servers",
+			Why:      "DNS-over-TLS (port 853) cannot be redirected to the router like plain DNS. The router does not see these lookups, so DNS-based filtering and host names in mtmon are missing for these devices.",
+			Evidence: append([]string{fmt.Sprintf("%d clients sent port 853 traffic to public servers in the last 24 h", n)}, list0(ev, 5)...),
+			Steps: []string{
+				"Optional: block port 853 so devices fall back to plain DNS, which the router can redirect. Put the rule above any FastTrack or accept-all rules.",
+			},
+			Commands: "/ip firewall filter add chain=forward action=reject reject-with=icmp-admin-prohibited protocol=tcp dst-port=853 in-interface-list=LAN comment=\"block DNS-over-TLS\"",
+			Limits:   "The rule assumes the interface list LAN. DNS-over-HTTPS (port 443) is covered by a separate suggestion.",
+		})
+	}
+	return out, ""
 }
 
 func list0(ev []string, n int) []string {

@@ -108,6 +108,8 @@ func (l *Live) Devices() []Device {
 func convCaps(k provision.Caps) *Caps {
 	c := &Caps{Fasttrack: k.Fasttrack, HWOffload: k.HWOffload, FlowSupported: k.Flow.Supported, FlowEnabled: k.Flow.Enabled,
 		FlowTargets: k.Flow.Targets, LogActions: len(k.LogActions), WwwSSL: k.WwwSSL, WwwSSLAddr: k.WwwSSLAddr}
+	c.DNSRedirectUDP = k.DNSRedirect.UDP && k.DNSRedirect.UDPPackets > 0
+	c.DNSRedirectTCP = k.DNSRedirect.TCP && k.DNSRedirect.TCPPackets > 0
 	for _, f := range k.Filter {
 		c.Filter = append(c.Filter, FilterRule{Chain: f.Chain, Action: f.Action, Comment: f.Comment, Summary: f.Summary,
 			Log: f.Log, Disabled: f.Disabled, Managed: f.Managed})
@@ -213,6 +215,11 @@ func (l *Live) BlockedSources24h() []BlockedSrc {
 		out = append(out, b)
 	}
 	return out
+}
+
+func (l *Live) ContactedByLAN(ips []string) map[string]bool {
+	m, _ := l.St.ContactedRemotes(l.now.Add(-24*time.Hour).Unix(), ips)
+	return m
 }
 
 func (l *Live) FwRules() []FwRule {
