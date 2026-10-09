@@ -134,6 +134,7 @@
         <input class="input" placeholder={t('Filter IP, host, port, service…')} bind:value={filter} aria-label={t('Filter')} />
         <div class="tabs">{#each [['all', t('All')], ['u', t('↑ Out')], ['d', t('↓ In')], ['i', t('⇄ LAN')]] as [id, l]}<button class:on={dirF === id} onclick={() => (dirF = id)}>{l}</button>{/each}</div>
         <button class="btn" onclick={() => (tail = !tail)}>{tail ? t('Pause live tail') : t('Resume live tail')}</button>
+        <button class="btn" onclick={() => download('/export/connections/' + encodeURIComponent(mac) + '?range=' + rg() + drillQ + '&format=xlsx')}>{t('Excel')}</button>
         <button class="btn" onclick={() => download('/export/connections/' + encodeURIComponent(mac) + '?range=' + rg() + drillQ)}>{t('CSV')}</button>
       </div></div>
     <div class="scroll" style="max-height:520px;overflow-y:auto">

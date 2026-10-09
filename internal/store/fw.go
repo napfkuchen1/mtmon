@@ -222,6 +222,7 @@ type FwSummary struct {
 	Blocked int64        `json:"blocked"`
 	Allowed int64        `json:"allowed"`
 	Logged  int64        `json:"logged"`
+	OwnHits int64        `json:"own_hits"` // hits of rules that only log mtmon's own access (not in the totals)
 }
 
 type FwRuleHits struct {
@@ -230,7 +231,11 @@ type FwRuleHits struct {
 	Rule    string `json:"rule"`
 	Verdict string `json:"verdict"`
 	Hits    int64  `json:"hits"`
+	Own     bool   `json:"own,omitempty"` // rule only logs mtmon's own management traffic
 }
+
+// IsOwnRule reports whether a rule label belongs to mtmon's own access (e.g. "input accept - mtmon REST").
+func IsOwnRule(rule string) bool { return strings.Contains(strings.ToLower(rule), "mtmon") }
 
 type FwPoint struct {
 	TS      int64 `json:"ts"`
@@ -263,7 +268,12 @@ func (s *Store) FwSummary(since int64) (*FwSummary, error) {
 		fe := FwEvent{Device: h.Device, Prefix: h.Prefix}
 		s.annotate(&fe, idx)
 		h.Rule, h.Verdict = fe.Rule, fe.Verdict
+		h.Own = IsOwnRule(h.Rule)
 		sum.Rules = append(sum.Rules, h)
+		if h.Own {
+			sum.OwnHits += h.Hits
+			continue
+		}
 		switch h.Verdict {
 		case "blocked":
 			sum.Blocked += h.Hits
@@ -284,6 +294,9 @@ func (s *Store) FwSummary(since int64) (*FwSummary, error) {
 			r2.Scan(&ts, &d, &p, &n)
 			fe := FwEvent{Device: d, Prefix: p}
 			s.annotate(&fe, idx)
+			if IsOwnRule(fe.Rule) {
+				continue
+			}
 			pt := pts[ts]
 			if pt == nil {
 				pt = &FwPoint{TS: ts}

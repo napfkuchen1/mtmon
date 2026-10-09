@@ -2,7 +2,6 @@
 package api
 
 import (
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -86,6 +85,9 @@ func New(s *Server) http.Handler {
 	m.HandleFunc("GET /api/topology", a(s.topology))
 	m.HandleFunc("GET /api/alerts", a(s.alerts))
 	m.HandleFunc("POST /api/alerts/{id}/ack", a(s.ack))
+	m.HandleFunc("POST /api/alerts/ack-all", a(s.ackAll))
+	m.HandleFunc("POST /api/alerts/clear", a(s.clearAlerts))
+	m.HandleFunc("GET /api/export/alerts", a(s.exportAlerts))
 	m.HandleFunc("GET /api/setup", a(s.setup))
 	m.HandleFunc("GET /api/system", a(s.system))
 	m.HandleFunc("GET /api/export/top/{what}", a(s.exportTop))
@@ -458,6 +460,26 @@ func (s *Server) ack(w http.ResponseWriter, r *http.Request) {
 	jsonOut(w, map[string]bool{"ok": true})
 }
 
+// ackAll: POST /api/alerts/ack-all – acknowledge every open alert.
+func (s *Server) ackAll(w http.ResponseWriter, r *http.Request) {
+	n, err := s.St.AckAllAlerts()
+	if err != nil {
+		jerr(w, 500, err.Error())
+		return
+	}
+	jsonOut(w, map[string]any{"ok": true, "n": n})
+}
+
+// clearAlerts: POST /api/alerts/clear – remove acknowledged alerts, or every alert with ?all=1.
+func (s *Server) clearAlerts(w http.ResponseWriter, r *http.Request) {
+	n, err := s.St.ClearAlerts(r.URL.Query().Get("all") == "1")
+	if err != nil {
+		jerr(w, 500, err.Error())
+		return
+	}
+	jsonOut(w, map[string]any{"ok": true, "n": n})
+}
+
 // topology returns nodes (devices + online clients) and edges for the map view.
 func (s *Server) topology(w http.ResponseWriter, r *http.Request) {
 	type node struct {
@@ -621,14 +643,12 @@ func (s *Server) exportTop(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 400, err.Error())
 		return
 	}
-	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="top-%s-%s.csv"`, sanitize(r.PathValue("what")), rn))
-	cw := csv.NewWriter(w)
-	cw.Write([]string{"key", "label", "detail", "bytes_up", "bytes_down", "bytes_internal", "flows"})
-	for _, t := range rows {
-		cw.Write([]string{csvSafe(t.Key), csvSafe(t.Label), csvSafe(t.Sub), i(t.Up), i(t.Down), i(t.Internal), i(t.Flows)})
+	t := exportTable{File: fmt.Sprintf("top-%s-%s", sanitize(r.PathValue("what")), rn), Sheet: "Top " + sanitize(r.PathValue("what")),
+		Head: []string{"key", "label", "detail", "bytes_up", "bytes_down", "bytes_internal", "flows"}}
+	for _, x := range rows {
+		t.Rows = append(t.Rows, []any{x.Key, x.Label, x.Sub, Bytes(x.Up), Bytes(x.Down), Bytes(x.Internal), x.Flows})
 	}
-	cw.Flush()
+	sendTable(w, r, t)
 }
 
 func (s *Server) exportConns(w http.ResponseWriter, r *http.Request) {
@@ -638,18 +658,28 @@ func (s *Server) exportConns(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 500, err.Error())
 		return
 	}
-	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", `attachment; filename="connections.csv"`)
-	cw := csv.NewWriter(w)
-	cw.Write([]string{"time", "dir", "remote_ip", "remote_port", "proto", "service", "host", "country", "asn", "bytes", "packets"})
+	t := exportTable{File: "connections", Sheet: "Connections",
+		Head: []string{"time", "dir", "remote_ip", "remote_port", "proto", "service", "host", "country", "asn", "bytes", "packets"}}
 	for _, c := range rows {
-		cw.Write([]string{time.Unix(c.TS, 0).Format(time.RFC3339), c.Dir, c.RIP, strconv.Itoa(c.RPort), enrich.ProtoName(uint8(c.Proto)),
-			csvSafe(c.Svc), csvSafe(c.Host), c.CC, strconv.Itoa(c.ASN), i(c.Bytes), i(c.Pkts)})
+		t.Rows = append(t.Rows, []any{time.Unix(c.TS, 0), c.Dir, c.RIP, c.RPort, enrich.ProtoName(uint8(c.Proto)),
+			c.Svc, c.Host, c.CC, c.ASN, Bytes(c.Bytes), c.Pkts})
 	}
-	cw.Flush()
+	sendTable(w, r, t)
 }
 
-func i(n int64) string { return strconv.FormatInt(n, 10) }
+// exportAlerts: GET /api/export/alerts – all stored alerts, newest first.
+func (s *Server) exportAlerts(w http.ResponseWriter, r *http.Request) {
+	list, err := s.St.Alerts(100000)
+	if err != nil {
+		jerr(w, 500, err.Error())
+		return
+	}
+	t := exportTable{File: "alerts", Sheet: "Alerts", Head: []string{"time", "severity", "type", "subject", "message", "acknowledged"}}
+	for _, a := range list {
+		t.Rows = append(t.Rows, []any{time.Unix(a.TS, 0), a.Severity, a.Kind, a.Subject, a.Msg, a.Acked})
+	}
+	sendTable(w, r, t)
+}
 
 func sanitize(s string) string {
 	return strings.Map(func(r rune) rune {

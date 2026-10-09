@@ -45,6 +45,9 @@ type WifiIf struct{ Name, SSID, Band string }
 type FilterRule struct {
 	Chain, Action, Comment, Summary string
 	Log, Disabled, Managed          bool
+	LogPrefix, Proto, DPort         string
+	Packets                         int64
+	Counted                         bool // Packets is a real reading
 }
 
 // Caps is what the provisioning probe stored for UI-managed devices; nil for config-file devices.

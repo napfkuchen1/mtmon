@@ -112,7 +112,8 @@ func convCaps(k provision.Caps) *Caps {
 	c.DNSRedirectTCP = k.DNSRedirect.TCP && k.DNSRedirect.TCPPackets > 0
 	for _, f := range k.Filter {
 		c.Filter = append(c.Filter, FilterRule{Chain: f.Chain, Action: f.Action, Comment: f.Comment, Summary: f.Summary,
-			Log: f.Log, Disabled: f.Disabled, Managed: f.Managed})
+			Log: f.Log, Disabled: f.Disabled, Managed: f.Managed, LogPrefix: f.LogPrefix, Proto: f.Proto, DPort: f.DPort,
+			Packets: f.Packets, Counted: f.Counted})
 	}
 	for _, w := range k.WifiIfs {
 		c.WifiIfs = append(c.WifiIfs, WifiIf{Name: w.Name, SSID: w.SSID, Band: w.Band})

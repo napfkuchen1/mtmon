@@ -1,0 +1,15 @@
+// v0.14: texts produced by the backend (alerts, suggestions)
+export default {
+  "Client {who} probed {n} ports on {targets} within 60 s (e.g. {ports}) – looks like a port scan": "Client {who} hat innerhalb von 60 s {n} Ports auf {targets} abgefragt (z. B. {ports}) – sieht nach einem Portscan aus",
+  "Client {who} contacted {n} hosts on port {port} within 60 s (e.g. {targets}) – looks like a network sweep": "Client {who} hat innerhalb von 60 s {n} Hosts auf Port {port} kontaktiert (z. B. {targets}) – sieht nach einem Netzwerk-Sweep aus",
+  "Traffic spike: {cur} Mbit/s (baseline {base})": "Datenspitze: {cur} Mbit/s (Normalwert {base})",
+  "Traffic spike: {cur} Mbit/s (baseline {base}) – mostly {who} ({rate} Mbit/s)": "Datenspitze: {cur} Mbit/s (Normalwert {base}) – hauptsächlich {who} ({rate} Mbit/s)",
+  "An accept rule for {proto}/{port} on {dev} never matches, but the drop rule behind it does": "Eine Accept-Regel für {proto}/{port} auf {dev} greift nie, die Drop-Regel dahinter aber schon",
+  "An accept rule is meant to let this traffic through before the drop rule catches it. Its counter stays at 0 while the drop rule blocks the same port again and again, so the accept rule does not apply any more: something in front of it changes the traffic, or its interface, address or connection-state condition no longer fits. The traffic that was meant to pass is being blocked.": "Eine Accept-Regel soll diesen Verkehr durchlassen, bevor die Drop-Regel zugreift. Ihr Zähler bleibt bei 0, während die Drop-Regel denselben Port immer wieder blockiert: Die Accept-Regel greift also nicht mehr. Entweder verändert etwas davor den Verkehr, oder ihre Bedingung (Interface, Adresse, Verbindungsstatus) passt nicht mehr. Der Verkehr, der durchgelassen werden sollte, wird blockiert.",
+  "Accept rule: {chain} {rule} (0 packets counted)": "Accept-Regel: {chain} {rule} (0 Pakete gezählt)",
+  "Drop rule right after it: {chain} {rule} – {n} logged drops in 7 days": "Drop-Regel direkt dahinter: {chain} {rule} – {n} protokollierte Drops in 7 Tagen",
+  "Clients that used {proto}/{port}: {names}": "Clients, die {proto}/{port} genutzt haben: {names}",
+  "Compare the conditions of the accept rule (interface list, addresses, connection state) with a blocked connection on the Firewall page.": "Bedingungen der Accept-Regel (Interface-Liste, Adressen, Verbindungsstatus) mit einer blockierten Verbindung auf der Firewall-Seite vergleichen.",
+  "Fix the condition or move the accept rule above whatever matches first, then check that its counter rises and the drop counter stops.": "Bedingung korrigieren oder die Accept-Regel über die Regel schieben, die zuerst greift. Danach prüfen, dass ihr Zähler steigt und der Drop-Zähler stehen bleibt.",
+  "Counters are read when the device is probed (about hourly) and restart at 0 after a reboot or counter reset, so a very new rule can look unused.": "Zähler werden beim Prüfen des Geräts gelesen (etwa stündlich) und starten nach einem Neustart oder Reset bei 0; eine sehr neue Regel kann daher ungenutzt wirken.",
+}

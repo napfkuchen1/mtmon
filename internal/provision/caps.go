@@ -30,6 +30,10 @@ type FilterRule struct {
 	Disabled  bool   `json:"disabled"`
 	Summary   string `json:"summary"`
 	Managed   bool   `json:"managed"`
+	Proto     string `json:"proto,omitempty"`
+	DPort     string `json:"dport,omitempty"`
+	Packets   int64  `json:"packets,omitempty"`
+	Counted   bool   `json:"counted,omitempty"` // Packets was read from the router (older stored probes have no counter)
 }
 
 type Caps struct {
@@ -192,6 +196,10 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 			Log: f["log"] == "true" || f["log"] == "yes", LogPrefix: f["log-prefix"], Disabled: f["disabled"] == "true"}
 		fr.Managed = strings.HasPrefix(fr.Comment, ManagedTag)
 		fr.Summary = ruleSummary(f)
+		fr.Proto, fr.DPort = f["protocol"], f["dst-port"]
+		if n, err := strconv.ParseInt(f["packets"], 10, 64); err == nil {
+			fr.Packets, fr.Counted = n, true
+		}
 		if fr.Action == "fasttrack-connection" && !fr.Disabled {
 			k.Fasttrack = true
 		}

@@ -159,17 +159,18 @@
   .problem { padding: 10px 18px 14px; }
   .fix { margin: 0 18px 14px; padding: 10px 14px; background: var(--accent-bg); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; }
   h2 { font-size: 16px; letter-spacing: -.005em; margin-top: 2px; }
-  .why { margin: 6px 0 10px; color: var(--muted); max-width: 78ch; }
+  .why { margin: 6px 0 10px; color: var(--muted); }
   .lbl { font-size: 11.5px; font-weight: 700; color: var(--sc); text-transform: uppercase; letter-spacing: .06em; }
   .lbl.ev-l { color: var(--muted); margin-bottom: 4px; }
   .ev { margin: 0 0 6px; padding: 8px 12px 8px 28px; background: var(--card-2); border: 1px solid var(--border); border-radius: 8px; }
   .ev li { margin: 2px 0; overflow-wrap: anywhere; }
   details { margin: 0; }
   summary { cursor: pointer; font-weight: 600; color: var(--accent-strong); }
-  .steps { margin: 8px 0; padding-left: 20px; max-width: 80ch; }
+  .steps { margin: 8px 0; padding-left: 20px; }
   .steps li { margin: 3px 0; }
   .cmdh { display: flex; justify-content: space-between; align-items: center; margin: 8px 0 4px; }
   .note { font-size: 12.5px; margin-top: 6px; }
+  .fix :global(pre.code) { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
   .autofix { margin: 0 18px 14px; padding: 10px 14px; border: 1px solid var(--border); border-left: 3px solid var(--ok); border-radius: 8px; }
   .acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 18px; background: var(--card-2); border-top: 1px solid var(--border); }
   .sp { flex: 1; }

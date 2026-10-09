@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -276,6 +277,106 @@ func (s *Store) Totals(since int64) (up, down, flows int64) {
 
 func (s *Store) ClientCounts() (online, total int) {
 	s.DB.QueryRow(`SELECT coalesce(sum(online),0), count(*) FROM clients`).Scan(&online, &total)
+	return
+}
+
+// ScanSuspect describes a client whose recent connections look like a scan.
+type ScanSuspect struct {
+	MAC      string
+	Kind     string // "ports" (many ports on one host) or "hosts" (one port on many hosts)
+	Pairs    int    // distinct ip:port pairs
+	IPs      int    // distinct remote addresses
+	Ports    int    // distinct remote ports
+	TopPorts []int  // most-probed ports, busiest first (at most 5)
+	Targets  []string
+}
+
+// webPorts are ports many hosts legitimately see traffic to (browsing, DNS, NTP, chat); a client that talks
+// to hundreds of different servers on them is browsing, not scanning.
+var webPorts = map[int]bool{80: true, 443: true, 8080: true, 8443: true, 53: true, 853: true, 123: true, 5222: true, 5228: true, 993: true, 587: true, 465: true}
+
+// PortScanDetails finds clients that, within window seconds, either probed >=minPorts different ports on a
+// single remote host ("ports") or opened connections to >=minHosts different hosts on one non-web port ("hosts").
+// Many different servers on 443 or random high ports (browsing, torrents, CDNs) is deliberately not a match.
+func (s *Store) PortScanDetails(window int64, minPorts, minHosts int) ([]ScanSuspect, error) {
+	rows, err := s.DB.Query(`SELECT mac, rip, rport FROM flows WHERE ts>=? AND dir='u' AND mac<>'' GROUP BY mac, rip, rport`, time.Now().Unix()-window)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	type acc struct {
+		perIP   map[string]map[int]bool
+		perPort map[int]map[string]bool
+		pairs   int
+	}
+	by := map[string]*acc{}
+	for rows.Next() {
+		var mac, ip string
+		var port int
+		if rows.Scan(&mac, &ip, &port) != nil {
+			continue
+		}
+		a := by[mac]
+		if a == nil {
+			a = &acc{perIP: map[string]map[int]bool{}, perPort: map[int]map[string]bool{}}
+			by[mac] = a
+		}
+		if a.perIP[ip] == nil {
+			a.perIP[ip] = map[int]bool{}
+		}
+		if a.perPort[port] == nil {
+			a.perPort[port] = map[string]bool{}
+		}
+		a.perIP[ip][port] = true
+		a.perPort[port][ip] = true
+		a.pairs++
+	}
+	var out []ScanSuspect
+	for mac, a := range by {
+		sus := ScanSuspect{MAC: mac, Pairs: a.pairs, IPs: len(a.perIP), Ports: len(a.perPort)}
+		topIP, topN := "", 0
+		for ip, ps := range a.perIP {
+			if len(ps) > topN || (len(ps) == topN && ip < topIP) {
+				topIP, topN = ip, len(ps)
+			}
+		}
+		portN, portIPs := 0, 0
+		for p, ips := range a.perPort {
+			if !webPorts[p] && (len(ips) > portIPs || (len(ips) == portIPs && p < portN)) {
+				portN, portIPs = p, len(ips)
+			}
+		}
+		switch {
+		case minPorts > 0 && topN >= minPorts:
+			sus.Kind, sus.Targets = "ports", []string{topIP}
+			for p := range a.perIP[topIP] {
+				sus.TopPorts = append(sus.TopPorts, p)
+			}
+		case minHosts > 0 && portIPs >= minHosts:
+			sus.Kind, sus.TopPorts = "hosts", []int{portN}
+			for ip := range a.perPort[portN] {
+				sus.Targets = append(sus.Targets, ip)
+			}
+		default:
+			continue
+		}
+		sort.Ints(sus.TopPorts)
+		if len(sus.TopPorts) > 5 {
+			sus.TopPorts = sus.TopPorts[:5]
+		}
+		sort.Strings(sus.Targets)
+		if len(sus.Targets) > 3 {
+			sus.Targets = sus.Targets[:3]
+		}
+		out = append(out, sus)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].MAC < out[j].MAC })
+	return out, nil
+}
+
+// TopRemote returns the remote address (and host name, if known) a client moved the most bytes with since ts.
+func (s *Store) TopRemote(mac string, since int64) (ip, host string, bytes int64) {
+	s.DB.QueryRow(`SELECT rip, max(host), sum(bytes) b FROM flows WHERE ts>=? AND mac=? AND dir IN ('u','d') GROUP BY rip ORDER BY b DESC LIMIT 1`, since, mac).Scan(&ip, &host, &bytes)
 	return
 }
 

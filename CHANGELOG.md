@@ -8,6 +8,21 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.14.0] - 2026-10-09
+
+### Added
+- **Alerts page:** buttons *Acknowledge all* and *Clear alerts* (removes acknowledged alerts after a confirmation), and the exact date and time instead of "1h ago" (the relative time moves to the tooltip).
+- **Excel export:** every CSV export (top lists, connections of a client, client list, alerts) is also available as a readable `.xlsx` workbook with a bold header row, filter, column widths, local date/time and sizes shown as KB/MB/GB.
+- **Rule regression tip:** mtmon warns when an accept rule never matches (counter stays at 0) while a drop rule right behind it blocks the same port again and again. Counters are read on the hourly device probe, so an existing device shows the tip after its next probe.
+- **Firewall page:** a skeleton while it loads, and a "Why are N lines unreadable?" section with examples (other log topics such as login messages are harmless and now explained).
+- **Config:** `alert_ignore` (alert kinds or `kind:subject` to mute), `port_scan_ports` (default 100) and `port_scan_hosts` (default 200) tune the port-scan alert.
+
+### Changed
+- **Traffic spike alert** now names the client and the remote host that cause the spike, **port scan alert** names the client, the target and the ports, and both say when a WAN flap just happened (likely a side effect).
+- **Firewall page** no longer counts mtmon's own access (rules whose label contains "mtmon") in the totals; a toggle shows it, and a hint offers the RouterOS command to switch that rule's logging off.
+- **IPv6:** addresses are merged into the client they belong to, using the router's IPv6 neighbor table and the MAC embedded in SLAAC (EUI-64) addresses, so Insights no longer lists every `fe80::`/`fd00::` address on its own. Older flows keep the address they were stored with.
+- **Suggestions page:** the text uses the full width and long RouterOS commands wrap instead of scrolling.
+
 ## [0.13.4] - 2026-10-09
 
 ### Fixed
