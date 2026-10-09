@@ -53,7 +53,8 @@
   </div>
   {#if err}<div class="warnbox" style="margin-top:12px">{tr(err)}</div>{/if}
   {#snippet footer()}
-    <button class="btn" style="margin-right:auto" title={t('Safety copy of all clients (name, MAC, IP, times) before you remove anything')} onclick={() => download('/export/clients')}>{t('Download list (CSV)')}</button>
+    <button class="btn" style="margin-right:auto" title={t('Safety copy of all clients (name, MAC, IP, times) before you remove anything')} onclick={() => download('/export/clients?format=xlsx')}>{t('Download list (Excel)')}</button>
+    <button class="btn" onclick={() => download('/export/clients')}>{t('Download list (CSV)')}</button>
     <button class="btn" onclick={onclose}>{t('Cancel')}</button>
     <button class="btn primary" disabled={busy || loading || !prev?.count} onclick={run}>{prev?.count ? t('Remove {n} clients', { n: num(prev.count) }) : t('Nothing to remove')}</button>
   {/snippet}

@@ -75,7 +75,7 @@ var Rules = []Rule{
 	{"unidentified", ruleUnidentified},
 	{"proto-cleartext", ruleCleartext}, {"proto-smb", ruleSMB}, {"proto-rdp", ruleRDPOut}, {"proto-http-iot", ruleHTTPIoT},
 	{"exposed-inbound", ruleInbound},
-	{"fw-origin", ruleBlockOrigin}, {"mgmt-open", ruleMgmtOpen}, {"fw-unused", ruleUnusedRules}, {"fw-nolog", ruleDropNoLog},
+	{"fw-origin", ruleBlockOrigin}, {"mgmt-open", ruleMgmtOpen}, {"fw-unused", ruleUnusedRules}, {"fw-regression", ruleRegression}, {"fw-nolog", ruleDropNoLog},
 	{"dns-bypass", ruleDNSBypass}, {"dns-doh", ruleDoH},
 	{"dominant-client", ruleDominant}, {"upload-heavy", ruleUploadHeavy}, {"chatty", ruleChatty},
 	{"flow-disabled", ruleFlowDisabled}, {"flow-silent", ruleFlowSilent}, {"no-syslog", ruleNoSyslog},

@@ -222,6 +222,21 @@ func TestTrafficSpike(t *testing.T) {
 	if kinds(*got) != "traffic_spike/total" {
 		t.Fatalf("no spike alert: %s", kinds(*got))
 	}
+	if !strings.Contains((*got)[0].Msg, "mostly m") {
+		t.Fatalf("spike message names no client: %s", (*got)[0].Msg)
+	}
+}
+
+func TestSpikeOfIgnoredClientIsSilent(t *testing.T) {
+	e, got := newEngine(t)
+	e.Cfg.AlertIgnore = []string{"m"}
+	e.Hub.AddFlow(store.FlowRow{MAC: "m", Dir: "d", Bytes: 10_000})
+	e.Checks()
+	e.Hub.AddFlow(store.FlowRow{MAC: "m", Dir: "d", Bytes: 2 << 30})
+	e.Checks()
+	if len(*got) != 0 {
+		t.Fatalf("ignored client's spike alerted: %s", kinds(*got))
+	}
 }
 
 func TestSteadyHighTrafficIsNotASpike(t *testing.T) {
@@ -269,13 +284,52 @@ func TestRogueDNSDisabledWithoutResolvers(t *testing.T) {
 
 func TestPortScan(t *testing.T) {
 	e, got := newEngine(t)
-	for i := 0; i < 250; i++ {
-		insertFlow(t, e.St, "aa:99", "203.0.113."+itoa(i%250), 1000+i, "u")
+	for i := 0; i < 250; i++ { // 250 ports on one host
+		insertFlow(t, e.St, "aa:99", "203.0.113.7", 1000+i, "u")
 	}
 	insertFlow(t, e.St, "aa:01", "203.0.113.1", 80, "u")
 	e.Checks()
 	if kinds(*got) != "port_scan/aa:99" {
 		t.Fatalf("port scan detection: %s", kinds(*got))
+	}
+	m := (*got)[0].Msg
+	if !strings.Contains(m, "250 ports on 203.0.113.7") || !strings.Contains(m, "1000, 1001") {
+		t.Fatalf("scan message lacks targets/ports: %s", m)
+	}
+}
+
+func TestPortScanSweep(t *testing.T) {
+	e, got := newEngine(t)
+	for i := 0; i < 220; i++ { // one non-web port on many hosts
+		insertFlow(t, e.St, "aa:55", "198.51.100."+itoa(i), 445, "u")
+	}
+	e.Checks()
+	if kinds(*got) != "port_scan/aa:55" || !strings.Contains((*got)[0].Msg, "220 hosts on port 445") {
+		t.Fatalf("sweep detection: %+v", *got)
+	}
+}
+
+func TestBrowsingIsNoPortScan(t *testing.T) {
+	e, got := newEngine(t)
+	for i := 0; i < 400; i++ { // many servers on 443, and many random high ports on many hosts (torrent-like)
+		insertFlow(t, e.St, "aa:11", "198.51.100."+itoa(i%250), 443, "u")
+		insertFlow(t, e.St, "aa:12", "192.0.2."+itoa(i%250), 20000+i, "u")
+	}
+	e.Checks()
+	if len(*got) != 0 {
+		t.Fatalf("browsing/torrent raised %s", kinds(*got))
+	}
+}
+
+func TestPortScanIgnoreList(t *testing.T) {
+	e, got := newEngine(t)
+	e.Cfg.AlertIgnore = []string{"AA:99"}
+	for i := 0; i < 250; i++ {
+		insertFlow(t, e.St, "aa:99", "203.0.113.7", 1000+i, "u")
+	}
+	e.Checks()
+	if len(*got) != 0 {
+		t.Fatalf("ignored client alerted: %s", kinds(*got))
 	}
 }
 
@@ -447,5 +501,16 @@ func TestDeliverSMTPIncomplete(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Fatalf("deliver tried to send mail with incomplete SMTP config %+v", s)
 		}
+	}
+}
+
+func TestSpikeAfterWANFlapIsAnnotated(t *testing.T) {
+	e, got := newEngine(t)
+	e.InterfaceState("gw", "pppoe-out1", false)
+	e.InterfaceState("gw", "pppoe-out1", true)
+	*got = (*got)[:0]
+	e.Raise("traffic_spike", "total", "warning", "Traffic spike", 0)
+	if len(*got) != 1 || !strings.Contains((*got)[0].Msg, "WAN link flapped") {
+		t.Fatalf("no WAN hint: %+v", *got)
 	}
 }

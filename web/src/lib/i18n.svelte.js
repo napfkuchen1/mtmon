@@ -5,7 +5,8 @@
 import { de } from './i18n/de.js'
 import server from './i18n/server.js'
 import v07 from './i18n/v07_server.js'
-const srv = { ...server, ...v07 }
+import v014 from './i18n/v014_server.js'
+const srv = { ...server, ...v07, ...v014 }
 
 function load() {
   try { const v = localStorage.getItem('mtmon.lang'); if (v === 'de' || v === 'en') return v } catch {}

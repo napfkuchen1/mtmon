@@ -19,6 +19,7 @@ import (
 	"github.com/napfkuchen1/mtmon/internal/poller"
 	"github.com/napfkuchen1/mtmon/internal/provision"
 	"github.com/napfkuchen1/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/syslog"
 )
 
 func (s *Server) mgmtRoutes(m *http.ServeMux, a func(http.HandlerFunc) http.HandlerFunc) {
@@ -666,11 +667,19 @@ func (s *Server) fwSummary(w http.ResponseWriter, r *http.Request) {
 	s.nameTops(sum)
 	rules, _ := s.St.FwRules()
 	var recv, parsed, unk, drop uint64
+	samples := []syslog.Sample{}
 	if s.Sys != nil {
 		recv, parsed, unk, drop = s.Sys.Received.Load(), s.Sys.Parsed.Load(), s.Sys.Unknown.Load(), s.Sys.Dropped.Load()
+		samples = s.Sys.Samples()
 	}
 	jsonOut(w, map[string]any{"range": rn, "summary": sum, "rules": rules, "enabled": len(rules) > 0,
-		"syslog": map[string]uint64{"received": recv, "parsed": parsed, "unparsed": unk, "dropped_unknown_source": drop}})
+		"syslog":          map[string]uint64{"received": recv, "parsed": parsed, "unparsed": unk, "dropped_unknown_source": drop},
+		"unparsed_sample": samples})
+}
+
+// isOwnEvent: log line of mtmon's own management access (rule label or host name mentions mtmon).
+func isOwnEvent(e store.FwEvent) bool {
+	return store.IsOwnRule(e.Rule) || strings.HasPrefix(strings.ToLower(e.SrcName), "mtmon.") || strings.HasPrefix(strings.ToLower(e.DstName), "mtmon.")
 }
 
 func (s *Server) fwEvents(w http.ResponseWriter, r *http.Request) {
@@ -678,13 +687,38 @@ func (s *Server) fwEvents(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	lim, _ := strconv.Atoi(q.Get("limit"))
 	dp, _ := strconv.Atoi(q.Get("port"))
-	ev, err := s.St.FwEvents(store.FwFilter{Since: since, Device: q.Get("device"), Src: q.Get("src"), Dst: q.Get("dst"), Peer: q.Get("peer"),
-		DPort: dp, Verdict: q.Get("verdict"), Limit: lim})
+	own := q.Get("own") == "1"
+	fl := store.FwFilter{Since: since, Device: q.Get("device"), Src: q.Get("src"), Dst: q.Get("dst"), Peer: q.Get("peer"),
+		DPort: dp, Verdict: q.Get("verdict"), Limit: lim}
+	if !own {
+		// fetch extra rows: mtmon's own traffic is dropped below and must not eat the page
+		if fl.Limit <= 0 {
+			fl.Limit = 200
+		}
+		fl.Limit *= 3
+	}
+	ev, err := s.St.FwEvents(fl)
 	if err != nil {
 		jerr(w, 500, err.Error())
 		return
 	}
 	s.nameEvents(ev)
+	if !own {
+		keep := lim
+		if keep <= 0 {
+			keep = 200
+		}
+		out := ev[:0]
+		for _, e := range ev {
+			if isOwnEvent(e) {
+				continue
+			}
+			if out = append(out, e); len(out) >= keep {
+				break
+			}
+		}
+		ev = out
+	}
 	jsonOut(w, ev)
 }
 

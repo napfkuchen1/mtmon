@@ -195,6 +195,28 @@ func (s *Store) AckAlert(id int64) error {
 	return err
 }
 
+// AckAllAlerts acknowledges every open alert and returns how many it touched.
+func (s *Store) AckAllAlerts() (int64, error) {
+	r, err := s.DB.Exec(`UPDATE alerts SET acked=1 WHERE acked=0`)
+	if err != nil {
+		return 0, err
+	}
+	return r.RowsAffected()
+}
+
+// ClearAlerts removes acknowledged alerts (all=true: every alert) and returns how many were removed.
+func (s *Store) ClearAlerts(all bool) (int64, error) {
+	q := `DELETE FROM alerts WHERE acked=1`
+	if all {
+		q = `DELETE FROM alerts`
+	}
+	r, err := s.DB.Exec(q)
+	if err != nil {
+		return 0, err
+	}
+	return r.RowsAffected()
+}
+
 func (s *Store) OpenAlerts() int {
 	var n int
 	s.DB.QueryRow(`SELECT count(*) FROM alerts WHERE acked=0`).Scan(&n)

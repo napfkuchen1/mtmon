@@ -44,6 +44,7 @@ type devSnap struct {
 	role   string
 	leases []Row
 	arp    []Row
+	nd6    []Row // /ipv6/neighbor: IPv6 address -> MAC (merges IPv6 traffic into the client)
 	wifi   []Row
 	bridge []Row
 	at     time.Time
@@ -390,6 +391,9 @@ func (w *worker) l3Poll(ctx context.Context) {
 	if rows, err := w.c.Get(ctx, "/ip/arp"); err == nil {
 		w.m.setSnap(w.d.Name, func(s *devSnap) { s.arp = rows })
 	}
+	if rows, err := w.c.Get(ctx, "/ipv6/neighbor"); err == nil { // absent without the ipv6 package
+		w.m.setSnap(w.d.Name, func(s *devSnap) { s.nd6 = rows })
+	}
 	if rows, err := w.c.Get(ctx, "/interface/bridge/host"); err == nil {
 		w.m.setSnap(w.d.Name, func(s *devSnap) { s.bridge = rows })
 	}
@@ -596,6 +600,7 @@ func (m *Manager) merge() {
 	uplinks := m.uplinkPorts()
 	m.mu.Lock()
 	byMAC := map[string]*store.Observation{}
+	nd6 := map[string]string{}
 	rank := map[string]int{} // higher wins for location (Device/Iface)
 	upd := func(mac string, loc bool, prio int, f func(o *store.Observation)) {
 		mac = store.NormMAC(mac)
@@ -655,6 +660,11 @@ func (m *Manager) merge() {
 					o.Via = via
 				}
 			})
+		}
+		for _, r := range s.nd6 {
+			if r["status"] != "failed" && r["status"] != "incomplete" && r["address"] != "" {
+				nd6[strings.TrimSuffix(r["address"], "/128")] = store.NormMAC(r["mac-address"])
+			}
 		}
 		for _, r := range s.arp {
 			if r.Bool("invalid") || r["status"] == "failed" || r["status"] == "incomplete" {
@@ -753,6 +763,11 @@ func (m *Manager) merge() {
 	obs := make([]store.Observation, 0, len(byMAC))
 	ipmac := map[string]string{}
 	hubNames := map[string]string{}
+	for ip, mac := range nd6 {
+		if _, ok := byMAC[mac]; ok { // never creates a client, only attaches IPv6 addresses to known ones
+			ipmac[ip] = mac
+		}
+	}
 	var newOnes []store.Observation
 	idents := m.neighborIdents()
 	for mac, o := range byMAC {

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/smtp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +33,7 @@ type Engine struct {
 	wan      map[string]*wanState // device -> WAN uplinks currently down
 	cpuHigh  map[string]int
 	baseline float64
+	lastWAN  time.Time // last WAN uplink down/up event (used to explain follow-up findings)
 	hc       *http.Client
 	Notify   func(store.Alert) // test hook
 }
@@ -50,6 +52,11 @@ func (e *Engine) Raise(kind, subject, severity, msg string, cooldown time.Durati
 		return false
 	}
 	e.last[key] = time.Now()
+	if (kind == "traffic_spike" || kind == "port_scan" || kind == "rogue_dns") && len(e.wan) > 0 {
+		msg += " – a WAN link is down right now, this is probably a side effect"
+	} else if (kind == "traffic_spike" || kind == "port_scan" || kind == "rogue_dns") && !e.lastWAN.IsZero() && time.Since(e.lastWAN) < 10*time.Minute {
+		msg += fmt.Sprintf(" – a WAN link flapped %s ago, this may be a side effect", fmtDur(time.Since(e.lastWAN)))
+	}
 	e.mu.Unlock()
 	a := store.Alert{TS: time.Now().Unix(), Kind: kind, Subject: subject, Severity: severity, Msg: msg}
 	id, err := e.St.AddAlert(a)
@@ -144,6 +151,7 @@ func fmtDur(d time.Duration) string {
 func (e *Engine) wanEvent(device, iface string, running bool) {
 	now := time.Now()
 	e.mu.Lock()
+	e.lastWAN = now
 	st := e.wan[device]
 	if !running {
 		if st == nil {
@@ -232,6 +240,69 @@ func (e *Engine) Run(stop <-chan struct{}) {
 	}
 }
 
+// ignored: the client is on the user's alert-ignore list (compared case-insensitively).
+func (e *Engine) ignored(mac string) bool {
+	for _, m := range e.Cfg.AlertIgnore {
+		if strings.EqualFold(strings.TrimSpace(m), mac) {
+			return true
+		}
+	}
+	return false
+}
+
+// who is the best human name for a client MAC, with the MAC itself in brackets.
+func (e *Engine) who(mac string) string {
+	if c, err := e.St.Client(mac); err == nil && c != nil {
+		n := c.Label
+		if n == "" {
+			n = c.Hostname
+		}
+		if n == "" {
+			n = c.IP
+		}
+		if n != "" {
+			return fmt.Sprintf("%s (%s)", n, mac)
+		}
+	}
+	return mac
+}
+
+func portList(ps []int) string {
+	s := make([]string, len(ps))
+	for i, p := range ps {
+		s[i] = strconv.Itoa(p)
+	}
+	return strings.Join(s, ", ")
+}
+
+func (e *Engine) scanMsg(s store.ScanSuspect) string {
+	if s.Kind == "ports" {
+		return fmt.Sprintf("Client %s probed %d ports on %s within 60 s (e.g. %s) – looks like a port scan", e.who(s.MAC), s.Ports, strings.Join(s.Targets, ", "), portList(s.TopPorts))
+	}
+	return fmt.Sprintf("Client %s contacted %d hosts on port %s within 60 s (e.g. %s) – looks like a network sweep", e.who(s.MAC), s.IPs, portList(s.TopPorts), strings.Join(s.Targets, ", "))
+}
+
+// spike raises the traffic-spike alert with the client and destination that cause it. A spike caused by an
+// ignored client (backup, scanner) is dropped.
+func (e *Engine) spike(snap live.Snapshot, cur, base float64) {
+	msg := fmt.Sprintf("Traffic spike: %.1f Mbit/s (baseline %.1f)", cur/1e6, base/1e6)
+	if len(snap.Clients) > 0 {
+		top := snap.Clients[0]
+		if e.ignored(top.Key) {
+			return
+		}
+		r := (top.UpBps + top.DownBps) / 1e6
+		msg += fmt.Sprintf(" – mostly %s (%.1f Mbit/s)", e.who(top.Key), r)
+		if ip, host, b := e.St.TopRemote(top.Key, time.Now().Unix()-120); b > 0 {
+			if host != "" {
+				ip = host + " / " + ip
+			}
+			msg += " ↔ " + ip
+		}
+	}
+	e.Raise("traffic_spike", "total", "warning", msg, time.Hour)
+}
+
 // Checks runs traffic-spike, port-scan and rogue-DNS detection once.
 func (e *Engine) Checks() {
 	if time.Since(e.start) < 2*time.Minute {
@@ -247,11 +318,21 @@ func (e *Engine) Checks() {
 	e.baseline = e.baseline*0.97 + cur*0.03
 	e.mu.Unlock()
 	if cur > 20e6 && cur > 5*base {
-		e.Raise("traffic_spike", "total", "warning", fmt.Sprintf("Traffic spike: %.1f Mbit/s (baseline %.1f)", cur/1e6, base/1e6), 30*time.Minute)
+		e.spike(snap, cur, base)
 	}
-	if m, err := e.St.PortScanSuspects(60, 200); err == nil {
-		for _, mac := range m {
-			e.Raise("port_scan", mac, "warning", "Client "+mac+" contacted ≥200 distinct ip:port pairs in 60 s (scan-like)", time.Hour)
+	ports, hosts := e.Cfg.PortScanPorts, e.Cfg.PortScanHosts
+	if ports <= 0 {
+		ports = 100
+	}
+	if hosts <= 0 {
+		hosts = 200
+	}
+	if sus, err := e.St.PortScanDetails(60, ports, hosts); err == nil {
+		for _, s := range sus {
+			if e.ignored(s.MAC) {
+				continue
+			}
+			e.Raise("port_scan", s.MAC, "warning", e.scanMsg(s), time.Hour)
 		}
 	}
 	if len(e.Cfg.DNSResolvers) > 0 {

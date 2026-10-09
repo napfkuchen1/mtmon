@@ -51,14 +51,20 @@ type Config struct {
 	RawRetention int      `json:"raw_retention_days"` // default 3
 	Retention    int      `json:"retention_days"`     // default 30
 	ReverseDNS   bool     `json:"reverse_dns"`
-	Webhook      string   `json:"alert_webhook,omitempty"`  // generic JSON POST
-	NtfyURL      string   `json:"alert_ntfy_url,omitempty"` // e.g. https://ntfy.sh/topic or self-hosted; also works for Gotify-compatible text endpoints
-	SMTP         *SMTP    `json:"alert_smtp,omitempty"`
-	SyslogListen string   `json:"syslog_listen,omitempty"` // default :5514 (UDP, RouterOS firewall logs)
-	DNSResolvers []string `json:"dns_resolvers,omitempty"` // allowed resolvers; empty = disable "rogue DNS" alert
-	AdminHash    string   `json:"admin_hash,omitempty"`    // argon2id, set via `mtmon passwd`
-	AdminUser    string   `json:"admin_user,omitempty"`
-	UpdateRepo   string   `json:"update_repo,omitempty"` // GitHub owner/name for update checks (default napfkuchen1/mtmon)
+	// AlertIgnore lists client MAC addresses that never raise traffic-spike or port-scan alerts
+	// (backup servers, vulnerability scanners, monitoring hosts that legitimately look like one).
+	AlertIgnore []string `json:"alert_ignore,omitempty"`
+	// PortScanPorts / PortScanHosts: how many ports on one host, or hosts on one port, within 60 s count as a scan (default 100 / 200).
+	PortScanPorts int      `json:"port_scan_ports,omitempty"`
+	PortScanHosts int      `json:"port_scan_hosts,omitempty"`
+	Webhook       string   `json:"alert_webhook,omitempty"`  // generic JSON POST
+	NtfyURL       string   `json:"alert_ntfy_url,omitempty"` // e.g. https://ntfy.sh/topic or self-hosted; also works for Gotify-compatible text endpoints
+	SMTP          *SMTP    `json:"alert_smtp,omitempty"`
+	SyslogListen  string   `json:"syslog_listen,omitempty"` // default :5514 (UDP, RouterOS firewall logs)
+	DNSResolvers  []string `json:"dns_resolvers,omitempty"` // allowed resolvers; empty = disable "rogue DNS" alert
+	AdminHash     string   `json:"admin_hash,omitempty"`    // argon2id, set via `mtmon passwd`
+	AdminUser     string   `json:"admin_user,omitempty"`
+	UpdateRepo    string   `json:"update_repo,omitempty"` // GitHub owner/name for update checks (default napfkuchen1/mtmon)
 
 	localPrefixes []netip.Prefix
 	path          string

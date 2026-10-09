@@ -32,7 +32,8 @@
     <div class="tabs" role="tablist" style="flex-wrap:wrap">
       {#each tabs as [id, l]}<button role="tab" class:on={what === id} aria-selected={what === id} onclick={() => go('insights/' + id)}>{l}</button>{/each}
     </div>
-    <button class="btn" onclick={() => download(`/export/top/${what}?range=${rg()}`)}>{t('Export CSV')}</button>
+    <span style="display:flex;gap:8px"><button class="btn" onclick={() => download(`/export/top/${what}?range=${rg()}&format=xlsx`)}>{t('Export Excel')}</button>
+    <button class="btn" onclick={() => download(`/export/top/${what}?range=${rg()}`)}>{t('Export CSV')}</button></span>
   </div>
   <div class="scroll"><table>
     <thead><tr><th style="width:36px">#</th><th>{tabs.find(tb => tb[0] === what)[1]}</th><th>{t('Detail')}</th><th class="r">{t('↓ Down')}</th><th class="r">{t('↑ Up')}</th>{#if what === 'internal' || what === 'clients'}<th class="r">{t('⇄ LAN')}</th>{/if}<th style="width:160px">{t('Share')}</th><th class="r">{t('Flows')}</th>{#if canClassify}<th></th>{/if}</tr></thead>

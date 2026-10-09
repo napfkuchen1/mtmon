@@ -2,6 +2,8 @@
 package live
 
 import (
+	"fmt"
+	"net/netip"
 	"sort"
 	"sync"
 	"time"
@@ -94,7 +96,29 @@ func (h *Hub) SetIPMap(m map[string]string, names map[string]string) {
 func (h *Hub) MACFor(ip string) string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return h.ipmac[ip]
+	if m := h.ipmac[ip]; m != "" {
+		return m
+	}
+	// SLAAC address built from the MAC (EUI-64): belongs to that client if we know it.
+	if m := eui64MAC(ip); m != "" {
+		if _, ok := h.names[m]; ok {
+			return m
+		}
+	}
+	return ""
+}
+
+// eui64MAC returns the MAC embedded in an EUI-64 IPv6 address (fe80::9a22:efff:fe7a:7927 -> 98:22:EF:7A:79:27), or "".
+func eui64MAC(ip string) string {
+	a, err := netip.ParseAddr(ip)
+	if err != nil || !a.Is6() || a.Is4In6() {
+		return ""
+	}
+	b := a.As16()
+	if b[11] != 0xff || b[12] != 0xfe {
+		return ""
+	}
+	return fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X", b[8]^0x02, b[9], b[10], b[13], b[14], b[15])
 }
 
 func (h *Hub) SetName(mac, name string) { h.mu.Lock(); h.names[mac] = name; h.mu.Unlock() }

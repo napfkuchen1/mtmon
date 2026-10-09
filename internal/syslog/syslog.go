@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -67,6 +68,46 @@ type Server struct {
 
 	Received, Parsed, Unknown, Dropped atomic.Uint64
 	conn                               net.PacketConn
+
+	smu     sync.Mutex
+	samples []Sample // newest last, at most maxSamples
+}
+
+// Sample is one syslog line mtmon could not turn into a firewall event.
+type Sample struct {
+	TS     int64  `json:"ts"`
+	Device string `json:"device"`
+	Reason string `json:"reason"` // "not-firewall" (other log topic) or "format" (firewall line in an unknown layout)
+	Line   string `json:"line"`
+}
+
+const maxSamples = 8
+
+func (s *Server) addSample(dev, line string) {
+	reason := "not-firewall"
+	if reTopic.MatchString(line) {
+		reason = "format"
+	}
+	if len(line) > 300 {
+		line = line[:300]
+	}
+	s.smu.Lock()
+	s.samples = append(s.samples, Sample{TS: time.Now().Unix(), Device: dev, Reason: reason, Line: line})
+	if len(s.samples) > maxSamples {
+		s.samples = s.samples[len(s.samples)-maxSamples:]
+	}
+	s.smu.Unlock()
+}
+
+// Samples returns the most recent unreadable lines (newest first).
+func (s *Server) Samples() []Sample {
+	s.smu.Lock()
+	defer s.smu.Unlock()
+	out := make([]Sample, 0, len(s.samples))
+	for i := len(s.samples) - 1; i >= 0; i-- {
+		out = append(out, s.samples[i])
+	}
+	return out
 }
 
 func (s *Server) Listen() error {
@@ -119,6 +160,7 @@ func (s *Server) Run(ctx context.Context) error {
 		e, ok := ParseFirewall(string(buf[:n]))
 		if !ok {
 			s.Unknown.Add(1)
+			s.addSample(dev, strings.TrimSpace(string(buf[:n])))
 			continue
 		}
 		e.TS, e.Device = time.Now().Unix(), dev

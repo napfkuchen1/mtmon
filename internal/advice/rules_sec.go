@@ -3,6 +3,7 @@ package advice
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -729,4 +730,98 @@ func ruleDoH(s Snapshot) ([]Suggestion, string) {
 		Commands: "/ip firewall address-list add list=doh-servers address=dns.google\n/ip firewall address-list add list=doh-servers address=cloudflare-dns.com\n/ip firewall address-list add list=doh-servers address=dns.quad9.net\n/ip firewall filter add chain=forward action=reject reject-with=icmp-admin-prohibited protocol=tcp dst-port=443 dst-address-list=doh-servers in-interface-list=LAN comment=\"block public DoH\"",
 		Limits:   "Only resolvers that appear under their well-known name in the router DNS cache are detected; custom DoH servers are not.",
 	}}, ""
+}
+
+// regressionMinHits: how many logged drops in 7 days make "the accept rule before it never matches" worth a warning.
+const regressionMinHits = 200
+
+func portInSpec(spec string, port int) bool {
+	for _, p := range strings.Split(spec, ",") {
+		p = strings.TrimSpace(p)
+		if a, b, ok := strings.Cut(p, "-"); ok {
+			lo, e1 := strconv.Atoi(a)
+			hi, e2 := strconv.Atoi(b)
+			if e1 == nil && e2 == nil && port >= lo && port <= hi {
+				return true
+			}
+		} else if n, err := strconv.Atoi(p); err == nil && n == port {
+			return true
+		}
+	}
+	return false
+}
+
+// ruleRegression finds an accept rule that never matches although a later drop rule for the very same
+// protocol/port drops a lot: the accept rule is shadowed or its conditions no longer fit, so legitimate traffic
+// is being blocked ("rule regression").
+func ruleRegression(s Snapshot) ([]Suggestion, string) {
+	hits := map[string]int64{}
+	for _, r := range s.FwRules() {
+		hits[r.Device+"|"+r.Prefix] += r.Hits7d
+	}
+	if len(hits) == 0 {
+		return nil, "no firewall rules with log prefix known"
+	}
+	idx := clientIndex(s)
+	var out []Suggestion
+	for _, d := range s.Devices() {
+		if d.Caps == nil {
+			continue
+		}
+		f := d.Caps.Filter
+		for i, drop := range f {
+			if drop.Disabled || (drop.Action != "drop" && drop.Action != "reject") || drop.LogPrefix == "" || drop.DPort == "" {
+				continue
+			}
+			port, err := strconv.Atoi(drop.DPort)
+			n := hits[d.Name+"|"+drop.LogPrefix]
+			if err != nil || n < regressionMinHits || (drop.Proto != "tcp" && drop.Proto != "udp") {
+				continue
+			}
+			for j := i - 1; j >= 0; j-- {
+				acc := f[j]
+				if acc.Disabled || acc.Action != "accept" || acc.Chain != drop.Chain || !acc.Counted || acc.Packets != 0 {
+					continue
+				}
+				if acc.Proto != drop.Proto || !portInSpec(acc.DPort, port) {
+					continue
+				}
+				proto := 6
+				if drop.Proto == "udp" {
+					proto = 17
+				}
+				seen := map[string]bool{}
+				var names []string
+				for _, r := range portRows(s, port) {
+					if r.Proto == proto && !seen[r.MAC] {
+						seen[r.MAC] = true
+						names = append(names, nameOf(idx, r.MAC))
+					}
+				}
+				sort.Strings(names)
+				ev := []string{
+					fmt.Sprintf("Accept rule: %s %s (0 packets counted)", acc.Chain, acc.Summary),
+					fmt.Sprintf("Drop rule right after it: %s %s – %d logged drops in 7 days", drop.Chain, drop.Summary, n),
+				}
+				if len(names) > 0 {
+					ev = append(ev, fmt.Sprintf("Clients that used %s/%d: %s", drop.Proto, port, list(names, 5)))
+				}
+				out = append(out, Suggestion{
+					Subject: fmt.Sprintf("%s-%s-%s-%d", d.Name, drop.Chain, drop.Proto, port), Severity: SevWarning, Category: CatHygiene,
+					Link: "firewall", Confidence: "medium",
+					Title:    fmt.Sprintf("An accept rule for %s/%d on %s never matches, but the drop rule behind it does", drop.Proto, port, d.Name),
+					Why:      "An accept rule is meant to let this traffic through before the drop rule catches it. Its counter stays at 0 while the drop rule blocks the same port again and again, so the accept rule does not apply any more: something in front of it changes the traffic, or its interface, address or connection-state condition no longer fits. The traffic that was meant to pass is being blocked.",
+					Evidence: ev,
+					Steps: []string{
+						"Compare the conditions of the accept rule (interface list, addresses, connection state) with a blocked connection on the Firewall page.",
+						"Fix the condition or move the accept rule above whatever matches first, then check that its counter rises and the drop counter stops.",
+					},
+					Commands: "/ip firewall filter print stats where chain=" + drop.Chain + " and (action=accept or action=drop)",
+					Limits:   "Counters are read when the device is probed (about hourly) and restart at 0 after a reboot or counter reset, so a very new rule can look unused.",
+				})
+				break
+			}
+		}
+	}
+	return out, ""
 }

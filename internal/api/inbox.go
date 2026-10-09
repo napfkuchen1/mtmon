@@ -1,10 +1,8 @@
 package api
 
 import (
-	"encoding/csv"
 	"encoding/json"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -121,15 +119,11 @@ func (s *Server) exportClients(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 500, err.Error())
 		return
 	}
-	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", `attachment; filename="clients.csv"`)
-	cw := csv.NewWriter(w)
-	cw.Write([]string{"mac", "label", "hostname", "vendor", "ip", "first_seen", "last_seen", "online"})
+	t := exportTable{File: "clients", Sheet: "Clients", Head: []string{"mac", "label", "hostname", "vendor", "ip", "first_seen", "last_seen", "online"}}
 	for _, c := range list {
-		cw.Write([]string{c.MAC, csvSafe(c.Label), csvSafe(c.Hostname), csvSafe(c.Vendor), c.IP,
-			time.Unix(c.FirstSeen, 0).Format(time.RFC3339), time.Unix(c.LastSeen, 0).Format(time.RFC3339), strconv.FormatBool(c.Online)})
+		t.Rows = append(t.Rows, []any{c.MAC, c.Label, c.Hostname, c.Vendor, c.IP, time.Unix(c.FirstSeen, 0), time.Unix(c.LastSeen, 0), c.Online})
 	}
-	cw.Flush()
+	sendTable(w, r, t)
 }
 
 // sameName compares names ignoring case and separators ("Max-iPhone" == "max iphone").
