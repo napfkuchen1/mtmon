@@ -32,7 +32,7 @@
 </script>
 
 <div class="head"><h1>{t('Clients')}</h1><span class="muted">{t('{online} online · {all} known', { online: counts.online, all: counts.all })}</span>
-  <span style="flex:1"></span><button class="btn" onclick={() => (cleanup = true)}>{t('Clean up…')}</button></div>
+  <span style="flex:1"></span><a class="btn" href="#/inbox">{t('New devices')}</a> <button class="btn" onclick={() => (cleanup = true)}>{t('Clean up…')}</button></div>
 <div class="card">
   <div class="card-h">
     <input class="input" style="min-width:260px" placeholder={t('Search name, IP, MAC, vendor, SSID…')} bind:value={q} aria-label={t('Search clients')} />

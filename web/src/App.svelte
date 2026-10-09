@@ -29,20 +29,20 @@
   const nav = [
     ['overview', 'Overview', 'M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10'],
     ['live', 'Live', 'M3 12h4l3-8 4 16 3-8h4'],
-    ['devices', 'Devices', 'M4 6h16v5H4zM4 13h16v5H4zM7 8.5h.01M7 15.5h.01'],
     ['clients', 'Clients', 'M16 11a4 4 0 10-8 0 4 4 0 008 0zM4 21c0-4 4-6 8-6s8 2 8 6'],
-    ['inbox', 'New devices', 'M12 5v14M5 12h14M4 4h16v16H4z'],
+    ['devices', 'Devices', 'M4 6h16v5H4zM4 13h16v5H4zM7 8.5h.01M7 15.5h.01'],
+    ['alerts', 'Alerts', 'M6 9a6 6 0 1112 0c0 6 3 7 3 8H3c0-1 3-2 3-8zM10 21h4'],
+    ['suggestions', 'Suggestions', 'M9 18h6M10 21h4M12 3a6 6 0 00-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0012 3z'],
     ['services', 'Services', 'M4 6h7v5H4zM13 6h7v5h-7zM4 13h7v5H4zM13 13h7v5h-7z'],
     ['firewall', 'Firewall', 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4'],
     ['insights', 'Insights', 'M4 20V10M10 20V4M16 20v-7M22 20H2'],
-    ['suggestions', 'Suggestions', 'M9 18h6M10 21h4M12 3a6 6 0 00-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0012 3z'],
-    ['topology', 'Topology', 'M12 5a2 2 0 100-4 2 2 0 000 4zM5 21a2 2 0 100-4 2 2 0 000 4zM19 21a2 2 0 100-4 2 2 0 000 4zM12 5v6M12 11l-7 6M12 11l7 6'],
-    ['alerts', 'Alerts', 'M6 9a6 6 0 1112 0c0 6 3 7 3 8H3c0-1 3-2 3-8zM10 21h4']
+    ['topology', 'Topology', 'M12 5a2 2 0 100-4 2 2 0 000 4zM5 21a2 2 0 100-4 2 2 0 000 4zM19 21a2 2 0 100-4 2 2 0 000 4zM12 5v6M12 11l-7 6M12 11l7 6']
   ]
+  const rare = new Set(['services', 'insights', 'topology']) // rarely needed pages sit below a divider
   const settingsIcon = 'M12 15a3 3 0 100-6 3 3 0 000 6zM19 12a7 7 0 00-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 00-2-1.2L14 3h-4l-.6 2.7a7 7 0 00-2 1.2l-2.3-1-2 3.4 2 1.5a7 7 0 000 2.4l-2 1.5 2 3.4 2.3-1a7 7 0 002 1.2L10 21h4l.6-2.7a7 7 0 002-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z'
   const ranges = [['live', 'Live'], ['1h', '1 h'], ['24h', '24 h'], ['7d', '7 d'], ['30d', '30 d']]
   const showRange = $derived(['overview', 'clients', 'client', 'insights', 'device', 'services', 'firewall'].includes(app.route.name))
-  const active = $derived(app.route.name === 'client' ? 'clients' : app.route.name === 'device' ? 'devices' : app.route.name)
+  const active = $derived(app.route.name === 'client' || app.route.name === 'inbox' ? 'clients' : app.route.name === 'device' ? 'devices' : app.route.name)
   let openAlerts = $state(0)
   $effect(() => {
     if (!app.user) return
@@ -113,12 +113,13 @@
         <span class="lbl">mtmon</span>
       </a>
       <nav>
-        {#each nav as [id, label, d]}
+        {#each nav as [id, label, d], i}
+          {#if rare.has(id) && !rare.has(nav[i - 1]?.[0])}<hr class="sep" />{/if}
           <a href="#/{id}" class:on={active === id} title={t(label)}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path {d} /></svg>
             <span class="lbl">{t(label)}</span>
             {#if id === 'alerts' && openAlerts}<span class="cnt">{openAlerts}</span>{/if}
-            {#if id === 'inbox' && newDev}<span class="cnt w" title={t('New devices to look at')}>{newDev}</span>{/if}
+            {#if id === 'clients' && newDev}<span class="cnt w" title={t('New devices to look at')}>{newDev}</span>{/if}
             {#if id === 'suggestions' && sugWarn}<span class="cnt w" title={t('Warnings in Suggestions')}>{sugWarn}</span>{/if}
           </a>
         {/each}
@@ -195,6 +196,7 @@
   .brand:hover { text-decoration: none; }
   nav { display: flex; flex-direction: column; gap: 2px; }
   nav a { display: flex; align-items: center; gap: 11px; padding: 8px 10px; border-radius: 8px; color: var(--muted); font-weight: 500; }
+  nav .sep { border: 0; border-top: 1px solid var(--border); margin: 6px 8px; width: auto; }
   nav a:hover { background: var(--card-2); color: var(--text); text-decoration: none; }
   nav a.on { background: var(--accent-bg); color: var(--accent-strong); }
   .cnt.w { background: var(--warn); color: #1c1203; }

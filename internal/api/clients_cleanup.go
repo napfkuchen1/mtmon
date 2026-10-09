@@ -51,6 +51,7 @@ func (s *Server) clientsCleanup(w http.ResponseWriter, r *http.Request) {
 // featureRoutes registers the clean-up, app-detection endpoints.
 func (s *Server) featureRoutes(m *http.ServeMux, a func(http.HandlerFunc) http.HandlerFunc) {
 	m.HandleFunc("POST /api/clients/cleanup", a(s.clientsCleanup))
+	m.HandleFunc("POST /api/reset", a(s.dataReset))
 	m.HandleFunc("GET /api/clients/inbox", a(s.clientsInbox))
 	m.HandleFunc("POST /api/clients/review", a(s.clientsReview))
 	m.HandleFunc("GET /api/enrich/setup", a(s.enrichSetupState))

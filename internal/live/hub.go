@@ -309,3 +309,13 @@ func (h *Hub) LastSeq() uint64 { h.mu.Lock(); defer h.mu.Unlock(); return h.seq 
 
 // FlowRate returns the flows/s estimate (updated by Snapshot).
 func (h *Hub) FlowRate() float64 { h.mu.Lock(); defer h.mu.Unlock(); return h.FlowsPS }
+
+// Reset forgets the live view (per-client rates, connection tail, totals) after the stored history was
+// emptied. Router state (interfaces, devices, address map, names) stays; the next polls and flows refill the rest.
+func (h *Hub) Reset() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.clients = map[string]*clientLive{}
+	h.conns = nil
+	h.totalUp = nil
+}
