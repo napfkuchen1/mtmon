@@ -8,6 +8,14 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.15.0] - 2026-10-09
+
+### Added
+- **Reset (Settings → Reset):** *Reset history* empties traffic, clients, alerts, firewall log, metrics and dismissed suggestions so mtmon starts clean; your devices, settings, API tokens and service rules stay, and you can keep clients that have a label. *Full reset* also removes the devices added in the web UI. Both need you to type `RESET`; an Excel list of your clients can be saved first.
+
+### Changed
+- **Sidebar:** the most used pages come first (Overview, Live, Clients, Devices, Alerts, Suggestions, Firewall). Services, Insights and Topology sit below a divider. *New devices* moved to the Clients page (button, and its counter now shows on *Clients*).
+
 ## [0.14.0] - 2026-10-09
 
 ### Added

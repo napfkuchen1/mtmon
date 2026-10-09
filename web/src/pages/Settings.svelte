@@ -5,6 +5,8 @@
   import { poll } from '../lib/Poll.svelte.js'
   import { bytes, dur, num, ago, datetime } from '../lib/format.js'
   import UpdateCard from './UpdateCard.svelte'
+  import ResetDialog from '../lib/ResetDialog.svelte'
+  let reset = $state(null) // null | 'data' | 'full'
   const sys = poll(() => api('/system'), 5000)
   const dev = poll(() => api('/devices'), 0)
   const s = $derived(sys.data)
@@ -211,6 +213,13 @@
   </tbody></table></div>
 
 <UpdateCard />
+
+<div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Reset')}</h2></div>
+  <table><tbody>
+    <tr><td>{t('Reset history')}<div class="muted" style="font-size:12px">{t('Start clean: traffic, clients, alerts, firewall log and metrics are emptied. Devices and settings stay.')}</div></td><td class="r"><button class="btn" onclick={() => (reset = 'data')}>{t('Reset history…')}</button></td></tr>
+    <tr><td>{t('Full reset (including devices)')}<div class="muted" style="font-size:12px">{t('Also removes the devices added in the web UI. Settings and API tokens stay.')}</div></td><td class="r"><button class="btn" onclick={() => (reset = 'full')}>{t('Full reset…')}</button></td></tr>
+  </tbody></table></div>
+{#if reset}<ResetDialog full={reset === 'full'} onclose={() => (reset = null)} ondone={async () => { try { dev.data = await api('/devices') } catch {} }} />{/if}
 
 <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Configured devices')}</h2><span class="muted">{t('edit')} <span class="mono">/etc/mtmon/config.json</span>, {t('then')} <span class="mono">systemctl restart mtmon</span></span></div>
   <table><thead><tr><th>{t('Name')}</th><th>{t('Address')}</th><th>{t('Role')}</th><th>{t('Site')}</th></tr></thead><tbody>
