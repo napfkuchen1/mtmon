@@ -29,6 +29,8 @@ import (
 )
 
 type Server struct {
+	fwMu    sync.Mutex
+	fwCache map[string]fwCacheEntry
 	Cfg     *config.Config
 	St      *store.Store
 	Hub     *live.Hub
@@ -117,6 +119,10 @@ func secure(h http.Handler) http.Handler {
 }
 
 func (s *Server) static(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/api/") { // an unknown API path is an error, not the UI page with status 200
+		jerr(w, 404, "not found")
+		return
+	}
 	if s.UI == nil {
 		http.NotFound(w, r)
 		return
@@ -225,6 +231,11 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 	c, err := r.Cookie("mtmon_session")
 	if err != nil || !s.sess.valid(c.Value) {
+		if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") && s.bearerOK(r) { // an API token identifies itself
+			hash := hashToken(strings.TrimSpace(h[7:]))
+			jsonOut(w, map[string]any{"user": nil, "token": s.St.TokenName(hash), "scope": "read", "version": s.Version})
+			return
+		}
 		jsonOut(w, map[string]any{"user": nil}) // 200 so the login screen causes no console noise
 		return
 	}

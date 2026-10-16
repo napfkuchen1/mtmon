@@ -31,6 +31,7 @@ func newEngine(t *testing.T) (*Engine, *[]store.Alert) {
 	t.Cleanup(func() { st.Close() })
 	e := New(cfg, st, live.NewHub(), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	e.start = time.Now().Add(-10 * time.Minute)
+	e.offGroupDelay = 0 // report offline devices at once (grouping has its own test)
 	var mu sync.Mutex
 	var got []store.Alert
 	e.Notify = func(a store.Alert) { mu.Lock(); got = append(got, a); mu.Unlock() }
@@ -219,7 +220,7 @@ func TestTrafficSpike(t *testing.T) {
 	}
 	e.Hub.AddFlow(store.FlowRow{MAC: "m", Dir: "d", Bytes: 2 << 30}) // ~570 Mbit/s over the 30 s window
 	e.Checks()
-	if kinds(*got) != "traffic_spike/total" {
+	if kinds(*got) != "traffic_spike/m" {
 		t.Fatalf("no spike alert: %s", kinds(*got))
 	}
 	if !strings.Contains((*got)[0].Msg, "mostly m") {

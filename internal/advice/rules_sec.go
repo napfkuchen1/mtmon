@@ -583,8 +583,8 @@ func ruleDropNoLog(s Snapshot) ([]Suggestion, string) {
 		}
 		out = append(out, Suggestion{
 			Subject: d.Name, Severity: SevInfo, Category: CatMonitoring, Link: "firewall", Confidence: "high",
-			Title: fmt.Sprintf("Blocked traffic on %s is not logged", d.Name),
-			Why:   "A drop rule without logging blocks silently. The Firewall page of mtmon can then not show what was blocked, who tried, and whether a rule works as intended. You do not need to log everything, but the final catch-all drop rules are worth it.",
+			Title:    fmt.Sprintf("Blocked traffic on %s is not logged", d.Name),
+			Why:      "A drop rule without logging blocks silently. The Firewall page of mtmon can then not show what was blocked, who tried, and whether a rule works as intended. You do not need to log everything, but the final catch-all drop rules are worth it.",
 			Evidence: ev,
 			Steps:    steps,
 			Fix:      &Fix{Device: d.Name, Features: []string{"firewall_logs"}},

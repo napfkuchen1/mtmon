@@ -182,6 +182,7 @@
   <div class="card"><div class="card-h"><h2>{t('API tokens')}</h2></div>
     <div class="card-b" style="display:flex;flex-direction:column;gap:12px">
       <div class="muted" style="font-size:13px">{t('Read-only access for scripts and other tools (for example Home Assistant). A token can read data but never change anything, and it is shown only once.')}</div>
+      <div class="muted" style="font-size:12px">{t('A token is read-only (scope: read). GET /api/me with the token shows its name; paths that do not exist answer 404 as JSON.')}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><input class="input" style="flex:1;min-width:160px" maxlength="40" placeholder={t('Name, e.g. Home Assistant')} bind:value={tokName} onkeydown={e => e.key === 'Enter' && tokName && createToken()} />
         <button class="btn primary" disabled={!tokName.trim()} onclick={createToken}>{t('Create token')}</button></div>
       {#if tokErr}<div class="warnbox">{tr(tokErr)}</div>{/if}

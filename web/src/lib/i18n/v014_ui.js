@@ -1,5 +1,6 @@
 // v0.14: alerts bulk actions, Excel export, firewall page (unreadable lines, own traffic)
 export default {
+  "A token is read-only (scope: read). GET /api/me with the token shows its name; paths that do not exist answer 404 as JSON.": "Ein Token ist nur lesend (Scope: read). GET /api/me mit dem Token zeigt seinen Namen; nicht vorhandene Pfade antworten mit 404 als JSON.",
   "Acknowledge all": "Alle bestätigen",
   "Clear alerts": "Meldungen löschen",
   "Remove all acknowledged alerts from the list? This cannot be undone.": "Alle bestätigten Meldungen aus der Liste entfernen? Das lässt sich nicht rückgängig machen.",

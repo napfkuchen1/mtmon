@@ -114,3 +114,41 @@ func TestAccessTokensIconEndpoints(t *testing.T) {
 		t.Errorf("edit unknown device: %d", code)
 	}
 }
+
+// A token identifies itself on /api/me, and an unknown API path is a JSON 404 (not the UI page with status 200).
+func TestTokenMeAndUnknownAPIPath(t *testing.T) {
+	ts, _ := newTestServer(t)
+	_, c := login(t, ts, "test-password-1")
+	get := func(path, bearer string) (int, map[string]any) {
+		req, _ := http.NewRequest("GET", ts.URL+path, nil)
+		if bearer != "" {
+			req.Header.Set("Authorization", "Bearer "+bearer)
+		}
+		r, err := ts.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer r.Body.Close()
+		var m map[string]any
+		json.NewDecoder(r.Body).Decode(&m)
+		return r.StatusCode, m
+	}
+	req, _ := http.NewRequest("POST", ts.URL+"/api/tokens", strings.NewReader(`{"name":"ha"}`))
+	r, err := c.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var created map[string]any
+	json.NewDecoder(r.Body).Decode(&created)
+	r.Body.Close()
+	tok, _ := created["token"].(string)
+	if code, m := get("/api/me", tok); code != 200 || m["token"] != "ha" || m["scope"] != "read" {
+		t.Errorf("token /api/me: %d %v", code, m)
+	}
+	if code, m := get("/api/me", ""); code != 200 || m["user"] != nil || m["token"] != nil {
+		t.Errorf("anonymous /api/me: %d %v", code, m)
+	}
+	if code, m := get("/api/does-not-exist", tok); code != 404 || m["error"] != "not found" {
+		t.Errorf("unknown api path: %d %v", code, m)
+	}
+}

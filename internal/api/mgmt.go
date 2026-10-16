@@ -657,14 +657,38 @@ func (s *Server) ruleDelete(w http.ResponseWriter, r *http.Request) {
 
 // ---- firewall ----
 
+// fwSummaryCached: the firewall summary groups the whole raw log of the range (seconds for 7 days), so a page that
+// is opened or refreshed repeatedly reuses the result for 30 s. The cache key is the range name, the data is shared.
+func (s *Server) fwSummaryCached(rn string, since int64) (*store.FwSummary, error) {
+	s.fwMu.Lock()
+	defer s.fwMu.Unlock()
+	if c, ok := s.fwCache[rn]; ok && time.Since(c.at) < 30*time.Second {
+		return c.sum, nil
+	}
+	sum, err := s.St.FwSummary(since)
+	if err != nil {
+		return nil, err
+	}
+	s.nameTops(sum)
+	if s.fwCache == nil {
+		s.fwCache = map[string]fwCacheEntry{}
+	}
+	s.fwCache[rn] = fwCacheEntry{at: time.Now(), sum: sum}
+	return sum, nil
+}
+
+type fwCacheEntry struct {
+	at  time.Time
+	sum *store.FwSummary
+}
+
 func (s *Server) fwSummary(w http.ResponseWriter, r *http.Request) {
 	since, _, rn := parseRange(r)
-	sum, err := s.St.FwSummary(since)
+	sum, err := s.fwSummaryCached(rn, since)
 	if err != nil {
 		jerr(w, 500, err.Error())
 		return
 	}
-	s.nameTops(sum)
 	rules, _ := s.St.FwRules()
 	var recv, parsed, unk, drop uint64
 	samples := []syslog.Sample{}
