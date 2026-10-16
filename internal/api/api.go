@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -127,7 +128,7 @@ func (s *Server) static(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	p := strings.TrimPrefix(filepath.Clean("/"+r.URL.Path), "/")
+	p := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
 	if p == "" {
 		p = "index.html"
 	}
