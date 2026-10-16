@@ -162,6 +162,7 @@ All options: `install.sh install --help`. If `minisign` is installed on the host
    * **Services**: traffic grouped by service; define your own with the **＋** button next to any connection, destination or port
    * **Insights**, **Topology**, **Alerts**, **Settings** (alert targets such as webhook, ntfy or e-mail; data retention)
 4. **Classify a service.** For example, click ＋ on an NTP connection, name it "NTP" and choose *port 123*. A live preview shows how much stored traffic it affects. Afterwards *Services → NTP* lists every client and server that uses it, also for the past.
+   * **API tokens** (Settings → API tokens) give scripts and tools such as Home Assistant read-only access: send `Authorization: Bearer mtm_…` with GET requests. A token can never change anything and cannot reach `/api/tokens` or `/api/access`. `GET /api/me` with a token returns its name and `"scope":"read"`; unknown `/api/*` paths answer `404 {"error":"not found"}`. Useful reads: `/api/overview`, `/api/devices`, `/api/clients`, `/api/alerts`, `/api/suggestions`, `/api/diagnostics`.
 5. **Remove a device** whenever you like: *Devices → device → Offboarding*. mtmon reverts its changes in reverse order and does not touch anything somebody else changed in the meantime.
 
 ## What mtmon changes on your router
