@@ -275,11 +275,12 @@ func ruleBlockOrigin(s Snapshot) ([]Suggestion, string) {
 	if len(bs) == 0 {
 		return nil, "no blocked inbound events with a logging drop rule in the last 24 h"
 	}
+	own := ownPublicIPs(s)
 	// Sources our own devices talked to are not scanners: their packets are blocked when they arrive after the
 	// connection was lost (WAN reconnect, router restart), because the firewall no longer knows the connection.
 	var cand []string
 	for _, b := range bs {
-		if len(cand) < 30 && IsPublic(b.IP) {
+		if len(cand) < 300 && IsPublic(b.IP) && !own[b.IP] {
 			cand = append(cand, b.IP)
 		}
 	}
@@ -287,6 +288,25 @@ func ruleBlockOrigin(s Snapshot) ([]Suggestion, string) {
 	var out []Suggestion
 	var scans []BlockedSrc
 	for _, b := range bs {
+		if own[b.IP] {
+			if b.Hits < OriginMinHits {
+				continue
+			}
+			out = append(out, Suggestion{
+				Subject: "own-source-" + b.IP, Severity: SevWarning, Category: CatSecurity, Link: "firewall", Confidence: "medium",
+				Title: fmt.Sprintf("Blocked packets arrive with your own public address %s as sender", b.IP),
+				Why:   "The source of these blocked packets is the public address of your own router, not a remote host. That points to hairpin traffic (a LAN device reaching your public address, for example a VPN or port-forward test), a routing loop, or spoofed packets. It is not a late reply from an outside server and not a scan, so neither a raw drop nor an address list for this address makes sense.",
+				Evidence: []string{
+					fmt.Sprintf("%d blocked inbound events with source %s (your own WAN address) in the last 24 h", b.Hits, b.IP),
+				},
+				Steps: []string{
+					"Check the blocked entries on the Firewall page: which destination address and port do they target, which device sends them?",
+					"If a LAN device uses your public address (VPN client, port-forward test), use the internal address or add a hairpin NAT rule.",
+				},
+				Limits: "mtmon knows your own address from the router's interface addresses; if the provider changed it recently the match can lag by up to an hour.",
+			})
+			continue
+		}
 		if !contacted[b.IP] {
 			scans = append(scans, b)
 			continue
@@ -365,7 +385,16 @@ func ruleBlockOrigin(s Snapshot) ([]Suggestion, string) {
 			tops = append(tops, fmt.Sprintf("%s (%d)", b.IP, b.Hits))
 			cmds = append(cmds, fmt.Sprintf("/ip firewall address-list add list=blocked-scanners address=%s timeout=7d comment=\"mtmon suggestion\"", b.IP))
 		}
-		cmds = append(cmds, "/ip firewall raw add chain=prerouting action=drop src-address-list=blocked-scanners in-interface-list=WAN comment=\"drop known scanners early\"")
+		steps := []string{
+			"Add the busiest sources to an address list and drop them in the raw table, as in the commands below (they expire after 7 days).",
+			"RouterOS has no built-in country filter. For a whole country or provider you would need a maintained list of its address ranges.",
+		}
+		if kind == "cc" {
+			// A country is a poor filter criterion (CDNs and clouds sit in the same country as scanners), so no commands.
+			cmds, steps = nil, []string{"Nothing to do: the firewall already blocks these. RouterOS has no built-in country filter, and dropping a whole country would also cut off legitimate services hosted there."}
+		} else {
+			cmds = append(cmds, "/ip firewall raw add chain=prerouting action=drop src-address-list=blocked-scanners in-interface-list=WAN comment=\"drop known scanners early\"")
+		}
 		title := fmt.Sprintf("Most blocked attempts come from %s", g.label)
 		why := "Your firewall already blocks these attempts, so this is not an emergency. But a large share from one place means automated scanning, and dropping known sources very early (in the raw table) saves router CPU and keeps the logs readable."
 		if single {
@@ -380,10 +409,7 @@ func ruleBlockOrigin(s Snapshot) ([]Suggestion, string) {
 				fmt.Sprintf("%d blocked inbound events came from %s in the last 24 h (%s%% of all blocked events with a known source)", g.hits, g.label, pct(share*100)),
 				fmt.Sprintf("Busiest sources: %s", list(tops, 5)),
 			},
-			Steps: []string{
-				"Add the busiest sources to an address list and drop them in the raw table, as in the commands below (they expire after 7 days).",
-				"RouterOS has no built-in country filter. For a whole country or provider you would need a maintained list of its address ranges.",
-			},
+			Steps:    steps,
 			Commands: strings.Join(cmds, "\n"),
 			Limits:   "Based on the most recent blocked events (at most 60,000 within 24 h) and the 300 busiest sources. The commands assume the default interface list WAN.",
 		}
@@ -490,6 +516,13 @@ func ruleUnusedRules(s Snapshot) ([]Suggestion, string) {
 	return out, ""
 }
 
+// isIsolationRule: a drop rule that keeps one segment away from the private ranges (e.g. an agent VLAN).
+func isIsolationRule(f FilterRule) bool {
+	t := strings.ToLower(f.Comment + " " + f.Summary)
+	return strings.Contains(t, "isolat") || (strings.Contains(t, "192.168") && strings.Contains(t, "10.0.0.0/8")) ||
+		(strings.Contains(t, "192.168/16") && strings.Contains(t, "10/8"))
+}
+
 func ruleDropNoLog(s Snapshot) ([]Suggestion, string) {
 	var out []Suggestion
 	seen := false
@@ -499,6 +532,8 @@ func ruleDropNoLog(s Snapshot) ([]Suggestion, string) {
 		}
 		seen = true
 		var nolog []string
+		var iso []string
+		var zero, fired int
 		drops := 0
 		for _, f := range d.Caps.Filter {
 			if f.Disabled || (f.Action != "drop" && f.Action != "reject") {
@@ -512,26 +547,48 @@ func ruleDropNoLog(s Snapshot) ([]Suggestion, string) {
 				} else if f.Summary != "" {
 					txt += " (" + f.Summary + ")"
 				}
+				if f.Counted {
+					if f.Packets == 0 {
+						zero++
+					} else {
+						fired++
+					}
+					txt += fmt.Sprintf(" [%d packets]", f.Packets)
+				}
+				if isIsolationRule(f) {
+					iso = append(iso, txt)
+				}
 				nolog = append(nolog, txt)
 			}
 		}
 		if len(nolog) == 0 {
 			continue
 		}
+		ev := []string{
+			fmt.Sprintf("%d of %d active drop/reject rules on %s have logging switched off", len(nolog), drops, d.Name),
+			fmt.Sprintf("Rules: %s", list(nolog, 4)),
+		}
+		steps := []string{
+			"Enable logging with a short prefix on the rules you want to see, preferably the last drop rule of the input and forward chains.",
+			"Make sure the router sends firewall logs to mtmon (see the suggestion about syslog if present).",
+		}
+		if zero+fired > 0 {
+			ev = append(ev, fmt.Sprintf("Rule counters: %d of these rules have matched packets, %d never did (0 packets: no hurry)", fired, zero))
+		}
+		cmds := "/ip firewall filter print where (action=drop or action=reject) and log=no\n# then for a rule number from that list:\n/ip firewall filter set <number> log=yes log-prefix=drop-input"
+		if len(iso) > 0 {
+			ev = append(ev, fmt.Sprintf("Isolation rules (blocking private ranges between segments): %s", list(iso, 3)))
+			steps = append(steps, "Isolation rules between segments are usually intentional. Do not log every drop there: put a log-only rule with a rate limit directly in front of the isolation rule, so you see that it works without flooding the log.")
+			cmds += "\n# isolation rule: log-only rule with a rate limit in front of it (copy the conditions of the drop rule)\n/ip firewall filter add chain=<chain> action=log log-prefix=isolation limit=5,10 place-before=<number of the drop rule> <same conditions as the drop rule>"
+		}
 		out = append(out, Suggestion{
 			Subject: d.Name, Severity: SevInfo, Category: CatMonitoring, Link: "firewall", Confidence: "high",
 			Title: fmt.Sprintf("Blocked traffic on %s is not logged", d.Name),
 			Why:   "A drop rule without logging blocks silently. The Firewall page of mtmon can then not show what was blocked, who tried, and whether a rule works as intended. You do not need to log everything, but the final catch-all drop rules are worth it.",
-			Evidence: []string{
-				fmt.Sprintf("%d of %d active drop/reject rules on %s have logging switched off", len(nolog), drops, d.Name),
-				fmt.Sprintf("Rules: %s", list(nolog, 4)),
-			},
-			Steps: []string{
-				"Enable logging with a short prefix on the rules you want to see, preferably the last drop rule of the input and forward chains.",
-				"Make sure the router sends firewall logs to mtmon (see the suggestion about syslog if present).",
-			},
+			Evidence: ev,
+			Steps:    steps,
 			Fix:      &Fix{Device: d.Name, Features: []string{"firewall_logs"}},
-			Commands: "/ip firewall filter print where (action=drop or action=reject) and log=no\n# then for a rule number from that list:\n/ip firewall filter set <number> log=yes log-prefix=drop-input",
+			Commands: cmds,
 			Limits:   "Based on the capabilities stored when the device was set up.",
 		})
 	}
@@ -732,8 +789,8 @@ func ruleDoH(s Snapshot) ([]Suggestion, string) {
 	}}, ""
 }
 
-// regressionMinHits: how many logged drops in 7 days make "the accept rule before it never matches" worth a warning.
-const regressionMinHits = 200
+// regressionMinHits: how many logged drops in the last 24 h make "the accept rule before it never matches" worth a warning.
+const regressionMinHits = 50
 
 func portInSpec(spec string, port int) bool {
 	for _, p := range strings.Split(spec, ",") {
@@ -754,10 +811,17 @@ func portInSpec(spec string, port int) bool {
 // ruleRegression finds an accept rule that never matches although a later drop rule for the very same
 // protocol/port drops a lot: the accept rule is shadowed or its conditions no longer fit, so legitimate traffic
 // is being blocked ("rule regression").
+func commentOf(c string) string {
+	if c == "" {
+		return ""
+	}
+	return " “" + c + "”"
+}
+
 func ruleRegression(s Snapshot) ([]Suggestion, string) {
 	hits := map[string]int64{}
 	for _, r := range s.FwRules() {
-		hits[r.Device+"|"+r.Prefix] += r.Hits7d
+		hits[r.Device+"|"+r.Prefix] += r.Hits24h
 	}
 	if len(hits) == 0 {
 		return nil, "no firewall rules with log prefix known"
@@ -778,49 +842,63 @@ func ruleRegression(s Snapshot) ([]Suggestion, string) {
 			if err != nil || n < regressionMinHits || (drop.Proto != "tcp" && drop.Proto != "udp") {
 				continue
 			}
+			// Every accept rule in front of the drop that covers this protocol/port is judged together: traffic is
+			// only shadowed when none of them ever matches. A rule meant for a sub-group (e.g. a VPN subnet) may
+			// legitimately stay at 0 while a sibling rule carries the traffic.
+			var accepts []FilterRule
 			for j := i - 1; j >= 0; j-- {
 				acc := f[j]
-				if acc.Disabled || acc.Action != "accept" || acc.Chain != drop.Chain || !acc.Counted || acc.Packets != 0 {
+				if acc.Disabled || acc.Action != "accept" || acc.Chain != drop.Chain || acc.Proto != drop.Proto || !portInSpec(acc.DPort, port) {
 					continue
 				}
-				if acc.Proto != drop.Proto || !portInSpec(acc.DPort, port) {
-					continue
-				}
-				proto := 6
-				if drop.Proto == "udp" {
-					proto = 17
-				}
-				seen := map[string]bool{}
-				var names []string
-				for _, r := range portRows(s, port) {
-					if r.Proto == proto && !seen[r.MAC] {
-						seen[r.MAC] = true
-						names = append(names, nameOf(idx, r.MAC))
-					}
-				}
-				sort.Strings(names)
-				ev := []string{
-					fmt.Sprintf("Accept rule: %s %s (0 packets counted)", acc.Chain, acc.Summary),
-					fmt.Sprintf("Drop rule right after it: %s %s – %d logged drops in 7 days", drop.Chain, drop.Summary, n),
-				}
-				if len(names) > 0 {
-					ev = append(ev, fmt.Sprintf("Clients that used %s/%d: %s", drop.Proto, port, list(names, 5)))
-				}
-				out = append(out, Suggestion{
-					Subject: fmt.Sprintf("%s-%s-%s-%d", d.Name, drop.Chain, drop.Proto, port), Severity: SevWarning, Category: CatHygiene,
-					Link: "firewall", Confidence: "medium",
-					Title:    fmt.Sprintf("An accept rule for %s/%d on %s never matches, but the drop rule behind it does", drop.Proto, port, d.Name),
-					Why:      "An accept rule is meant to let this traffic through before the drop rule catches it. Its counter stays at 0 while the drop rule blocks the same port again and again, so the accept rule does not apply any more: something in front of it changes the traffic, or its interface, address or connection-state condition no longer fits. The traffic that was meant to pass is being blocked.",
-					Evidence: ev,
-					Steps: []string{
-						"Compare the conditions of the accept rule (interface list, addresses, connection state) with a blocked connection on the Firewall page.",
-						"Fix the condition or move the accept rule above whatever matches first, then check that its counter rises and the drop counter stops.",
-					},
-					Commands: "/ip firewall filter print stats where chain=" + drop.Chain + " and (action=accept or action=drop)",
-					Limits:   "Counters are read when the device is probed (about hourly) and restart at 0 after a reboot or counter reset, so a very new rule can look unused.",
-				})
-				break
+				accepts = append(accepts, acc)
 			}
+			allZero := len(accepts) > 0
+			for _, acc := range accepts {
+				if !acc.Counted || acc.Packets != 0 {
+					allZero = false
+				}
+			}
+			if !allZero {
+				continue
+			}
+			acc := accepts[0] // nearest to the drop rule
+			proto := 6
+			if drop.Proto == "udp" {
+				proto = 17
+			}
+			seen := map[string]bool{}
+			var names []string
+			for _, r := range portRows(s, port) {
+				if r.Proto == proto && !seen[r.MAC] {
+					seen[r.MAC] = true
+					names = append(names, nameOf(idx, r.MAC))
+				}
+			}
+			sort.Strings(names)
+			ev := []string{
+				fmt.Sprintf("Accept rule%s: %s %s (0 packets counted)", commentOf(acc.Comment), acc.Chain, acc.Summary),
+				fmt.Sprintf("Drop rule right after it%s: %s %s – %d logged drops in the last 24 h", commentOf(drop.Comment), drop.Chain, drop.Summary, n),
+			}
+			if len(accepts) > 1 {
+				ev = append(ev, fmt.Sprintf("All %d accept rules for %s/%d in front of the drop rule are at 0 packets", len(accepts), drop.Proto, port))
+			}
+			if len(names) > 0 {
+				ev = append(ev, fmt.Sprintf("Clients that used %s/%d: %s", drop.Proto, port, list(names, 5)))
+			}
+			out = append(out, Suggestion{
+				Subject: fmt.Sprintf("%s-%s-%s-%d", d.Name, drop.Chain, drop.Proto, port), Severity: SevWarning, Category: CatHygiene,
+				Link: "firewall", Confidence: "medium",
+				Title:    fmt.Sprintf("An accept rule for %s/%d on %s never matches, but the drop rule behind it does", drop.Proto, port, d.Name),
+				Why:      "An accept rule is meant to let this traffic through before the drop rule catches it. Its counter stays at 0 while the drop rule blocks the same port again and again, so the accept rule does not apply any more: something in front of it changes the traffic, or its interface, address or connection-state condition no longer fits. The traffic that was meant to pass is being blocked.",
+				Evidence: ev,
+				Steps: []string{
+					"Compare the conditions of the accept rule (interface list, addresses, connection state) with a blocked connection on the Firewall page.",
+					"Fix the condition or move the accept rule above whatever matches first, then check that its counter rises and the drop counter stops.",
+				},
+				Commands: "/ip firewall filter print stats where chain=" + drop.Chain + " and (action=accept or action=drop)",
+				Limits:   "Counters are read when the device is probed (about hourly) and restart at 0 after a reboot or counter reset, so a very new rule can look unused. Drops are counted over the last 24 h only.",
+			})
 		}
 	}
 	return out, ""

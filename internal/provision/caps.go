@@ -174,6 +174,11 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 			k.Addresses = append(k.Addresses, a["address"]+" on "+a["interface"])
 		}
 	}
+	for _, a := range get(ctx, c, "/ipv6/address") {
+		if a["disabled"] != "true" && a["address"] != "" {
+			k.Addresses = append(k.Addresses, a["address"]+" on "+a["interface"])
+		}
+	}
 	for _, n := range get(ctx, c, "/ip/firewall/nat") {
 		if n["chain"] == "srcnat" && n["disabled"] != "true" && (n["action"] == "masquerade" || n["action"] == "src-nat") {
 			k.NAT = true

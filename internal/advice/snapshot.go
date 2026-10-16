@@ -52,6 +52,7 @@ type FilterRule struct {
 
 // Caps is what the provisioning probe stored for UI-managed devices; nil for config-file devices.
 type Caps struct {
+	Addresses                  []string // own interface addresses, "ip/mask on iface"
 	Fasttrack, HWOffload       bool
 	FlowSupported, FlowEnabled bool
 	FlowTargets                []string
@@ -155,7 +156,7 @@ type BlockedSrc struct {
 type FwRule struct {
 	Device, Prefix, Chain, Action, Descr string
 	Managed                              bool
-	Hits7d                               int64
+	Hits7d, Hits24h                      int64
 }
 
 // IsPublic: a routable internet address (not LAN, loopback, link-local, multicast or CGNAT).
@@ -175,6 +176,24 @@ func IsPublic(s string) bool {
 		}
 	}
 	return true
+}
+
+// ownPublicIPs: public addresses that belong to the managed routers themselves (WAN / PPPoE interface).
+func ownPublicIPs(s Snapshot) map[string]bool {
+	out := map[string]bool{}
+	for _, d := range s.Devices() {
+		if d.Caps == nil {
+			continue
+		}
+		for _, a := range d.Caps.Addresses {
+			ip, _, _ := strings.Cut(a, " ")
+			ip, _, _ = strings.Cut(ip, "/")
+			if IsPublic(ip) {
+				out[ip] = true
+			}
+		}
+	}
+	return out
 }
 
 // clientIndex maps MAC → client for evidence lines.

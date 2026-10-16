@@ -108,6 +108,7 @@ func (l *Live) Devices() []Device {
 func convCaps(k provision.Caps) *Caps {
 	c := &Caps{Fasttrack: k.Fasttrack, HWOffload: k.HWOffload, FlowSupported: k.Flow.Supported, FlowEnabled: k.Flow.Enabled,
 		FlowTargets: k.Flow.Targets, LogActions: len(k.LogActions), WwwSSL: k.WwwSSL, WwwSSLAddr: k.WwwSSLAddr}
+	c.Addresses = k.Addresses
 	c.DNSRedirectUDP = k.DNSRedirect.UDP && k.DNSRedirect.UDPPackets > 0
 	c.DNSRedirectTCP = k.DNSRedirect.TCP && k.DNSRedirect.TCPPackets > 0
 	for _, f := range k.Filter {
@@ -229,10 +230,11 @@ func (l *Live) FwRules() []FwRule {
 		return nil
 	}
 	hits, _, _ := l.St.FwHits(l.now.Add(-7 * 24 * time.Hour).Unix())
+	hits24, _, _ := l.St.FwHits(l.now.Add(-24 * time.Hour).Unix())
 	out := make([]FwRule, 0, len(rs))
 	for _, r := range rs {
 		out = append(out, FwRule{Device: r.Device, Prefix: r.Prefix, Chain: r.Chain, Action: r.Action, Descr: r.Descr,
-			Managed: r.Managed, Hits7d: hits[[2]string{r.Device, r.Prefix}]})
+			Managed: r.Managed, Hits7d: hits[[2]string{r.Device, r.Prefix}], Hits24h: hits24[[2]string{r.Device, r.Prefix}]})
 	}
 	return out
 }

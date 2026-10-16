@@ -307,8 +307,14 @@ func TestBlockOrigin(t *testing.T) {
 		{IP: "198.51.100.2", Hits: 100, CC: "ZZ", ASN: 64502},
 	}
 	out := expect(t, d, "fw-origin", 2) // country XX (75 %) and AS64500
-	if !strings.Contains(out[0].Commands, "203.0.113.1") || !strings.Contains(out[0].Commands, "/ip firewall raw add") {
-		t.Fatalf("%s", out[0].Commands)
+	for _, s := range out {
+		if strings.HasPrefix(s.Subject, "cc-") {
+			if s.Commands != "" {
+				t.Fatalf("country card must not carry commands: %s", s.Commands)
+			}
+		} else if !strings.Contains(s.Commands, "203.0.113.1") || !strings.Contains(s.Commands, "/ip firewall raw add") {
+			t.Fatalf("%s", s.Commands)
+		}
 	}
 	// spread over many countries: nothing to say
 	d.Blocked = []BlockedSrc{{IP: "203.0.113.1", Hits: 100, CC: "A1", ASN: 1}, {IP: "203.0.113.2", Hits: 100, CC: "B1", ASN: 2},

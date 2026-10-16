@@ -40,11 +40,19 @@ func ruleWeakSignal(s Snapshot) ([]Suggestion, string) {
 	for ap, weak := range byAP {
 		sort.Slice(weak, func(i, j int) bool { return weak[i].Signal < weak[j].Signal })
 		var names []string
+		iot := 0
 		for _, c := range weak {
 			names = append(names, fmt.Sprintf("%s (%d dBm)", c.Display(), c.Signal))
+			if IsIoT24(c) {
+				iot++
+			}
+		}
+		sev := SevTip
+		if iot == len(weak) { // only smart-home gadgets: they cannot move to 5 GHz and are rarely time-critical
+			sev = SevInfo
 		}
 		out = append(out, Suggestion{
-			Subject: ap, Severity: SevTip, Category: CatWifi, Link: "clients", Confidence: "medium",
+			Subject: ap, Severity: sev, Category: CatWifi, Link: "clients", Confidence: "medium",
 			Title: fmt.Sprintf("Some Wi-Fi clients have a weak signal on %s", ap),
 			Why:   "Below about -75 dBm a Wi-Fi link falls back to low speeds, needs many retransmissions and slows down everyone sharing the channel. Streaming, calls and cloud sync of those devices suffer first.",
 			Evidence: []string{
@@ -60,6 +68,21 @@ func ruleWeakSignal(s Snapshot) ([]Suggestion, string) {
 		})
 	}
 	return out, ""
+}
+
+// iotHints: vendor / host name fragments of devices that only speak 2.4 GHz (ESP modules, Shelly, BSH appliances ...).
+var iotHints = []string{"espressif", "shelly", "tuya", "tasmota", "esp-", "esp32", "esp8266", "sonoff", "bsh", "bosch",
+	"neff", "siemens", "miele", "wiz", "yeelight", "lumi", "meross", "smartlife", "hi-flying", "gosund"}
+
+// IsIoT24 reports a device that is very likely a 2.4-GHz-only smart-home gadget (vendor OUI or host name hint).
+func IsIoT24(c Client) bool {
+	h := strings.ToLower(c.Vendor + " " + c.Hostname + " " + c.Label)
+	for _, k := range iotHints {
+		if strings.Contains(h, k) {
+			return true
+		}
+	}
+	return false
 }
 
 func is24(band string) bool {
@@ -94,7 +117,7 @@ func ruleBand24(s Snapshot) ([]Suggestion, string) {
 	}
 	bySSID := map[string][]Client{}
 	for _, c := range cls {
-		if c.SSID == "" || !is24(c.Band) || !has5[c.SSID] {
+		if c.SSID == "" || !is24(c.Band) || !has5[c.SSID] || IsIoT24(c) {
 			continue
 		}
 		if c.Signal != 0 && c.Signal < -70 { // weak devices are often better off on 2.4 GHz
