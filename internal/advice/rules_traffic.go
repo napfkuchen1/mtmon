@@ -117,6 +117,9 @@ func ruleChatty(s Snapshot) ([]Suggestion, string) {
 		if isInfra(infra, idx, t.MAC) {
 			continue // routers and APs talk a lot by design (DNS, NTP, management); that is not client behaviour
 		}
+		if c, ok := idx[t.MAC]; ok && isServerLike(c) {
+			continue // servers (Home Assistant, proxies, tunnels) are not comparable with a typical client
+		}
 		name := nameOf(idx, t.MAC)
 		out = append(out, Suggestion{
 			Subject: t.MAC, Severity: SevInfo, Category: CatHygiene, Link: "client/" + t.MAC, Confidence: "medium",
@@ -134,6 +137,20 @@ func ruleChatty(s Snapshot) ([]Suggestion, string) {
 	return out, ""
 }
 
+var serverHints = []string{"homeassistant", "home-assistant", "proxy", "traefik", "cloudflared", "pihole", "adguard", "docker",
+	"proxmox", "pve", "nas", "qnap", "synology", "server", "grafana", "ntopng", "mtmon"}
+
+// isServerLike: host name or label suggests an always-on server role.
+func isServerLike(c Client) bool {
+	h := strings.ToLower(c.Hostname + " " + c.Label)
+	for _, k := range serverHints {
+		if strings.Contains(h, k) {
+			return true
+		}
+	}
+	return false
+}
+
 // infraAddrs: management addresses of the monitored devices (host part only).
 func infraAddrs(s Snapshot) map[string]bool {
 	m := map[string]bool{}
@@ -144,6 +161,15 @@ func infraAddrs(s Snapshot) map[string]bool {
 		}
 		if h != "" {
 			m[h] = true
+		}
+		if d.Caps != nil { // the router's own interface addresses (LAN gateway, WireGuard, VLANs ...)
+			for _, a := range d.Caps.Addresses {
+				ip, _, _ := strings.Cut(a, " ")
+				ip, _, _ = strings.Cut(ip, "/")
+				if ip != "" {
+					m[ip] = true
+				}
+			}
 		}
 	}
 	return m

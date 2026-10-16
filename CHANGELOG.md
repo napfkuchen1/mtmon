@@ -8,6 +8,21 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.15.1] - 2026-10-16
+
+### Fixed
+- **Rule regression tip** no longer fires when a second accept rule in front of the drop rule does match (for example the WireGuard exception next to the real accept rule). It needs at least 50 drops in 24 hours and names the rule comments.
+- **Firewall log:** destination-NAT log lines (`NAT src->(dst->dst)`) were counted as "unreadable"; they are parsed now.
+- **Firewall page** opened empty for seconds on long ranges; the summary is cached for 30 seconds.
+- **API:** unknown `/api/...` paths answer `404` as JSON instead of the UI page with status 200.
+
+### Changed
+- **Blocked origins:** packets whose sender is your own public address get their own card (hairpin, loop or spoofing) instead of "late replies". Every address is checked for LAN contact before a raw-drop command is suggested; the country card shows no commands.
+- **Suggestions:** `chatty` ignores the routers' own addresses (WireGuard, IPv6) and servers such as Home Assistant or proxies; `band-24` skips smart-home devices (ESP, Shelly, Bosch/Neff …) and weak signal of such devices is only a note; `fw-nolog` shows the rule counters and, for isolation rules, suggests a rate-limited log-only rule instead of logging every drop.
+- **Alerts:** devices that fail together are one alert ("mtmon cannot reach N devices"), and the cause (timeout or refused) is named. A WAN drop at the same time on three earlier days is a note instead of a warning. A traffic spike needs 100 Mbit/s at once or 5 minutes of duration, is only a note when one known client causes it, and alerts at most once per client and day.
+- **API tokens:** `GET /api/me` with a token returns its name and `"scope":"read"`; the README and the token list say that tokens are read-only.
+- Router probe also reads IPv6 addresses.
+
 ## [0.15.0] - 2026-10-09
 
 ### Added

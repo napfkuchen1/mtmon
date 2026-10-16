@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/smtp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -34,13 +35,19 @@ type Engine struct {
 	cpuHigh  map[string]int
 	baseline float64
 	lastWAN  time.Time // last WAN uplink down/up event (used to explain follow-up findings)
-	hc       *http.Client
-	Notify   func(store.Alert) // test hook
+	// offline devices wait offGroupDelay for companions, so a shared cause (mtmon's own link, a switch) is one alert
+	pendingOff    map[string]string
+	offTimer      *time.Timer
+	offGroupDelay time.Duration
+	spikeRun      int
+	spikeDay      map[string]string // client -> day of its last traffic_spike alert
+	hc            *http.Client
+	Notify        func(store.Alert) // test hook
 }
 
 func New(c *config.Config, s *store.Store, h *live.Hub, log *slog.Logger) *Engine {
 	return &Engine{Cfg: c, St: s, Hub: h, Log: log, start: time.Now(), last: map[string]time.Time{},
-		devUp: map[string]bool{}, ifDown: map[string]time.Time{}, wan: map[string]*wanState{}, cpuHigh: map[string]int{}, hc: &http.Client{Timeout: 8 * time.Second}}
+		devUp: map[string]bool{}, pendingOff: map[string]string{}, offGroupDelay: 5 * time.Second, spikeDay: map[string]string{}, ifDown: map[string]time.Time{}, wan: map[string]*wanState{}, cpuHigh: map[string]int{}, hc: &http.Client{Timeout: 8 * time.Second}}
 }
 
 // Raise stores and delivers an alert unless the same kind|subject fired within cooldown.
@@ -85,11 +92,20 @@ func (e *Engine) DeviceState(name string, up bool, errMsg string, cpu, temp floa
 		}
 	}
 	high := e.cpuHigh[name]
+	queued := false
+	wasPending := false
+	if up {
+		_, wasPending = e.pendingOff[name]
+		delete(e.pendingOff, name)
+	} else if !seen || prev {
+		e.pendingOff[name] = errMsg
+		queued = true
+	}
 	e.mu.Unlock()
 	switch {
-	case !up && (!seen || prev):
-		e.Raise("device_offline", name, "critical", fmt.Sprintf("%s unreachable: %s", name, errMsg), time.Minute)
-	case up && seen && !prev:
+	case queued:
+		e.queueOffline()
+	case up && seen && !prev && !wasPending: // came back before the offline alert went out: nothing to undo
 		e.Raise("device_online", name, "info", name+" is back online", time.Minute)
 	}
 	if up && high >= 3 {
@@ -98,6 +114,66 @@ func (e *Engine) DeviceState(name string, up bool, errMsg string, cpu, temp floa
 	if up && temp >= 80 {
 		e.Raise("temp_high", name, "warning", fmt.Sprintf("%s temperature %.0f°C", name, temp), 30*time.Minute)
 	}
+}
+
+// reachReason names why a poll failed in one word: a timeout (nothing answers, usually the path or the device is
+// down) differs from a refused connection (the device answers but the API service does not).
+func reachReason(msg string) string {
+	m := strings.ToLower(msg)
+	switch {
+	case strings.Contains(m, "timeout") || strings.Contains(m, "deadline") || strings.Contains(m, "no route") || strings.Contains(m, "unreachable"):
+		return "timeout"
+	case strings.Contains(m, "refused"):
+		return "refused"
+	case strings.Contains(m, "authentication"):
+		return "auth"
+	}
+	return "error"
+}
+
+// queueOffline collects devices that just went offline; after offGroupDelay they are reported together.
+func (e *Engine) queueOffline() {
+	if e.offGroupDelay <= 0 {
+		e.flushOffline()
+		return
+	}
+	e.mu.Lock()
+	if e.offTimer == nil {
+		e.offTimer = time.AfterFunc(e.offGroupDelay, e.flushOffline)
+	}
+	e.mu.Unlock()
+}
+
+func (e *Engine) flushOffline() {
+	e.mu.Lock()
+	pend := e.pendingOff
+	e.pendingOff = map[string]string{}
+	e.offTimer = nil
+	for n := range pend {
+		e.devUp[n] = false
+	}
+	e.mu.Unlock()
+	if len(pend) == 0 {
+		return
+	}
+	if len(pend) == 1 {
+		for n, msg := range pend {
+			e.Raise("device_offline", n, "critical", fmt.Sprintf("%s unreachable: %s (%s)", n, msg, reachReason(msg)), time.Minute)
+		}
+		return
+	}
+	names := make([]string, 0, len(pend))
+	reasons := map[string]int{}
+	for n, msg := range pend {
+		names = append(names, n)
+		reasons[reachReason(msg)]++
+	}
+	sort.Strings(names)
+	hint := "several devices failing together point to a shared cause (the link between mtmon and the network, a switch or power), not to each device"
+	if reasons["refused"] == len(pend) {
+		hint = "all answer but refuse the API connection: check the API service / firewall on the devices"
+	}
+	e.Raise("devices_unreachable", "group", "warning", fmt.Sprintf("mtmon cannot reach %d devices: %s – %s", len(pend), strings.Join(names, ", "), hint), 5*time.Minute)
 }
 
 // dynamicPrefixes name interfaces that RouterOS creates and removes by itself (tunnels, CAP/CAPsMAN, virtual
@@ -148,6 +224,42 @@ func fmtDur(d time.Duration) string {
 }
 
 // wanState bundles uplink interfaces: one alert when the first goes down, one when the last is back, with duration.
+// recurMinDays: earlier days with a WAN drop at the same time of day before a drop counts as recurring.
+const recurMinDays = 3
+
+// recurringWAN counts the earlier days on which this device's WAN dropped within ±5 minutes of now's time of day
+// (from the stored alert history, so it survives restarts) and returns the clock time for the message.
+func (e *Engine) recurringWAN(device string, now time.Time) (int, string) {
+	as, err := e.St.Alerts(2000)
+	if err != nil {
+		return 0, ""
+	}
+	mod := func(t time.Time) int { return t.Hour()*60 + t.Minute() }
+	today := now.Format("2006-01-02")
+	days := map[string]bool{}
+	for _, a := range as {
+		if a.Kind != "wan_down" || a.Subject != device {
+			continue
+		}
+		t := time.Unix(a.TS, 0).In(now.Location())
+		d := t.Format("2006-01-02")
+		if d == today {
+			continue
+		}
+		diff := mod(t) - mod(now)
+		if diff < 0 {
+			diff = -diff
+		}
+		if diff > 720 {
+			diff = 1440 - diff
+		}
+		if diff <= 5 {
+			days[d] = true
+		}
+	}
+	return len(days), now.Format("15:04")
+}
+
 func (e *Engine) wanEvent(device, iface string, running bool) {
 	now := time.Now()
 	e.mu.Lock()
@@ -165,7 +277,12 @@ func (e *Engine) wanEvent(device, iface string, running bool) {
 		}
 		e.mu.Unlock()
 		if first {
-			e.Raise("wan_down", device, "warning", fmt.Sprintf("WAN link on %s went down (%s)", device, iface), time.Minute)
+			sev, msg := "warning", fmt.Sprintf("WAN link on %s went down (%s)", device, iface)
+			if n, at := e.recurringWAN(device, now); n >= recurMinDays {
+				sev = "info"
+				msg += fmt.Sprintf(" – recurring: the same drop happened on %d earlier days around %s, probably scheduled (provider reconnect, router scheduler)", n, at)
+			}
+			e.Raise("wan_down", device, sev, msg, time.Minute)
 		}
 		return
 	}
@@ -286,6 +403,7 @@ func (e *Engine) scanMsg(s store.ScanSuspect) string {
 // ignored client (backup, scanner) is dropped.
 func (e *Engine) spike(snap live.Snapshot, cur, base float64) {
 	msg := fmt.Sprintf("Traffic spike: %.1f Mbit/s (baseline %.1f)", cur/1e6, base/1e6)
+	sev, subject := "warning", "total"
 	if len(snap.Clients) > 0 {
 		top := snap.Clients[0]
 		if e.ignored(top.Key) {
@@ -293,6 +411,19 @@ func (e *Engine) spike(snap live.Snapshot, cur, base float64) {
 		}
 		r := (top.UpBps + top.DownBps) / 1e6
 		msg += fmt.Sprintf(" – mostly %s (%.1f Mbit/s)", e.who(top.Key), r)
+		subject = top.Key
+		if r*1e6 >= 0.8*cur && e.knownClient(top.Key) {
+			sev = "info" // one long-known device (backup, update, stream) explains almost everything: worth a note, not a warning
+			msg += " – one known client causes the load, probably a download, backup or stream"
+		}
+		day := time.Now().Format("2006-01-02")
+		e.mu.Lock()
+		if e.spikeDay[top.Key] == day {
+			e.mu.Unlock()
+			return // at most one spike alert per client and day
+		}
+		e.spikeDay[top.Key] = day
+		e.mu.Unlock()
 		if ip, host, b := e.St.TopRemote(top.Key, time.Now().Unix()-120); b > 0 {
 			if host != "" {
 				ip = host + " / " + ip
@@ -300,7 +431,16 @@ func (e *Engine) spike(snap live.Snapshot, cur, base float64) {
 			msg += " ↔ " + ip
 		}
 	}
-	e.Raise("traffic_spike", "total", "warning", msg, time.Hour)
+	e.Raise("traffic_spike", subject, sev, msg, time.Hour)
+}
+
+// knownClient: the client was first seen more than 24 h ago (a new device doing a lot of traffic stays a warning).
+func (e *Engine) knownClient(mac string) bool {
+	var first int64
+	if err := e.St.DB.QueryRow(`SELECT first_seen FROM clients WHERE mac=?`, mac).Scan(&first); err != nil {
+		return false
+	}
+	return first > 0 && time.Now().Unix()-first > 86400
 }
 
 // Checks runs traffic-spike, port-scan and rogue-DNS detection once.
@@ -317,7 +457,16 @@ func (e *Engine) Checks() {
 	base := e.baseline
 	e.baseline = e.baseline*0.97 + cur*0.03
 	e.mu.Unlock()
+	// a spike needs to be big (>= 100 Mbit/s at once) or to last (> 20 Mbit/s and 5x the baseline for 5 checks in a row)
+	e.mu.Lock()
 	if cur > 20e6 && cur > 5*base {
+		e.spikeRun++
+	} else {
+		e.spikeRun = 0
+	}
+	run := e.spikeRun
+	e.mu.Unlock()
+	if run > 0 && (cur >= 100e6 || run >= 5) {
 		e.spike(snap, cur, base)
 	}
 	ports, hosts := e.Cfg.PortScanPorts, e.Cfg.PortScanHosts

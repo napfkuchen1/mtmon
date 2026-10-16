@@ -52,6 +52,13 @@ func (s *Store) DeleteToken(id int64) error {
 	return err
 }
 
+// TokenName returns the name of the token with this hash ("" if none).
+func (s *Store) TokenName(hash string) string {
+	var n string
+	s.DB.QueryRow(`SELECT name FROM api_tokens WHERE hash=?`, hash).Scan(&n)
+	return n
+}
+
 // TokenValid reports whether a token with this hash exists and records its use (at most once a minute).
 func (s *Store) TokenValid(hash string) bool {
 	var id, last int64

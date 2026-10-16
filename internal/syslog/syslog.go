@@ -37,7 +37,7 @@ var (
 	reMsg   = regexp.MustCompile(`^(?:(.*?)\s+)?([\w-]+): in:([^\s,]+) out:([^,]+),\s*` +
 		`(?:connection-state:(\S+)\s+)?(?:src-mac ([0-9A-Fa-f:]{17}),\s*)?` +
 		`proto ([\w-]+)(?: \(([^)]*)\))?,\s*` +
-		`(\S+?)(?::(\d+))?->(\S+?)(?::(\d+))?(?:,\s*NAT \(([^)]*)\)->\S+)?,\s*len (\d+)`)
+		`(\S+?)(?::(\d+))?->(\S+?)(?::(\d+))?(?:,\s*NAT (?:\(([^)]*)\)->\S+|\S+?->\(([^)]*)\)))?,\s*len (\d+)`)
 )
 
 // ParseFirewall extracts a firewall log event from one syslog payload (any RouterOS syslog flavour:
@@ -54,9 +54,12 @@ func ParseFirewall(msg string) (Event, bool) {
 	}
 	e := Event{Prefix: strings.TrimSpace(m[1]), Chain: m[2], InIf: m[3], OutIf: strings.TrimSpace(m[4]), CState: m[5],
 		MAC: strings.ToUpper(m[6]), Proto: m[7], Flags: m[8], Src: m[9], Dst: m[11], NAT: m[13]}
+	if e.NAT == "" {
+		e.NAT = m[14] // dst-nat lines read "NAT src->(translated dst->original dst)"
+	}
 	e.SPort, _ = strconv.Atoi(m[10])
 	e.DPort, _ = strconv.Atoi(m[12])
-	e.Len, _ = strconv.Atoi(m[14])
+	e.Len, _ = strconv.Atoi(m[15])
 	return e, true
 }
 
