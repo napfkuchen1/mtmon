@@ -621,13 +621,8 @@ func (s *Server) setup(w http.ResponseWriter, r *http.Request) {
 		"mtmon_ip": ip, "flow_port": port,
 		"flow": "/ip traffic-flow set enabled=yes interfaces=all cache-entries=16k active-flow-timeout=30s inactive-flow-timeout=15s\n" +
 			"/ip traffic-flow target add dst-address=" + ip + " port=" + port + " version=ipfix",
-		"api_user": "/user group add name=mtmon-ro policy=read,api,rest-api,!local,!telnet,!ssh,!ftp,!reboot,!write,!policy,!test,!winbox,!password,!web,!sniff,!sensitive,!romon\n" +
-			"/user add name=mtmon group=mtmon-ro password=CHANGE_ME address=" + ip + "/32",
-		"rest_tls": "/certificate add name=mtmon-ca common-name=mtmon-ca days-valid=3650 key-usage=key-cert-sign,crl-sign\n" +
-			"/certificate sign mtmon-ca\n" +
-			"/certificate add name=mtmon-ssl common-name=<ROUTER-IP> subject-alt-name=IP:<ROUTER-IP> days-valid=3650 key-usage=digital-signature,key-encipherment,tls-server\n" +
-			"/certificate sign mtmon-ssl ca=mtmon-ca\n" +
-			"/ip service set www-ssl certificate=mtmon-ssl disabled=no available-from=" + ip + "/32",
+		"api_user": apiUserSnippet(ip, randomPassword(20)),
+		"rest_tls": restTLSSnippet(cleanRouterIP(r.URL.Query().Get("router")), ip),
 		"fasttrack": "Traffic-Flow only sees traffic that is processed by the router CPU (MikroTik docs: hardware-offloaded traffic, e.g. bridge HW offload/switch-chip forwarding, is not exported). " +
 			"FastTrack-ed connections also bypass most of the packet path, so their flows can be missing or incomplete (community-reported; verify on your router). " +
 			"Check: /ip firewall filter print where action=fasttrack-connection  and  /interface bridge port print (hw=yes). " +

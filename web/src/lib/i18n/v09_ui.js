@@ -18,4 +18,5 @@ export default {
   "End maintenance": "Wartung beenden", "{n} min": "{n} Min.", "{n} h": "{n} Std.",
   "Root": "Wurzel", "Automatic": "Automatisch",
   "The top of the tree. Automatic = the router that does NAT and DHCP.": "Die Spitze des Baums. Automatisch = der Router, der NAT und DHCP macht.",
+  "Enter the router address above to get the commands.": "Router-Adresse oben eingeben, dann erscheinen die Befehle.",
 }

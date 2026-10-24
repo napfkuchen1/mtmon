@@ -18,19 +18,21 @@
   let open = $state({})               // expanded plan steps
 
   // --- requirements checklist (shown before connecting) ---
-  const rIP = $derived(f.addr.trim() || '<ROUTER-IP>')
   // RouterOS takes an address here, not a host name: use the address the server sees (the page may be reached via a public name)
   let mtIP = $state('')
   api('/setup').then(x => { mtIP = x?.mtmon_ip || '' }).catch(() => {})
   const isIP = h => /^(\d{1,3}\.){3}\d{1,3}$/.test(h)
   const mIP = $derived(isIP(mtIP) ? mtIP : typeof location !== 'undefined' && isIP(location.hostname) ? location.hostname : '<MTMON-IP>')
+  // the commands come from the server (one source with the Router setup card); the router address goes into the certificate
+  let tls = $state('')
+  $effect(() => {
+    const a = f.addr.trim()
+    const tm = setTimeout(() => { api('/setup' + (isIP(a) ? '?router=' + encodeURIComponent(a) : '')).then(x => { tls = x?.rest_tls || '' }).catch(() => {}) }, 300)
+    return () => clearTimeout(tm)
+  })
   const reqs = $derived([
     { id: 'cert', title: t('HTTPS service www-ssl with certificate'), why: t('mtmon talks to the REST API over HTTPS (port 443). Without a certificate the TLS handshake fails (“tls: handshake failure”).'),
-      cmd: `/certificate add name=mtmon-ca common-name=mtmon-ca days-valid=3650 key-usage=key-cert-sign,crl-sign
-/certificate sign mtmon-ca
-/certificate add name=mtmon-ssl common-name=${rIP} subject-alt-name=IP:${rIP} days-valid=3650 key-usage=digital-signature,key-encipherment,tls-server
-/certificate sign mtmon-ssl ca=mtmon-ca
-/ip service set www-ssl certificate=mtmon-ssl disabled=no available-from=<LAN-NETZ>/24` },
+      cmd: tls || t('Enter the router address above to get the commands.') },
     { id: 'fw', title: t('Firewall: allow mtmon to reach the router'), why: t('If the router has a “drop all not from LAN” rule (input chain), mtmon must be allowed before it. Move the rule to the top.'),
       cmd: `/ip firewall filter add chain=input action=accept protocol=tcp dst-port=443 src-address=${mIP} comment="mtmon REST" place-before=0` },
     { id: 'user', title: t('Admin access for the setup'), why: t('One-time login with group full (or write + api + rest-api + policy). mtmon creates its own read-only user and does not store the admin login.'),
