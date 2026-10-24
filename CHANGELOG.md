@@ -8,6 +8,35 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.17.0] - 2026-10-24
+
+### New
+- **Router event log:** with the new feature "Router event log" the router sends system, account, DHCP, Wi-Fi, WireGuard and script lines to mtmon. The device page shows them (kept 7 days) with a level filter and a search. Repeating patterns (login failures, link flaps) raise one alert instead of many.
+- **Wi-Fi history:** signal and rate per client are kept per hour. The client page shows roaming and band changes, the AP page shows the clients per band, and the "weak signal" suggestion now looks at the last 24 hours instead of a single reading.
+- **Client groups:** put clients into groups (for example *IoT* or *Guests*). A group can switch off new-device alerts, raise the limit for "many connections", show traffic spikes as info, ignore a weak Wi-Fi signal and watch its members by default. Ungrouped clients get a group suggested. The Clients page can be filtered by group.
+- **Watched clients:** mark an important client (for example the intercom) and get an alert when it stays offline, and an info when it is back.
+- **Internet quality:** mtmon measures loss and latency to a few internet targets from its own host. One warning when the connection is poor for a whole window, one info when it is good again. The Overview shows the current values. Probing can be switched off.
+- **More suggestions:** age of the newest backup or export per router, pending RouterOS update, CAPsMAN and AP running different versions, expiring service certificate, idle VPN peers.
+- **mtmon looks after itself:** memory, CPU, free disk space and database growth are shown under System. A suggestion warns before the disk is full.
+- **Learning period:** after a data reset or an update that changes detection, mtmon marks its suggestions as provisional for 24 hours and rebuilds its learned levels from scratch. A button in Settings starts the period by hand.
+
+### Changed
+- **Alerts:** one story per device reboot. The link-down of the port behind it is folded into the device's alert, which is closed as info when the device is back. Spikes that repeat at the same time of day (a speed test) are info, not warning.
+- **Suggestions:** fewer repeats. Late replies from blocked origins are one suggestion, recurring spikes are not repeated.
+- **New-client alerts:** choose whether unknown devices, all devices or none raise an alert.
+- **Setup wizard:** the traffic-flow snippet can be run twice, and the `www-ssl` allow list is no longer replaced.
+- Fewer duplicated views in the UI; README and screenshots are current (`make screenshots`).
+
+### Fixed
+- Wired clients behind an unmanaged switch on an uplink port were missing or placed on the wrong device.
+- The upstream modem on the WAN port was shown as a LAN client.
+- The rate limit now counts the real client behind a reverse proxy instead of locking everyone out together.
+- The client page crashed on duplicate rows in the connections table.
+- IPv6 and bare-address tunnel traffic is attributed to the VPN client.
+- Top lists and suggestions no longer lead to an "unknown client".
+- The device API never returns `null` lists, zero times or a stale "managed" warning.
+- Services, Overview and the firewall summary are much faster on large databases.
+
 ## [0.16.0] - 2026-10-24
 
 ### New
