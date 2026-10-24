@@ -86,6 +86,8 @@ type Device struct {
 	AvgCPU, MaxCPU           float64
 	AvgMem, MaxMem           float64
 	HighCPUFrac, HighMemFrac float64
+	MemTrend                 float64 // RAM % of the 2nd half of the window minus the 1st half
+	MinFreeMiB               float64 // smallest free RAM in the window, 0 = unknown
 	Firmware, FirmwareUpg    string
 	FlowKnown                bool  // collector could be asked about this device
 	FlowLast                 int64 // last flow packet (unix), 0 = never since mtmon started

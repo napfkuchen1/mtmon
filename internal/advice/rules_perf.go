@@ -14,6 +14,8 @@ const (
 	SustainedFrac  = 0.8  // share of samples above the threshold that counts as "sustained"
 	MinSamples     = 30   // 1-minute samples needed to trust the history (30 min)
 	MetricWindowHr = 6
+	MemTrendRise   = 5.0  // RAM % points the 2nd half of the window may exceed the 1st before "high" counts as a problem
+	MemFreeFloor   = 16.0 // MiB of free RAM below which high usage is a problem on its own
 )
 
 func ruleRAM(s Snapshot) ([]Suggestion, string) { return loadRule(s, "ram") }
@@ -55,6 +57,20 @@ func loadRule(s Snapshot, kind string) ([]Suggestion, string) {
 		switch {
 		case d.Samples >= MinSamples && frac >= SustainedFrac:
 			sg.Severity = SevWarning
+			stable := ""
+			if kind == "ram" {
+				// Small APs (e.g. wAP ax, 256 MiB) sit at 85-90 % in normal operation: only a rising trend or an almost empty RAM is a problem.
+				if d.MinFreeMiB >= MemFreeFloor && d.MemTrend < MemTrendRise {
+					sg.Severity = SevInfo
+					sg.Title = fmt.Sprintf("%s runs with high but stable memory use", d.Name)
+					sg.Why = "Many small access points sit at 85-90 % RAM in normal operation (the wireless package alone needs a lot). Memory use is not rising and enough RAM stays free, so this is most likely normal. It only becomes a problem if the usage keeps climbing over days or the device restarts unexpectedly."
+					stable = fmt.Sprintf("Stable: %+.1f points between the first and second half of the window, at least %.0f MiB free", d.MemTrend, d.MinFreeMiB)
+				} else if d.MinFreeMiB > 0 && d.MinFreeMiB < MemFreeFloor {
+					stable = fmt.Sprintf("Only %.0f MiB of RAM stayed free (limit %.0f MiB)", d.MinFreeMiB, MemFreeFloor)
+				} else if d.MemTrend >= MemTrendRise {
+					stable = fmt.Sprintf("Memory use is rising: %+.1f points between the first and second half of the window", d.MemTrend)
+				}
+			}
 			avgFmt := "CPU averaged %s%% over the last %d h (peak %s%%, %d samples)"
 			if kind == "ram" {
 				avgFmt = "Memory averaged %s%% over the last %d h (peak %s%%, %d samples)"
@@ -62,6 +78,9 @@ func loadRule(s Snapshot, kind string) ([]Suggestion, string) {
 			sg.Evidence = []string{
 				fmt.Sprintf(avgFmt, pct(avg), MetricWindowHr, pct(max), d.Samples),
 				fmt.Sprintf("%s%% of the samples were above %s%%", pct(frac*100), pct(thr)),
+			}
+			if stable != "" {
+				sg.Evidence = append(sg.Evidence, stable)
 			}
 			sg.Confidence = "high"
 		case d.Samples < MinSamples && d.Up && d.LiveOK && cur > thr:

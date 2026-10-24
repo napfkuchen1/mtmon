@@ -78,6 +78,7 @@ func (l *Live) Devices() []Device {
 			d.Samples, d.AvgCPU, d.MaxCPU, d.AvgMem, d.MaxMem = m.N, m.AvgCPU, m.MaxCPU, m.AvgMem, m.MaxMem
 			d.HighCPUFrac = float64(m.HighCPU) / float64(m.N)
 			d.HighMemFrac = float64(m.HighMem) / float64(m.N)
+			d.MemTrend, d.MinFreeMiB = m.MemTrend, float64(m.MinFreeMem)/(1<<20)
 		}
 		var info struct{ Firmware, Upgrade string }
 		if json.Unmarshal(st.Info, &info) == nil {
