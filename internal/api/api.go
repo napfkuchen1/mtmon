@@ -328,7 +328,7 @@ func (s *Server) deviceDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	var caps json.RawMessage
 	if row, _ := s.St.DeviceRow(name); row != nil {
-		caps = row.Caps
+		caps = cleanCaps(row.Caps, dev.Managed)
 	}
 	rules, _ := s.St.FwRules()
 	fwOn := false
