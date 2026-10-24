@@ -58,6 +58,15 @@ func (s *Server) adviceResult(force bool) advice.Result {
 		}
 	}
 	s.adv.res = advice.Evaluate(l)
+	if s.St.LearningUntil() > 0 { // judged against baselines that are still filling up: record, do not alarm
+		for i := range s.adv.res.Items {
+			switch s.adv.res.Items[i].Rule {
+			case "chatty", "dominant-client", "upload-heavy":
+				s.adv.res.Items[i].Learning = true
+				s.adv.res.Items[i].Severity = advice.SevInfo
+			}
+		}
+	}
 	s.adv.at = time.Now()
 	return s.adv.res
 }

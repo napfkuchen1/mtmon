@@ -17,6 +17,10 @@
   async function saveNewClient(v) {
     try { const x = await api('/alert-settings', { method: 'PUT', body: { new_client: v } }); newClient = x.new_client; toast(t('Saved')) } catch (e) { toast(tr(e.message)) }
   }
+  async function resetBaselines() {
+    if (!confirm(t('Reset the learned baselines and start a 24 h learning period?'))) return
+    try { await api('/learning/reset', { method: 'POST', body: { hours: 24 } }); toast(t('Learning period started')) } catch (e) { toast(tr(e.message)) }
+  }
   // --- access: port, public URL (reverse proxy), nginx snippet, restart
   let acc = $state(null), accPort = $state(''), accUrl = $state(''), accBusy = $state(false), accErr = $state(''), restarting = $state(false)
   async function loadAcc() { try { acc = await api('/access'); accPort = acc.port_override || ''; accUrl = acc.public_url || '' } catch (e) { accErr = e.message } }
@@ -236,6 +240,7 @@
 
 <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Reset')}</h2></div>
   <table><tbody>
+    <tr><td>{t('Reset baselines only')}<div class="muted" style="font-size:12px">{t('Forgets the learned traffic level and recurring patterns and starts a 24 h learning period (alerts about spikes are only recorded as info). Flows, clients, alerts and dismissed suggestions stay.')}</div></td><td class="r"><button class="btn" onclick={resetBaselines}>{t('Reset baselines…')}</button></td></tr>
     <tr><td>{t('Reset history')}<div class="muted" style="font-size:12px">{t('Start clean: traffic, clients, alerts, firewall log and metrics are emptied. Devices and settings stay.')}</div></td><td class="r"><button class="btn" onclick={() => (reset = 'data')}>{t('Reset history…')}</button></td></tr>
     <tr><td>{t('Full reset (including devices)')}<div class="muted" style="font-size:12px">{t('Also removes the devices added in the web UI. Settings and API tokens stay.')}</div></td><td class="r"><button class="btn" onclick={() => (reset = 'full')}>{t('Full reset…')}</button></td></tr>
   </tbody></table></div>

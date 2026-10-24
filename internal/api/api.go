@@ -32,23 +32,24 @@ import (
 )
 
 type Server struct {
-	DiskFn  func(dir string) (free, total int64, ok bool) // nil: the real file system (tests)
-	cpu     sysinfo.CPU
-	fwMu    sync.Mutex
-	fwCache map[string]fwCacheEntry
-	Cfg     *config.Config
-	St      *store.Store
-	Hub     *live.Hub
-	En      *enrich.Enricher
-	Col     *flow.Collector
-	Pipe    *live.Pipeline
-	UI      fs.FS // embedded web/dist (may be nil in tests)
-	Version string
-	Started time.Time
-	sess    *sessions
-	mux     *http.ServeMux
-	up      websocket.Upgrader
-	TLS     bool
+	DiskFn        func(dir string) (free, total int64, ok bool) // nil: the real file system (tests)
+	cpu           sysinfo.CPU
+	fwMu          sync.Mutex
+	fwCache       map[string]fwCacheEntry
+	Cfg           *config.Config
+	St            *store.Store
+	Hub           *live.Hub
+	En            *enrich.Enricher
+	Col           *flow.Collector
+	Pipe          *live.Pipeline
+	UI            fs.FS // embedded web/dist (may be nil in tests)
+	Version       string
+	Started       time.Time
+	sess          *sessions
+	mux           *http.ServeMux
+	up            websocket.Upgrader
+	TLS           bool
+	ResetBaseline func() // forget learned traffic levels in the alert engine (set by main)
 
 	Box     *secret.Box        // credential encryption (nil in tests that do not use device management)
 	Mgr     *poller.Manager    // device workers; Reload() after device changes
@@ -295,6 +296,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonOut(w, map[string]any{
 		"range": rn, "bytes_up": up, "bytes_down": down, "flows": flows, "prev": prev,
+		"learning_until": s.St.LearningUntil(),
 		"clients_online": on, "clients_total": total, "watched_total": watched, "watched_online": watchedOn,
 		"devices_up": du, "devices_total": len(s.Cfg.AllDevices()), "alerts_open": s.St.OpenAlerts(),
 		"series":        series,
