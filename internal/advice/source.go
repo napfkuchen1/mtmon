@@ -121,6 +121,11 @@ func convCaps(k provision.Caps) *Caps {
 	c.Addresses = k.Addresses
 	c.ProbedAt = k.ProbedAt
 	c.FilesReadable, c.NewestBackup, c.NewestExport = k.Files.Readable, k.Files.NewestBackup, k.Files.NewestExport
+	c.UpdateInstalled, c.UpdateLatest, c.UpdateChannel = k.Update.Installed, k.Update.Latest, k.Update.Channel
+	c.CAP, c.CAPsMAN = k.CAP, k.CAPsMAN
+	for _, x := range k.Certs {
+		c.Certs = append(c.Certs, Cert{Name: x.Name, Service: x.Service, Expires: x.Expires})
+	}
 	c.DNSRedirectUDP = k.DNSRedirect.UDP && k.DNSRedirect.UDPPackets > 0
 	c.DNSRedirectTCP = k.DNSRedirect.TCP && k.DNSRedirect.TCPPackets > 0
 	for _, f := range k.Filter {

@@ -79,7 +79,7 @@ var Rules = []Rule{
 	{"dns-bypass", ruleDNSBypass}, {"dns-doh", ruleDoH},
 	{"dominant-client", ruleDominant}, {"upload-heavy", ruleUploadHeavy}, {"chatty", ruleChatty},
 	{"flow-disabled", ruleFlowDisabled}, {"flow-silent", ruleFlowSilent}, {"no-syslog", ruleNoSyslog},
-	{"static-lease", ruleStaticLease}, {"stale-clients", ruleStaleClients}, {"mtmon-disk", ruleMtmonDisk}, {"backup-age", ruleBackupAge},
+	{"static-lease", ruleStaticLease}, {"stale-clients", ruleStaleClients}, {"mtmon-disk", ruleMtmonDisk}, {"backup-age", ruleBackupAge}, {"routeros-update", ruleRouterOSUpdate}, {"capsman-version", ruleCapsmanVersion}, {"cert-expiry", ruleCertExpiry},
 }
 
 // Evaluate runs every rule (a panicking rule is reported as skipped, never fatal) and sorts the result:

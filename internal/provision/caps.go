@@ -86,6 +86,22 @@ type Caps struct {
 	Managed     bool     `json:"already_managed"`     // carries mtmon-managed objects from an earlier setup
 	ProbedAt    int64    `json:"probed_at,omitempty"` // unix time the router was read
 	Files       Files    `json:"files"`               // newest backup / export file (read-only /file listing)
+	Certs       []Cert   `json:"certs"`               // certificates that services use (www-ssl, api-ssl) and when they expire
+	Update      Update   `json:"update"`              // RouterOS update state as the router last checked
+}
+
+// Cert is a certificate a router service uses; Expires is a unix time (0 = unknown).
+type Cert struct {
+	Name    string `json:"name"`
+	Service string `json:"service"`
+	Expires int64  `json:"expires"`
+}
+
+// Update is the result of the router's last "check for updates" (RouterOS only fills it after such a check).
+type Update struct {
+	Channel   string `json:"channel,omitempty"`
+	Installed string `json:"installed,omitempty"`
+	Latest    string `json:"latest,omitempty"`
 }
 
 const ManagedTag = "mtmon-managed"
@@ -126,6 +142,7 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 		CPUCount: r.Int("cpu-count"), MemTotal: r.Int("total-memory"), IfaceTypes: map[string]int{}, ProbedAt: time.Now().Unix()}
 	k.Packages, k.WifiIfs, k.Bridges, k.Addresses, k.LogActions, k.Filter, k.Warnings = []string{}, []WifiIf{}, []string{}, []string{}, []string{}, []FilterRule{}, []string{}
 	k.Flow.Targets = []string{}
+	k.Certs = []Cert{}
 	if rows, err := c.Get(ctx, "/file"); err == nil { // a read-only user may be refused here: then nothing is claimed
 		k.Files = parseFiles(rows)
 	}
@@ -250,11 +267,21 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 	for _, t := range get(ctx, c, "/ip/traffic-flow/target") {
 		k.Flow.Targets = append(k.Flow.Targets, t["dst-address"]+" ("+t["version"]+")")
 	}
+	svcCert := map[string]string{} // service -> certificate name
 	for _, s := range get(ctx, c, "/ip/service") {
 		if s["name"] == "www-ssl" {
 			k.WwwSSL = s["disabled"] != "true"
 			k.WwwSSLAddr = s["address"]
 		}
+		if (s["name"] == "www-ssl" || s["name"] == "api-ssl") && s["disabled"] != "true" && s["certificate"] != "" && s["certificate"] != "none" {
+			svcCert[s["name"]] = s["certificate"]
+		}
+	}
+	if len(svcCert) > 0 {
+		k.Certs = parseCerts(svcCert, get(ctx, c, "/certificate"))
+	}
+	if u := get(ctx, c, "/system/package/update"); len(u) > 0 {
+		k.Update = Update{Channel: u[0]["channel"], Installed: u[0]["installed-version"], Latest: u[0]["latest-version"]}
 	}
 	for _, a := range get(ctx, c, "/system/logging/action") {
 		if a["target"] == "remote" {
