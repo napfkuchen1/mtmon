@@ -210,7 +210,7 @@
   .head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
   .tools { display: inline-flex; gap: 8px; margin-left: auto; }
   .rootsel { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
-  .rootsel select { max-width: 160px; }
+  .rootsel select { width: auto; max-width: min(340px, 60vw); }
   .wrap { padding: 4px 0; overflow: hidden; }
   .node { cursor: pointer; } .node:hover rect { stroke: var(--accent); }
   .gh { cursor: pointer; } .gh:hover text { fill: var(--text); }

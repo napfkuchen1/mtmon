@@ -8,7 +8,9 @@
   import ClassifyDialog from '../lib/ClassifyDialog.svelte'
   let dlg = $state(null)
 
-  const tabs = $derived([['clients', t('Clients')], ['hosts', t('Destinations')], ['services', t('Services')], ['ports', t('Ports')], ['asn', t('ASNs')], ['country', t('Countries')], ['protocols', t('Protocols')], ['internal', t('Internal talkers')]])
+  // the Services page is the one place for services (rules, detail, clients); an old #/insights/services link goes there
+  $effect(() => { if (app.route.params.id === 'services') go('services') })
+  const tabs = $derived([['clients', t('Clients')], ['hosts', t('Destinations')], ['ports', t('Ports')], ['asn', t('ASNs')], ['country', t('Countries')], ['protocols', t('Protocols')], ['internal', t('Internal talkers')]])
   const what = $derived(tabs.some(tb => tb[0] === app.route.params.id) ? app.route.params.id : 'clients')
   const rg = () => (app.range === 'live' ? '1h' : app.range)
   const d = poll(() => api(`/top/${what}?range=${rg()}&limit=100`), 8000)
@@ -31,6 +33,7 @@
   <div class="card-h">
     <div class="tabs" role="tablist" style="flex-wrap:wrap">
       {#each tabs as [id, l]}<button role="tab" class:on={what === id} aria-selected={what === id} onclick={() => go('insights/' + id)}>{l}</button>{/each}
+      <button role="tab" aria-selected="false" title={t('Opens the Services page')} onclick={() => go('services')}>{t('Services')} →</button>
     </div>
     <span style="display:flex;gap:8px"><button class="btn" onclick={() => download(`/export/top/${what}?range=${rg()}&format=xlsx`)}>{t('Export Excel')}</button>
     <button class="btn" onclick={() => download(`/export/top/${what}?range=${rg()}`)}>{t('Export CSV')}</button></span>

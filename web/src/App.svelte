@@ -40,7 +40,7 @@
   ]
   const rare = new Set(['services', 'insights', 'topology']) // rarely needed pages sit below a divider
   const settingsIcon = 'M12 15a3 3 0 100-6 3 3 0 000 6zM19 12a7 7 0 00-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 00-2-1.2L14 3h-4l-.6 2.7a7 7 0 00-2 1.2l-2.3-1-2 3.4 2 1.5a7 7 0 000 2.4l-2 1.5 2 3.4 2.3-1a7 7 0 002 1.2L10 21h4l.6-2.7a7 7 0 002-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z'
-  const ranges = [['live', 'Live'], ['1h', '1 h'], ['24h', '24 h'], ['7d', '7 d'], ['30d', '30 d']]
+  const ranges = [['live', '5 min'], ['1h', '1 h'], ['24h', '24 h'], ['7d', '7 d'], ['30d', '30 d']]
   const showRange = $derived(['overview', 'clients', 'client', 'insights', 'device', 'services', 'firewall'].includes(app.route.name))
   const active = $derived(app.route.name === 'client' || app.route.name === 'inbox' ? 'clients' : app.route.name === 'device' ? 'devices' : app.route.name)
   let openAlerts = $state(0)
@@ -159,7 +159,7 @@
         {#if showRange}
           <div class="tabs" role="tablist" aria-label={t('Time range')}>
             {#each ranges as [id, label]}
-              <button role="tab" aria-selected={app.range === id} class:on={app.range === id} onclick={() => setRange(id)}>{id === 'live' ? t(label) : label}</button>
+              <button role="tab" aria-selected={app.range === id} class:on={app.range === id} onclick={() => setRange(id)}>{label}</button>
             {/each}
           </div>
         {/if}

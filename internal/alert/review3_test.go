@@ -248,3 +248,27 @@ func TestRebootFoldsLinkAlertsAndResolvesOffline(t *testing.T) {
 		t.Errorf("real link-down lost: %s", kinds(*got))
 	}
 }
+
+func TestNewClientAlertModes(t *testing.T) {
+	e, got := newEngine(t)
+	e.St.DB.Exec(`INSERT INTO clients(mac,vendor,first_seen,last_seen) VALUES('DC:A6:32:00:00:01','Raspberry Pi',1,1),('3C:22:FB:00:00:02','',1,1),('2A:00:00:00:00:03','Apple',1,1)`)
+	e.NewClient("DC:A6:32:00:00:01", "nas", "192.168.88.5") // known manufacturer, real MAC
+	if len(*got) != 0 {
+		t.Fatalf("default mode must not alert for a known device: %s", kinds(*got))
+	}
+	e.NewClient("3C:22:FB:00:00:02", "x", "192.168.88.6")      // no vendor
+	e.NewClient("2A:00:00:00:00:03", "iphone", "192.168.88.7") // randomised MAC
+	if kinds(*got) != "new_client/3C:22:FB:00:00:02,new_client/2A:00:00:00:00:03" {
+		t.Fatalf("unknown devices: %s", kinds(*got))
+	}
+	e.St.SetMeta("alert_new_client", "all")
+	e.NewClient("DC:A6:32:00:00:01", "nas", "192.168.88.5")
+	if len(*got) != 3 {
+		t.Fatalf("mode all: %s", kinds(*got))
+	}
+	e.St.SetMeta("alert_new_client", "off")
+	e.NewClient("3C:22:FB:00:00:02", "x", "192.168.88.6")
+	if len(*got) != 3 {
+		t.Fatalf("mode off: %s", kinds(*got))
+	}
+}

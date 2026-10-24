@@ -76,4 +76,10 @@ func (s *Server) featureRoutes(m *http.ServeMux, a func(http.HandlerFunc) http.H
 	m.HandleFunc("GET /api/export/clients", a(s.exportClients))
 	m.HandleFunc("GET /api/clients/{mac}/apps", a(s.clientApps))
 	m.HandleFunc("GET /api/apps", a(s.apps))
+	for _, h := range routeHooks { // routes registered by feature files (init)
+		h(s, m, a)
+	}
 }
+
+// routeHooks lets a feature file register its own routes from init(), so adding a feature does not touch this list.
+var routeHooks []func(s *Server, m *http.ServeMux, a func(http.HandlerFunc) http.HandlerFunc)
