@@ -71,6 +71,12 @@ func (e *Engine) SetDelays(group, reboot time.Duration) {
 
 // Raise stores and delivers an alert unless the same kind|subject fired within cooldown.
 func (e *Engine) Raise(kind, subject, severity, msg string, cooldown time.Duration) bool {
+	if kind == "device_offline" || kind == "iface_down" || kind == "iface_up" {
+		if e.inMaintenance(kind, subject) {
+			severity = "info"
+			msg += " (maintenance window)"
+		}
+	}
 	key := kind + "|" + subject
 	e.mu.Lock()
 	if t, ok := e.last[key]; ok && time.Since(t) < cooldown {
@@ -95,6 +101,38 @@ func (e *Engine) Raise(kind, subject, severity, msg string, cooldown time.Durati
 	}
 	go e.deliver(a)
 	return true
+}
+
+// inMaintenance: the alert concerns a device in a maintenance window, or a link on another device that leads to it
+// (the uplink of an access point that is being worked on).
+func (e *Engine) inMaintenance(kind, subject string) bool {
+	m := e.St.Maintenance()
+	if len(m) == 0 {
+		return false
+	}
+	if kind == "device_offline" {
+		_, ok := m[subject]
+		return ok
+	}
+	dev, iface, _ := strings.Cut(subject, "/")
+	if _, ok := m[dev]; ok {
+		return true
+	}
+	ns, _ := e.St.Neighbors()
+	for _, n := range ns {
+		if n.Device != dev || n.Iface != iface {
+			continue
+		}
+		for name := range m {
+			if n.Ident == name {
+				return true
+			}
+			if d, ok := e.Cfg.Device(name); ok && n.Addr != "" && n.Addr == d.Addr {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // --- poller.Events ---
@@ -200,6 +238,17 @@ func (e *Engine) flushOffline() {
 	e.mu.Unlock()
 	if len(pend) == 0 {
 		return
+	}
+	if m := e.St.Maintenance(); len(m) > 0 { // planned work is not a shared cause: report those on their own
+		for n, msg := range pend {
+			if _, ok := m[n]; ok {
+				e.Raise("device_offline", n, "critical", fmt.Sprintf("%s unreachable: %s (%s)", n, msg, reachReason(msg)), time.Minute)
+				delete(pend, n)
+			}
+		}
+		if len(pend) == 0 {
+			return
+		}
 	}
 	if len(pend) == 1 {
 		for n, msg := range pend {

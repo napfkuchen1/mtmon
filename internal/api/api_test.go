@@ -167,3 +167,30 @@ func TestSanitize(t *testing.T) {
 		t.Errorf("unsafe filename %q", got)
 	}
 }
+
+func TestDeviceMaintenanceWindow(t *testing.T) {
+	ts, s := newTestServer(t)
+	s.Cfg.Devices = append(s.Cfg.Devices, config.Device{Name: "ap1", Addr: "192.0.2.10", Role: "ap"})
+	_, c := login(t, ts, "test-password-1")
+	put := func(path, body string) int {
+		req, _ := http.NewRequest("PUT", ts.URL+path, strings.NewReader(body))
+		r, err := c.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.Body.Close()
+		return r.StatusCode
+	}
+	if code := put("/api/devices/nope/maintenance", `{"minutes":30}`); code != 404 {
+		t.Errorf("unknown device: %d", code)
+	}
+	if code := put("/api/devices/ap1/maintenance", `{"minutes":999999}`); code != 400 {
+		t.Errorf("too long: %d", code)
+	}
+	if code := put("/api/devices/ap1/maintenance", `{"minutes":30}`); code != 200 || s.St.Maintenance()["ap1"] == 0 {
+		t.Errorf("start: %d %v", code, s.St.Maintenance())
+	}
+	if code := put("/api/devices/ap1/maintenance", `{"minutes":0}`); code != 200 || len(s.St.Maintenance()) != 0 {
+		t.Errorf("end: %d %v", code, s.St.Maintenance())
+	}
+}
