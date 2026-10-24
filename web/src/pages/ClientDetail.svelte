@@ -90,12 +90,13 @@
       <button class="btn sm primary" onclick={saveLabel}>{t('Save')}</button><button class="btn sm" onclick={() => (editing = false)}>{t('Cancel')}</button>
     {:else}
       <h1>{display(c)}</h1>
-      <button class="btn sm" onclick={() => { label = c.label || c.hostname; editing = true }}>{t('Rename')}</button>
+      {#if !x?.address_only}<button class="btn sm" onclick={() => { label = c.label || c.hostname; editing = true }}>{t('Rename')}</button>{/if}
     {/if}
     <span class="badge {c.online ? 'ok' : ''}">{c.online ? t('online') : t('offline')}</span>
     {#if c.wifi}<span class="badge acc">{t('Wi-Fi')} {c.ssid}{c.band ? ' · ' + c.band : ''}</span>{:else}<span class="badge">{t('wired')}</span>{/if}
     {#if c.vendor}<span class="badge">{tr(c.vendor)}</span>{/if}
   </div>
+  {#if d.data?.address_only}<div class="warnbox" style="margin-bottom:12px">{t('No client record for this address (its MAC is not known). Traffic and connections are shown by address.')}</div>{/if}
 
   <div class="grid g4" style="margin:16px 0">
     <div class="card card-b kpi"><div class="l">{t('Address')}</div><div class="v mono" style="font-size:17px">{c.ip || '—'}</div><div class="l mono">{c.mac}</div></div>

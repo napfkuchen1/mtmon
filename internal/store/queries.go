@@ -222,7 +222,8 @@ func (s *Store) Connections(mac string, since int64, limit int, afterTS int64) (
 // towards it (shown from this client's point of view, so "who talked to me").
 func (s *Store) ConnectionsFiltered(mac string, since int64, limit int, afterTS int64, f ConnFilter) ([]Conn, error) {
 	key := NormMAC(mac)
-	ips := `(SELECT ip FROM ip_history WHERE mac=?1)`
+	// a key without client record is an address (traffic that could not be attributed): its flows carry it as cip
+	ips := `(SELECT ip FROM ip_history WHERE mac=?1 UNION SELECT ?1)`
 	where := `(mac=?1 OR (mac='' AND cip IN ` + ips + `))`
 	args := []any{key}
 	filtered := f != ConnFilter{}

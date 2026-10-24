@@ -164,3 +164,23 @@ func TestMergeIgnoresUpstreamOnWANInterface(t *testing.T) {
 		t.Errorf("default route interface: %v", wan)
 	}
 }
+
+func TestSelfByAddr(t *testing.T) {
+	st, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	m := NewManager(&config.Config{Devices: []config.Device{{Name: "gw", Role: "router", Addr: "10.0.0.1"}}},
+		st, live.NewHub(), enrich.New("", "", "", false), nopEvents{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err := st.UpsertDevice(store.DeviceRow{Name: "gw", Addr: "10.0.0.1", Port: 443, Scheme: "https", Role: "router", User: "u"}); err != nil {
+		t.Fatal(err)
+	}
+	st.SetDeviceCaps("gw", []byte(`{"addresses":["192.168.88.1/24","fd00::1/64"]}`))
+	m.self["AA:BB:CC:11:22:33"] = "gw"
+	for ip, want := range map[string]bool{"10.0.0.1": true, "192.168.88.1": true, "fd00::1": true, "fe80::a8bb:ccff:fe11:2233": true, "192.168.88.50": false, "fe80::1": false} {
+		if dev, ok := m.SelfByAddr(ip); ok != want || (ok && dev != "gw") {
+			t.Errorf("%s: %q %v", ip, dev, ok)
+		}
+	}
+}

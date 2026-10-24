@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"path"
 	"path/filepath"
@@ -367,7 +368,7 @@ func (s *Server) clients(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) clientDetail(w http.ResponseWriter, r *http.Request) {
 	mac := store.NormMAC(r.PathValue("mac"))
-	c, err := s.St.Client(mac)
+	c, addrOnly, err := s.clientOrAddr(mac)
 	if err != nil {
 		jerr(w, 404, "unknown client")
 		return
@@ -379,7 +380,7 @@ func (s *Server) clientDetail(w http.ResponseWriter, r *http.Request) {
 		nd, _ = s.St.NewDests(mac, int64(ranges["24h"].d.Seconds()))
 	}
 	jsonOut(w, map[string]any{
-		"client": c, "range": rn,
+		"client": c, "range": rn, "address_only": addrOnly,
 		"ip_history":       must(s.St.IPHistory(mac)),
 		"roams":            must(s.St.Roams(mac)),
 		"series":           must(s.St.Series(since, bucket, mac)),
@@ -443,7 +444,11 @@ func (s *Server) topBy(what string, since int64, limit int, mac string) ([]store
 		return rows, err
 	}
 	for i := range rows {
-		if dev, ok := s.Mgr.SelfDevice(rows[i].Key); ok {
+		dev, ok := s.Mgr.SelfDevice(rows[i].Key)
+		if !ok {
+			dev, ok = s.Mgr.SelfByAddr(rows[i].Key)
+		}
+		if ok {
 			rows[i].Device = dev
 			if rows[i].Label == rows[i].Key {
 				rows[i].Label = dev
@@ -797,3 +802,20 @@ func (s *Server) liveWS(w http.ResponseWriter, r *http.Request) {
 }
 
 var _ = sort.Strings
+
+// clientOrAddr returns the client record, or – for a bare IP address that has traffic but no client (a router's own
+// address, an IPv6 address without a known MAC) – a record that only carries the address, so the page can still show
+// its traffic and connections. addrOnly is true for those.
+func (s *Server) clientOrAddr(key string) (c *store.Client, addrOnly bool, err error) {
+	if c, err = s.St.Client(key); err == nil {
+		return c, false, nil
+	}
+	if a, perr := netip.ParseAddr(key); perr == nil {
+		name := ""
+		if s.En != nil {
+			name = s.En.NameCached(a)
+		}
+		return &store.Client{MAC: key, IP: key, Hostname: name}, true, nil
+	}
+	return nil, false, err
+}
