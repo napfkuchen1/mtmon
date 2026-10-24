@@ -40,6 +40,8 @@ var featureText = map[string][2]string{
 		"Turns on logging for the accept rules you pick, so the Firewall page also shows what was allowed and by which rule. Needs the firewall log target; it is set up with it if missing. Rules that match every packet of a connection are noisy: pick with care."},
 	provision.FeatLogNew: {"Log every new connection (proof of 'allowed')",
 		"Adds one rule at the end of the forward chain that logs each new connection that passed all drop rules. Complete picture of allowed connections, but more router CPU and log volume."},
+	provision.FeatEventLogs: {"Router event log (logins, DHCP, Wi-Fi, errors)",
+		"The router also sends its system, account, DHCP, Wi-Fi, WireGuard and script log lines to mtmon. They are searchable on the device page, and mtmon alerts on login-failure bursts, critical events, DHCP trouble, Wi-Fi disconnect storms and failing scripts. Needs the log target; it is set up with it if missing."},
 	provision.FeatFasttrack: {"Disable FastTrack (count everything)",
 		"FastTrack lets most of a connection bypass the packet path, so Traffic Flow only sees its start. Switching it off gives complete numbers but costs router CPU."},
 }

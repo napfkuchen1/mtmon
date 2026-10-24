@@ -52,10 +52,11 @@ type Engine struct {
 	lastDevDown time.Time
 	ifPending   map[string]bool // device/iface -> link-down alert is still held back
 	spikeRun    int
-	spikeDay    map[string]string    // client -> day of its last traffic_spike alert
-	watchDown   map[string]time.Time // watched client -> when it was last seen (it is offline and was reported)
-	ifFolded    map[string]bool      // device/iface -> the link-down was folded into the alert of the device behind it
-	resolved    map[string]bool      // device -> its offline alert was closed on return (a reboot note may follow)
+	spikeDay    map[string]string      // client -> day of its last traffic_spike alert
+	watchDown   map[string]time.Time   // watched client -> when it was last seen (it is offline and was reported)
+	ifFolded    map[string]bool        // device/iface -> the link-down was folded into the alert of the device behind it
+	resolved    map[string]bool        // device -> its offline alert was closed on return (a reboot note may follow)
+	bursts      map[string][]time.Time // router log patterns: key -> recent occurrences
 	hc          *http.Client
 	Notify      func(store.Alert) // test hook
 }

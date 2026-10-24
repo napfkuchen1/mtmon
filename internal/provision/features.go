@@ -17,19 +17,22 @@ const (
 	FeatAllowLog  = "allow_log"     // logging on selected accept rules (needs the syslog target of FeatFwLog)
 	FeatLogNew    = "log_new"       // passthrough rule that logs every NEW connection that passed all drop rules
 	FeatFasttrack = "fasttrack"     // disable FastTrack so Traffic Flow sees every packet
+	FeatEventLogs = "event_logs"    // syslog of system, account, dhcp, wifi, wireguard, script topics (router event log)
 )
 
 // FeatureKeys in display order.
-var FeatureKeys = []string{FeatFlow, FeatFwLog, FeatAllowLog, FeatLogNew, FeatFasttrack}
+var FeatureKeys = []string{FeatFlow, FeatFwLog, FeatAllowLog, FeatLogNew, FeatEventLogs, FeatFasttrack}
 
 // LogDependents need the syslog target that FeatFwLog creates: they cannot stay on without it.
-var LogDependents = []string{FeatAllowLog, FeatLogNew}
+var LogDependents = []string{FeatAllowLog, FeatLogNew, FeatEventLogs}
 
 // FeatureOf tells which feature a recorded router change belongs to ("" = not a feature: user, group, backup).
 func FeatureOf(e store.ManifestEntry) string {
 	switch {
 	case strings.HasPrefix(e.Path, "/ip/traffic-flow"):
 		return FeatFlow
+	case e.Path == "/system/logging" && strings.HasPrefix(e.Descr, "Event log rule"):
+		return FeatEventLogs
 	case e.Path == "/system/logging" || e.Path == "/system/logging/action":
 		return FeatFwLog
 	case e.Path == "/ip/firewall/filter":
@@ -47,13 +50,14 @@ func FeatureOf(e store.ManifestEntry) string {
 }
 
 // stepKeys maps a feature to the steps (see buildActions) that implement it.
-var stepKeys = map[string][]string{FeatFlow: {"flow"}, FeatFwLog: {"syslog", "fwlog"}, FeatAllowLog: {"allowlog"}, FeatLogNew: {"lognew"}, FeatFasttrack: {"fasttrack"}}
+var stepKeys = map[string][]string{FeatFlow: {"flow"}, FeatFwLog: {"syslog", "fwlog"}, FeatAllowLog: {"allowlog"}, FeatLogNew: {"lognew"}, FeatEventLogs: {"evlog"}, FeatFasttrack: {"fasttrack"}}
 
 // featureOptions narrows o to the requested features.
 func featureOptions(o Options, feats map[string]bool) Options {
 	o.Flow = feats[FeatFlow]
 	o.Syslog = feats[FeatFwLog]
-	o.SyslogReady = o.Syslog || feats[FeatAllowLog] || feats[FeatLogNew]
+	o.SyslogReady = o.Syslog || feats[FeatAllowLog] || feats[FeatLogNew] || feats[FeatEventLogs]
+	o.EventLogs = feats[FeatEventLogs]
 	if !feats[FeatFwLog] {
 		o.FwRules = nil
 	}

@@ -54,6 +54,10 @@ CREATE TABLE IF NOT EXISTS rollup_1d(
   b_up INTEGER, b_down INTEGER, b_int INTEGER, flows INTEGER,
   PRIMARY KEY(ts, rip, rport, proto)) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS rollup_d_svc ON rollup_1d(svc, ts);
+CREATE TABLE IF NOT EXISTS log_events(
+  ts INTEGER, device TEXT, topics TEXT, level TEXT, msg TEXT);
+CREATE INDEX IF NOT EXISTS log_events_dev ON log_events(device, ts);
+CREATE INDEX IF NOT EXISTS log_events_ts ON log_events(ts);
 CREATE TABLE IF NOT EXISTS dev_metrics(
   ts INTEGER, device TEXT, cpu REAL, mem_used INTEGER, mem_total INTEGER,
   temp REAL, uptime INTEGER, clients INTEGER, up INTEGER);
@@ -200,6 +204,7 @@ func (s *Store) Cleanup(rawDays, days int) {
 	s.DB.Exec(`DELETE FROM rollup_1d WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM rollup_1d_dim WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM dev_metrics WHERE ts < ?`, cut)
+	s.DB.Exec(`DELETE FROM log_events WHERE ts < ?`, now.AddDate(0, 0, -LogRetentionDays).Unix())
 	s.DB.Exec(`DELETE FROM if_metrics WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM alerts WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM roam WHERE ts < ?`, cut)

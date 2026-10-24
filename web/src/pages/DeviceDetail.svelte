@@ -16,6 +16,8 @@
   const mem = $derived([{ name: 'RAM %', color: 'var(--down)', points: (x?.metrics || []).map(m => ({ x: m.ts, y: m.mem_total ? (m.mem_used * 100) / m.mem_total : 0 })) }])
   let showAll = $state(false)
   const caps = $derived(x?.caps && x.caps.version ? x.caps : null)
+  let logQ = $state(''), logLevel = $state('')
+  const lg = poll(() => api('/devices/' + encodeURIComponent(app.route.params.id) + '/log?range=' + (app.range === 'live' ? '1h' : app.range) + '&level=' + logLevel + '&q=' + encodeURIComponent(logQ)), 10000)
   const man = poll(() => api('/devices/' + encodeURIComponent(app.route.params.id) + '/manifest'), 0)
   let off = $state(false), oUser = $state('admin'), oPass = $state(''), oPurge = $state(false), oBusy = $state(false), oRes = $state(null), oErr = $state('')
   async function offboard(mode) {
@@ -62,6 +64,18 @@
     <div class="card card-b kpi"><div class="l">{t('Clients')}</div><div class="v num">{x.clients.length}</div><div class="l">{t('online via this device')}</div></div>
     <div class="card card-b kpi"><div class="l">{t('Status')}</div><div class="v" style="font-size:18px"><span class="dot" class:ok={app.live.devices.find(v => v.name === name)?.up} class:bad={!app.live.devices.find(v => v.name === name)?.up}></span>
       {app.live.devices.find(v => v.name === name)?.up ? ' ' + t('Online') : ' ' + t('Offline')}</div><div class="l">{tr(x.state?.last_err) || ''}</div></div>
+  </div>
+
+  <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Event log')}</h2>
+      <span class="muted" style="font-size:12px">{t('system, account, DHCP, Wi-Fi, WireGuard, script lines the router sends to mtmon (kept 7 days)')}</span>
+      <span style="flex:1"></span>
+      <select class="input" style="width:auto" bind:value={logLevel} aria-label={t('Level')}><option value="">{t('All levels')}</option><option value="warning">{t('Warning and worse')}</option><option value="error">{t('Errors')}</option></select>
+      <input class="input" style="width:200px" placeholder={t('Search…')} bind:value={logQ} aria-label={t('Search the event log')} /></div>
+    {#if lg.data?.events?.length}
+      <div class="scroll" style="max-height:340px;overflow-y:auto"><table><tbody>
+        {#each lg.data.events as ev, i (ev.ts + '|' + i)}<tr><td class="mono muted" style="white-space:nowrap">{datetime(ev.ts)}</td><td><span class="badge {ev.level === 'critical' || ev.level === 'error' ? 'bad' : ev.level === 'warning' ? 'warn' : ''}">{ev.level || '·'}</span></td><td class="muted" style="font-size:12px">{ev.topics}</td><td>{ev.msg}</td></tr>{/each}
+      </tbody></table></div>
+    {:else}<div class="card-b muted">{t('No log lines yet. Switch on "Router event log" under Devices → Edit → Features so the router sends them.')}</div>{/if}
   </div>
 
   {#if caps}

@@ -123,7 +123,13 @@ func run(args []string) error {
 	defer stop()
 
 	sys := &syslog.Server{Addr: cfg.SyslogListen, Handler: func(es []syslog.Event) { st.EnqueueFw(toFw(es)...) },
-		Allow: func(ip netip.Addr) string { return cfg.SourceDevice(ip) }}
+		Allow: func(ip netip.Addr) string { return cfg.SourceDevice(ip) },
+		LogHandler: func(le syslog.LogEvent) {
+			ev := store.LogEvent{TS: le.TS, Device: le.Device, Topics: le.Topics, Level: le.Level, Msg: le.Msg}
+			if st.AddLogEvent(ev) {
+				al.LogEvent(ev)
+			}
+		}}
 	srv := &api.Server{Cfg: cfg, St: st, Hub: hub, En: en, Col: col, Pipe: pipe, UI: web.FS(), Version: version, TLS: !cfg.NoTLS,
 		Box: box, Mgr: pm, Cls: cls, Sys: sys}
 	if err := srv.LoadDevices(); err != nil {

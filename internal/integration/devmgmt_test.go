@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/napfkuchen1/mtmon/internal/provision"
 	"io"
 	"log/slog"
 	"net"
@@ -512,6 +513,22 @@ func TestDeviceFeaturesAllowLog(t *testing.T) {
 	if len(r.rt.Lists("/system/logging")) != 0 || logging("MTM-") != 0 || on("log_new") {
 		t.Fatal("firewall_logs off must revert log_new as well")
 	}
+	// the router event log: one logging rule per topic, the syslog target is pulled in; off again leaves the target
+	if code := r.call("POST", "/api/devices/gw-ro/features", req(map[string]any{"enable": []string{"event_logs"}}), &out); code != 200 || out["ok"] != true || !on("event_logs") {
+		t.Fatalf("enable event_logs: %d %v", code, out)
+	}
+	if n := len(r.rt.Lists("/system/logging")); n != 1+len(provision.EventTopics) {
+		t.Fatalf("logging rules after event_logs: %d", n)
+	}
+	if code := r.call("POST", "/api/devices/gw-ro/features", req(map[string]any{"disable": []string{"event_logs"}}), &out); code != 200 || out["ok"] != true || on("event_logs") || !on("firewall_logs") {
+		t.Fatalf("disable event_logs: %d %v", code, out)
+	}
+	if n := len(r.rt.Lists("/system/logging")); n != 1 {
+		t.Fatalf("event rules must be gone, firewall rule stays: %d", n)
+	}
+	if code := r.call("POST", "/api/devices/gw-ro/features", req(map[string]any{"disable": []string{"firewall_logs"}}), &out); code != 200 || len(r.rt.Lists("/system/logging")) != 0 {
+		t.Fatalf("cleanup: %d", code)
+	}
 	if rules, _ := r.st.FwRules(); len(rules) != 0 {
 		t.Fatalf("firewall rule meta left: %v", rules)
 	}
@@ -541,7 +558,7 @@ func TestDeviceFeaturesOnOff(t *testing.T) {
 		}
 		return m
 	}
-	if f := getFeats(); len(f) != 5 || f["flow"].On || f["firewall_logs"].On {
+	if f := getFeats(); len(f) != 6 || f["flow"].On || f["firewall_logs"].On {
 		t.Fatalf("monitor-only device must start with everything off: %+v", f)
 	}
 	if len(r.rt.Lists("/ip/traffic-flow/target")) != 0 {

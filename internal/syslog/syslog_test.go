@@ -41,3 +41,27 @@ func FuzzParse(f *testing.F) {
 	f.Add("firewall,info MTM-1 forward: in:a out:b, proto TCP (SYN), 1.1.1.1:1->2.2.2.2:2, len 5")
 	f.Fuzz(func(t *testing.T, s string) { ParseFirewall(s) })
 }
+
+func TestParseLog(t *testing.T) {
+	for _, c := range []struct {
+		line, topics, level, msg string
+		ok                       bool
+	}{
+		{"system,info,account user admin logged in from 192.0.2.5 via ssh", "system,info,account", "info", "user admin logged in from 192.0.2.5 via ssh", true},
+		{"<86>Oct  1 12:00:00 gw system,error,critical router rebooted because of power failure", "system,error,critical", "critical", "router rebooted because of power failure", true},
+		{"critical something broke", "critical", "critical", "something broke", true},
+		{"script,error script scheduler failed", "script,error", "error", "script scheduler failed", true},
+		{"firewall,info MTM-1 forward: in:a out:b", "", "", "", false}, // firewall lines are not log events
+		{"hello world this is not routeros", "", "", "", false},
+		{"Oct  1 12:00:00 gw dhcp,info dhcp1 deassigned 192.168.88.5 from AA:BB", "dhcp,info", "info", "dhcp1 deassigned 192.168.88.5 from AA:BB", true},
+	} {
+		e, ok := ParseLog(c.line)
+		if ok != c.ok || (ok && (e.Topics != c.topics || e.Level != c.level || e.Msg != c.msg)) {
+			t.Errorf("%q: %+v %v", c.line, e, ok)
+		}
+	}
+	e, _ := ParseLog("system,info,account x")
+	if !e.HasTopic("account") || e.HasTopic("acc") {
+		t.Error("HasTopic")
+	}
+}
