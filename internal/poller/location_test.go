@@ -99,3 +99,37 @@ func TestMergeKeepsAPWhenEvidenceGapsOut(t *testing.T) {
 		t.Fatalf("no roam expected: %+v", r)
 	}
 }
+
+// An unmanaged switch on the uplink port: wired devices behind it are learned only on that port. They belong to the
+// port; the managed devices' own MACs do not become clients.
+func TestMergeSharedUplinkPort(t *testing.T) {
+	st, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	st.SaveNeighbors("hex", []store.Neighbor{{Device: "hex", Iface: "ether2", MAC: "AA:00:00:00:00:A1", Ident: "ap"}})
+	m := NewManager(&config.Config{Devices: []config.Device{{Name: "hex", Role: "router", Addr: "10.0.0.1"}, {Name: "ap", Role: "ap", Addr: "10.0.0.2"}}},
+		st, live.NewHub(), enrich.New("", "", "", false), nopEvents{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	now := time.Now()
+	m.snaps["hex"] = &devSnap{role: "router", at: now, bridge: []Row{
+		{"mac-address": "02:00:00:00:00:05", "on-interface": "ether2"}, // wired box behind the unmanaged switch
+		{"mac-address": "aa:00:00:00:00:b1", "on-interface": "ether2"}, // the AP itself
+		{"mac-address": "02:00:00:00:00:06", "on-interface": "ether2"}, // wired client of the AP
+	}}
+	m.snaps["ap"] = &devSnap{role: "ap", at: now, bridge: []Row{
+		{"mac-address": "AA:00:00:00:00:B1", "on-interface": "bridge", "local": "true"},
+		{"mac-address": "02:00:00:00:00:06", "on-interface": "ether3"},
+	}}
+	m.merge()
+	c, err := st.Client("02:00:00:00:00:05")
+	if err != nil || c.Device != "hex" || c.Iface != "ether2" || !c.Online || c.Via != "bridge host on hex/ether2 (shared port)" {
+		t.Fatalf("box behind the unmanaged switch: %+v %v", c, err)
+	}
+	if c, err := st.Client("02:00:00:00:00:06"); err != nil || c.Device != "ap" {
+		t.Fatalf("client with an edge port of its own: %+v %v", c, err)
+	}
+	if c, err := st.Client("AA:00:00:00:00:B1"); err == nil {
+		t.Fatalf("a managed device is no client: %+v", c)
+	}
+}

@@ -638,6 +638,10 @@ func (m *Manager) merge() {
 	}
 	edge := map[string]edgeLoc{}
 	hint := map[string]string{} // MAC -> managed device named inside the registration row (CAP identity)
+	// hosts learned on an uplink port (an unmanaged switch may sit in between) and MACs of the managed devices
+	// themselves; see the shared-port pass below
+	shared := map[string]edgeLoc{}
+	ownMAC := m.neighborIdents()
 	names := map[string]string{}
 	for _, d := range m.Cfg.AllDevices() {
 		names[strings.ToLower(d.Name)] = d.Name
@@ -651,14 +655,23 @@ func (m *Manager) merge() {
 			apBonus = 10 // a wifi registration on the AP itself beats the CAPsMAN manager's copy
 		}
 		for _, r := range s.bridge {
-			if r.Bool("local") || r.Bool("invalid") {
+			if r.Bool("invalid") {
+				continue
+			}
+			if r.Bool("local") {
+				ownMAC[store.NormMAC(r["mac-address"])] = dev
 				continue
 			}
 			iface := r["on-interface"]
-			if uplinks[dev+"|"+iface] {
-				continue // learned via a trunk to another managed device: not where the host is attached
-			}
 			mac := store.NormMAC(r["mac-address"])
+			if uplinks[dev+"|"+iface] {
+				// learned via a trunk to another managed device: not where the host is attached, unless no
+				// device behind that trunk has it on a port of its own (then an unmanaged switch is in between)
+				if _, ok := shared[mac]; !ok {
+					shared[mac] = edgeLoc{dev, iface, false}
+				}
+				continue
+			}
 			if _, ok := edge[mac]; !ok || s.role == "ap" {
 				edge[mac] = edgeLoc{dev, iface, s.role == "ap"}
 			}
@@ -734,6 +747,23 @@ func (m *Manager) merge() {
 				o.Device, o.Iface, o.SSID, o.Band, o.Signal, o.TxRate, o.RxRate = dev, iface, ssid, band, sig, tx, rx
 			})
 		}
+	}
+	// A MAC seen only on uplink ports, that no managed device reports on a port or radio of its own and that is
+	// not a managed device itself, hangs on an unmanaged switch at the uplink port.
+	for mac, e := range shared {
+		if _, ok := edge[mac]; ok || ownMAC[mac] != "" {
+			continue
+		}
+		if o := byMAC[mac]; o != nil && o.WiFi {
+			continue
+		}
+		e := e
+		upd(mac, true, 1, func(o *store.Observation) {
+			o.Device, o.Iface, o.Present = e.dev, e.iface, true
+			if o.Via == "" || strings.HasPrefix(o.Via, "ARP") {
+				o.Via = "bridge host on " + e.dev + "/" + e.iface + " (shared port)"
+			}
+		})
 	}
 	// A Wi-Fi client reported only by a controller (router) but sitting on an AP's edge port belongs to that AP.
 	roleOf := map[string]string{}
