@@ -314,7 +314,7 @@ func (s *Server) deviceDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonOut(w, map[string]any{"name": name, "addr": dev.Addr, "role": dev.Role, "range": rn,
 		"caps": caps, "managed": dev.Managed, "source": map[bool]string{true: "ui", false: "config"}[dev.FromUI], "firewall_logging": fwOn,
-		"state": states[name], "ifaces": s.Hub.Ifaces(name), "clients": mine, "neighbors": nb,
+		"state": states[name], "maintenance_until": s.St.Maintenance()[name], "ifaces": s.Hub.Ifaces(name), "clients": mine, "neighbors": nb,
 		"metrics": must(s.St.DevMetrics(name, since))})
 }
 

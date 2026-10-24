@@ -39,8 +39,10 @@ function templates() {
   })
   return tpl
 }
+const MAINT = ' (maintenance window)'
 export function tr(s) {
   if (lang !== 'de' || !s) return s
+  if (s.endsWith(MAINT)) return tr(s.slice(0, -MAINT.length)) + ' (Wartungsfenster)' // appended by the alert engine
   if (de[s]) return de[s]
   if (srv[s]) return srv[s]
   for (const { re, names, to } of templates()) {

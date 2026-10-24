@@ -516,3 +516,36 @@ func TestSpikeAfterWANFlapIsAnnotated(t *testing.T) {
 		t.Fatalf("no WAN hint: %+v", *got)
 	}
 }
+
+// A maintenance window turns the device's offline alert and the uplink-down alert of its neighbour into info.
+func TestMaintenanceWindowDowngradesAlerts(t *testing.T) {
+	e, got := newEngine(t)
+	e.St.SaveNeighbors("gw", []store.Neighbor{{Device: "gw", Iface: "ether3", Ident: "ap1"}})
+	e.DeviceState("ap1", false, "timeout", 0, 0)
+	e.InterfaceState("gw", "ether3", false)
+	if len(*got) != 2 || (*got)[0].Severity != "critical" || (*got)[1].Severity != "warning" {
+		t.Fatalf("without a window: %+v", *got)
+	}
+	e2, got2 := newEngine(t)
+	e2.St.SaveNeighbors("gw", []store.Neighbor{{Device: "gw", Iface: "ether3", Ident: "ap1"}, {Device: "gw", Iface: "ether4", Ident: "other"}})
+	e2.St.SetMaintenance("ap1", time.Now().Add(time.Hour).Unix())
+	e2.DeviceState("ap1", false, "timeout", 0, 0)
+	e2.InterfaceState("gw", "ether3", false) // uplink of ap1
+	e2.InterfaceState("gw", "ether4", false) // unrelated link stays a warning
+	if kinds(*got2) != "device_offline/ap1,iface_down/gw/ether3,iface_down/gw/ether4" {
+		t.Fatalf("alerts: %s", kinds(*got2))
+	}
+	for i, want := range []string{"info", "info", "warning"} {
+		if (*got2)[i].Severity != want {
+			t.Errorf("alert %d: severity %s, want %s", i, (*got2)[i].Severity, want)
+		}
+	}
+	if !strings.Contains((*got2)[0].Msg, "maintenance") {
+		t.Errorf("message: %s", (*got2)[0].Msg)
+	}
+	// an ended window is gone
+	e2.St.SetMaintenance("ap1", 0)
+	if len(e2.St.Maintenance()) != 0 {
+		t.Fatal("window still open")
+	}
+}

@@ -26,12 +26,33 @@
       if (oRes.ok) { toast(t('Device removed')); setTimeout(() => go('devices'), 1200) }
     } catch (e) { oErr = e.message } finally { oBusy = false }
   }
+  let mBusy = $state(false)
+  const mUntil = $derived(x?.maintenance_until > Date.now() / 1000 ? x.maintenance_until : 0)
+  async function maintenance(minutes) {
+    mBusy = true
+    try {
+      const r = await api('/devices/' + encodeURIComponent(name) + '/maintenance', { method: 'PUT', body: { minutes } })
+      if (d.data) d.data.maintenance_until = r.maintenance_until
+      toast(minutes ? t('Maintenance window started') : t('Maintenance window ended'))
+    } catch (e) { toast(e.message) } finally { mBusy = false }
+  }
   const sCls = { applied: 'ok', reverted: '', 'revert-failed': 'bad' }
   const sLbl = $derived({ applied: t('applied'), reverted: t('reverted'), 'revert-failed': t('revert failed') })
 </script>
 
 <div class="head"><a href="#/devices">← {t('Devices')}</a><h1>{name}</h1>
   {#if x}<span class="badge">{x.role}</span><span class="mono muted">{x.addr}</span>{/if}</div>
+{#if x}
+  <div class="maint" class:on={mUntil}>
+    {#if mUntil}
+      <span>{t('Maintenance until {time}: offline and link-down alerts for this device are recorded as info.', { time: datetime(mUntil) })}</span>
+      <button class="btn" disabled={mBusy} onclick={() => maintenance(0)}>{t('End maintenance')}</button>
+    {:else}
+      <span class="muted">{t('Maintenance window')}</span>
+      {#each [30, 120, 480] as m}<button class="btn" disabled={mBusy} onclick={() => maintenance(m)}>{m < 60 ? t('{n} min', { n: m }) : t('{n} h', { n: m / 60 })}</button>{/each}
+    {/if}
+  </div>
+{/if}
 {#if d.error}<div class="warnbox">{tr(d.error)}</div>{/if}
 
 {#if x}
@@ -137,5 +158,7 @@
   .caps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; } .caps .l { display: block; color: var(--muted); font-size: 12px; } .caps b { font-weight: 500; font-size: 13px; word-break: break-word; }
   .steps { padding-left: 20px; display: grid; gap: 6px; margin: 0 0 14px; } .row { display: flex; gap: 12px; margin-bottom: 12px; } .row label { flex: 1; display: grid; gap: 4px; font-weight: 500; font-size: 13px; }
   label.chk { display: flex; gap: 8px; align-items: center; }
+  .maint { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: -6px 0 16px; font-size: 13px; }
+  .maint.on { border: 1px solid var(--warn); background: var(--warn-bg); border-radius: 8px; padding: 8px 12px; margin-top: 0; }
   .head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
 </style>

@@ -13,4 +13,7 @@ export default {
   "already logs": "loggt bereits",
   "No allow rules found.": "Keine Allow-Regeln gefunden.",
   "The firewall log target is set up as well if it is missing. “Noisy” rules match every packet of established connections.": "Das Firewall-Log-Ziel wird bei Bedarf mit eingerichtet. „Laute“ Regeln passen auf jedes Paket bestehender Verbindungen.",
+  "Maintenance window": "Wartungsfenster", "Maintenance window started": "Wartungsfenster gestartet", "Maintenance window ended": "Wartungsfenster beendet",
+  "Maintenance until {time}: offline and link-down alerts for this device are recorded as info.": "Wartung bis {time}: Offline- und Link-down-Alarme dieses Geräts werden nur als Info erfasst.",
+  "End maintenance": "Wartung beenden", "{n} min": "{n} Min.", "{n} h": "{n} Std.",
 }
