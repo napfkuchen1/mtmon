@@ -39,6 +39,14 @@ mtmon answers the questions you normally need three tools for:
 * **"Who else uses this service?"** Classify traffic by port, IP, network, domain or AS number ("this is NTP"). Click the service and see every client and destination behind it, over any time range, including the history you collected before you created the rule.
 * **"Is my gear healthy?"** CPU, memory, temperature, interface state, Wi-Fi clients with signal and SSID, DHCP leases, roaming events, topology, and alerts (device offline, interface down, new client, traffic spike, port-scan patterns).
 
+Beyond that, mtmon looks after the network for you:
+
+* **Suggestions.** A page of concrete findings with evidence, a rating and ready-to-copy RouterOS commands: unlogged drop rules, an exposed service, a weak Wi-Fi spot, an old firmware, a full disk. Some of them can be fixed with one click (*Fix automatically*, only after you give an admin login once).
+* **New devices.** Every client that appears is listed in an inbox, so an unknown device does not slip by unnoticed. Rename it, pick an icon, or mark it as known.
+* **Alerts you can work with.** Devices and links, a reboot as one story instead of four alerts, a **maintenance window** per device, bulk acknowledge, Excel export; a client you mark as **watched** raises an alert when it stays offline.
+* **VPN peers are clients.** WireGuard peers, including MikroTik Back to Home, appear with their name and tunnel traffic.
+* **mtmon watches itself.** Memory, CPU, free disk space and database growth (with a warning before the disk fills up).
+
 Adding a router is a form in the web UI: enter its address and a one-time admin login, review what mtmon is about to configure, confirm. No config files, no copy-pasting RouterOS snippets.
 
 ## Why mtmon
@@ -57,24 +65,32 @@ mtmon is not a replacement for a full network management system that polls arbit
 
 ## Screenshots
 
-> Demo data from the built-in simulator (mock routers and synthetic traffic).
+> Demo data from the built-in simulator (mock routers and synthetic traffic), dark theme. Regenerate most of them with `make screenshots`.
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/img/wizard-plan.png" alt="Add device wizard"><br><sub><b>Add a device.</b> The plan lists every change with a reason, the exact commands, the undo step and the risk.</sub></td>
-    <td width="50%"><img src="docs/img/device-detail.png" alt="Device page"><br><sub><b>Device page.</b> Capabilities read from the router, health metrics, and the list of changes mtmon made, with offboarding.</sub></td>
+    <td width="50%"><img src="docs/img/clients.png" alt="Clients list"><br><sub><b>Clients.</b> Everything on your network, with vendor, address, live rate and where it is connected.</sub></td>
+    <td width="50%"><img src="docs/img/client.png" alt="Client detail"><br><sub><b>Client detail.</b> Traffic over time, apps, top destinations, services, ports and countries for one device.</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/img/client.png" alt="Client detail"><br><sub><b>Client detail.</b> Traffic over time, top destinations, services, ports and countries for one device.</sub></td>
-    <td><img src="docs/img/client-connections.png" alt="Client connections with firewall verdict"><br><sub><b>Connections.</b> Every connection with source → destination port, service, firewall verdict and router.</sub></td>
+    <td><img src="docs/img/client-connections.png" alt="Client connections"><br><sub><b>Connections.</b> Every connection with source → destination port, service, firewall verdict and router.</sub></td>
+    <td><img src="docs/img/topology.png" alt="Topology"><br><sub><b>Topology.</b> The network as a tree from the gateway, built from neighbors, Wi-Fi registrations and bridge hosts.</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/img/firewall.png" alt="Firewall page"><br><sub><b>Firewall.</b> Blocked and allowed over time, rules by hits, top blocked sources and destinations, event stream.</sub></td>
+    <td><img src="docs/img/suggestions.png" alt="Suggestions"><br><sub><b>Suggestions.</b> Findings with evidence and commands; some can be applied with one click.</sub></td>
+    <td><img src="docs/img/insights.png" alt="Insights"><br><sub><b>Insights.</b> One analysis page: clients, destinations, ports, providers, countries, protocols.</sub></td>
+  </tr>
+  <tr>
     <td><img src="docs/img/services.png" alt="Services page"><br><sub><b>Services.</b> Everything grouped by service; click one to see all clients and destinations that use it.</sub></td>
+    <td><img src="docs/img/firewall.png" alt="Firewall page"><br><sub><b>Firewall.</b> Blocked and allowed over time, rules by hits, top blocked sources and destinations, event stream. (Older look: the demo has no firewall log.)</sub></td>
   </tr>
   <tr>
     <td><img src="docs/img/devices.png" alt="Devices list"><br><sub><b>Devices.</b> Status, Wi-Fi, flow and firewall-log state at a glance.</sub></td>
-    <td><img src="docs/img/clients.png" alt="Clients list"><br><sub><b>Clients.</b> Everything on your network, with vendor, address and live rates.</sub></td>
+    <td><img src="docs/img/device-detail.png" alt="Device page"><br><sub><b>Device page.</b> Capabilities read from the router, health metrics, maintenance window and the list of changes mtmon made.</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/img/live.png" alt="Live view"><br><sub><b>Live.</b> Realtime feed of connections as they happen.</sub></td>
+    <td><img src="docs/img/wizard-plan.png" alt="Add device wizard"><br><sub><b>Add a device.</b> The plan lists every change with a reason, the exact commands, the undo step and the risk. (Older look: the wizard needs a real router.)</sub></td>
   </tr>
 </table>
 
@@ -140,7 +156,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/napfkuchen1/mtmon/main/i
   install --ctid 210 --storage local-lvm --bridge vmbr0 --ip 192.168.88.50/24 --gw 192.168.88.1 --with-geo --yes
 
 # pin a version
-MTMON_VERSION=v0.8.0 bash -c "$(curl -fsSL https://raw.githubusercontent.com/napfkuchen1/mtmon/main/install.sh)"
+MTMON_VERSION=v0.16.0 bash -c "$(curl -fsSL https://raw.githubusercontent.com/napfkuchen1/mtmon/main/install.sh)"
 ```
 
 All options: `install.sh install --help`. If `minisign` is installed on the host (`apt install minisign`), the installer also verifies the release signature (see [docs/release-signing.md](docs/release-signing.md)). You can also download `mtmon-linux-amd64.tar.gz` and its `.sha256` from the [releases page](https://github.com/napfkuchen1/mtmon/releases), unpack it on the host and run `./install-mtmon.sh --dry-run`.
@@ -155,12 +171,20 @@ All options: `install.sh install --help`. If `minisign` is installed on the host
    * You get a plan: for each step what is changed, why, the exact commands, the undo and the risk. Choose *Auto-setup*, or *Monitor only* (read-only; you configure the router yourself).
    * Confirm. mtmon makes a backup (`/export`), creates a read-only user, enables Traffic Flow and firewall logging, verifies that it can log in with the new user, and **forgets the admin login**.
 3. **Look around** (data appears within seconds):
-   * **Overview**: traffic, top clients, top destinations, devices up, open alerts
-   * **Live**: realtime feed of connections as they happen
-   * **Clients**: click one for its timeline, destinations, ports, countries, blocked attempts and IP/roaming history
-   * **Firewall**: what was blocked or allowed, and by which rule
-   * **Services**: traffic grouped by service; define your own with the **＋** button next to any connection, destination or port
-   * **Insights**, **Topology**, **Alerts**, **Settings** (alert targets such as webhook, ntfy or e-mail; data retention)
+
+   | Page | What it is for |
+   |---|---|
+   | **Overview** | Traffic, top clients, destinations, services and countries; devices up, open alerts, watched clients, mtmon's own health |
+   | **Live** | Realtime feed of connections as they happen |
+   | **Clients** | Everything on the network; click one for timeline, apps, destinations, ports, blocked attempts, IP and roaming history. *New devices* is the inbox of clients you have not looked at yet |
+   | **Devices** | Routers and access points: health, interfaces, Wi-Fi, maintenance window, change manifest, offboarding |
+   | **Alerts** | Offline devices, link changes, new clients, spikes, scans; acknowledge in bulk, export to Excel |
+   | **Suggestions** | Findings with evidence and commands; some can be fixed automatically; dismiss or snooze what does not apply |
+   | **Services** | Traffic grouped by service; define your own with the **＋** button next to any connection, destination or port |
+   | **Firewall** | What was blocked or allowed, and by which rule |
+   | **Insights** | Clients, destinations, ports, providers, countries, protocols over any range (the *Services* tab opens the Services page) |
+   | **Topology** | The network as a tree from the gateway; the root can be overridden |
+   | **Settings** | System health, alert targets (webhook, ntfy, e-mail), new-client alerts, API tokens, reverse proxy, updates, appearance, reset |
 4. **Classify a service.** For example, click ＋ on an NTP connection, name it "NTP" and choose *port 123*. A live preview shows how much stored traffic it affects. Afterwards *Services → NTP* lists every client and server that uses it, also for the past.
    * **API tokens** (Settings → API tokens) give scripts and tools such as Home Assistant read-only access: send `Authorization: Bearer mtm_…` with GET requests. A token can never change anything and cannot reach `/api/tokens` or `/api/access`. `GET /api/me` with a token returns its name and `"scope":"read"`; unknown `/api/*` paths answer `404 {"error":"not found"}`. Useful reads: `/api/overview`, `/api/devices`, `/api/clients`, `/api/alerts`, `/api/suggestions`, `/api/diagnostics`.
 5. **Remove a device** whenever you like: *Devices → device → Offboarding*. mtmon reverts its changes in reverse order and does not touch anything somebody else changed in the meantime.
@@ -227,12 +251,12 @@ Your routers are **not** touched by this. Use *Offboarding* on each device **bef
 
 mtmon is young. Please read this before relying on it:
 
-* **Limited hardware testing.** mtmon is tested against a RouterOS simulator, synthetic traffic and simulated Proxmox tools, plus a first set of real devices (hEX S, wAP ax, Audience on RouterOS 7.24). Other models may behave differently. Try it on a test router first and keep the backup. Reports are very welcome.
+* **Limited hardware testing.** mtmon is tested against a RouterOS simulator, synthetic traffic and simulated Proxmox tools, plus a first set of real devices (hEX S, wAP ax, Audience and a 4011-class router on RouterOS 7.24). Other models may behave differently. Try it on a test router first and keep the backup. Reports are very welcome.
 * Flow data only contains traffic the router CPU handles. Bridge hardware offload and FastTrack hide or distort flows (the wizard warns about both).
 * **Dropped packets** appear only through the firewall log. *Allowed* is an inference ("no drop was logged") unless you enable the optional log rule for new connections.
 * Domain names come from the router's DNS cache and optional reverse DNS. HTTPS SNI is not visible; DoH/DoT clients show up as IP addresses.
-* The wizard needs `www-ssl` already enabled on the router and does not create certificates.
-* The web UI is English by default; a language switch in the sidebar offers German. Some screenshots may still show older wording.
+* The wizard needs `www-ssl` enabled on the router. If the router has no usable certificate, the setup snippets (Settings → Router setup, and the Add-device checklist) create one (`mtmon-ca` / `mtmon-ssl`); the wizard itself does not.
+* The web UI is English by default; a language switch in the sidebar offers German.
 * Access points and switches are monitored (status, Wi-Fi clients, interfaces) but do not export flows.
 
 ## Troubleshooting
@@ -260,12 +284,14 @@ but minor releases can still change behaviour. Every release has a plain-languag
 make test         # vet + tests with race detector
 make lint         # staticcheck, shellcheck, gofmt
 make scale        # 100 clients × 30 days, every query < 500 ms
+make scale-live   # ~2 GB database like a real install (50 clients, firewall log); reports slow queries
+make screenshots  # regenerate docs/img from the demo (Playwright + Chromium)
 make deploy-test  # install/update/uninstall + dialog against simulated Proxmox tools
 make build        # static linux/amd64 binary with embedded UI
 make run-demo     # local demo with mock routers: http://127.0.0.1:18443 (admin / demo-password-1)
 ```
 
-Go (single static binary, pure-Go SQLite) and a Svelte 5 UI embedded with `go:embed`. A release is created by pushing a tag (`git tag v0.8.1 && git push origin v0.8.1`) or without a local checkout via *Actions → release → Run workflow* (input `tag`, on `main`). It requires a green CI run for the commit, then builds, signs and publishes the archive that `install.sh` downloads (see [docs/release-signing.md](docs/release-signing.md)).
+Go (single static binary, pure-Go SQLite) and a Svelte 5 UI embedded with `go:embed`. A release is started from *Actions → release → Run workflow* (input `tag`, on `main`) after the `CHANGELOG.md` entry is merged. The workflow requires a green CI run for the commit, creates the tag, then builds, signs and publishes the archive that `install.sh` downloads (see [docs/release-signing.md](docs/release-signing.md)).
 
 Contributions, bug reports and feedback from real MikroTik setups are welcome: please open an issue.
 

@@ -2,7 +2,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 GO      ?= go
 
-.PHONY: all ui build test lint scale scale-live deploy-test release run-demo clean
+.PHONY: all ui build test lint scale screenshots scale-live deploy-test release run-demo clean
 
 all: test build
 
@@ -28,6 +28,9 @@ scale:                    ## 100 clients x 30 days data set; asserts every query
 
 scale-live:               ## like scale, but sized like a real install (~2 GB, 50 clients around the clock); reports slow queries
 	MTMON_SCALE=1 MTMON_SCALE_PROFILE=live $(GO) test ./internal/integration -run TestScale -v -timeout 40m
+
+screenshots: build        ## regenerate docs/img from the demo (needs Playwright + Chromium)
+	@bash -c 'trap "pkill -x mtmon; pkill -x mockros; pkill -x flowgen" EXIT; scripts/demo.sh >/dev/null 2>&1 & sleep 8; NODE_PATH=$$(npm root -g) node scripts/screenshots.js'
 
 deploy-test: build        ## install/update/uninstall scripts against fake Proxmox tools
 	deploy/test/test-deploy.sh bin/mtmon
