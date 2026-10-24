@@ -541,9 +541,39 @@ func (e *Engine) raiseIfaceDown(device, iface, key string) {
 	e.Raise("iface_down", key, "warning", fmt.Sprintf("Interface %s on %s went down", iface, device), 5*time.Minute)
 }
 
+// NewClientMode says which new clients raise an alert: "all", "unknown" (default: no vendor known or a randomised
+// MAC – the ones worth a look) or "off". The Clients → New devices inbox lists every new client either way.
+func (e *Engine) NewClientMode() string {
+	switch m := e.St.GetMeta("alert_new_client"); m {
+	case "all", "off":
+		return m
+	}
+	return "unknown"
+}
+
+// randomisedMAC reports a locally administered address (private Wi-Fi address of phones and laptops).
+func randomisedMAC(mac string) bool {
+	if len(mac) < 2 {
+		return false
+	}
+	switch mac[1] {
+	case '2', '6', 'a', 'A', 'e', 'E':
+		return true
+	}
+	return false
+}
+
 func (e *Engine) NewClient(mac, name, ip string) {
 	if time.Since(e.start) < 3*time.Minute { // warm-up: initial inventory import
 		return
+	}
+	switch e.NewClientMode() {
+	case "off":
+		return
+	case "unknown":
+		if c, err := e.St.Client(mac); err == nil && c.Vendor != "" && !randomisedMAC(mac) {
+			return // a known manufacturer on its real address: listed in the inbox, no alert
+		}
 	}
 	n := name
 	if n == "" {

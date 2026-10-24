@@ -65,7 +65,7 @@
 <div class="grid g2" style="margin-top:16px">
   <div class="card"><div class="card-h"><h2>{t('Top clients')}</h2><a href="#/insights">{t('All →')}</a></div><TopList rows={o?.top_clients || []} onpick={pickClient} /></div>
   <div class="card"><div class="card-h"><h2>{t('Top destinations')}</h2><a href="#/insights/hosts">{t('All →')}</a></div><TopList rows={o?.top_hosts || []} /></div>
-  <div class="card"><div class="card-h"><h2>{t('Top services')}</h2><a href="#/insights/services">{t('All →')}</a></div><TopList rows={o?.top_services || []} /></div>
+  <div class="card"><div class="card-h"><h2>{t('Top services')}</h2><a href="#/services">{t('All →')}</a></div><TopList rows={o?.top_services || []} /></div>
   <div class="card"><div class="card-h"><h2>{t('Top countries')}</h2><a href="#/insights/country">{t('All →')}</a></div>{#if o?.top_countries?.length}<WorldMap rows={o.top_countries} />{/if}<TopList rows={o?.top_countries || []} mode="country" empty={t('No GeoIP database configured (see Settings)')} emptyIcon="generic" emptyHref="#/settings" emptyAction={t('Set up in Settings')} /></div>
 </div>
 

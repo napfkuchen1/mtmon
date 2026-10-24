@@ -98,3 +98,29 @@ func TestWatchEndpoints(t *testing.T) {
 		t.Error("watch flag not cleared")
 	}
 }
+
+func TestAlertSettings(t *testing.T) {
+	ts, _ := newTestServer(t)
+	_, c := login(t, ts, "test-password-1")
+	get := func() string {
+		r, _ := c.Get(ts.URL + "/api/alert-settings")
+		var m map[string]string
+		json.NewDecoder(r.Body).Decode(&m)
+		return m["new_client"]
+	}
+	put := func(v string) int {
+		req, _ := http.NewRequest("PUT", ts.URL+"/api/alert-settings", strings.NewReader(`{"new_client":"`+v+`"}`))
+		req.Header.Set("Content-Type", "application/json")
+		r, _ := c.Do(req)
+		return r.StatusCode
+	}
+	if get() != "unknown" {
+		t.Errorf("default: %s", get())
+	}
+	if put("off") != 200 || get() != "off" {
+		t.Error("save off")
+	}
+	if put("sometimes") != 400 || get() != "off" {
+		t.Error("invalid value must be refused")
+	}
+}

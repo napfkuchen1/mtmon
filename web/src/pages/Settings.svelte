@@ -10,6 +10,12 @@
   const sys = poll(() => api('/system'), 5000)
   const dev = poll(() => api('/devices'), 0)
   const s = $derived(sys.data)
+  // --- alerts: which new clients raise an alert
+  let newClient = $state('unknown')
+  api('/alert-settings').then(x => (newClient = x.new_client)).catch(() => {})
+  async function saveNewClient(v) {
+    try { const x = await api('/alert-settings', { method: 'PUT', body: { new_client: v } }); newClient = x.new_client; toast(t('Saved')) } catch (e) { toast(tr(e.message)) }
+  }
   // --- access: port, public URL (reverse proxy), nginx snippet, restart
   let acc = $state(null), accPort = $state(''), accUrl = $state(''), accBusy = $state(false), accErr = $state(''), restarting = $state(false)
   async function loadAcc() { try { acc = await api('/access'); accPort = acc.port_override || ''; accUrl = acc.public_url || '' } catch (e) { accErr = e.message } }
@@ -206,6 +212,12 @@
       {:else}<div class="muted" style="font-size:13px">{t('No tokens yet.')}</div>{/if}
     </div></div>
 </div>
+
+<div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Alerts')}</h2></div>
+  <table><tbody>
+    <tr><td>{t('Alert for new clients')}<div class="muted" style="font-size:12px">{t('Every new client is listed under New devices. Only the ones worth a look raise an alert by default: no known manufacturer, or a randomised (private) MAC address.')}</div></td><td class="r"><div class="tabs">
+      {#each [['unknown', t('Only unknown')], ['all', t('All')], ['off', t('Off')]] as [id, l]}<button class:on={newClient === id} onclick={() => saveNewClient(id)}>{l}</button>{/each}</div></td></tr>
+  </tbody></table></div>
 
 <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Appearance')}</h2></div>
   <table><tbody>
