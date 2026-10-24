@@ -123,7 +123,7 @@
     <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Destinations')}</h2><span class="muted" style="font-size:12.5px">{t('where the traffic goes')}</span></div>
       <div class="scroll"><table>
         <thead><tr><th>{t('Destination')}</th><th>{t('Port')}</th><th>{t('Country / Provider')}</th><th class="r">{t('Clients')}</th><th class="r">{t('↓ Down')}</th><th class="r">{t('↑ Up')}</th><th></th></tr></thead>
-        <tbody>{#each dsts as x (x.rip + x.port + x.proto)}
+        <tbody>{#each dsts as x, i (`${x.rip}|${x.port}|${x.proto}|${i}`)}
           <tr><td><span class="mono">{x.rip}</span>{#if x.host}<div class="muted">{x.host}</div>{/if}</td><td class="mono">{protoName(x.proto)}/{x.port}</td>
             <td><Flag cc={x.cc} />{x.cc} <span class="muted">{x.asorg}</span></td><td class="r num">{x.clients < 0 ? '–' : x.clients}</td><td class="r num">{bytes(x.down)}</td><td class="r num">{bytes(x.up)}</td>
             <td class="r" style="white-space:nowrap"><button class="btn sm" onclick={() => classifyDest(x)}>{t('Destination')}</button> <button class="btn sm" onclick={() => classifyPort(x)}>{t('Port')}</button></td></tr>
