@@ -50,3 +50,21 @@ func TestVPNPeerBecomesClient(t *testing.T) {
 		t.Errorf("MACForIPAt: %q", got)
 	}
 }
+
+// All host addresses of a peer are aliases of the one client; an IPv6-only peer is a client as well.
+func TestVPNAliases(t *testing.T) {
+	obs := vpnObservations("gw", []Row{
+		{"name": "p", "interface": "wg0", "allowed-address": "192.168.216.4/32,fd00::4/128", "last-handshake": "10s"},
+		{"name": "v6", "interface": "wg0", "allowed-address": "fd00::9/128", "last-handshake": "10s"},
+		{"name": "net", "interface": "wg0", "allowed-address": "fd00:1::/64"},
+	})
+	if len(obs) != 2 {
+		t.Fatalf("%+v", obs)
+	}
+	if obs[0].MAC != "VPN:192.168.216.4" || len(obs[0].Aliases) != 2 || obs[0].Aliases[1] != "fd00::4" {
+		t.Errorf("dual-stack peer: %+v", obs[0])
+	}
+	if obs[1].MAC != "VPN:fd00::9" || obs[1].IP != "fd00::9" {
+		t.Errorf("IPv6-only peer: %+v", obs[1])
+	}
+}

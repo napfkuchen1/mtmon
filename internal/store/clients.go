@@ -41,8 +41,9 @@ type Observation struct {
 	TxRate   string
 	RxRate   string
 	WiFi     bool
-	Via      string // evidence behind Present
-	Present  bool   // seen on the network right now (wifi/bridge-host/ARP), not just a DHCP lease
+	Via      string   // evidence behind Present
+	Present  bool     // seen on the network right now (wifi/bridge-host/ARP), not just a DHCP lease
+	Aliases  []string // further addresses of the same client (e.g. the IPv6 address of a VPN peer)
 }
 
 func NormMAC(m string) string { return strings.ToUpper(strings.TrimSpace(m)) }
@@ -95,9 +96,11 @@ func (s *Store) UpsertClients(obs []Observation) ([]string, error) {
 					seen, seen, seen, seen, o.Via, o.Hostname, o.Hostname, o.IP, o.IP, o.Vendor, o.Vendor, o.Device, o.Device, o.Iface, o.Iface, o.MAC)
 			}
 		}
-		if o.IP != "" {
-			tx.Exec(`INSERT INTO ip_history(ip,mac,first,last) VALUES(?,?,?,?)
-				ON CONFLICT(ip,mac) DO UPDATE SET last=excluded.last`, o.IP, o.MAC, now, now)
+		for _, ip := range append([]string{o.IP}, o.Aliases...) {
+			if ip != "" {
+				tx.Exec(`INSERT INTO ip_history(ip,mac,first,last) VALUES(?,?,?,?)
+					ON CONFLICT(ip,mac) DO UPDATE SET last=excluded.last`, ip, o.MAC, now, now)
+			}
 		}
 	}
 	return roams, tx.Commit()
