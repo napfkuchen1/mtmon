@@ -112,6 +112,8 @@ type Client struct {
 	Signal                           int // dBm, 0 = unknown
 	WiFi, Online                     bool
 	FirstSeen, LastSeen              int64
+	SigSamples                       int64   // Wi-Fi signal readings of the last 24 h (0 = no history)
+	WeakFrac                         float64 // share of those readings weaker than WeakSignal
 }
 
 // Display is the best human name for a client.

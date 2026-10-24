@@ -58,6 +58,11 @@ CREATE TABLE IF NOT EXISTS log_events(
   ts INTEGER, device TEXT, topics TEXT, level TEXT, msg TEXT);
 CREATE INDEX IF NOT EXISTS log_events_dev ON log_events(device, ts);
 CREATE INDEX IF NOT EXISTS log_events_ts ON log_events(ts);
+
+CREATE TABLE IF NOT EXISTS wifi_hist(
+  ts INTEGER, mac TEXT, device TEXT, band TEXT, n INTEGER, sig_sum INTEGER, sig_min INTEGER, sig_max INTEGER, weak INTEGER,
+  tx_sum REAL, rx_sum REAL, PRIMARY KEY(ts, mac, device, band)) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS wifi_hist_mac ON wifi_hist(mac, ts);
 CREATE TABLE IF NOT EXISTS dev_metrics(
   ts INTEGER, device TEXT, cpu REAL, mem_used INTEGER, mem_total INTEGER,
   temp REAL, uptime INTEGER, clients INTEGER, up INTEGER);
@@ -205,6 +210,8 @@ func (s *Store) Cleanup(rawDays, days int) {
 	s.DB.Exec(`DELETE FROM rollup_1d_dim WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM dev_metrics WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM log_events WHERE ts < ?`, now.AddDate(0, 0, -LogRetentionDays).Unix())
+
+	s.DB.Exec(`DELETE FROM wifi_hist WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM if_metrics WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM alerts WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM roam WHERE ts < ?`, cut)

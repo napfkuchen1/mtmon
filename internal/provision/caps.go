@@ -19,6 +19,9 @@ type WifiIf struct {
 	Name string `json:"name"`
 	SSID string `json:"ssid,omitempty"`
 	Band string `json:"band,omitempty"`
+	// Channel is the configured frequency/channel as the router reports it (e.g. "5180" or "auto"); the field names
+	// differ between RouterOS builds, so it is taken from whichever of them is present.
+	Channel string `json:"channel,omitempty"`
 }
 
 type FilterRule struct {
@@ -86,6 +89,16 @@ type Caps struct {
 
 const ManagedTag = "mtmon-managed"
 
+// firstOf returns the first non-empty value among the given field names.
+func firstOf(r poller.Row, keys ...string) string {
+	for _, k := range keys {
+		if v := r[k]; v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 func get(ctx context.Context, c *poller.Client, path string) []poller.Row {
 	rows, err := c.Get(ctx, path)
 	if err != nil {
@@ -146,6 +159,13 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 			if wi.Band == "" {
 				wi.Band = x["band"]
 			}
+			wi.Channel = firstOf(x, "channel.frequency", "frequency")
+			if wi.Channel == "" {
+				wi.Channel = firstOf(cfg[x["configuration"]], "channel.frequency", "frequency")
+			}
+			if w := firstOf(x, "channel.width"); w != "" && wi.Channel != "" {
+				wi.Channel += " / " + w
+			}
 			k.WifiIfs = append(k.WifiIfs, wi)
 		}
 		k.WifiClient = len(get(ctx, c, "/interface/wifi/registration-table"))
@@ -158,7 +178,7 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 	} else if w := get(ctx, c, "/interface/wireless"); len(w) > 0 {
 		k.WifiStack = "wireless"
 		for _, x := range w {
-			k.WifiIfs = append(k.WifiIfs, WifiIf{Name: x["name"], SSID: x["ssid"], Band: x["band"]})
+			k.WifiIfs = append(k.WifiIfs, WifiIf{Name: x["name"], SSID: x["ssid"], Band: x["band"], Channel: firstOf(x, "frequency")})
 		}
 		k.Warnings = append(k.Warnings, "Legacy “wireless” package: mtmon only reads Wi-Fi clients from the new “wifi” package (wifi-qcom). Clients are still found via DHCP/ARP/bridge hosts, but signal, SSID and band are missing.")
 	} else {
