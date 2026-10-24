@@ -47,6 +47,7 @@ type devSnap struct {
 	nd6    []Row // /ipv6/neighbor: IPv6 address -> MAC (merges IPv6 traffic into the client)
 	wifi   []Row
 	bridge []Row
+	peers  []Row // /interface/wireguard/peers (absent without the wireguard package)
 	at     time.Time
 }
 
@@ -401,6 +402,9 @@ func (w *worker) l3Poll(ctx context.Context) {
 	}
 	if rows, err := w.c.Get(ctx, "/interface/bridge/host"); err == nil {
 		w.m.setSnap(w.d.Name, func(s *devSnap) { s.bridge = rows })
+	}
+	if rows, err := w.c.Get(ctx, "/interface/wireguard/peers"); err == nil {
+		w.m.setSnap(w.d.Name, func(s *devSnap) { s.peers = rows })
 	}
 }
 
@@ -758,6 +762,15 @@ func (m *Manager) merge() {
 	m.mu.Unlock()
 
 	m.mu.Lock()
+	for dev, s := range m.snaps {
+		if time.Since(s.at) > 3*time.Minute {
+			continue
+		}
+		for _, v := range vpnObservations(dev, s.peers) {
+			v := v
+			byMAC[v.MAC] = &v
+		}
+	}
 	for mac, o := range byMAC {
 		if m.isSelf(mac, o.IP) {
 			delete(byMAC, mac)
@@ -776,7 +789,9 @@ func (m *Manager) merge() {
 	var newOnes []store.Observation
 	idents := m.neighborIdents()
 	for mac, o := range byMAC {
-		o.Vendor = m.En.Vendor(mac)
+		if !strings.HasPrefix(mac, "VPN:") {
+			o.Vendor = m.En.Vendor(mac)
+		}
 		if o.Hostname == "" {
 			o.Hostname = m.fallbackName(mac, o.IP, idents)
 		}

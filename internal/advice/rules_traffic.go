@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -122,6 +123,9 @@ func ruleChatty(s Snapshot) ([]Suggestion, string) {
 		if isInfra(infra, idx, t.MAC) {
 			continue // routers and APs talk a lot by design (DNS, NTP, management); that is not client behaviour
 		}
+		if c, ok := idx[t.MAC]; ok && c.Vendor == "WireGuard VPN" {
+			continue // a VPN peer listed as a client (see poller.VPNVendor)
+		}
 		if c, ok := idx[t.MAC]; ok && isServerLike(c) {
 			continue // servers (Home Assistant, proxies, tunnels) are not comparable with a typical client
 		}
@@ -182,6 +186,18 @@ func infraAddrs(s Snapshot) map[string]bool {
 
 var vpnIface = []string{"wg", "wireguard", "vpn", "back-to-home", "ovpn", "l2tp", "sstp", "zerotier"}
 
+// isTunnelType: RouterOS interface types of VPN tunnels. The name does not matter (Back to Home calls its interface
+// "back-to-home-vpn", but a user can name a WireGuard interface anything).
+func isTunnelType(t string) bool {
+	t = strings.ToLower(t)
+	for _, p := range []string{"wg", "ovpn", "l2tp", "sstp", "pptp", "zerotier"} {
+		if strings.HasPrefix(t, p) {
+			return true
+		}
+	}
+	return false
+}
+
 // vpnNets: subnets of router interfaces that look like a VPN (WireGuard, Back To Home, OpenVPN ...), from "ip/mask on iface".
 func vpnNets(s Snapshot) []netip.Prefix {
 	var out []netip.Prefix
@@ -195,6 +211,12 @@ func vpnNets(s Snapshot) []netip.Prefix {
 				continue
 			}
 			l := strings.ToLower(iface)
+			if slices.Contains(d.TunnelIfs, iface) {
+				if p, err := netip.ParsePrefix(pfx); err == nil {
+					out = append(out, p.Masked())
+				}
+				continue
+			}
 			for _, k := range vpnIface {
 				if strings.Contains(l, k) {
 					if p, err := netip.ParsePrefix(pfx); err == nil {

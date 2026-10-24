@@ -93,6 +93,7 @@ type Device struct {
 	FlowLast                 int64 // last flow packet (unix), 0 = never since mtmon started
 	FwLogging                bool  // firewall log rules are registered for the device
 	Caps                     *Caps
+	TunnelIfs                []string // interfaces of a tunnel type (wg, ovpn, l2tp, sstp ...), whatever their name
 }
 
 type Client struct {
