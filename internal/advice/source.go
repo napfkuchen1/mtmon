@@ -139,9 +139,10 @@ func (l *Live) Clients() []Client {
 	}
 	l.clsOK = true
 	rows, _ := l.St.Clients()
+	grp, _ := l.St.ClientGroups()
 	sig, _ := l.St.WifiSignalStats(l.now.Add(-24 * time.Hour).Unix())
 	for _, c := range rows {
-		l.cls = append(l.cls, Client{SigSamples: sig[c.MAC].Samples, WeakFrac: sig[c.MAC].WeakFrac, MAC: c.MAC, Label: c.Label, Hostname: c.Hostname, Vendor: c.Vendor, IP: c.IP,
+		l.cls = append(l.cls, Client{Group: c.Group, ChattyMult: grp[c.MAC].ChattyMult, IgnoreWeak: grp[c.MAC].IgnoreWeak, SigSamples: sig[c.MAC].Samples, WeakFrac: sig[c.MAC].WeakFrac, MAC: c.MAC, Label: c.Label, Hostname: c.Hostname, Vendor: c.Vendor, IP: c.IP,
 			Device: c.Device, SSID: c.SSID, Band: c.Band, Signal: c.Signal, WiFi: c.WiFi, Online: c.Online,
 			FirstSeen: c.FirstSeen, LastSeen: c.LastSeen})
 	}

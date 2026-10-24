@@ -57,8 +57,10 @@ type Engine struct {
 	ifFolded    map[string]bool        // device/iface -> the link-down was folded into the alert of the device behind it
 	resolved    map[string]bool        // device -> its offline alert was closed on return (a reboot note may follow)
 	bursts      map[string][]time.Time // router log patterns: key -> recent occurrences
-	hc          *http.Client
-	Notify      func(store.Alert) // test hook
+
+	Suggest func(store.Client) string // group name suggested for a client without a group (set by main), "" = none
+	hc      *http.Client
+	Notify  func(store.Alert) // test hook
 }
 
 func New(c *config.Config, s *store.Store, h *live.Hub, log *slog.Logger) *Engine {
@@ -568,6 +570,9 @@ func (e *Engine) NewClient(mac, name, ip string) {
 	if time.Since(e.start) < 3*time.Minute { // warm-up: initial inventory import
 		return
 	}
+	if e.groupSaysNoNewAlert(mac) {
+		return
+	}
 	switch e.NewClientMode() {
 	case "off":
 		return
@@ -659,6 +664,10 @@ func (e *Engine) spike(snap live.Snapshot, cur, base float64) {
 		if r*1e6 >= 0.8*cur && e.knownClient(top.Key) {
 			sev = "info" // one long-known device (backup, update, stream) explains almost everything: worth a note, not a warning
 			msg += " – one known client causes the load, probably a download, backup or stream"
+		}
+		if g, ok := e.clientGroup(top.Key); ok && g.SpikeInfo {
+			sev = "info"
+			msg += " – group " + g.Name + " (spikes of this group are recorded as info)"
 		}
 		day := time.Now().Format("2006-01-02")
 		e.mu.Lock()
@@ -838,4 +847,42 @@ func (e *Engine) deliver(a store.Alert) {
 			e.Log.Warn("smtp failed", "err", err)
 		}
 	}
+}
+
+// clientGroup returns the group the client was put into (manually).
+func (e *Engine) clientGroup(mac string) (store.Group, bool) {
+	gs, err := e.St.ClientGroups()
+	if err != nil {
+		return store.Group{}, false
+	}
+	g, ok := gs[store.NormMAC(mac)]
+	return g, ok
+}
+
+// groupSaysNoNewAlert: the client's group (assigned, or the one suggested for it) is set to not alert on new clients.
+func (e *Engine) groupSaysNoNewAlert(mac string) bool {
+	if g, ok := e.clientGroup(mac); ok {
+		return !g.NewAlert
+	}
+	if e.Suggest == nil {
+		return false
+	}
+	c, err := e.St.Client(mac)
+	if err != nil || c.Group != "" {
+		return false
+	}
+	name := e.Suggest(*c)
+	if name == "" {
+		return false
+	}
+	gs, err := e.St.Groups()
+	if err != nil {
+		return false
+	}
+	for _, g := range gs {
+		if g.Name == name {
+			return !g.NewAlert
+		}
+	}
+	return false
 }

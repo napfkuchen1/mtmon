@@ -70,6 +70,12 @@
     try { await api('/clients/' + encodeURIComponent(mac) + '/icon', { method: 'PUT', body: { icon: k } }); d.data = await api('/clients/' + encodeURIComponent(mac) + '?range=' + rg()); toast(t('Saved')) }
     catch (e) { toast(tr(e.message)) }
   }
+  const gl = poll(() => api('/groups'), 60000)
+  const groupNames = $derived((gl.data?.groups || []).map(g => g.name))
+  async function setGroup(group) {
+    try { await api('/clients/' + encodeURIComponent(mac) + '/group', { method: 'PUT', body: { group } }); d.data = await api('/clients/' + encodeURIComponent(mac) + '?range=' + rg()); toast(t('Saved')) }
+    catch (e) { toast(tr(e.message)) }
+  }
   async function toggleWatch() {
     try { await api('/clients/' + encodeURIComponent(mac) + '/watch', { method: 'PUT', body: { watch: !c.watch } }); d.data = await api('/clients/' + encodeURIComponent(mac) + '?range=' + rg()); toast(t('Saved')) }
     catch (e) { toast(tr(e.message)) }
@@ -102,6 +108,8 @@
       {#if !x?.address_only}<button class="btn sm" onclick={() => { label = c.label || c.hostname; editing = true }}>{t('Rename')}</button>{/if}
     {/if}
     <span class="badge {c.online ? 'ok' : ''}">{c.online ? t('online') : t('offline')}</span>
+    {#if !x?.address_only && groupNames.length}<select class="input" style="width:auto" aria-label={t('Group')} value={c.group || ''} onchange={e => setGroup(e.currentTarget.value)}><option value="">{t('No group')}</option>{#each groupNames as g}<option value={g}>{g}</option>{/each}</select>
+      {#if !c.group && x?.suggested_group && groupNames.includes(x.suggested_group)}<button class="btn sm" onclick={() => setGroup(x.suggested_group)}>{t('Suggested: {g}', { g: x.suggested_group })}</button>{/if}{/if}
     {#if !x?.address_only}<button class="btn sm" class:primary={c.watch} aria-pressed={c.watch} title={t('Alert me when this client stays offline')} onclick={toggleWatch}>★ {c.watch ? t('Watched') : t('Watch')}</button>{/if}
     {#if c.wifi}<span class="badge acc">{t('Wi-Fi')} {c.ssid}{c.band ? ' · ' + c.band : ''}</span>{:else}<span class="badge">{t('wired')}</span>{/if}
     {#if c.vendor}<span class="badge">{tr(c.vendor)}</span>{/if}

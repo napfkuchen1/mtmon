@@ -362,10 +362,15 @@ func (s *Server) clients(w http.ResponseWriter, r *http.Request) {
 		usage[t.Key] = [2]int64{t.Up, t.Down}
 	}
 	out := make([]map[string]any, 0, len(cl))
+	want := r.URL.Query().Get("group") // "" = all, "none" = ungrouped
 	for _, c := range cl {
+		if want != "" && (want == "none" && c.Group != "" || want != "none" && c.Group != want) {
+			continue
+		}
 		rt := rates[c.MAC]
 		u := usage[c.MAC]
-		out = append(out, map[string]any{"client": c, "up_bps": rt.UpBps, "down_bps": rt.DownBps, "bytes_up": u[0], "bytes_down": u[1]})
+		out = append(out, map[string]any{"client": c, "up_bps": rt.UpBps, "down_bps": rt.DownBps, "bytes_up": u[0], "bytes_down": u[1],
+			"suggested_group": suggestedGroup(c)})
 	}
 	jsonOut(w, out)
 }
@@ -384,7 +389,7 @@ func (s *Server) clientDetail(w http.ResponseWriter, r *http.Request) {
 		nd, _ = s.St.NewDests(mac, int64(ranges["24h"].d.Seconds()))
 	}
 	jsonOut(w, map[string]any{
-		"client": c, "range": rn, "address_only": addrOnly,
+		"client": c, "range": rn, "address_only": addrOnly, "suggested_group": suggestedGroup(*c),
 		"ip_history":       must(s.St.IPHistory(mac)),
 		"roams":            must(s.St.Roams(mac)),
 		"series":           must(s.St.Series(since, bucket, mac)),
@@ -468,10 +473,31 @@ func (s *Server) top(w http.ResponseWriter, r *http.Request) {
 	if limit <= 0 || limit > 500 {
 		limit = 20
 	}
+	group := r.URL.Query().Get("group")
+	want := limit
+	if group != "" && (r.PathValue("what") == "clients" || r.PathValue("what") == "internal") {
+		limit = 500 // filter first, then cut
+	}
 	rows, err := s.topBy(r.PathValue("what"), since, limit, r.URL.Query().Get("mac"))
 	if err != nil {
 		jerr(w, 400, err.Error())
 		return
+	}
+	if group != "" && (r.PathValue("what") == "clients" || r.PathValue("what") == "internal") {
+		cl, _ := s.St.Clients()
+		in := map[string]bool{}
+		for _, c := range cl {
+			if group == "none" && c.Group == "" || group != "none" && c.Group == group {
+				in[c.MAC] = true
+			}
+		}
+		kept := rows[:0]
+		for _, x := range rows {
+			if in[x.Key] && len(kept) < want {
+				kept = append(kept, x)
+			}
+		}
+		rows = kept
 	}
 	jsonOut(w, map[string]any{"range": rn, "rows": rows})
 }

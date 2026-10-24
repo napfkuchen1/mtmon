@@ -5,6 +5,7 @@
   import { poll } from '../lib/Poll.svelte.js'
   import { bytes, dur, num, ago, datetime } from '../lib/format.js'
   import UpdateCard from './UpdateCard.svelte'
+  import GroupsCard from '../lib/GroupsCard.svelte'
   import ResetDialog from '../lib/ResetDialog.svelte'
   let reset = $state(null) // null | 'data' | 'full'
   const sys = poll(() => api('/system'), 5000)
@@ -228,6 +229,8 @@
     <tr><td>{t('Chart style')}<div class="muted" style="font-size:12px">{t('Modern: smooth curves, peak values, night shading. Classic: the previous straight-line look.')}</div></td><td class="r"><div class="tabs">
       {#each [['modern', t('Modern')], ['classic', t('Classic')]] as [id, l]}<button class:on={app.chart === id} onclick={() => setPref('chart', id)}>{l}</button>{/each}</div></td></tr>
   </tbody></table></div>
+
+<GroupsCard />
 
 <UpdateCard />
 

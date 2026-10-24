@@ -11,6 +11,9 @@
 
   let q = $state(''), kind = $state('all'), sortKey = $state('live'), desc = $state(true)
   let sel = $state({}) // mac -> true: selected for the bulk action
+  let grp = $state('') // group filter: '' all, 'none', or a group name
+  const gl = poll(() => api('/groups'), 30000)
+  const groups = $derived((gl.data?.groups || []).map(g => g.name))
   const d = poll(() => api('/clients?range=' + (app.range === 'live' ? '1h' : app.range)), 5000)
 
   const rows = $derived.by(() => {
@@ -23,6 +26,8 @@
     if (kind === 'wired') r = r.filter(x => !x.c.wifi && x.c.online)
     if (kind === 'offline') r = r.filter(x => !x.c.online)
     if (kind === 'watched') r = r.filter(x => x.c.watch)
+    if (grp === 'none') r = r.filter(x => !x.c.group)
+    else if (grp) r = r.filter(x => x.c.group === grp)
     const val = x => ({ name: display(x.c).toLowerCase(), ip: x.c.ip.split('.').map(n => n.padStart(3, '0')).join('.'), live: x.live, usage: x.bytes_up + x.bytes_down, signal: x.c.signal || -999, seen: x.c.last_seen, device: x.c.device }[sortKey])
     r.sort((a, b) => { const A = val(a), B = val(b); return (A < B ? -1 : A > B ? 1 : 0) * (desc ? -1 : 1) })
     return r
@@ -31,6 +36,10 @@
   const arrow = k => sortKey === k ? (desc ? ' ↓' : ' ↑') : ''
   const kinds = $derived([['all', t('All')], ['online', t('Online')], ['wifi', t('Wi-Fi')], ['wired', t('Wired')], ['offline', t('Offline')], ['watched', '★ ' + t('Watched')]])
   const picked = $derived(Object.keys(sel).filter(k => sel[k]))
+  async function groupSelected(group, auto = false) {
+    try { const r = await api('/clients/group', { method: 'POST', body: auto ? { macs: picked, auto: true } : { macs: picked, group } }); sel = {}; d.data = await api('/clients?range=' + (app.range === 'live' ? '1h' : app.range)); toast(t('{n} clients updated', { n: r.count })) }
+    catch (e) { toast(tr(e.message)) }
+  }
   async function watchSelected(on) {
     try { await api('/clients/watch', { method: 'POST', body: { macs: picked, watch: on } }); sel = {}; d.data = await api('/clients?range=' + (app.range === 'live' ? '1h' : app.range)); toast(t('Saved')) }
     catch (e) { toast(tr(e.message)) }
@@ -43,6 +52,7 @@
 <div class="card">
   <div class="card-h">
     <input class="input" style="min-width:260px" placeholder={t('Search name, IP, MAC, vendor, SSID…')} bind:value={q} aria-label={t('Search clients')} />
+    {#if groups.length}<select class="input" style="width:auto" bind:value={grp} aria-label={t('Group')}><option value="">{t('All groups')}</option><option value="none">{t('No group')}</option>{#each groups as g}<option value={g}>{g}</option>{/each}</select>{/if}
     <div class="tabs" role="tablist">
       {#each kinds as [id, l]}
         <button role="tab" class:on={kind === id} aria-selected={kind === id} onclick={() => (kind = id)}>{l}</button>
@@ -53,6 +63,9 @@
     <div class="card-b" style="display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--border)"><b>{t('{n} selected', { n: picked.length })}</b>
       <button class="btn sm primary" onclick={() => watchSelected(true)}>★ {t('Watch (alert when offline)')}</button>
       <button class="btn sm" onclick={() => watchSelected(false)}>{t('Stop watching')}</button>
+      {#if groups.length}<select class="input" style="width:auto" aria-label={t('Set group')} onchange={e => { if (e.currentTarget.value) groupSelected(e.currentTarget.value === '-' ? '' : e.currentTarget.value); e.currentTarget.value = '' }}>
+        <option value="">{t('Set group…')}</option>{#each groups as g}<option value={g}>{g}</option>{/each}<option value="-">{t('Remove from group')}</option></select>
+        <button class="btn sm" onclick={() => groupSelected('', true)} title={t('Put each selected client into the group suggested for it (IoT, Servers)')}>{t('Apply suggested groups')}</button>{/if}
       <button class="btn sm" onclick={() => (sel = {})}>{t('Clear selection')}</button></div>
   {/if}
   <div class="scroll">
@@ -71,7 +84,7 @@
           <tr class="click" onclick={() => go('client/' + encodeURIComponent(x.c.mac))}>
             <td onclick={e => e.stopPropagation()}><input type="checkbox" aria-label={t('Select')} bind:checked={sel[x.c.mac]} /></td>
             <td><div style="display:flex;gap:10px;align-items:center"><Avatar client={x.c} online={x.c.online} />
-              <div><b>{#if x.c.watch}<span title={t('Watched: alert when offline')}>★ </span>{/if}{display(x.c)}</b><div class="muted mono" style="font-size:11.5px">{x.c.mac}{#if x.c.vendor} · {tr(x.c.vendor)}{/if}</div></div></div></td>
+              <div><b>{#if x.c.watch}<span title={t('Watched: alert when offline')}>★ </span>{/if}{display(x.c)}</b>{#if x.c.group} <span class="badge">{x.c.group}</span>{:else if x.suggested_group && groups.includes(x.suggested_group)} <span class="muted" style="font-size:11.5px" title={t('Suggested group')}>({x.suggested_group}?)</span>{/if}<div class="muted mono" style="font-size:11.5px">{x.c.mac}{#if x.c.vendor} · {tr(x.c.vendor)}{/if}</div></div></div></td>
             <td class="mono">{x.c.ip || '—'}</td>
             <td>{#if x.c.device}{x.c.device}{#if x.c.wifi}<div><span class="badge acc">{x.c.ssid || t('Wi-Fi')}{x.c.band ? ' · ' + x.c.band : ''}</span></div>{:else}<div class="muted">{x.c.iface}</div>{/if}{:else}<span class="muted">—</span>{/if}</td>
             <td>{#if x.c.wifi && x.c.online}<span class="badge {signalQuality(x.c.signal).cls}">{signalQuality(x.c.signal).txt}</span>{:else}<span class="muted">—</span>{/if}</td>

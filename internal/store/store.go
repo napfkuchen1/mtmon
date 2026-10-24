@@ -63,6 +63,10 @@ CREATE TABLE IF NOT EXISTS wifi_hist(
   ts INTEGER, mac TEXT, device TEXT, band TEXT, n INTEGER, sig_sum INTEGER, sig_min INTEGER, sig_max INTEGER, weak INTEGER,
   tx_sum REAL, rx_sum REAL, PRIMARY KEY(ts, mac, device, band)) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS wifi_hist_mac ON wifi_hist(mac, ts);
+
+CREATE TABLE IF NOT EXISTS client_groups(
+  name TEXT PRIMARY KEY, new_alert INTEGER NOT NULL DEFAULT 1, chatty_mult REAL NOT NULL DEFAULT 1,
+  spike_info INTEGER NOT NULL DEFAULT 0, ignore_weak INTEGER NOT NULL DEFAULT 0, watch_default INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS dev_metrics(
   ts INTEGER, device TEXT, cpu REAL, mem_used INTEGER, mem_total INTEGER,
   temp REAL, uptime INTEGER, clients INTEGER, up INTEGER);
