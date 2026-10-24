@@ -110,6 +110,8 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 	}
 	k := &Caps{Version: r["version"], Arch: r["architecture-name"], Model: r["board-name"],
 		CPUCount: r.Int("cpu-count"), MemTotal: r.Int("total-memory"), IfaceTypes: map[string]int{}, ProbedAt: time.Now().Unix()}
+	k.Packages, k.WifiIfs, k.Bridges, k.Addresses, k.LogActions, k.Filter, k.Warnings = []string{}, []WifiIf{}, []string{}, []string{}, []string{}, []FilterRule{}, []string{}
+	k.Flow.Targets = []string{}
 	if id := get(ctx, c, "/system/identity"); len(id) > 0 {
 		k.Identity = id[0]["name"]
 	}

@@ -520,7 +520,7 @@ func (s *Server) devices(w http.ResponseWriter, r *http.Request) {
 			"state": states[d.Name], "live": liveD[d.Name], "managed": d.Managed, "source": map[bool]string{true: "ui", false: "config"}[d.FromUI],
 			"firewall_logging": fwOn[d.Name]}
 		if c, ok := caps[d.Name]; ok {
-			m["caps"] = c
+			m["caps"] = cleanCaps(c, d.Managed)
 		}
 		if ip, err := netip.ParseAddr(d.Addr); err == nil && s.Col != nil {
 			if st := s.Col.Exporter(ip); !st.Last.IsZero() {

@@ -29,7 +29,11 @@ func (j *enrichJob) snapshot() map[string]any {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	steps := append([]setupStep{}, j.steps...)
-	return map[string]any{"running": j.running, "steps": steps, "started": j.started.Unix()}
+	var started int64 // 0 while nothing ran yet (the zero time is not a Unix time)
+	if !j.started.IsZero() {
+		started = j.started.Unix()
+	}
+	return map[string]any{"running": j.running, "steps": steps, "started": started}
 }
 
 func (j *enrichJob) set(i int, status, err string) {
