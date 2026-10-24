@@ -114,7 +114,11 @@ func ruleChatty(s Snapshot) ([]Suggestion, string) {
 	vpn := vpnNets(s)
 	var out []Suggestion
 	for _, t := range tr {
-		if t.Fl < ChattyMinFlows || t.Fl < ChattyFactor*max(med, 1) {
+		mult := 1.0
+		if c, ok := idx[t.MAC]; ok && c.ChattyMult > 0 {
+			mult = c.ChattyMult // e.g. 3 for IoT, 10 for servers
+		}
+		if t.Fl < ChattyMinFlows || float64(t.Fl) < ChattyFactor*mult*float64(max(med, 1)) {
 			continue
 		}
 		if inVPN(vpn, t.MAC, idx) {
@@ -150,6 +154,9 @@ var serverHints = []string{"homeassistant", "home-assistant", "proxy", "traefik"
 	"proxmox", "pve", "nas", "qnap", "synology", "server", "grafana", "ntopng", "mtmon"}
 
 // isServerLike: host name or label suggests an always-on server role.
+// ServerLike reports a client whose name looks like a server, NAS, camera or printer (used to suggest a group).
+func ServerLike(c Client) bool { return isServerLike(c) }
+
 func isServerLike(c Client) bool {
 	h := strings.ToLower(c.Hostname + " " + c.Label)
 	for _, k := range serverHints {

@@ -130,6 +130,7 @@ func run(args []string) error {
 				al.LogEvent(ev)
 			}
 		}}
+	al.Suggest = api.SuggestGroup
 	srv := &api.Server{Cfg: cfg, St: st, Hub: hub, En: en, Col: col, Pipe: pipe, UI: web.FS(), Version: version, TLS: !cfg.NoTLS,
 		Box: box, Mgr: pm, Cls: cls, Sys: sys}
 	if err := srv.LoadDevices(); err != nil {

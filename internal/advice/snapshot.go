@@ -114,6 +114,10 @@ type Client struct {
 	FirstSeen, LastSeen              int64
 	SigSamples                       int64   // Wi-Fi signal readings of the last 24 h (0 = no history)
 	WeakFrac                         float64 // share of those readings weaker than WeakSignal
+
+	Group      string  // client group ("" = none)
+	ChattyMult float64 // the group's factor for the "many connections" limit (0 = 1)
+	IgnoreWeak bool    // the group says a weak Wi-Fi signal is normal
 }
 
 // Display is the best human name for a client.

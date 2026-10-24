@@ -28,6 +28,7 @@ type Client struct {
 	Icon      string `json:"icon"`  // user-chosen icon name, "" = automatic
 	Via       string `json:"via"`   // why the client counts as present, e.g. "Wi-Fi registration on wAP"
 	Watch     bool   `json:"watch"` // must be online: an alert fires when it stays offline
+	Group     string `json:"group"` // client group (IoT, Family, …), "" = none
 }
 
 // Observation is what the poller learned about a client in one cycle.
@@ -140,13 +141,13 @@ func (s *Store) SetLabel(mac, label string) error {
 }
 
 const clientCols = `mac,coalesce(hostname,''),coalesce(vendor,''),coalesce(ip,''),coalesce(label,''),first_seen,last_seen,
- coalesce(device,''),coalesce(iface,''),coalesce(ssid,''),coalesce(band,''),coalesce(signal,0),coalesce(tx_rate,''),coalesce(rx_rate,''),wifi,online,coalesce(via,''),coalesce(icon,''),watch`
+ coalesce(device,''),coalesce(iface,''),coalesce(ssid,''),coalesce(band,''),coalesce(signal,0),coalesce(tx_rate,''),coalesce(rx_rate,''),wifi,online,coalesce(via,''),coalesce(icon,''),watch,coalesce(grp,'')`
 
 func scanClient(r interface{ Scan(...any) error }) (Client, error) {
 	var c Client
 	var w, o, wt int
 	err := r.Scan(&c.MAC, &c.Hostname, &c.Vendor, &c.IP, &c.Label, &c.FirstSeen, &c.LastSeen, &c.Device, &c.Iface,
-		&c.SSID, &c.Band, &c.Signal, &c.TxRate, &c.RxRate, &w, &o, &c.Via, &c.Icon, &wt)
+		&c.SSID, &c.Band, &c.Signal, &c.TxRate, &c.RxRate, &w, &o, &c.Via, &c.Icon, &wt, &c.Group)
 	c.WiFi, c.Online, c.Watch = w == 1, o == 1, wt == 1
 	return c, err
 }

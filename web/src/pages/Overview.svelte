@@ -8,6 +8,7 @@
   import TopList from '../lib/TopList.svelte'
   import Spark from '../lib/Spark.svelte'
   import WorldMap from '../lib/WorldMap.svelte'
+  import GroupsSummary from '../lib/GroupsSummary.svelte'
 
   const bucket = { live: 60, '1h': 60, '24h': 900, '7d': 3600, '30d': 14400 }
   const d = poll(() => api('/overview?range=' + app.range), 5000)
@@ -61,6 +62,8 @@
   </div>
   <div class="card-b"><Chart {series} fmt={bps} {xfmt} height={220} empty={app.range === 'live' ? t('Waiting for live data…') : t('No traffic recorded in this range yet')} /></div>
 </div>
+
+<GroupsSummary />
 
 <div class="grid g2" style="margin-top:16px">
   <div class="card"><div class="card-h"><h2>{t('Top clients')}</h2><a href="#/insights">{t('All →')}</a></div><TopList rows={o?.top_clients || []} onpick={pickClient} /></div>

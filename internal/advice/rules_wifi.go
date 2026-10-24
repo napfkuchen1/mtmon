@@ -37,6 +37,9 @@ func ruleWeakSignal(s Snapshot) ([]Suggestion, string) {
 	usedHistory := false
 	for _, c := range cls {
 		total[c.Device]++
+		if c.IgnoreWeak {
+			continue
+		}
 		if c.SigSamples >= WeakMinSamples {
 			usedHistory = true
 			if c.WeakFrac > WeakFrac {

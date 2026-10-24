@@ -13,7 +13,9 @@
   const tabs = $derived([['clients', t('Clients')], ['hosts', t('Destinations')], ['ports', t('Ports')], ['asn', t('ASNs')], ['country', t('Countries')], ['protocols', t('Protocols')], ['internal', t('Internal talkers')]])
   const what = $derived(tabs.some(tb => tb[0] === app.route.params.id) ? app.route.params.id : 'clients')
   const rg = () => (app.range === 'live' ? '1h' : app.range)
-  const d = poll(() => api(`/top/${what}?range=${rg()}&limit=100`), 8000)
+  let grp = $state('')
+  const gl = poll(() => api('/groups'), 60000)
+  const d = poll(() => api(`/top/${what}?range=${rg()}&limit=100` + (grp && (what === 'clients' || what === 'internal') ? '&group=' + encodeURIComponent(grp) : '')), 8000)
   const rows = $derived(d.data?.rows || [])
   const max = $derived(rows.reduce((m, r) => Math.max(m, r.up + r.down + r.internal), 0) || 1)
   const pick = r => { if (r.device) go('device/' + encodeURIComponent(r.device)); else if (what === 'clients' || what === 'internal') go('client/' + encodeURIComponent(r.key)); else if (what === 'services') go('services/' + encodeURIComponent(r.key)) }
@@ -35,7 +37,7 @@
       {#each tabs as [id, l]}<button role="tab" class:on={what === id} aria-selected={what === id} onclick={() => go('insights/' + id)}>{l}</button>{/each}
       <button role="tab" aria-selected="false" title={t('Opens the Services page')} onclick={() => go('services')}>{t('Services')} →</button>
     </div>
-    <span style="display:flex;gap:8px"><button class="btn" onclick={() => download(`/export/top/${what}?range=${rg()}&format=xlsx`)}>{t('Export Excel')}</button>
+    <span style="display:flex;gap:8px">{#if (what === 'clients' || what === 'internal') && (gl.data?.groups || []).length}<select class="input" style="width:auto" bind:value={grp} aria-label={t('Group')}><option value="">{t('All groups')}</option><option value="none">{t('No group')}</option>{#each gl.data.groups as g}<option value={g.name}>{g.name}</option>{/each}</select>{/if}<button class="btn" onclick={() => download(`/export/top/${what}?range=${rg()}&format=xlsx`)}>{t('Export Excel')}</button>
     <button class="btn" onclick={() => download(`/export/top/${what}?range=${rg()}`)}>{t('Export CSV')}</button></span>
   </div>
   <div class="scroll"><table>
