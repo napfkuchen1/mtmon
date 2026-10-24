@@ -617,3 +617,30 @@ func TestMtmonDisk(t *testing.T) {
 	d.Self.GrowthPerDay = gb / 2 // 60 days left
 	expect(t, d, "mtmon-disk", 0)
 }
+
+func TestVPNPeerIdle(t *testing.T) {
+	d := base()
+	skipped(t, d, "vpn-peer-idle")
+	old := t0.Add(-100 * 24 * time.Hour).Unix()
+	d.Cls = []Client{
+		{MAC: "VPN:192.168.216.2", Hostname: "alice", IP: "192.168.216.2", Device: "gw", FirstSeen: old, LastSeen: old},                               // never connected
+		{MAC: "VPN:192.168.216.3", Hostname: "bob", IP: "192.168.216.3", Device: "gw", FirstSeen: old, LastSeen: t0.Add(-40 * 24 * time.Hour).Unix()}, // idle
+		{MAC: "VPN:192.168.216.4", Hostname: "carol", IP: "192.168.216.4", Device: "gw", FirstSeen: old, LastSeen: t0.Unix(), Online: true},
+		{MAC: "VPN:192.168.216.5", Hostname: "dave", IP: "192.168.216.5", Device: "gw", FirstSeen: t0.Add(-3 * 24 * time.Hour).Unix(), LastSeen: t0.Add(-3 * 24 * time.Hour).Unix()}, // too new to judge
+		{MAC: "AA:BB:CC:00:00:01", Hostname: "laptop", FirstSeen: old, LastSeen: old},                                                                                                // not a VPN peer
+	}
+	out := expect(t, d, "vpn-peer-idle", 2)
+	if !strings.Contains(strings.Join(out[0].Evidence, " "), "No handshake") && !strings.Contains(strings.Join(out[1].Evidence, " "), "No handshake") {
+		t.Errorf("never-connected peer not recognised: %+v", out)
+	}
+}
+
+func TestBlockedRepliesAreOneSuggestion(t *testing.T) {
+	d := base()
+	d.Blocked = []BlockedSrc{{IP: "93.184.216.34", Hits: 500, CC: "US", ASN: 15133}, {IP: "93.184.216.35", Hits: 400, CC: "US", ASN: 15133}, {IP: "93.184.216.36", Hits: 300, CC: "US", ASN: 15133}}
+	d.Contact = map[string]bool{"93.184.216.34": true, "93.184.216.35": true, "93.184.216.36": true}
+	out := expect(t, d, "fw-origin", 1)
+	if out[0].Subject != "replies" || !strings.Contains(out[0].Title, "3 addresses") || len(out[0].Evidence) != 4 {
+		t.Errorf("%+v", out[0])
+	}
+}
