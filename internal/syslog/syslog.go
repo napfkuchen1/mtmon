@@ -65,12 +65,13 @@ func ParseFirewall(msg string) (Event, bool) {
 
 // Server listens for syslog datagrams.
 type Server struct {
-	Addr    string
-	Allow   func(netip.Addr) string // returns device name or "" to drop
-	Handler func([]Event)
+	Addr       string
+	Allow      func(netip.Addr) string // returns device name or "" to drop
+	Handler    func([]Event)
+	LogHandler func(LogEvent) // other topics (system, account, critical, dhcp, …); nil = counted as unreadable
 
-	Received, Parsed, Unknown, Dropped atomic.Uint64
-	conn                               net.PacketConn
+	Received, Parsed, Unknown, Dropped, Logs atomic.Uint64
+	conn                                     net.PacketConn
 
 	smu     sync.Mutex
 	samples []Sample // newest last, at most maxSamples
@@ -161,6 +162,14 @@ func (s *Server) Run(ctx context.Context) error {
 			continue
 		}
 		e, ok := ParseFirewall(string(buf[:n]))
+		if !ok && s.LogHandler != nil {
+			if le, isLog := ParseLog(string(buf[:n])); isLog {
+				le.TS, le.Device = time.Now().Unix(), dev
+				s.Logs.Add(1)
+				s.LogHandler(le)
+				continue
+			}
+		}
 		if !ok {
 			s.Unknown.Add(1)
 			s.addSample(dev, strings.TrimSpace(string(buf[:n])))

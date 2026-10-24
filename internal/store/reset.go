@@ -61,7 +61,7 @@ func (s *Store) ResetData(o ResetOpts) (*ResetResult, error) {
 		{&res.Clients, clientQ}, {nil, histQ}, {nil, `DELETE FROM roam`},
 		{&res.Metrics, `DELETE FROM dev_metrics`}, {&res.Metrics, `DELETE FROM if_metrics`},
 		{&res.Alerts, `DELETE FROM alerts`}, {nil, `DELETE FROM advice_dismissed`},
-		{&res.Firewall, `DELETE FROM fw_events`}, {&res.Firewall, `DELETE FROM fw_hourly`},
+		{&res.Firewall, `DELETE FROM fw_events`}, {&res.Firewall, `DELETE FROM fw_hourly`}, {nil, `DELETE FROM log_events`},
 		{nil, `DELETE FROM fw_src_hourly`}, {nil, `DELETE FROM fw_dst_hourly`},
 	} {
 		if err := del(q.dst, q.sql); err != nil {
