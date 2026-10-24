@@ -29,6 +29,7 @@ import (
 	"github.com/napfkuchen1/mtmon/internal/flow"
 	"github.com/napfkuchen1/mtmon/internal/live"
 	"github.com/napfkuchen1/mtmon/internal/poller"
+	"github.com/napfkuchen1/mtmon/internal/probe"
 	"github.com/napfkuchen1/mtmon/internal/secret"
 	"github.com/napfkuchen1/mtmon/internal/store"
 	"github.com/napfkuchen1/mtmon/internal/syslog"
@@ -165,6 +166,7 @@ func run(args []string) error {
 	go en.RunReverseDNS(ctx)
 	go pm.Run(ctx)
 	go al.Run(ctx.Done())
+	go (&probe.Prober{St: st, Log: log, Targets: func() []string { return cfg.WANTargets }, Enabled: func() bool { return st.GetMeta("wan_probe") != "off" }}).Run(ctx)
 	go func() {
 		if err := sys.Run(ctx); err != nil {
 			log.Warn("syslog receiver not running (firewall log view disabled)", "addr", cfg.SyslogListen, "err", err)

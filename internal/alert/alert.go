@@ -61,6 +61,7 @@ type Engine struct {
 	Suggest func(store.Client) string // group name suggested for a client without a group (set by main), "" = none
 	hc      *http.Client
 	Notify  func(store.Alert) // test hook
+	wanBad  bool              // the internet quality alert is open (a recovery follows)
 }
 
 func New(c *config.Config, s *store.Store, h *live.Hub, log *slog.Logger) *Engine {
@@ -742,6 +743,7 @@ func (e *Engine) Checks() {
 			e.Raise("port_scan", s.MAC, "warning", e.scanMsg(s), time.Hour)
 		}
 	}
+	e.wanQualityChecks()
 	if len(e.Cfg.DNSResolvers) > 0 {
 		rows, err := e.St.DB.Query(`SELECT mac, rip FROM flows WHERE ts>=? AND dir='u' AND rport=53 GROUP BY mac, rip`, time.Now().Unix()-300)
 		if err == nil {
@@ -885,4 +887,50 @@ func (e *Engine) groupSaysNoNewAlert(mac string) bool {
 		}
 	}
 	return false
+}
+
+// WAN quality thresholds over the last WANWindow of probes.
+const (
+	WANWindow    = 5 * time.Minute
+	WANLossPct   = 20.0
+	WANLatencyMS = 150.0
+	wanMinProbes = 12 // fewer probes than this in the window say nothing (just started, probing off)
+)
+
+// wanQualityChecks raises one alert when the internet connection (probes from mtmon, see internal/probe) loses
+// packets or gets slow for a whole window, and one info when it is good again. A WAN link that is down has its own
+// alerts: a complete loss while one is open is not reported twice.
+func (e *Engine) wanQualityChecks() {
+	w := e.St.WANQualitySince(time.Now().Add(-WANWindow).Unix())
+	if w.Sent < wanMinProbes {
+		return
+	}
+	e.mu.Lock()
+	wanDown := len(e.wan) > 0
+	bad := e.wanBad
+	e.mu.Unlock()
+	lossy, slow := w.LossPct >= WANLossPct, w.AvgMS >= WANLatencyMS
+	switch {
+	case (lossy || slow) && !wanDown:
+		if !bad {
+			var why []string
+			if lossy {
+				why = append(why, fmt.Sprintf("%.0f %% of the probes were lost", w.LossPct))
+			}
+			if slow {
+				why = append(why, fmt.Sprintf("answers took %.0f ms on average", w.AvgMS))
+			}
+			if e.Raise("wan_quality", "internet", "warning", fmt.Sprintf("Internet connection is poor (last %d min, %d probes) – %s", int(WANWindow.Minutes()), w.Sent, strings.Join(why, " – ")), 30*time.Minute) {
+				e.mu.Lock()
+				e.wanBad = true
+				e.mu.Unlock()
+			}
+		}
+	case !lossy && !slow && bad:
+		e.mu.Lock()
+		e.wanBad = false
+		e.mu.Unlock()
+		e.St.ResolveAlerts("wan_quality", "internet", " – resolved")
+		e.Raise("wan_quality_ok", "internet", "info", fmt.Sprintf("Internet connection is good again: %.0f %% loss, %.0f ms (last %d min)", w.LossPct, w.AvgMS, int(WANWindow.Minutes())), time.Minute)
+	}
 }

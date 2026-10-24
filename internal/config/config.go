@@ -62,6 +62,7 @@ type Config struct {
 	SMTP          *SMTP    `json:"alert_smtp,omitempty"`
 	SyslogListen  string   `json:"syslog_listen,omitempty"` // default :5514 (UDP, RouterOS firewall logs)
 	DNSResolvers  []string `json:"dns_resolvers,omitempty"` // allowed resolvers; empty = disable "rogue DNS" alert
+	WANTargets    []string `json:"wan_targets,omitempty"`   // host:port (TCP) probed to measure the internet connection; default three public resolvers
 	AdminHash     string   `json:"admin_hash,omitempty"`    // argon2id, set via `mtmon passwd`
 	AdminUser     string   `json:"admin_user,omitempty"`
 	UpdateRepo    string   `json:"update_repo,omitempty"` // GitHub owner/name for update checks (default napfkuchen1/mtmon)
