@@ -276,6 +276,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	run(func() { topServices = must(s.St.TopBy("services", since, 5, "")) })
 	run(func() { topCntry = must(s.St.TopBy("country", since, 5, "")) })
 	on, total := s.St.ClientCounts()
+	watched, watchedOn := s.St.WatchCounts()
 	devs := s.Hub.Devices()
 	du := 0
 	for _, d := range devs {
@@ -294,7 +295,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonOut(w, map[string]any{
 		"range": rn, "bytes_up": up, "bytes_down": down, "flows": flows, "prev": prev,
-		"clients_online": on, "clients_total": total,
+		"clients_online": on, "clients_total": total, "watched_total": watched, "watched_online": watchedOn,
 		"devices_up": du, "devices_total": len(s.Cfg.AllDevices()), "alerts_open": s.St.OpenAlerts(),
 		"series":        series,
 		"top_clients":   topClients,
