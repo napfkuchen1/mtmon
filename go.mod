@@ -4,7 +4,7 @@ go 1.26.10
 
 require (
 	github.com/gorilla/websocket v1.5.3
-	github.com/oschwald/maxminddb-golang/v2 v2.7.0
+	github.com/oschwald/maxminddb-golang/v2 v2.8.0
 	golang.org/x/crypto v0.57.0
 	modernc.org/sqlite v1.60.1
 )
