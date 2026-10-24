@@ -662,3 +662,49 @@ func TestBackupAge(t *testing.T) {
 	d.Devs[0].Caps.NewestExport = t0.Add(-3 * 24 * time.Hour).Unix() // a recent export counts as well
 	expect(t, d, "backup-age", 0)
 }
+
+func TestRouterOSUpdateAndCerts(t *testing.T) {
+	d := base()
+	skipped(t, d, "routeros-update")
+	d.Devs = []Device{
+		{Name: "gw", Version: "7.19.1", Caps: &Caps{UpdateInstalled: "7.19.1", UpdateLatest: "7.20.2", UpdateChannel: "stable"}},
+		{Name: "ap", Version: "7.20.2", Caps: &Caps{UpdateInstalled: "7.20.2", UpdateLatest: "7.20.2"}},
+		{Name: "ap2", Version: "7.18", Caps: &Caps{UpdateInstalled: "7.18", UpdateLatest: "7.20.2"}},
+		{Name: "sw", Version: "6.49"}, // never checked
+	}
+	out := expect(t, d, "routeros-update", 1)
+	if !strings.Contains(out[0].Title, "2 devices") || len(out[0].Evidence) != 2 {
+		t.Errorf("%+v", out[0])
+	}
+	// certificates
+	d.Devs = []Device{{Name: "gw", Caps: &Caps{Certs: []Cert{{Name: "mtmon-ssl", Service: "www-ssl", Expires: t0.Add(10 * 24 * time.Hour).Unix()}}}},
+		{Name: "ap", Caps: &Caps{Certs: []Cert{{Name: "x", Service: "www-ssl", Expires: t0.Add(400 * 24 * time.Hour).Unix()}}}}}
+	if o := expect(t, d, "cert-expiry", 1); !strings.Contains(o[0].Title, "expires in 10 days") {
+		t.Errorf("%+v", o[0])
+	}
+	d.Devs[0].Caps.Certs[0].Expires = t0.Add(-24 * time.Hour).Unix()
+	if o := expect(t, d, "cert-expiry", 1); !strings.Contains(o[0].Title, "has expired") {
+		t.Errorf("%+v", o[0])
+	}
+	skipped(t, base(), "cert-expiry")
+}
+
+func TestCapsmanVersionMismatch(t *testing.T) {
+	d := base()
+	skipped(t, d, "capsman-version")
+	d.Devs = []Device{
+		{Name: "hex", Version: "7.20.2", Caps: &Caps{CAPsMAN: true}},
+		{Name: "ap1", Version: "7.20.2", Caps: &Caps{CAP: true}},
+		{Name: "ap2", Version: "7.19.1", Caps: &Caps{CAP: true}},
+	}
+	out := expect(t, d, "capsman-version", 1)
+	if out[0].Severity != SevWarning || len(out[0].Evidence) != 2 {
+		t.Errorf("%+v", out[0])
+	}
+	d.Devs[2].Version = "7.20.1" // patch level only
+	if o := expect(t, d, "capsman-version", 1); o[0].Severity != SevInfo {
+		t.Errorf("patch difference: %+v", o[0])
+	}
+	d.Devs[2].Version = "7.20.2"
+	expect(t, d, "capsman-version", 0)
+}

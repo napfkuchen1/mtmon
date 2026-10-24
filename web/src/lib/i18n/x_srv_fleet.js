@@ -1,0 +1,23 @@
+// German translations of backend text – RouterOS updates, CAPsMAN versions, certificate expiry
+export default {
+  "RouterOS update available on {dev}": "RouterOS-Update verfügbar für {dev}",
+  "RouterOS update available on {n} devices": "RouterOS-Update verfügbar für {n} Geräte",
+  "Updates carry security and bug fixes. Check the release notes, take a backup first, and update access points and the CAPsMAN router in one maintenance window so their versions stay equal.": "Updates bringen Sicherheits- und Fehlerkorrekturen. Lies die Release Notes, mache vorher ein Backup und aktualisiere Access Points und den CAPsMAN-Router im selben Wartungsfenster, damit die Versionen gleich bleiben.",
+  "{dev}: {have} installed, {latest} available": "{dev}: {have} installiert, {latest} verfügbar",
+  "{dev}: {have} installed, {latest} available (channel {ch})": "{dev}: {have} installiert, {latest} verfügbar (Kanal {ch})",
+  "Read the release notes of the target version on mikrotik.com.": "Lies die Release Notes der Zielversion auf mikrotik.com.",
+  "Make a backup (see the backup suggestion), then update during a quiet hour. After the update, upgrade the RouterBOARD firmware if offered.": "Mache ein Backup (siehe Backup-Vorschlag) und aktualisiere in einer ruhigen Stunde. Danach die RouterBOARD-Firmware aktualisieren, falls angeboten.",
+  "Based on the router's own last update check; mtmon never reaches the internet for this. A router that has not checked recently may know of an older latest version.": "Beruht auf der letzten Update-Prüfung des Routers selbst; mtmon geht dafür nie ins Internet. Ein Router, der länger nicht geprüft hat, kennt evtl. nur eine ältere neueste Version.",
+  "The CAPsMAN controller {dev} and its access points run different RouterOS versions": "Der CAPsMAN-Controller {dev} und seine Access Points laufen mit unterschiedlichen RouterOS-Versionen",
+  "A CAPsMAN controller and its CAPs should run the same RouterOS version: with require-same-version the CAPs refuse to join, and mismatches cause provisioning and roaming problems that are hard to trace.": "Ein CAPsMAN-Controller und seine CAPs sollten dieselbe RouterOS-Version laufen: Mit require-same-version verweigern CAPs die Anmeldung, und Abweichungen verursachen schwer nachvollziehbare Provisionierungs- und Roaming-Probleme.",
+  "{dev} (controller) runs {ver}": "{dev} (Controller) läuft mit {ver}",
+  "{dev} runs {ver}": "{dev} läuft mit {ver}",
+  "Update the controller and all CAPs to the same version in one maintenance window (the controller first, then the CAPs).": "Aktualisiere den Controller und alle CAPs im selben Wartungsfenster auf dieselbe Version (erst den Controller, dann die CAPs).",
+  "Based on the versions the devices report; a patch-level difference is rated lower than a different minor version.": "Beruht auf den Versionen, die die Geräte melden; ein Unterschied nur im Patch-Stand wird niedriger bewertet als eine andere Minor-Version.",
+  "The {svc} certificate of {dev} has expired": "Das {svc}-Zertifikat von {dev} ist abgelaufen",
+  "The {svc} certificate of {dev} expires in {n} days": "Das {svc}-Zertifikat von {dev} läuft in {n} Tagen ab",
+  "Certificate {name} expired on {date}": "Zertifikat {name} ist am {date} abgelaufen",
+  "Certificate {name} is valid until {date}": "Zertifikat {name} ist gültig bis {date}",
+  "When the certificate of the REST/API service runs out, HTTPS clients refuse the connection: monitoring over REST can stop silently the day it expires.": "Läuft das Zertifikat des REST/API-Dienstes ab, verweigern HTTPS-Clients die Verbindung: Das Monitoring über REST kann am Ablauftag stillschweigend ausfallen.",
+  "Create a new certificate and assign it to the service (commands below), then update the pinned fingerprint of the device in mtmon if it changed.": "Erstelle ein neues Zertifikat und weise es dem Dienst zu (Befehle unten); aktualisiere danach in mtmon den hinterlegten Fingerabdruck des Geräts, falls er sich geändert hat.",
+}

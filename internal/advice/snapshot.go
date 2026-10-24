@@ -76,6 +76,17 @@ type Caps struct {
 	ProbedAt                   int64 // unix time the router was read, 0 = unknown (older stored probe)
 	FilesReadable              bool  // the router lets mtmon list its files
 	NewestBackup, NewestExport int64 // unix time of the newest *.backup / *.rsc file, 0 = none
+	Certs                      []Cert
+	UpdateInstalled            string // RouterOS the router reported at its last update check
+	UpdateLatest               string // newest version in the router's channel at that check ("" = never checked)
+	UpdateChannel              string
+	CAP, CAPsMAN               bool // device is a CAP / runs the CAPsMAN controller
+}
+
+// Cert is a certificate used by a router service (www-ssl, api-ssl).
+type Cert struct {
+	Name, Service string
+	Expires       int64 // unix, 0 = unknown
 }
 
 // ReadNote says when the router was last read, for the evidence of rules that depend on its rule set.
