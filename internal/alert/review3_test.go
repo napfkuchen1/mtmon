@@ -138,12 +138,18 @@ func TestUpdateRebootIsOneInfo(t *testing.T) {
 
 // A link that stays down is still reported, once the grace is over.
 func TestHeldLinkDownStillFires(t *testing.T) {
-	e, got := newEngine(t)
+	e, _ := newEngine(t)
 	e.rebootGrace = 20 * time.Millisecond
+	fired := make(chan store.Alert, 1)
+	e.Notify = func(a store.Alert) { fired <- a }
 	e.InterfaceState("sw", "ether3", false)
-	time.Sleep(200 * time.Millisecond)
-	if kinds(*got) != "iface_down/sw/ether3" {
-		t.Fatalf("held link: %+v", *got)
+	select {
+	case a := <-fired:
+		if a.Kind != "iface_down" || a.Subject != "sw/ether3" {
+			t.Fatalf("held link: %+v", a)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("held link-down never fired")
 	}
 }
 
