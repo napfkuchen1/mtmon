@@ -516,11 +516,77 @@ func ruleUnusedRules(s Snapshot) ([]Suggestion, string) {
 	return out, ""
 }
 
-// isIsolationRule: a drop rule that keeps one segment away from the private ranges (e.g. an agent VLAN).
-func isIsolationRule(f FilterRule) bool {
-	t := strings.ToLower(f.Comment + " " + f.Summary)
-	return strings.Contains(t, "isolat") || (strings.Contains(t, "192.168") && strings.Contains(t, "10.0.0.0/8")) ||
-		(strings.Contains(t, "192.168/16") && strings.Contains(t, "10/8"))
+// ruleFields parses FilterRule.Summary ("key=value key=value", values contain no spaces).
+func ruleFields(f FilterRule) map[string]string {
+	m := map[string]string{}
+	for _, tok := range strings.Fields(f.Summary) {
+		if k, v, ok := strings.Cut(tok, "="); ok {
+			m[k] = v
+		}
+	}
+	return m
+}
+
+var rfc1918 = map[string]bool{"192.168.0.0/16": true, "10.0.0.0/8": true, "172.16.0.0/12": true}
+
+// wanZone: interface (list) names that face the internet. A drop of private ranges from there is a bogon filter, not isolation.
+func wanZone(z string) bool {
+	l := strings.ToLower(z)
+	return strings.HasPrefix(l, "!") || strings.Contains(l, "wan") || strings.Contains(l, "internet") || strings.Contains(l, "pppoe") || l == "ether1"
+}
+
+// isolationFlags marks the drop rules that keep one segment (VLAN, interface list) away from the others. This is
+// recognised by structure, the comment is only an extra hint:
+//   - forward drop from a zone (in-interface / in-interface-list) to a private range (RFC1918),
+//   - forward drop that only names a zone as destination (out-interface / out-interface-list): inbound into the zone,
+//   - forward drop that only names a zone that already has such a rule ("drop rest").
+func isolationFlags(rules []FilterRule) []bool {
+	zones := map[string]bool{}
+	zoneOf := func(m map[string]string, keys ...string) string {
+		for _, k := range keys {
+			if m[k] != "" {
+				return m[k]
+			}
+		}
+		return ""
+	}
+	flags := make([]bool, len(rules))
+	fields := make([]map[string]string, len(rules))
+	for i, f := range rules {
+		fields[i] = ruleFields(f)
+		if f.Disabled || f.Chain != "forward" || (f.Action != "drop" && f.Action != "reject") {
+			continue
+		}
+		m := fields[i]
+		if in := zoneOf(m, "in-interface-list", "in-interface"); in != "" && rfc1918[m["dst-address"]] && !wanZone(in) {
+			flags[i], zones[in] = true, true
+		}
+		if out := zoneOf(m, "out-interface-list", "out-interface"); out != "" && zoneOf(m, "in-interface-list", "in-interface") == "" && m["dst-address"] == "" && !wanZone(out) {
+			flags[i], zones[out] = true, true
+		}
+	}
+	for i, f := range rules {
+		if flags[i] || f.Disabled || f.Chain != "forward" || (f.Action != "drop" && f.Action != "reject") {
+			continue
+		}
+		m := fields[i]
+		z := zoneOf(m, "in-interface-list", "in-interface", "out-interface-list", "out-interface")
+		if z != "" && zones[z] {
+			flags[i] = true
+			continue
+		}
+		t := strings.ToLower(f.Comment + " " + f.Summary) // extra hint: the comment says so
+		if strings.Contains(t, "isolat") || (strings.Contains(t, "192.168") && strings.Contains(t, "10.0.0.0/8")) ||
+			(strings.Contains(t, "192.168/16") && strings.Contains(t, "10/8")) {
+			flags[i] = true
+		}
+	}
+	return flags
+}
+
+func firingCount(s string) int64 {
+	n, _ := strconv.ParseInt(s[:strings.Index(s, "|")], 10, 64)
+	return n
 }
 
 func ruleDropNoLog(s Snapshot) ([]Suggestion, string) {
@@ -535,7 +601,9 @@ func ruleDropNoLog(s Snapshot) ([]Suggestion, string) {
 		var iso []string
 		var zero, fired, isoFired int
 		drops := 0
-		for _, f := range d.Caps.Filter {
+		isoFlag := isolationFlags(d.Caps.Filter)
+		var firing []string // not logged but matching packets right now
+		for i, f := range d.Caps.Filter {
 			if f.Disabled || (f.Action != "drop" && f.Action != "reject") {
 				continue
 			}
@@ -555,7 +623,10 @@ func ruleDropNoLog(s Snapshot) ([]Suggestion, string) {
 					}
 					txt += fmt.Sprintf(" [%d packets]", f.Packets)
 				}
-				if isIsolationRule(f) {
+				if f.Counted && f.Packets > 0 {
+					firing = append(firing, fmt.Sprintf("%d|%s", f.Packets, txt))
+				}
+				if isoFlag[i] {
 					iso = append(iso, txt)
 					if f.Counted && f.Packets > 0 {
 						isoFired++
@@ -571,6 +642,13 @@ func ruleDropNoLog(s Snapshot) ([]Suggestion, string) {
 			fmt.Sprintf("%d of %d active drop/reject rules on %s have logging switched off", len(nolog), drops, d.Name),
 			fmt.Sprintf("Rules: %s", list(nolog, 4)),
 			"Source: " + d.Caps.ReadNote(),
+		}
+		if len(firing) > 0 { // rules that really block something right now come first
+			sort.Slice(firing, func(i, j int) bool { return firingCount(firing[i]) > firingCount(firing[j]) })
+			for i := range firing {
+				firing[i] = firing[i][strings.Index(firing[i], "|")+1:]
+			}
+			ev = append([]string{fmt.Sprintf("%d rule(s) drop packets right now without logging: %s", len(firing), list(firing, 4))}, ev...)
 		}
 		steps := []string{
 			"Enable logging with a short prefix on the rules you want to see, preferably the last drop rule of the input and forward chains.",

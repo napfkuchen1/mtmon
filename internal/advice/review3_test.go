@@ -101,3 +101,40 @@ func TestDropNoLogCountersAndIsolation(t *testing.T) {
 		t.Fatalf("%s\n%s", ev, s[0].Commands)
 	}
 }
+
+// Real rules of a router (comments without "isolat"): the VLAN is an interface list, found by structure.
+func TestDropNoLogIsolationByStructure(t *testing.T) {
+	d := base()
+	rules := []FilterRule{
+		{Chain: "forward", Action: "drop", Comment: "AGENTS50: block 192.168/16", Summary: "in-interface-list=AGENTS dst-address=192.168.0.0/16", Packets: 56, Counted: true},
+		{Chain: "forward", Action: "drop", Comment: "AGENTS50: block 10/8", Summary: "in-interface-list=AGENTS dst-address=10.0.0.0/8", Counted: true},
+		{Chain: "forward", Action: "drop", Comment: "AGENTS50: drop rest", Summary: "in-interface-list=AGENTS", Log: true, Packets: 33, Counted: true},
+		{Chain: "forward", Action: "drop", Comment: "AGENTS50: drop rest inbound", Summary: "out-interface-list=AGENTS", Packets: 332, Counted: true},
+		{Chain: "forward", Action: "drop", Comment: "bogons", Summary: "in-interface-list=WAN dst-address=10.0.0.0/8", Packets: 7, Counted: true},
+	}
+	flags := isolationFlags(rules)
+	for i, want := range []bool{true, true, true, true, false} {
+		if flags[i] != want {
+			t.Errorf("rule %d: isolation=%v, want %v", i, flags[i], want)
+		}
+	}
+	d.Devs = []Device{{Name: "gw", Role: "router", Caps: &Caps{Filter: rules}}}
+	s := expect(t, d, "fw-nolog", 1)
+	ev := strings.Join(s[0].Evidence, "\n")
+	line := ""
+	for _, e := range s[0].Evidence {
+		if strings.Contains(e, "drop packets right now without logging") {
+			line = e
+		}
+	}
+	iso := ""
+	for _, e := range s[0].Evidence {
+		if strings.HasPrefix(e, "Isolation rules") {
+			iso = e
+		}
+	}
+	if !strings.Contains(s[0].Title, "isolation rule") || line == "" || strings.Index(line, "[332 packets]") > strings.Index(line, "[56 packets]") ||
+		strings.Contains(line, "[33 packets]") || strings.Contains(iso, "bogons") || !strings.Contains(iso, "drop rest inbound") {
+		t.Fatalf("%s\n%s", s[0].Title, ev)
+	}
+}
