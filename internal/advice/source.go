@@ -80,6 +80,13 @@ func (l *Live) Devices() []Device {
 			d.HighMemFrac = float64(m.HighMem) / float64(m.N)
 			d.MemTrend, d.MinFreeMiB = m.MemTrend, float64(m.MinFreeMem)/(1<<20)
 		}
+		if l.Hub != nil {
+			for _, i := range l.Hub.Ifaces(c.Name) {
+				if isTunnelType(i.Type) {
+					d.TunnelIfs = append(d.TunnelIfs, i.Iface)
+				}
+			}
+		}
 		var info struct{ Firmware, Upgrade string }
 		if json.Unmarshal(st.Info, &info) == nil {
 			d.Firmware, d.FirmwareUpg = info.Firmware, info.Upgrade

@@ -62,6 +62,7 @@ export function signalQuality(dbm) {
 
 // Guess an icon for a client from what we know about it (label, hostname, vendor). Order matters: first match wins.
 const KINDS = [
+  ['vpn', /wireguard vpn/],
   ['printer3d', /bambu|prusa|creality|anycubic|elegoo|\bender[-_ ]?\d|voron|klipper|octoprint|3d[-_ ]?print|\bx2d\b|\b[xpa]1[cps]?\b|\bh2d\b/],
   ['network', /mikrotik|routerboard|ubiquiti|tp-link|\bavm\b|fritz|netgear|zyxel|cisco|aruba|lancom|router|gateway|\bwap\b|\bap[-_ ]|switch.*(poe|port)/],
   ['tv', /\btv\b|bravia|webos|roku|chromecast|fire ?tv|apple-?tv|smarttv|vizio|\bshield\b/],

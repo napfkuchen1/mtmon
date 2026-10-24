@@ -138,3 +138,23 @@ func TestDropNoLogIsolationByStructure(t *testing.T) {
 		t.Fatalf("%s\n%s", s[0].Title, ev)
 	}
 }
+
+// A tunnel is recognised by the interface type, whatever its name; a VPN peer listed as a client is never "chatty".
+func TestChattyTunnelTypeAndVPNPeerClient(t *testing.T) {
+	d := base()
+	for _, m := range []string{"A", "B", "C", "D", "E"} {
+		d.Traffic = append(d.Traffic, ClientTraffic{MAC: m, Fl: 1000})
+	}
+	d.Traffic = append(d.Traffic, ClientTraffic{MAC: "10.77.0.4", Fl: 90000})
+	d.Devs = []Device{{Name: "gw", Addr: "192.168.88.1", Role: "router", Caps: &Caps{Addresses: []string{"10.77.0.1/24 on roadwarriors"}}}}
+	expect(t, d, "chatty", 1) // nothing says this interface is a VPN
+	d.Devs[0].TunnelIfs = []string{"roadwarriors"}
+	expect(t, d, "chatty", 0) // interface type wg
+	d.Devs[0].TunnelIfs = nil
+	d.Traffic[5].MAC = "VPN:10.77.0.4"
+	d.Cls = []Client{{MAC: "VPN:10.77.0.4", Hostname: "alice", Vendor: "WireGuard VPN", IP: "10.77.0.4"}}
+	expect(t, d, "chatty", 0) // the peer is a known VPN client
+	if !isTunnelType("wg") || !isTunnelType("ovpn-in") || isTunnelType("ether") || isTunnelType("bridge") {
+		t.Error("isTunnelType")
+	}
+}
