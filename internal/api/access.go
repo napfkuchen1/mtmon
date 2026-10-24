@@ -133,7 +133,7 @@ func (s *Server) bearerOK(r *http.Request) bool {
 	if strings.HasPrefix(r.URL.Path, "/api/tokens") || strings.HasPrefix(r.URL.Path, "/api/access") {
 		return false
 	}
-	ip := clientIP(r)
+	ip := "token|" + sourceIP(r)
 	if !s.sess.allow(ip) {
 		return false
 	}

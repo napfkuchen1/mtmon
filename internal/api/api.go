@@ -201,7 +201,7 @@ func (s *Server) auth(h http.HandlerFunc) http.HandlerFunc {
 // ---- auth ----
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
-	ip := clientIP(r)
+	ip := "login|" + sourceIP(r) // own bucket: failing API tokens must not block interactive logins
 	if !s.sess.allow(ip) {
 		jerr(w, 429, "too many attempts, wait a minute")
 		return
