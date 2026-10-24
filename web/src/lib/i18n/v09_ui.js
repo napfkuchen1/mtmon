@@ -16,4 +16,6 @@ export default {
   "Maintenance window": "Wartungsfenster", "Maintenance window started": "Wartungsfenster gestartet", "Maintenance window ended": "Wartungsfenster beendet",
   "Maintenance until {time}: offline and link-down alerts for this device are recorded as info.": "Wartung bis {time}: Offline- und Link-down-Alarme dieses Geräts werden nur als Info erfasst.",
   "End maintenance": "Wartung beenden", "{n} min": "{n} Min.", "{n} h": "{n} Std.",
+  "Root": "Wurzel", "Automatic": "Automatisch",
+  "The top of the tree. Automatic = the router that does NAT and DHCP.": "Die Spitze des Baums. Automatisch = der Router, der NAT und DHCP macht.",
 }
