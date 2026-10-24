@@ -30,7 +30,15 @@ func TestScale(t *testing.T) {
 	}
 	defer st.Close()
 	rng := rand.New(rand.NewSource(7))
-	const clients, dests = 100, 2000
+	clients, dests := 100, 2000
+	// MTMON_SCALE_PROFILE=live: the shape of a real 4-router home network after weeks of use (≈1 GB database):
+	// fewer clients, but active around the clock with a long tail of destinations, and a full firewall log.
+	live := os.Getenv("MTMON_SCALE_PROFILE") == "live"
+	activeHours, per1h, per1m, fwEvents := 8, 40, 6, 400000
+	if live {
+		clients, dests, activeHours, per1h, per1m, fwEvents = 50, 30000, 24, 150, 6, 2000000
+	}
+	reuse := os.Getenv("MTMON_SCALE_REUSE") != "" // measure an existing MTMON_SCALE_DIR without regenerating it
 	now := time.Now().Unix()
 	ins := func(table string, step int64, days int, perClient int, activeHours int) int {
 		tx, _ := st.DB.Begin()
@@ -57,17 +65,22 @@ func TestScale(t *testing.T) {
 		return n
 	}
 	t0 := time.Now()
-	nm := ins("rollup_1m", 60, 3, 6, 8)
-	nh := ins("rollup_1h", 3600, 30, 40, 8)
+	nm, nh := 0, 0
+	if !reuse {
+		nm = ins("rollup_1m", 60, 3, per1m, activeHours)
+		nh = ins("rollup_1h", 3600, 30, per1h, activeHours)
+	}
 	t.Logf("generated rollup_1m=%d rows, rollup_1h=%d rows in %v", nm, nh, time.Since(t0).Round(time.Millisecond))
-	st.DB.Exec(`INSERT INTO rollup_1h_client SELECT ts,mac,sum(b_up),sum(b_down),sum(b_int),sum(flows) FROM rollup_1h GROUP BY ts,mac`)
-	st.DB.Exec(`INSERT INTO rollup_1d SELECT ts/86400*86400,rip,rport,proto,max(svc),max(host),max(cc),max(asn),max(asorg),sum(b_up),sum(b_down),sum(b_int),sum(flows) FROM rollup_1h GROUP BY ts/86400*86400,rip,rport,proto`)
+	if !reuse {
+		st.DB.Exec(`INSERT INTO rollup_1h_client SELECT ts,mac,sum(b_up),sum(b_down),sum(b_int),sum(flows) FROM rollup_1h GROUP BY ts,mac`)
+		st.DB.Exec(`INSERT INTO rollup_1d SELECT ts/86400*86400,rip,rport,proto,max(svc),max(host),max(cc),max(asn),max(asorg),sum(b_up),sum(b_down),sum(b_int),sum(flows) FROM rollup_1h GROUP BY ts/86400*86400,rip,rport,proto`)
+	}
 	// raw flows: 3 days
 	tx, _ := st.DB.Begin()
 	stmt, _ := tx.Prepare(`INSERT INTO flows(ts,exporter,mac,cip,rip,cport,rport,proto,dir,bytes,pkts,flags,host,cc,asn,asorg,svc) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	raw := 0
 	for ts := now - 3*86400; ts < now; ts += 60 {
-		if h := (ts / 3600) % 24; h < 16 {
+		if h := (ts / 3600) % 24; reuse || h < int64(24-activeHours) {
 			continue
 		}
 		for c := 0; c < clients; c++ {
@@ -82,7 +95,9 @@ func TestScale(t *testing.T) {
 	stmt.Close()
 	// data for the Suggestions rules: firewall log (400k events over 3 days), device metrics (30 days, 1/min),
 	// 100 clients with IP history and roaming events
-	seedAdvice(st, rng, now, clients)
+	if !reuse {
+		seedAdvice(st, rng, now, clients)
+	}
 	var fwOnce sync.Once
 	cfg := &config.Config{}
 	cfg.Devices = []config.Device{{Name: "gw", Addr: "10.0.0.1", Role: "router"}, {Name: "ap1", Addr: "10.0.0.2", Role: "ap"}, {Name: "ap2", Addr: "10.0.0.3", Role: "ap"}}
@@ -103,13 +118,28 @@ func TestScale(t *testing.T) {
 		{"services list 30d", func() error { _, e := st.Services(now - 30*86400); return e }},
 		{"service detail 30d", func() error { _, e := st.ServiceDetail("HTTPS", now-30*86400, 14400); return e }},
 		{"services of client 30d", func() error { _, e := st.ServicesOfClient("AA:BB:CC:00:00:05", now-30*86400); return e }},
+		{"overview 24h (lists)", func() error { return overviewLists(st, now-86400) }},
+		{"overview 7d (lists)", func() error { return overviewLists(st, now-7*86400) }},
+		{"overview 30d (lists)", func() error { return overviewLists(st, now-30*86400) }},
+		{"services list 1h", func() error { _, e := st.Services(now - 3600); return e }},
+		{"services list 24h", func() error { _, e := st.Services(now - 86400); return e }},
+		{"services list 7d", func() error { _, e := st.Services(now - 7*86400); return e }},
+		{"firewall summary 24h", func() error { _, e := st.FwSummary(now - 86400); return e }},
+		{"firewall summary 7d", func() error { _, e := st.FwSummary(now - 7*86400); return e }},
 		{"firewall summary 30d", func() error { _, e := st.FwSummary(now - 30*86400); return e }},
 		{"series 30d", func() error { _, e := st.Series(now-30*86400, 14400, ""); return e }},
 		{"series 24h", func() error { _, e := st.Series(now-86400, 900, ""); return e }},
 		{"client top hosts 30d", func() error { _, e := st.TopBy("hosts", now-30*86400, 10, "AA:BB:CC:00:00:05"); return e }},
 		{"client connections 1h", func() error { _, e := st.Connections("AA:BB:CC:00:00:05", now-3600, 200, 0); return e }},
 		{"totals 30d", func() error { st.Totals(now - 30*86400); return nil }},
-		{"advice: seed firewall log", func() error { fwOnce.Do(func() { seedFw(st, rng, now) }); return nil }},
+		{"advice: seed firewall log", func() error {
+			fwOnce.Do(func() {
+				if !reuse {
+					seedFw(st, rng, now, fwEvents)
+				}
+			})
+			return nil
+		}},
 		{"advice: device metrics 6h", func() error { _, e := st.DevMetricStats(now-6*3600, 70, 85); return e }},
 		{"advice: port use 24h", func() error { _, e := st.PortUse(now-86400, advice.PortsOut); return e }},
 		{"advice: DoH hosts 24h", func() error { _, e := st.HostUse(now-86400, 443, advice.DoHSuffixes()); return e }},
@@ -151,11 +181,11 @@ func TestScale(t *testing.T) {
 
 // seedFw adds 400k firewall log events over 3 days. It runs right before the advice queries so the existing
 // (unrelated) firewall summary measurement is not affected.
-func seedFw(st *store.Store, rng *rand.Rand, now int64) {
+func seedFw(st *store.Store, rng *rand.Rand, now int64, events int) {
 	tx, _ := st.DB.Begin()
 	tx.Exec(`INSERT OR IGNORE INTO fw_rules(device,prefix,chain,action,descr,managed) VALUES('gw','drop-in','input','drop','drop input',1),('gw','acc','forward','accept','accept',1),('gw','old','forward','drop','old rule',0)`)
 	ev, _ := tx.Prepare(`INSERT INTO fw_events(ts,device,prefix,chain,in_if,out_if,proto,flags,src,sport,dst,dport,nat,len,mac,cstate) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-	for i := 0; i < 400000; i++ {
+	for i := 0; i < events; i++ {
 		ts := now - int64(rng.Intn(3*86400))
 		ev.Exec(ts, "gw", "drop-in", "input", "ether1", "", "tcp", "", fmt.Sprintf("%d.%d.%d.%d", 45+rng.Intn(100), rng.Intn(256), rng.Intn(256), 1+rng.Intn(250)),
 			40000, "203.0.113.2", 22, "", 60, "", "new")
@@ -191,4 +221,20 @@ func seedAdvice(st *store.Store, rng *rand.Rand, now int64, clients int) {
 	ip.Close()
 	ro.Close()
 	tx.Commit()
+}
+
+// overviewLists runs what the Overview page asks for one range: totals, series and the five top lists.
+func overviewLists(st *store.Store, since int64) error {
+	st.Totals(since)
+	now := time.Now().Unix()
+	st.TotalsBetween(since-(now-since), since)
+	if _, err := st.Series(since, 3600, ""); err != nil {
+		return err
+	}
+	for _, w := range []string{"clients", "hosts", "services", "country"} {
+		if _, err := st.TopBy(w, since, 5, ""); err != nil {
+			return err
+		}
+	}
+	return nil
 }
