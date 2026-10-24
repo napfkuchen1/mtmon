@@ -2,7 +2,7 @@
   import Avatar from '../lib/Avatar.svelte'
   import Empty from '../lib/Empty.svelte'
   import { api, download } from '../lib/api.js'
-  import { app, go } from '../lib/state.svelte.js'
+  import { app, go, toast } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
   import { t, tr } from '../lib/i18n.svelte.js'
   import { bps, bytes, ago, display, signalQuality } from '../lib/format.js'
@@ -10,6 +10,7 @@
   let cleanup = $state(false)
 
   let q = $state(''), kind = $state('all'), sortKey = $state('live'), desc = $state(true)
+  let sel = $state({}) // mac -> true: selected for the bulk action
   const d = poll(() => api('/clients?range=' + (app.range === 'live' ? '1h' : app.range)), 5000)
 
   const rows = $derived.by(() => {
@@ -21,13 +22,19 @@
     if (kind === 'wifi') r = r.filter(x => x.c.wifi && x.c.online)
     if (kind === 'wired') r = r.filter(x => !x.c.wifi && x.c.online)
     if (kind === 'offline') r = r.filter(x => !x.c.online)
+    if (kind === 'watched') r = r.filter(x => x.c.watch)
     const val = x => ({ name: display(x.c).toLowerCase(), ip: x.c.ip.split('.').map(n => n.padStart(3, '0')).join('.'), live: x.live, usage: x.bytes_up + x.bytes_down, signal: x.c.signal || -999, seen: x.c.last_seen, device: x.c.device }[sortKey])
     r.sort((a, b) => { const A = val(a), B = val(b); return (A < B ? -1 : A > B ? 1 : 0) * (desc ? -1 : 1) })
     return r
   })
   function sort(k) { if (sortKey === k) desc = !desc; else { sortKey = k; desc = k !== 'name' && k !== 'ip' } }
   const arrow = k => sortKey === k ? (desc ? ' ↓' : ' ↑') : ''
-  const kinds = $derived([['all', t('All')], ['online', t('Online')], ['wifi', t('Wi-Fi')], ['wired', t('Wired')], ['offline', t('Offline')]])
+  const kinds = $derived([['all', t('All')], ['online', t('Online')], ['wifi', t('Wi-Fi')], ['wired', t('Wired')], ['offline', t('Offline')], ['watched', '★ ' + t('Watched')]])
+  const picked = $derived(Object.keys(sel).filter(k => sel[k]))
+  async function watchSelected(on) {
+    try { await api('/clients/watch', { method: 'POST', body: { macs: picked, watch: on } }); sel = {}; d.data = await api('/clients?range=' + (app.range === 'live' ? '1h' : app.range)); toast(t('Saved')) }
+    catch (e) { toast(tr(e.message)) }
+  }
   const counts = $derived({ all: d.data?.length || 0, online: (d.data || []).filter(x => x.client.online).length })
 </script>
 
@@ -42,9 +49,16 @@
       {/each}
     </div>
   </div>
+  {#if picked.length}
+    <div class="card-b" style="display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--border)"><b>{t('{n} selected', { n: picked.length })}</b>
+      <button class="btn sm primary" onclick={() => watchSelected(true)}>★ {t('Watch (alert when offline)')}</button>
+      <button class="btn sm" onclick={() => watchSelected(false)}>{t('Stop watching')}</button>
+      <button class="btn sm" onclick={() => (sel = {})}>{t('Clear selection')}</button></div>
+  {/if}
   <div class="scroll">
     <table>
       <thead><tr>
+        <th style="width:28px"><input type="checkbox" aria-label={t('Select all shown')} checked={rows.length > 0 && rows.every(x => sel[x.c.mac])} onchange={e => { const n = {}; if (e.currentTarget.checked) rows.forEach(x => (n[x.c.mac] = true)); sel = n }} /></th>
         <th class="sortable" onclick={() => sort('name')}>{t('Client')}{arrow('name')}</th>
         <th class="sortable" onclick={() => sort('ip')}>{t('IP')}{arrow('ip')}</th>
         <th class="sortable" onclick={() => sort('device')}>{t('Connected to')}{arrow('device')}</th>
@@ -55,8 +69,9 @@
       <tbody>
         {#each rows as x (x.c.mac)}
           <tr class="click" onclick={() => go('client/' + encodeURIComponent(x.c.mac))}>
+            <td onclick={e => e.stopPropagation()}><input type="checkbox" aria-label={t('Select')} bind:checked={sel[x.c.mac]} /></td>
             <td><div style="display:flex;gap:10px;align-items:center"><Avatar client={x.c} online={x.c.online} />
-              <div><b>{display(x.c)}</b><div class="muted mono" style="font-size:11.5px">{x.c.mac}{#if x.c.vendor} · {tr(x.c.vendor)}{/if}</div></div></div></td>
+              <div><b>{#if x.c.watch}<span title={t('Watched: alert when offline')}>★ </span>{/if}{display(x.c)}</b><div class="muted mono" style="font-size:11.5px">{x.c.mac}{#if x.c.vendor} · {tr(x.c.vendor)}{/if}</div></div></div></td>
             <td class="mono">{x.c.ip || '—'}</td>
             <td>{#if x.c.device}{x.c.device}{#if x.c.wifi}<div><span class="badge acc">{x.c.ssid || t('Wi-Fi')}{x.c.band ? ' · ' + x.c.band : ''}</span></div>{:else}<div class="muted">{x.c.iface}</div>{/if}{:else}<span class="muted">—</span>{/if}</td>
             <td>{#if x.c.wifi && x.c.online}<span class="badge {signalQuality(x.c.signal).cls}">{signalQuality(x.c.signal).txt}</span>{:else}<span class="muted">—</span>{/if}</td>

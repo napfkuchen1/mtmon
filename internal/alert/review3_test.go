@@ -180,3 +180,35 @@ func TestRecurringSpikeIsInfo(t *testing.T) {
 		t.Fatalf("recurring spike: %+v", *got)
 	}
 }
+
+func TestWatchedClientOfflineAndBack(t *testing.T) {
+	e, got := newEngine(t)
+	now := time.Now()
+	gone := now.Add(-30 * time.Minute).Unix()
+	e.St.DB.Exec(`INSERT INTO clients(mac,hostname,first_seen,last_seen,online,device,watch) VALUES('AA:00:00:00:00:01','intercom',?,?,0,'ap',1)`, gone-86400, gone)
+	e.St.DB.Exec(`INSERT INTO clients(mac,hostname,first_seen,last_seen,online,watch) VALUES('AA:00:00:00:00:02','tv',?,?,0,0)`, gone-86400, gone) // not watched
+	e.watchChecks()
+	e.watchChecks() // reported once
+	if kinds(*got) != "client_offline/AA:00:00:00:00:01" || (*got)[0].Severity != "warning" || !strings.Contains((*got)[0].Msg, "intercom") {
+		t.Fatalf("offline: %+v", *got)
+	}
+	e.St.DB.Exec(`UPDATE clients SET online=1, last_seen=? WHERE mac='AA:00:00:00:00:01'`, now.Unix())
+	e.mu.Lock()
+	delete(e.last, "client_online|AA:00:00:00:00:01")
+	e.mu.Unlock()
+	e.watchChecks()
+	if len(*got) != 2 || (*got)[1].Kind != "client_online" || (*got)[1].Severity != "info" || !strings.Contains((*got)[1].Msg, "back online after") {
+		t.Fatalf("back: %+v", *got)
+	}
+}
+
+func TestWatchedClientInMaintenanceWindowWaits(t *testing.T) {
+	e, got := newEngine(t)
+	gone := time.Now().Add(-30 * time.Minute).Unix()
+	e.St.DB.Exec(`INSERT INTO clients(mac,hostname,first_seen,last_seen,online,device,watch) VALUES('AA:00:00:00:00:01','intercom',?,?,0,'ap',1)`, gone-86400, gone)
+	e.St.SetMaintenance("ap", time.Now().Add(time.Hour).Unix())
+	e.watchChecks()
+	if len(*got) != 0 {
+		t.Fatalf("alert during the maintenance window of its AP: %+v", *got)
+	}
+}

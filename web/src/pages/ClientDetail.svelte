@@ -70,6 +70,10 @@
     try { await api('/clients/' + encodeURIComponent(mac) + '/icon', { method: 'PUT', body: { icon: k } }); d.data = await api('/clients/' + encodeURIComponent(mac) + '?range=' + rg()); toast(t('Saved')) }
     catch (e) { toast(tr(e.message)) }
   }
+  async function toggleWatch() {
+    try { await api('/clients/' + encodeURIComponent(mac) + '/watch', { method: 'PUT', body: { watch: !c.watch } }); d.data = await api('/clients/' + encodeURIComponent(mac) + '?range=' + rg()); toast(t('Saved')) }
+    catch (e) { toast(tr(e.message)) }
+  }
   async function saveLabel() {
     try { await api('/clients/' + encodeURIComponent(mac) + '/label', { method: 'PUT', body: { label } }); editing = false; toast(t('Saved')); d.data = await api('/clients/' + encodeURIComponent(mac) + '?range=' + rg()) }
     catch (e) { toast(tr(e.message)) }
@@ -93,6 +97,7 @@
       {#if !x?.address_only}<button class="btn sm" onclick={() => { label = c.label || c.hostname; editing = true }}>{t('Rename')}</button>{/if}
     {/if}
     <span class="badge {c.online ? 'ok' : ''}">{c.online ? t('online') : t('offline')}</span>
+    {#if !x?.address_only}<button class="btn sm" class:primary={c.watch} aria-pressed={c.watch} title={t('Alert me when this client stays offline')} onclick={toggleWatch}>★ {c.watch ? t('Watched') : t('Watch')}</button>{/if}
     {#if c.wifi}<span class="badge acc">{t('Wi-Fi')} {c.ssid}{c.band ? ' · ' + c.band : ''}</span>{:else}<span class="badge">{t('wired')}</span>{/if}
     {#if c.vendor}<span class="badge">{tr(c.vendor)}</span>{/if}
   </div>

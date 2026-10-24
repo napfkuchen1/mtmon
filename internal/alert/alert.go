@@ -52,14 +52,15 @@ type Engine struct {
 	lastDevDown time.Time
 	ifPending   map[string]bool // device/iface -> link-down alert is still held back
 	spikeRun    int
-	spikeDay    map[string]string // client -> day of its last traffic_spike alert
+	spikeDay    map[string]string    // client -> day of its last traffic_spike alert
+	watchDown   map[string]time.Time // watched client -> when it was last seen (it is offline and was reported)
 	hc          *http.Client
 	Notify      func(store.Alert) // test hook
 }
 
 func New(c *config.Config, s *store.Store, h *live.Hub, log *slog.Logger) *Engine {
 	return &Engine{Cfg: c, St: s, Hub: h, Log: log, start: time.Now(), last: map[string]time.Time{},
-		devUp: map[string]bool{}, pendingOff: map[string]string{}, offGroupDelay: 5 * time.Second, rebootGrace: 90 * time.Second, boot: map[string]bootInfo{}, downAt: map[string]time.Time{}, ifPending: map[string]bool{}, spikeDay: map[string]string{}, ifDown: map[string]time.Time{}, wan: map[string]*wanState{}, cpuHigh: map[string]int{}, hc: &http.Client{Timeout: 8 * time.Second}}
+		devUp: map[string]bool{}, pendingOff: map[string]string{}, offGroupDelay: 5 * time.Second, rebootGrace: 90 * time.Second, boot: map[string]bootInfo{}, downAt: map[string]time.Time{}, ifPending: map[string]bool{}, spikeDay: map[string]string{}, watchDown: map[string]time.Time{}, ifDown: map[string]time.Time{}, wan: map[string]*wanState{}, cpuHigh: map[string]int{}, hc: &http.Client{Timeout: 8 * time.Second}}
 }
 
 // SetDelays changes how long offline alerts wait for companions and for a reboot to finish (tests use short ones).
@@ -631,6 +632,58 @@ func (e *Engine) Checks() {
 				}
 			}
 			rows.Close()
+		}
+	}
+	e.watchChecks()
+}
+
+// WatchOfflineAfter is how long a watched client may be gone before it is reported.
+const WatchOfflineAfter = 10 * time.Minute
+
+// watchChecks reports watched clients ("must be online") that have been gone for WatchOfflineAfter, and their return
+// with the duration. Clients hanging on a device in a maintenance window are left alone until it is over.
+func (e *Engine) watchChecks() {
+	cs, err := e.St.WatchedClients()
+	if err != nil || len(cs) == 0 {
+		e.mu.Lock()
+		for k := range e.watchDown { // nothing watched any more: forget old outages
+			delete(e.watchDown, k)
+		}
+		e.mu.Unlock()
+		return
+	}
+	maint := e.St.Maintenance()
+	now := time.Now()
+	for _, c := range cs {
+		name := c.Label
+		if name == "" {
+			name = c.Hostname
+		}
+		if name == "" {
+			name = c.MAC
+		}
+		gone := !c.Online && now.Sub(time.Unix(c.LastSeen, 0)) >= WatchOfflineAfter
+		e.mu.Lock()
+		since, down := e.watchDown[c.MAC]
+		e.mu.Unlock()
+		switch {
+		case gone && !down:
+			if _, ok := maint[c.Device]; ok {
+				continue
+			}
+			e.mu.Lock()
+			e.watchDown[c.MAC] = time.Unix(c.LastSeen, 0)
+			e.mu.Unlock()
+			where := ""
+			if c.Device != "" {
+				where = ", last seen on " + c.Device
+			}
+			e.Raise("client_offline", c.MAC, "warning", fmt.Sprintf("Watched client %s (%s) has been offline for %s%s", name, c.MAC, fmtDur(now.Sub(time.Unix(c.LastSeen, 0))), where), time.Minute)
+		case !gone && c.Online && down:
+			e.mu.Lock()
+			delete(e.watchDown, c.MAC)
+			e.mu.Unlock()
+			e.Raise("client_online", c.MAC, "info", fmt.Sprintf("Watched client %s (%s) is back online after %s", name, c.MAC, fmtDur(now.Sub(since))), time.Minute)
 		}
 	}
 }
