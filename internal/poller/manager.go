@@ -25,19 +25,21 @@ type Events interface {
 }
 
 type Manager struct {
-	Cfg    *config.Config
-	St     *store.Store
-	Hub    *live.Hub
-	En     *enrich.Enricher
-	Ev     Events
-	Log    *slog.Logger
-	Scale  float64 // interval multiplier (tests use <1)
-	mu     sync.Mutex
-	reload chan struct{}
-	snaps  map[string]*devSnap
-	known  map[string]bool
-	primed bool
-	self   map[string]string // MAC of a managed device's own interface -> device name (never a client)
+	rekeyMu sync.Mutex
+	rekeyed map[string]bool // "key|addr" already merged into the VPN client
+	Cfg     *config.Config
+	St      *store.Store
+	Hub     *live.Hub
+	En      *enrich.Enricher
+	Ev      Events
+	Log     *slog.Logger
+	Scale   float64 // interval multiplier (tests use <1)
+	mu      sync.Mutex
+	reload  chan struct{}
+	snaps   map[string]*devSnap
+	known   map[string]bool
+	primed  bool
+	self    map[string]string // MAC of a managed device's own interface -> device name (never a client)
 }
 
 type devSnap struct {
@@ -829,6 +831,10 @@ func (m *Manager) merge() {
 		if o.IP != "" {
 			ipmac[o.IP] = mac
 		}
+		for _, a := range o.Aliases {
+			ipmac[a] = mac
+			m.rekeyAlias(mac, a)
+		}
 		n := o.Hostname
 		if n == "" {
 			n = o.IP
@@ -879,4 +885,25 @@ func containsClient(cs []store.Client, mac string) bool {
 		}
 	}
 	return false
+}
+
+// rekeyAlias moves traffic that was stored under a bare address of a VPN peer (before the peer was known by all of
+// its addresses) to the peer's client key. Runs once per address and process, in the background.
+func (m *Manager) rekeyAlias(key, addr string) {
+	m.rekeyMu.Lock()
+	k := key + "|" + addr
+	if m.rekeyed[k] {
+		m.rekeyMu.Unlock()
+		return
+	}
+	if m.rekeyed == nil {
+		m.rekeyed = map[string]bool{}
+	}
+	m.rekeyed[k] = true
+	m.rekeyMu.Unlock()
+	go func() {
+		if err := m.St.RekeyTraffic(addr, key); err != nil {
+			m.Log.Error("re-key vpn traffic", "from", addr, "to", key, "err", err)
+		}
+	}()
 }
