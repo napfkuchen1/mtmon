@@ -324,6 +324,11 @@ const recurMinDays = 3
 // recurringWAN counts the earlier days on which this device's WAN dropped within ±5 minutes of now's time of day
 // (from the stored alert history, so it survives restarts) and returns the clock time for the message.
 func (e *Engine) recurringWAN(device string, now time.Time) (int, string) {
+	return e.recurring("wan_down", device, now, 5)
+}
+
+// recurring counts the earlier days with an alert of this kind and subject within ±tol minutes of now's time of day.
+func (e *Engine) recurring(kind, subject string, now time.Time, tol int) (int, string) {
 	as, err := e.St.Alerts(2000)
 	if err != nil {
 		return 0, ""
@@ -332,7 +337,7 @@ func (e *Engine) recurringWAN(device string, now time.Time) (int, string) {
 	today := now.Format("2006-01-02")
 	days := map[string]bool{}
 	for _, a := range as {
-		if a.Kind != "wan_down" || a.Subject != device {
+		if a.Kind != kind || a.Subject != subject {
 			continue
 		}
 		t := time.Unix(a.TS, 0).In(now.Location())
@@ -347,7 +352,7 @@ func (e *Engine) recurringWAN(device string, now time.Time) (int, string) {
 		if diff > 720 {
 			diff = 1440 - diff
 		}
-		if diff <= 5 {
+		if diff <= tol {
 			days[d] = true
 		}
 	}
@@ -551,6 +556,11 @@ func (e *Engine) spike(snap live.Snapshot, cur, base float64) {
 				ip = host + " / " + ip
 			}
 			msg += " ↔ " + ip
+		}
+		// the same client at the same time of day on several days: a schedule (speed test, backup, update), not an incident
+		if n, at := e.recurring("traffic_spike", top.Key, time.Now(), 10); n >= recurMinDays {
+			sev = "info"
+			msg += fmt.Sprintf(" – recurring: the same client had a spike on %d earlier days around %s, probably scheduled (speed test, backup, update)", n, at)
 		}
 	}
 	e.Raise("traffic_spike", subject, sev, msg, time.Hour)

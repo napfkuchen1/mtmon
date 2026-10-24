@@ -163,3 +163,20 @@ func TestHeldLinkFlapWithoutRebootReported(t *testing.T) {
 		t.Fatalf("flap: %+v", *got)
 	}
 }
+
+// A spike of the same client at the same time of day on three earlier days is a schedule (speed test), not an incident.
+func TestRecurringSpikeIsInfo(t *testing.T) {
+	e, got := newEngine(t)
+	now := time.Now()
+	e.St.DB.Exec(`INSERT INTO clients(mac,first_seen,last_seen) VALUES('m',?,?)`, now.Unix(), now.Unix()) // new client: would be a warning
+	for d := 1; d <= 3; d++ {
+		e.St.AddAlert(store.Alert{TS: now.AddDate(0, 0, -d).Add(4 * time.Minute).Unix(), Kind: "traffic_spike", Subject: "m", Severity: "warning", Msg: "x"})
+	}
+	e.Hub.AddFlow(store.FlowRow{MAC: "m", Dir: "d", Bytes: 10_000})
+	e.Checks()
+	e.Hub.AddFlow(store.FlowRow{MAC: "m", Dir: "d", Bytes: 2 << 30})
+	e.Checks()
+	if len(*got) != 1 || (*got)[0].Severity != "info" || !strings.Contains((*got)[0].Msg, "recurring") {
+		t.Fatalf("recurring spike: %+v", *got)
+	}
+}
