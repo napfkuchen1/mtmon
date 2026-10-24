@@ -1,6 +1,6 @@
 <script>
   import { api, download } from '../lib/api.js'
-  import { go } from '../lib/state.svelte.js'
+  import { go, toast } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
   import { t, tr } from '../lib/i18n.svelte.js'
   import { bps, deviceKind } from '../lib/format.js'
@@ -22,7 +22,7 @@
   const tree = $derived.by(() => {
     const nodes = d.data?.nodes || [], edges = d.data?.edges || []
     const devs = nodes.filter(n => n.type !== 'client')
-    const root = devs.find(n => n.type === 'router') || devs[0]
+    const root = devs.find(n => n.id === 'd:' + d.data?.root) || devs.find(n => n.type === 'router') || devs[0]
     const parent = new Map(), label = new Map(), order = []
     if (root) {
       const seen = new Set([root.id]); const q = [root.id]
@@ -37,6 +37,10 @@
     }
     return { devs, root, parent, label, order }
   })
+
+  async function setRoot(name) {
+    try { await api('/topology/root', { method: 'PUT', body: { device: name } }); d.data = await api('/topology') } catch (e) { toast(e.message) }
+  }
 
   const maxBps = $derived(Math.max(1, ...(d.data?.nodes || []).map(n => n.bps)))
   const palette = ['var(--accent)', 'var(--down)', '#a855f7', '#14b8a6', '#ec4899', '#eab308']
@@ -134,6 +138,11 @@
 
 <div class="head"><h1>{t('Topology')}</h1><span class="muted">{t('from LLDP/MNDP neighbors, wifi registrations and bridge hosts')}</span>
   <span class="tools">
+    <label class="rootsel" title={t('The top of the tree. Automatic = the router that does NAT and DHCP.')}>{t('Root')}
+      <select value={d.data?.root_override || ''} onchange={e => setRoot(e.currentTarget.value)}>
+        <option value="">{t('Automatic')}{d.data?.root && !d.data?.root_override ? ' (' + d.data.root + ')' : ''}</option>
+        {#each tree.devs as n}<option value={n.label}>{n.label}</option>{/each}
+      </select></label>
     <button class="btn sm" onclick={() => setAll(true)}>{t('Collapse all')}</button>
     <button class="btn sm" onclick={() => setAll(false)}>{t('Expand all')}</button>
     <button class="btn sm" title={t('Raw tables mtmon got from your devices (Wi-Fi registrations, bridge hosts, ARP, DHCP) – for troubleshooting')} onclick={() => download('/diagnostics')}>{t('Diagnostics')}</button>
@@ -200,6 +209,8 @@
 <style>
   .head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
   .tools { display: inline-flex; gap: 8px; margin-left: auto; }
+  .rootsel { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+  .rootsel select { max-width: 160px; }
   .wrap { padding: 4px 0; overflow: hidden; }
   .node { cursor: pointer; } .node:hover rect { stroke: var(--accent); }
   .gh { cursor: pointer; } .gh:hover text { fill: var(--text); }

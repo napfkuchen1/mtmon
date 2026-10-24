@@ -68,6 +68,7 @@ func (s *Server) featureRoutes(m *http.ServeMux, a func(http.HandlerFunc) http.H
 	m.HandleFunc("GET /api/devices/{name}/features", a(s.deviceFeaturesGet))
 	m.HandleFunc("POST /api/devices/{name}/features", a(s.deviceFeaturesApply))
 	m.HandleFunc("PUT /api/devices/{name}/maintenance", a(s.deviceMaintenance))
+	m.HandleFunc("PUT /api/topology/root", a(s.topologyRoot))
 	m.HandleFunc("GET /api/diagnostics", a(s.diagnostics))
 	m.HandleFunc("GET /api/search/index", a(s.searchIndex))
 	m.HandleFunc("GET /api/export/clients", a(s.exportClients))

@@ -521,7 +521,25 @@ func (s *Server) topology(w http.ResponseWriter, r *http.Request) {
 		devByName[d.Name] = d
 	}
 	roleOf := map[string]string{}
-	var root string
+	onlineBy := map[string]int{}
+	cl, _ := s.St.Clients()
+	for _, c := range cl {
+		if c.Online && c.Device != "" {
+			onlineBy[c.Device]++
+		}
+	}
+	var cands []rootCand
+	for _, d := range s.Cfg.AllDevices() {
+		rc := rootCand{Name: d.Name, Role: d.Role, Clients: onlineBy[d.Name]}
+		if row, _ := s.St.DeviceRow(d.Name); row != nil {
+			if k := storedCaps(row); k != nil {
+				rc.NAT, rc.DHCP, rc.CAPsMAN = k.NAT, k.DHCPServer, k.CAPsMAN
+			}
+		}
+		cands = append(cands, rc)
+	}
+	override := s.St.GetMeta(rootMetaKey)
+	root := pickRoot(cands, override)
 	for _, d := range s.Cfg.AllDevices() {
 		roleOf[d.Name] = d.Role
 		st := "down"
@@ -535,9 +553,6 @@ func (s *Server) topology(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		nodes = append(nodes, node{ID: "d:" + d.Name, Type: d.Role, Label: d.Name, Status: st, Bps: bps, Sub: d.Addr})
-		if d.Role == "router" && root == "" {
-			root = d.Name
-		}
 	}
 	// device↔device links from /ip/neighbor (identity match)
 	ns, _ := s.St.Neighbors()
@@ -564,7 +579,6 @@ func (s *Server) topology(w http.ResponseWriter, r *http.Request) {
 	for _, c := range s.Hub.Snapshot(s.Hub.LastSeq(), 1000).Clients {
 		rates[c.Key] = c.UpBps + c.DownBps
 	}
-	cl, _ := s.St.Clients()
 	for _, c := range cl {
 		if !c.Online {
 			continue
@@ -579,7 +593,13 @@ func (s *Server) topology(w http.ResponseWriter, r *http.Request) {
 			edges = append(edges, edge{From: "d:" + c.Device, To: "c:" + c.MAC, Kind: map[bool]string{true: "wifi", false: "wired"}[c.WiFi]})
 		}
 	}
-	jsonOut(w, map[string]any{"nodes": nodes, "edges": edges})
+	if nodes == nil {
+		nodes = []node{}
+	}
+	if edges == nil {
+		edges = []edge{}
+	}
+	jsonOut(w, map[string]any{"nodes": nodes, "edges": edges, "root": root, "root_override": override})
 }
 
 func localIP(r *http.Request) string {
