@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 	"sync"
@@ -162,6 +163,39 @@ func sameOrigin(origin, host string) bool {
 		return false
 	}
 	return strings.EqualFold(u.Host, host)
+}
+
+// sourceIP is the address the request really comes from: the peer itself, or – behind a trusted (private) proxy –
+// the last address in X-Forwarded-For that is not itself a local proxy hop (X-Real-IP as fallback). Rate limits use
+// it so one noisy client does not lock out everybody behind the same proxy.
+func sourceIP(r *http.Request) string {
+	peer := clientIP(r)
+	if !proxyTrusted(r) {
+		return peer
+	}
+	var hops []string
+	for _, p := range strings.Split(r.Header.Get("X-Forwarded-For"), ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			hops = append(hops, p)
+		}
+	}
+	if len(hops) == 0 {
+		if v := strings.TrimSpace(r.Header.Get("X-Real-IP")); v != "" {
+			hops = append(hops, v)
+		}
+	}
+	for i := len(hops) - 1; i >= 0; i-- {
+		a, err := netip.ParseAddr(hops[i])
+		if err == nil && !isLocalAddr(a) {
+			return a.String()
+		}
+	}
+	for i := len(hops) - 1; i >= 0; i-- {
+		if a, err := netip.ParseAddr(hops[i]); err == nil {
+			return a.String()
+		}
+	}
+	return peer
 }
 
 func clientIP(r *http.Request) string {
