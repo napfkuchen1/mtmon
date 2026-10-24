@@ -20,4 +20,5 @@ export default {
   "The top of the tree. Automatic = the router that does NAT and DHCP.": "Die Spitze des Baums. Automatisch = der Router, der NAT und DHCP macht.",
   "Enter the router address above to get the commands.": "Router-Adresse oben eingeben, dann erscheinen die Befehle.",
   "No client record for this address (its MAC is not known). Traffic and connections are shown by address.": "Für diese Adresse gibt es keinen Client-Eintrag (die MAC ist unbekannt). Verkehr und Verbindungen werden nach Adresse angezeigt.",
+  "Replace <ROUTER-IP> with the address of the router you paste this into – or use the Add device page, which fills it in.": "Ersetze <ROUTER-IP> durch die Adresse des Routers, in den du das einfügst – oder nutze die Seite „Gerät hinzufügen“, die das einträgt.",
 }

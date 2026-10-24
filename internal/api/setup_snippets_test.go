@@ -16,10 +16,14 @@ func TestSetupSnippets(t *testing.T) {
 		t.Error("fixed password")
 	}
 	tls := restTLSSnippet("192.0.2.1", "192.0.2.5")
-	for _, want := range []string{"/certificate find name=mtmon-ca]] = 0) do={ /certificate add name=mtmon-ca", "/certificate find name=mtmon-ssl]] = 0)", "common-name=192.0.2.1 subject-alt-name=IP:192.0.2.1", "REPLACES", "available-from=192.0.2.5/32"} {
+	for _, want := range []string{"/certificate find name=mtmon-ca]] = 0) do={ /certificate add name=mtmon-ca", "/certificate find name=mtmon-ssl]] = 0)", "common-name=192.0.2.1 subject-alt-name=IP:192.0.2.1", "[:len [/ip service get www-ssl available-from]] = 0) do={ /ip service set www-ssl certificate=mtmon-ssl disabled=no available-from=192.0.2.5/32 }", "else={ :put"} {
 		if !strings.Contains(tls, want) {
 			t.Errorf("rest_tls lacks %q:\n%s", want, tls)
 		}
+	}
+	// a restricted service keeps its list (no lock-out of the admin network): the else branch must not set available-from
+	if _, rest, _ := strings.Cut(tls, "else={"); strings.Contains(rest, "available-from=") {
+		t.Errorf("else branch overwrites the allow list:\n%s", tls)
 	}
 	if strings.Contains(tls, "<LAN-NETZ>") {
 		t.Error("placeholder network")
@@ -31,5 +35,14 @@ func TestSetupSnippets(t *testing.T) {
 	a, b := randomPassword(20), randomPassword(20)
 	if len(a) != 20 || a == b {
 		t.Errorf("passwords: %q %q", a, b)
+	}
+}
+
+func TestFlowSnippetIsRerunnable(t *testing.T) {
+	f := flowSnippet("192.0.2.5", "2055")
+	for _, want := range []string{"/ip traffic-flow set enabled=yes", ":if ([:len [/ip traffic-flow target find dst-address=192.0.2.5 port=2055]] = 0) do={ /ip traffic-flow target add dst-address=192.0.2.5 port=2055 version=ipfix }"} {
+		if !strings.Contains(f, want) {
+			t.Errorf("flow snippet lacks %q:\n%s", want, f)
+		}
 	}
 }

@@ -647,8 +647,7 @@ func (s *Server) setup(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonOut(w, map[string]any{
 		"mtmon_ip": ip, "flow_port": port,
-		"flow": "/ip traffic-flow set enabled=yes interfaces=all cache-entries=16k active-flow-timeout=30s inactive-flow-timeout=15s\n" +
-			"/ip traffic-flow target add dst-address=" + ip + " port=" + port + " version=ipfix",
+		"flow":     flowSnippet(ip, port),
 		"api_user": apiUserSnippet(ip, randomPassword(20)),
 		"rest_tls": restTLSSnippet(cleanRouterIP(r.URL.Query().Get("router")), ip),
 		"fasttrack": "Traffic-Flow only sees traffic that is processed by the router CPU (MikroTik docs: hardware-offloaded traffic, e.g. bridge HW offload/switch-chip forwarding, is not exported). " +

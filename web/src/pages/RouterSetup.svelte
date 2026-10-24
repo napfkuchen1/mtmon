@@ -16,7 +16,7 @@
 <details class="card rs" style="margin-top:16px"><summary class="card-h"><h2>{t('Router setup')}</h2><span class="muted">{t('for devices you set up by hand – the wizard does this for you')} · {t('mtmon address detected:')} <span class="mono">{u?.mtmon_ip}</span></span></summary>
   <div class="card-b" style="display:flex;flex-direction:column;gap:16px;border-top:1px solid var(--border)">
     {#each blocks as [title, code]}
-      <div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b>{title}</b><button class="btn sm" onclick={() => copy(code)}>{t('Copy')}</button></div><pre class="code">{code}</pre></div>
+      <div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b>{title}</b><button class="btn sm" onclick={() => copy(code)}>{t('Copy')}</button></div><pre class="code">{code}</pre>{#if code.includes('<ROUTER-IP>')}<div class="muted" style="margin-top:6px">{t('Replace <ROUTER-IP> with the address of the router you paste this into – or use the Add device page, which fills it in.')}</div>{/if}</div>
     {/each}
     {#if u}
       <div class="warnbox"><b>FastTrack:</b> {tr(u.fasttrack)}</div>

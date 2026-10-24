@@ -28,6 +28,13 @@ func guardAdd(findPath, name, cmd string) string {
 	return `:if ([:len [` + findPath + ` find name=` + name + `]] = 0) do={ ` + cmd + ` }`
 }
 
+// flowSnippet enables Traffic Flow and adds the target only if it is not there yet: a second run must not create a
+// second target (every flow would be exported, and counted, twice).
+func flowSnippet(mtmonIP, port string) string {
+	return "/ip traffic-flow set enabled=yes interfaces=all cache-entries=16k active-flow-timeout=30s inactive-flow-timeout=15s\n" +
+		":if ([:len [/ip traffic-flow target find dst-address=" + mtmonIP + " port=" + port + "]] = 0) do={ /ip traffic-flow target add dst-address=" + mtmonIP + " port=" + port + " version=ipfix }"
+}
+
 // apiUserSnippet: read-only group and user, restricted to the mtmon address. pw is shown in the snippet.
 func apiUserSnippet(mtmonIP, pw string) string {
 	return "# the password below was generated for this page view: put the same one into mtmon for this device\n" +
@@ -43,9 +50,10 @@ func restTLSSnippet(routerIP, mtmonIP string) string {
 	}
 	return guardAdd("/certificate", "mtmon-ca", "/certificate add name=mtmon-ca common-name=mtmon-ca days-valid=3650 key-usage=key-cert-sign,crl-sign; /certificate sign mtmon-ca") + "\n" +
 		guardAdd("/certificate", "mtmon-ssl", "/certificate add name=mtmon-ssl common-name="+r+" subject-alt-name=IP:"+r+" days-valid=3650 key-usage=digital-signature,key-encipherment,tls-server; /certificate sign mtmon-ssl ca=mtmon-ca") + "\n" +
-		"# available-from REPLACES the whole list. Check what is allowed now and add those ranges to the list below (comma separated):\n" +
-		"/ip service print where name=www-ssl\n" +
-		"/ip service set www-ssl certificate=mtmon-ssl disabled=no available-from=" + mtmonIP + "/32"
+		"# available-from is only set when www-ssl is not restricted yet (an empty list means \"any address\"). A restricted service keeps its list:\n" +
+		"# add " + mtmonIP + "/32 to it by hand (check with: /ip service print where name=www-ssl), otherwise mtmon is locked out.\n" +
+		":if ([:len [/ip service get www-ssl available-from]] = 0) do={ /ip service set www-ssl certificate=mtmon-ssl disabled=no available-from=" + mtmonIP + "/32 } " +
+		"else={ :put \"www-ssl is already restricted: add " + mtmonIP + "/32 to its available-from list by hand\"; /ip service set www-ssl certificate=mtmon-ssl disabled=no }"
 }
 
 // cleanRouterIP accepts the router address from the query only if it is an IP (it ends up in a command).
