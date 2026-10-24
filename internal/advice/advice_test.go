@@ -97,6 +97,23 @@ func TestRAMAndCPU(t *testing.T) {
 	skipped(t, base(), "ram")
 }
 
+func TestRAMStableHighIsInfo(t *testing.T) {
+	d := base()
+	d.Devs = []Device{{Name: "wAP", Up: true, Samples: 300, AvgMem: 90, MaxMem: 92, HighMemFrac: 1, MinFreeMiB: 24, MemTrend: 0.4}}
+	s := expect(t, d, "ram", 1)
+	if s[0].Severity != SevInfo || !strings.Contains(strings.Join(s[0].Evidence, " "), "Stable") {
+		t.Fatalf("%+v", s[0])
+	}
+	d.Devs[0].MemTrend = 7 // rising over the window
+	if s = expect(t, d, "ram", 1); s[0].Severity != SevWarning || !strings.Contains(strings.Join(s[0].Evidence, " "), "rising") {
+		t.Fatalf("%+v", s[0])
+	}
+	d.Devs[0].MemTrend, d.Devs[0].MinFreeMiB = 0, 6 // almost no RAM left
+	if s = expect(t, d, "ram", 1); s[0].Severity != SevWarning || !strings.Contains(strings.Join(s[0].Evidence, " "), "6 MiB") {
+		t.Fatalf("%+v", s[0])
+	}
+}
+
 func TestVersion(t *testing.T) {
 	d := base()
 	d.Devs = []Device{{Name: "wAP", Version: "7.24.3 (stable)"}, {Name: "hEX", Version: "7.24.4 (stable)"}}

@@ -39,6 +39,19 @@ func TestAdviceQueries(t *testing.T) {
 	if err != nil || len(ms) != 1 || ms["wAP"].N != 10 || ms["wAP"].HighCPU != 10 || ms["wAP"].AvgMem != 90 {
 		t.Fatalf("%+v %v", ms, err)
 	}
+	if ms["wAP"].MinFreeMem != 10 || ms["wAP"].MemTrend != 0 {
+		t.Fatalf("flat memory: %+v", ms["wAP"])
+	}
+	for i := 0; i < 10; i++ { // older half 80 %, newer half 90 %
+		used := int64(80)
+		if i < 5 {
+			used = 90
+		}
+		st.SaveDevMetric(DevMetric{TS: now - int64(i)*60 - 1, Device: "rising", MemUsed: used, MemTotal: 100, Up: true})
+	}
+	if ms, _ = st.DevMetricStats(now-600, 70, 85); ms["rising"].MemTrend < 9 {
+		t.Fatalf("rising memory: %+v", ms["rising"])
+	}
 
 	// port use / host use / client totals from the hourly rollups
 	ts := now / 3600 * 3600

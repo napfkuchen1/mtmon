@@ -62,15 +62,21 @@ type MetricStat struct {
 	AvgCPU, MaxCPU   float64
 	AvgMem, MaxMem   float64
 	HighCPU, HighMem int // samples above the thresholds
+	// MemTrend: average RAM % of the second half of the window minus the first half (0 when a half has no samples).
+	MemTrend   float64
+	MinFreeMem int64 // smallest free RAM in bytes
 }
 
 // DevMetricStats summarises dev_metrics per device since `since` (uses the (device, ts) index: one row per
 // minute and device, so ~360 rows per device for 6 h).
 func (s *Store) DevMetricStats(since int64, cpuThr, memThr float64) (map[string]MetricStat, error) {
+	mid := since + (time.Now().Unix()-since)/2
 	rows, err := s.DB.Query(`SELECT device, count(*), avg(cpu), max(cpu),
 		avg(100.0*mem_used/mem_total), max(100.0*mem_used/mem_total),
-		sum(cpu>?), sum(100.0*mem_used/mem_total>?)
-		FROM dev_metrics WHERE ts>=? AND up=1 AND mem_total>0 GROUP BY device`, cpuThr, memThr, since)
+		sum(cpu>?), sum(100.0*mem_used/mem_total>?),
+		avg(CASE WHEN ts<? THEN 100.0*mem_used/mem_total END), avg(CASE WHEN ts>=? THEN 100.0*mem_used/mem_total END),
+		min(mem_total-mem_used)
+		FROM dev_metrics WHERE ts>=? AND up=1 AND mem_total>0 GROUP BY device`, cpuThr, memThr, mid, mid, since)
 	if err != nil {
 		return nil, err
 	}
@@ -79,8 +85,12 @@ func (s *Store) DevMetricStats(since int64, cpuThr, memThr float64) (map[string]
 	for rows.Next() {
 		var d string
 		var m MetricStat
-		if err := rows.Scan(&d, &m.N, &m.AvgCPU, &m.MaxCPU, &m.AvgMem, &m.MaxMem, &m.HighCPU, &m.HighMem); err != nil {
+		var early, late sql.NullFloat64
+		if err := rows.Scan(&d, &m.N, &m.AvgCPU, &m.MaxCPU, &m.AvgMem, &m.MaxMem, &m.HighCPU, &m.HighMem, &early, &late, &m.MinFreeMem); err != nil {
 			return nil, err
+		}
+		if early.Valid && late.Valid {
+			m.MemTrend = late.Float64 - early.Float64
 		}
 		out[d] = m
 	}
