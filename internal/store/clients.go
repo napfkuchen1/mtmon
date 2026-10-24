@@ -2,6 +2,8 @@ package store
 
 import (
 	"database/sql"
+	"net"
+	"net/netip"
 	"strings"
 	"time"
 )
@@ -46,7 +48,20 @@ type Observation struct {
 	Aliases  []string // further addresses of the same client (e.g. the IPv6 address of a VPN peer)
 }
 
-func NormMAC(m string) string { return strings.ToUpper(strings.TrimSpace(m)) }
+// NormMAC normalises a client key: MACs and "VPN:" keys upper case; a bare IP address (traffic that could not be
+// matched to a client is booked under its address) in its canonical lower-case form.
+func NormMAC(m string) string {
+	m = strings.TrimSpace(m)
+	if !strings.Contains(m, ":") || strings.HasPrefix(strings.ToUpper(m), "VPN:") {
+		return strings.ToUpper(m)
+	}
+	if _, err := net.ParseMAC(m); err != nil {
+		if a, err := netip.ParseAddr(m); err == nil {
+			return a.String()
+		}
+	}
+	return strings.ToUpper(m)
+}
 
 // UpsertClients merges observations; returns roaming events detected.
 func (s *Store) UpsertClients(obs []Observation) ([]string, error) {

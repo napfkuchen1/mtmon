@@ -756,7 +756,7 @@ func (s *Server) fwEvents(w http.ResponseWriter, r *http.Request) {
 func (s *Server) clientFw(w http.ResponseWriter, r *http.Request) {
 	mac := store.NormMAC(r.PathValue("mac"))
 	since, _, _ := parseRange(r)
-	c, err := s.St.Client(mac)
+	c, _, err := s.clientOrAddr(mac)
 	if err != nil {
 		jerr(w, 404, "unknown client")
 		return

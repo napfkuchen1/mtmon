@@ -126,7 +126,7 @@ func (s *Server) cachedName(a netip.Addr) string {
 // clientApps: GET /api/clients/{mac}/apps?range=…
 func (s *Server) clientApps(w http.ResponseWriter, r *http.Request) {
 	mac := store.NormMAC(r.PathValue("mac"))
-	if _, err := s.St.Client(mac); err != nil {
+	if _, _, err := s.clientOrAddr(mac); err != nil {
 		jerr(w, 404, "unknown client")
 		return
 	}

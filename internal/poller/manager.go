@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/netip"
 	"reflect"
@@ -523,6 +524,45 @@ func (m *Manager) SelfDevice(mac string) (string, bool) {
 	defer m.mu.Unlock()
 	d, ok := m.self[store.NormMAC(mac)]
 	return d, ok
+}
+
+// SelfByAddr returns the managed device that owns this IP address: its management address, an address configured on
+// it (from the stored capabilities), or a link-local address built from one of its interface MACs.
+func (m *Manager) SelfByAddr(ip string) (string, bool) {
+	a, err := netip.ParseAddr(ip)
+	if err != nil {
+		return "", false
+	}
+	for _, d := range m.Cfg.AllDevices() {
+		if d.Addr == ip {
+			return d.Name, true
+		}
+	}
+	if rows, err := m.St.DeviceRows(); err == nil {
+		for _, r := range rows {
+			var c struct {
+				Addresses []string `json:"addresses"`
+			}
+			if json.Unmarshal(r.Caps, &c) != nil {
+				continue
+			}
+			for _, x := range c.Addresses {
+				if pf, err := netip.ParsePrefix(x); err == nil && pf.Addr() == a {
+					return r.Name, true
+				} else if ad, err := netip.ParseAddr(x); err == nil && ad == a {
+					return r.Name, true
+				}
+			}
+		}
+	}
+	if a.Is6() && a.IsLinkLocalUnicast() {
+		b := a.As16()
+		if b[11] == 0xff && b[12] == 0xfe {
+			mac := fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X", b[8]^0x02, b[9], b[10], b[13], b[14], b[15])
+			return m.SelfDevice(mac)
+		}
+	}
+	return "", false
 }
 
 // isSelf reports whether the observation is one of the managed devices themselves.
