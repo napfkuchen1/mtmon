@@ -100,6 +100,7 @@
         <div><span class="l">{t('Network')}</span><b>{caps.dhcp_server ? 'DHCP' : '—'} · {caps.nat ? 'NAT' : t('no NAT')} · {t('{n} bridge(s)', { n: caps.bridges?.length || 0 })}{caps.hw_offload ? ' · ' + t('HW offload') : ''}</b></div>
         <div><span class="l">Firewall</span><b>{t('{n} rules', { n: caps.filter_rules?.length || 0 })}{caps.fasttrack ? ' · FastTrack' : ''}</b></div>
         <div><span class="l">{t('Hardware')}</span><b>{[caps.arch, caps.cpu_count ? t('{n} cores', { n: caps.cpu_count }) : '', caps.mem_total ? Math.round(caps.mem_total / 1048576) + ' MB' : ''].filter(Boolean).join(' · ') || '—'}</b></div>
+        {#if caps.files?.readable}<div><span class="l">{t('Newest backup / export')}</span><b>{#if caps.files.newest_backup || caps.files.newest_export}{datetime(Math.max(caps.files.newest_backup || 0, caps.files.newest_export || 0))}{:else}<span class="muted">{t('none found')}</span>{/if}</b></div>{/if}
         <div><span class="l">{t('Packages')}</span><b>{(caps.packages || []).join(', ')}</b></div>
       </div></div>
   {/if}

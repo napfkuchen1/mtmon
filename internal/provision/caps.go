@@ -85,6 +85,7 @@ type Caps struct {
 	Warnings    []string `json:"warnings"`
 	Managed     bool     `json:"already_managed"`     // carries mtmon-managed objects from an earlier setup
 	ProbedAt    int64    `json:"probed_at,omitempty"` // unix time the router was read
+	Files       Files    `json:"files"`               // newest backup / export file (read-only /file listing)
 }
 
 const ManagedTag = "mtmon-managed"
@@ -125,6 +126,9 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 		CPUCount: r.Int("cpu-count"), MemTotal: r.Int("total-memory"), IfaceTypes: map[string]int{}, ProbedAt: time.Now().Unix()}
 	k.Packages, k.WifiIfs, k.Bridges, k.Addresses, k.LogActions, k.Filter, k.Warnings = []string{}, []WifiIf{}, []string{}, []string{}, []string{}, []FilterRule{}, []string{}
 	k.Flow.Targets = []string{}
+	if rows, err := c.Get(ctx, "/file"); err == nil { // a read-only user may be refused here: then nothing is claimed
+		k.Files = parseFiles(rows)
+	}
 	if id := get(ctx, c, "/system/identity"); len(id) > 0 {
 		k.Identity = id[0]["name"]
 	}

@@ -74,6 +74,8 @@ type Caps struct {
 	DNSRedirectTCP             bool
 	WifiIfs                    []WifiIf
 	ProbedAt                   int64 // unix time the router was read, 0 = unknown (older stored probe)
+	FilesReadable              bool  // the router lets mtmon list its files
+	NewestBackup, NewestExport int64 // unix time of the newest *.backup / *.rsc file, 0 = none
 }
 
 // ReadNote says when the router was last read, for the evidence of rules that depend on its rule set.

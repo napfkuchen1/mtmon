@@ -644,3 +644,21 @@ func TestBlockedRepliesAreOneSuggestion(t *testing.T) {
 		t.Errorf("%+v", out[0])
 	}
 }
+
+func TestBackupAge(t *testing.T) {
+	d := base()
+	skipped(t, d, "backup-age") // no capabilities
+	d.Devs = []Device{{Name: "gw", Role: "router", Caps: &Caps{}}}
+	skipped(t, d, "backup-age") // /file not readable for the monitoring user
+	d.Devs[0].Caps.FilesReadable = true
+	out := expect(t, d, "backup-age", 1) // no file at all
+	if !strings.Contains(out[0].Evidence[0], "No *.backup") || !strings.Contains(out[0].Commands, "/system backup save name=gw") {
+		t.Errorf("%+v", out[0])
+	}
+	d.Devs[0].Caps.NewestBackup = t0.Add(-45 * 24 * time.Hour).Unix()
+	if o := expect(t, d, "backup-age", 1); !strings.Contains(o[0].Evidence[0], "45 days old") {
+		t.Errorf("%+v", o[0])
+	}
+	d.Devs[0].Caps.NewestExport = t0.Add(-3 * 24 * time.Hour).Unix() // a recent export counts as well
+	expect(t, d, "backup-age", 0)
+}
