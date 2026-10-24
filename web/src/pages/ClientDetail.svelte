@@ -142,7 +142,7 @@
         <colgroup><col style="width:84px"><col style="width:64px"><col style="width:22%"><col style="width:150px"><col style="width:120px"><col style="width:90px"><col style="width:110px"><col><col style="width:90px"><col style="width:48px"></colgroup>
         <thead><tr><th>{t('Time')}</th><th>{t('Dir')}</th><th>{t('Destination')}</th><th>{t('Ports (src → dst)')}</th><th>{t('Service')}</th><th>{t('Firewall')}</th><th>{t('Via')}</th><th>{t('Country / AS')}</th><th class="r">{t('Bytes')}</th><th></th></tr></thead>
         <tbody>
-          {#each shown.slice(0, 400) as r (r.ts + r.rip + r.rport + r.cport + r.bytes + r.dir)}
+          {#each shown.slice(0, 400) as r, i (`${r.ts}|${r.rip}|${r.rport}|${r.cport}|${r.bytes}|${r.dir}|${i}`)}
             <tr><td class="mono muted">{clock(r.ts)}</td><td class:dn={r.dir === 'd'} class:upc={r.dir === 'u'}>{arrow[r.dir]}</td>
               <td><span class="mono">{r.rip}</span>{#if r.host}<div class="muted">{r.host}</div>{/if}</td>
               <td class="mono">{protoName(r.proto)} {r.dir === 'd' ? r.rport + ' → ' + r.cport : r.cport + ' → ' + r.rport}</td>

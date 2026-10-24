@@ -12,7 +12,7 @@
   <Empty compact icon={emptyIcon} title={empty ?? t('No traffic recorded in this range')} href={emptyHref} action={emptyAction} />
 {:else}
   <div class="list">
-    {#each rows as r (r.key + '|' + r.sub)}
+    {#each rows as r, i (r.key + '|' + r.sub + '|' + i)}
       <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
       <div class="row" class:click={!!onpick} role={onpick ? 'button' : undefined} tabindex={onpick ? 0 : undefined}
            onclick={() => onpick?.(r)} onkeydown={e => e.key === 'Enter' && onpick?.(r)}>
