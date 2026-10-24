@@ -63,6 +63,15 @@ type Caps struct {
 	DNSRedirectUDP             bool // active dst-nat rule sends UDP/53 to the router and has matched packets
 	DNSRedirectTCP             bool
 	WifiIfs                    []WifiIf
+	ProbedAt                   int64 // unix time the router was read, 0 = unknown (older stored probe)
+}
+
+// ReadNote says when the router was last read, for the evidence of rules that depend on its rule set.
+func (c *Caps) ReadNote() string {
+	if c == nil || c.ProbedAt == 0 {
+		return "router rules read at an unknown time (older stored probe, refreshed hourly)"
+	}
+	return "router rules read " + time.Unix(c.ProbedAt, 0).Format("2006-01-02 15:04")
 }
 
 type Device struct {

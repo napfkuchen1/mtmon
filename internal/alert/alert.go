@@ -20,6 +20,11 @@ import (
 	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
+type bootInfo struct {
+	ver string
+	up  int64
+}
+
 type Engine struct {
 	Cfg   *config.Config
 	St    *store.Store
@@ -39,15 +44,29 @@ type Engine struct {
 	pendingOff    map[string]string
 	offTimer      *time.Timer
 	offGroupDelay time.Duration
-	spikeRun      int
-	spikeDay      map[string]string // client -> day of its last traffic_spike alert
-	hc            *http.Client
-	Notify        func(store.Alert) // test hook
+	// a device that is gone for less than rebootGrace is a reboot (update, power cycle), not an outage: its
+	// offline alert and the neighbours' link-down alerts wait this long, and a quick return is one info line
+	rebootGrace time.Duration
+	boot        map[string]bootInfo  // device -> version and uptime at the last poll
+	downAt      map[string]time.Time // device -> when it stopped answering
+	lastDevDown time.Time
+	ifPending   map[string]bool // device/iface -> link-down alert is still held back
+	spikeRun    int
+	spikeDay    map[string]string // client -> day of its last traffic_spike alert
+	hc          *http.Client
+	Notify      func(store.Alert) // test hook
 }
 
 func New(c *config.Config, s *store.Store, h *live.Hub, log *slog.Logger) *Engine {
 	return &Engine{Cfg: c, St: s, Hub: h, Log: log, start: time.Now(), last: map[string]time.Time{},
-		devUp: map[string]bool{}, pendingOff: map[string]string{}, offGroupDelay: 5 * time.Second, spikeDay: map[string]string{}, ifDown: map[string]time.Time{}, wan: map[string]*wanState{}, cpuHigh: map[string]int{}, hc: &http.Client{Timeout: 8 * time.Second}}
+		devUp: map[string]bool{}, pendingOff: map[string]string{}, offGroupDelay: 5 * time.Second, rebootGrace: 90 * time.Second, boot: map[string]bootInfo{}, downAt: map[string]time.Time{}, ifPending: map[string]bool{}, spikeDay: map[string]string{}, ifDown: map[string]time.Time{}, wan: map[string]*wanState{}, cpuHigh: map[string]int{}, hc: &http.Client{Timeout: 8 * time.Second}}
+}
+
+// SetDelays changes how long offline alerts wait for companions and for a reboot to finish (tests use short ones).
+func (e *Engine) SetDelays(group, reboot time.Duration) {
+	e.mu.Lock()
+	e.offGroupDelay, e.rebootGrace = group, reboot
+	e.mu.Unlock()
 }
 
 // Raise stores and delivers an alert unless the same kind|subject fired within cooldown.
@@ -99,6 +118,8 @@ func (e *Engine) DeviceState(name string, up bool, errMsg string, cpu, temp floa
 		delete(e.pendingOff, name)
 	} else if !seen || prev {
 		e.pendingOff[name] = errMsg
+		e.downAt[name] = time.Now()
+		e.lastDevDown = time.Now()
 		queued = true
 	}
 	e.mu.Unlock()
@@ -114,6 +135,29 @@ func (e *Engine) DeviceState(name string, up bool, errMsg string, cpu, temp floa
 	if up && temp >= 80 {
 		e.Raise("temp_high", name, "warning", fmt.Sprintf("%s temperature %.0f°C", name, temp), 30*time.Minute)
 	}
+}
+
+// DeviceBoot is called after every successful system poll. A uptime that went backwards is a reboot; with a new
+// version it was an update. Both are one info alert instead of the offline/online pair.
+func (e *Engine) DeviceBoot(name, ver string, uptime int64) {
+	e.mu.Lock()
+	p, ok := e.boot[name]
+	e.boot[name] = bootInfo{ver, uptime}
+	down, wasDown := e.downAt[name]
+	delete(e.downAt, name)
+	e.mu.Unlock()
+	if !ok || p.up <= 0 || uptime >= p.up {
+		return
+	}
+	gone := ""
+	if wasDown {
+		gone = ", " + fmtDur(time.Since(down))
+	}
+	if ver != "" && p.ver != "" && ver != p.ver {
+		e.Raise("device_updated", name, "info", fmt.Sprintf("%s updated %s → %s (reboot%s)", name, p.ver, ver, gone), 0)
+		return
+	}
+	e.Raise("device_reboot", name, "info", fmt.Sprintf("%s rebooted (version %s%s)", name, ver, gone), time.Minute)
 }
 
 // reachReason names why a poll failed in one word: a timeout (nothing answers, usually the path or the device is
@@ -133,13 +177,14 @@ func reachReason(msg string) string {
 
 // queueOffline collects devices that just went offline; after offGroupDelay they are reported together.
 func (e *Engine) queueOffline() {
-	if e.offGroupDelay <= 0 {
+	delay := e.offGroupDelay + e.rebootGrace
+	if delay <= 0 {
 		e.flushOffline()
 		return
 	}
 	e.mu.Lock()
 	if e.offTimer == nil {
-		e.offTimer = time.AfterFunc(e.offGroupDelay, e.flushOffline)
+		e.offTimer = time.AfterFunc(delay, e.flushOffline)
 	}
 	e.mu.Unlock()
 }
@@ -311,21 +356,49 @@ func (e *Engine) InterfaceState(device, iface string, running bool) {
 	}
 	key := device + "/" + iface
 	if !running {
+		at := time.Now()
 		e.mu.Lock()
-		e.ifDown[key] = time.Now()
+		e.ifDown[key] = at
+		hold := e.rebootGrace > 0
+		e.ifPending[key] = hold
 		e.mu.Unlock()
-		e.Raise("iface_down", key, "warning", fmt.Sprintf("Interface %s on %s went down", iface, device), 5*time.Minute)
+		if !hold {
+			e.raiseIfaceDown(device, iface, key)
+			return
+		}
+		time.AfterFunc(e.rebootGrace, func() { // still down after the grace: a real link problem
+			e.mu.Lock()
+			still := e.ifDown[key].Equal(at) && e.ifPending[key]
+			e.ifPending[key] = false
+			e.mu.Unlock()
+			if still {
+				e.raiseIfaceDown(device, iface, key)
+			}
+		})
 		return
 	}
 	e.mu.Lock()
 	since, wasDown := e.ifDown[key]
+	held := e.ifPending[key]
 	delete(e.ifDown, key)
+	delete(e.ifPending, key)
+	nearReboot := !e.lastDevDown.IsZero() && time.Since(e.lastDevDown) < e.rebootGrace+3*time.Minute
 	e.mu.Unlock()
+	if wasDown && held && nearReboot { // the link flapped because the device behind it rebooted: that has its own info
+		return
+	}
+	if wasDown && held { // not a reboot after all: report the flap late but complete
+		e.raiseIfaceDown(device, iface, key)
+	}
 	if wasDown { // recovery after a down is always reported, with the outage length
 		e.Raise("iface_up", key, "info", fmt.Sprintf("Interface %s on %s is up again after %s", iface, device, fmtDur(time.Since(since))), 0)
 		return
 	}
 	e.Raise("iface_up", key, "info", fmt.Sprintf("Interface %s on %s is up", iface, device), 5*time.Minute)
+}
+
+func (e *Engine) raiseIfaceDown(device, iface, key string) {
+	e.Raise("iface_down", key, "warning", fmt.Sprintf("Interface %s on %s went down", iface, device), 5*time.Minute)
 }
 
 func (e *Engine) NewClient(mac, name, ip string) {

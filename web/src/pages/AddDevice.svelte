@@ -5,6 +5,8 @@
   import Modal from '../lib/Modal.svelte'
   let { onclose, ondone } = $props()
 
+  let sites = $state([])  // sites already in use, offered when typing a site name
+  $effect(() => { api('/devices').then(r => { sites = [...new Set((r || []).map(d => d.site).filter(Boolean))].sort() }).catch(() => {}) })
   let step = $state('connect')        // connect | review | running | done
   let f = $state({ addr: '', port: 443, user: 'admin', pass: '', mode: 'auto' })
   let busy = $state(false), err = $state('')
@@ -17,20 +19,25 @@
 
   // --- requirements checklist (shown before connecting) ---
   const rIP = $derived(f.addr.trim() || '<ROUTER-IP>')
-  const mIP = typeof location !== 'undefined' ? location.hostname : '<MTMON-IP>'
+  // RouterOS takes an address here, not a host name: use the address the server sees (the page may be reached via a public name)
+  let mtIP = $state('')
+  api('/setup').then(x => { mtIP = x?.mtmon_ip || '' }).catch(() => {})
+  const isIP = h => /^(\d{1,3}\.){3}\d{1,3}$/.test(h)
+  const mIP = $derived(isIP(mtIP) ? mtIP : typeof location !== 'undefined' && isIP(location.hostname) ? location.hostname : '<MTMON-IP>')
   const reqs = $derived([
     { id: 'cert', title: t('HTTPS service www-ssl with certificate'), why: t('mtmon talks to the REST API over HTTPS (port 443). Without a certificate the TLS handshake fails (“tls: handshake failure”).'),
       cmd: `/certificate add name=mtmon-ca common-name=mtmon-ca days-valid=3650 key-usage=key-cert-sign,crl-sign
 /certificate sign mtmon-ca
 /certificate add name=mtmon-ssl common-name=${rIP} subject-alt-name=IP:${rIP} days-valid=3650 key-usage=digital-signature,key-encipherment,tls-server
 /certificate sign mtmon-ssl ca=mtmon-ca
-/ip service set www-ssl certificate=mtmon-ssl disabled=no address=<LAN-NETZ>/24` },
+/ip service set www-ssl certificate=mtmon-ssl disabled=no available-from=<LAN-NETZ>/24` },
     { id: 'fw', title: t('Firewall: allow mtmon to reach the router'), why: t('If the router has a “drop all not from LAN” rule (input chain), mtmon must be allowed before it. Move the rule to the top.'),
       cmd: `/ip firewall filter add chain=input action=accept protocol=tcp dst-port=443 src-address=${mIP} comment="mtmon REST" place-before=0` },
     { id: 'user', title: t('Admin access for the setup'), why: t('One-time login with group full (or write + api + rest-api + policy). mtmon creates its own read-only user and does not store the admin login.'),
       cmd: `/user print where name=<ADMIN-USER>` },
-    { id: 'net', title: t('Network: routers can reach mtmon (UDP)'), why: t('Traffic Flow goes via UDP 2055, firewall syslog via UDP 5514 from the router to mtmon. If mtmon is in a different network, the firewall must allow this.'),
-      cmd: `/ip firewall filter add chain=forward action=accept protocol=udp dst-address=${mIP} dst-port=2055,5514 comment="mtmon flows+syslog" place-before=0` },
+    { id: 'net', title: t('Network: routers can reach mtmon (UDP)'), why: t('Traffic Flow goes via UDP 2055, firewall syslog via UDP 5514 from the router to mtmon. The router sends them itself (chain output), so a rule is only needed on a router in between, when mtmon is in a different network.'),
+      cmd: `# only on a router between the monitored router and mtmon:
+/ip firewall filter add chain=forward action=accept protocol=udp dst-address=${mIP} dst-port=2055,5514 comment="mtmon flows+syslog" place-before=0` },
   ])
   let reqOpen = $state(false)
   async function copy(t) { try { await navigator.clipboard.writeText(t); toast?.(t('Copied')) } catch { toast?.(t('Copy failed – select the text manually')) } }
@@ -146,7 +153,7 @@
       <div class="row">
         <label style="flex:1">{t('Name in mtmon')}<input class="input" bind:value={opt.name} maxlength="40" /></label>
         <label style="width:150px">{t('Role')}<select class="input" bind:value={opt.role}><option value="router">{t('Router')}</option><option value="ap">{t('Access Point')}</option><option value="switch">{t('Switch')}</option></select></label>
-        <label style="flex:1">{t('Site')}<input class="input" bind:value={opt.site} maxlength="40" placeholder={t('optional')} /></label>
+        <label style="flex:1">{t('Site')}<input class="input" bind:value={opt.site} list="mtmon-sites" maxlength="40" placeholder={t('optional')} /><datalist id="mtmon-sites">{#each sites as s}<option value={s}></option>{/each}</datalist></label>
       </div>
       {#if f.mode === 'auto'}
         <div class="row" style="margin-top:10px">

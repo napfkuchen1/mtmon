@@ -78,6 +78,18 @@ func TestChattyInfraAndServers(t *testing.T) {
 	expect(t, d, "chatty", 0)
 }
 
+func TestChattySkipsVPNPeers(t *testing.T) {
+	d := base()
+	for _, m := range []string{"A", "B", "C", "D", "E"} {
+		d.Traffic = append(d.Traffic, ClientTraffic{MAC: m, Fl: 1000})
+	}
+	d.Traffic = append(d.Traffic, ClientTraffic{MAC: "192.168.216.4", Fl: 90000})
+	d.Devs = []Device{{Name: "gw", Addr: "192.168.88.1", Role: "router", Caps: &Caps{Addresses: []string{"192.168.216.1/24 on back-to-home-vpn"}}}}
+	expect(t, d, "chatty", 0)
+	d.Devs[0].Caps.Addresses = []string{"192.168.216.1/24 on bridge"}
+	expect(t, d, "chatty", 1)
+}
+
 func TestDropNoLogCountersAndIsolation(t *testing.T) {
 	d := base()
 	d.Devs = []Device{{Name: "gw", Role: "router", Caps: &Caps{Filter: []FilterRule{

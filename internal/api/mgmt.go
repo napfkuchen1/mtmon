@@ -336,6 +336,11 @@ func (s *Server) provision(w http.ResponseWriter, r *http.Request) {
 		jsonOut(w, out)
 		return
 	}
+	// The probe above ran before the setup steps (logging, Traffic Flow ...): read the router again so the stored
+	// capabilities describe the configured state and Suggestions do not report what was just fixed.
+	if fresh, err := provision.Probe(ctx, roFor(res.MonUser, res.MonPass)); err == nil {
+		caps = fresh
+	}
 	capsJSON, _ := json.Marshal(caps)
 	row := store.DeviceRow{Name: o.Name, Addr: in.Addr, Port: in.Port, Scheme: in.Scheme, Role: o.Role, Site: o.Site,
 		User: res.MonUser, PassEnc: s.Box.Seal(res.MonPass), Fingerprint: in.Fingerprint, Caps: capsJSON, Managed: true}
@@ -350,6 +355,7 @@ func (s *Server) provision(w http.ResponseWriter, r *http.Request) {
 	}
 	s.St.SaveFwRules(metas)
 	s.LoadDevices()
+	s.adviceStale()
 	jsonOut(w, out)
 }
 

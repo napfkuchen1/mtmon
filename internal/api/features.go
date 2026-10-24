@@ -338,6 +338,7 @@ func (s *Server) deviceFeaturesApply(w http.ResponseWriter, r *http.Request) {
 		}
 		s.St.UpsertDevice(*row)
 		s.LoadDevices()
+		s.adviceStale()
 	}
 	out["ok"] = true
 	jsonOut(w, out)

@@ -216,7 +216,7 @@ func ruleFasttrack(s Snapshot) ([]Suggestion, string) {
 			Title: fmt.Sprintf("FastTrack on %s makes traffic statistics incomplete", d.Name),
 			Why:   "FastTrack lets established connections skip most of the router's packet processing. That is great for speed, but those packets are no longer seen by Traffic Flow, so per-client volumes and some connections may be undercounted in mtmon. It is a trade-off between speed and accuracy, not an error.",
 			Evidence: []string{
-				fmt.Sprintf("An enabled FastTrack rule exists on %s (read from the device capabilities)", d.Name),
+				fmt.Sprintf("An enabled FastTrack rule exists on %s (%s)", d.Name, d.Caps.ReadNote()),
 			},
 			Steps: []string{
 				"If exact numbers matter more than raw routing speed, disable the FastTrack rule (the router CPU will be busier).",

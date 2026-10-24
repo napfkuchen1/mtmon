@@ -43,6 +43,9 @@ export function onAuthError(e) { if (e instanceof AuthError) { app.user = false;
 
 // ---- routing (hash based) ----
 export function parseHash() {
+  // deep link like /devices or /devices/gw: the app routes by hash, so move the path there
+  const p = location.pathname.replace(/^\/+|\/+$/g, '')
+  if (p && !location.hash && !p.startsWith('api/') && !p.includes('.')) history.replaceState(null, '', '/#/' + p)
   const h = location.hash.replace(/^#\/?/, '') || 'overview'
   const [name, ...rest] = h.split('/')
   app.route = { name, params: { id: rest.length ? decodeURIComponent(rest.join('/')) : '' } }

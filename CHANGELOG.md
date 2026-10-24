@@ -8,6 +8,20 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.15.2] - 2026-10-24
+
+### Fixed
+- **Suggestions after setup:** `fw-nolog` and `fasttrack` read the router rules from a stored probe that was taken before the setup, so rules that had just been switched to logging were still reported. The device is probed again after Auto setup and after a feature change, a manual refresh reads fresh data, and the evidence says when the router rules were read.
+- **Topology:** every device was shown as the uplink of every other. A link is now only drawn between two devices when no third device sits between them, and the arrows follow the tree from the gateway down.
+- **Firewall log prefixes:** the same `MTM-xx` prefix on two devices (an accept rule on one, a drop rule on the other) was mixed up in "blocked origins" and the top lists. Rules are now matched by device and prefix.
+- **Setup wizard (Router setup):** the commands use the address mtmon detected instead of the public host name (RouterOS does not accept a name in `src-address`/`dst-address`), `www-ssl` uses `available-from=` (`address=` is deprecated since RouterOS 7.24), and the text says that flows and syslog leave the router through `output`, so the `forward` rule is only needed on a router in between.
+- **Deep links** such as `/devices` opened the overview; they are forwarded to `#/devices`.
+
+### Changed
+- **Suggestions:** `chatty` skips VPN peers (WireGuard and Back to Home): a full-tunnel phone sends all its traffic from one address. `fw-nolog` names isolation rules that match packets but log nothing, because that is where you want to see who tries to get through.
+- **Alerts:** a reboot is no longer an outage. A device that answers again within 90 seconds raises one info alert ("updated 7.24.2 → 7.24.4 (reboot, 46s)" or "rebooted") instead of critical offline/online, and the link-down of its neighbour is held back and dropped in that case. A link that stays down is still reported after 90 seconds.
+- **Site:** the site field of the add-device wizard and the edit dialog suggests the sites that already exist.
+
 ## [0.15.1] - 2026-10-16
 
 ### Fixed

@@ -31,6 +31,7 @@ func newEngine(t *testing.T) (*Engine, *[]store.Alert) {
 	t.Cleanup(func() { st.Close() })
 	e := New(cfg, st, live.NewHub(), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	e.start = time.Now().Add(-10 * time.Minute)
+	e.rebootGrace = 0
 	e.offGroupDelay = 0 // report offline devices at once (grouping has its own test)
 	var mu sync.Mutex
 	var got []store.Alert

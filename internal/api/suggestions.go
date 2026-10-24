@@ -34,6 +34,9 @@ func (s *Server) adviceRoutes(m *http.ServeMux, a func(http.HandlerFunc) http.Ha
 
 // adviceResult returns the cached evaluation (re-evaluated when older than adviceTTL or forced).
 func (s *Server) adviceResult(force bool) advice.Result {
+	if force {
+		s.capsAt.Store(0) // "refresh" also reads the routers again
+	}
 	s.maybeRefreshCaps()
 	s.adv.mu.Lock()
 	defer s.adv.mu.Unlock()
@@ -56,6 +59,13 @@ func (s *Server) adviceResult(force bool) advice.Result {
 	s.adv.res = advice.Evaluate(l)
 	s.adv.at = time.Now()
 	return s.adv.res
+}
+
+// adviceStale drops the cached evaluation after a device was set up or changed.
+func (s *Server) adviceStale() {
+	s.adv.mu.Lock()
+	s.adv.at = time.Time{}
+	s.adv.mu.Unlock()
 }
 
 // capsTTL: stored router capabilities are re-read this often. They are written when a device is added or edited,

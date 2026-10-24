@@ -67,6 +67,7 @@ func newRig(t *testing.T) *rig {
 	en := enrich.New("", "", "", false)
 	r := &rig{cfg: cfg, st: st, hub: hub, en: en, rt: rt}
 	r.al = alert.New(cfg, st, hub, log)
+	r.al.SetDelays(time.Second, time.Second)
 	r.al.Notify = func(a store.Alert) { r.mu.Lock(); r.alerts = append(r.alerts, a); r.mu.Unlock() }
 	r.pipe = live.NewPipeline(cfg, st, en, hub)
 	return r

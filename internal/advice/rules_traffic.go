@@ -3,6 +3,7 @@ package advice
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"sort"
 	"strings"
 )
@@ -109,10 +110,14 @@ func ruleChatty(s Snapshot) ([]Suggestion, string) {
 	med := fl[len(fl)/2]
 	idx := clientIndex(s)
 	infra := infraAddrs(s)
+	vpn := vpnNets(s)
 	var out []Suggestion
 	for _, t := range tr {
 		if t.Fl < ChattyMinFlows || t.Fl < ChattyFactor*max(med, 1) {
 			continue
+		}
+		if inVPN(vpn, t.MAC, idx) {
+			continue // a full-tunnel VPN peer is one address for a whole phone or laptop: many flows by design
 		}
 		if isInfra(infra, idx, t.MAC) {
 			continue // routers and APs talk a lot by design (DNS, NTP, management); that is not client behaviour
@@ -173,6 +178,54 @@ func infraAddrs(s Snapshot) map[string]bool {
 		}
 	}
 	return m
+}
+
+var vpnIface = []string{"wg", "wireguard", "vpn", "back-to-home", "ovpn", "l2tp", "sstp", "zerotier"}
+
+// vpnNets: subnets of router interfaces that look like a VPN (WireGuard, Back To Home, OpenVPN ...), from "ip/mask on iface".
+func vpnNets(s Snapshot) []netip.Prefix {
+	var out []netip.Prefix
+	for _, d := range s.Devices() {
+		if d.Caps == nil {
+			continue
+		}
+		for _, a := range d.Caps.Addresses {
+			pfx, iface, ok := strings.Cut(a, " on ")
+			if !ok {
+				continue
+			}
+			l := strings.ToLower(iface)
+			for _, k := range vpnIface {
+				if strings.Contains(l, k) {
+					if p, err := netip.ParsePrefix(pfx); err == nil {
+						out = append(out, p.Masked())
+					}
+					break
+				}
+			}
+		}
+	}
+	return out
+}
+
+// inVPN: the traffic subject (an IP or the MAC of a known client) lives in a VPN subnet.
+func inVPN(nets []netip.Prefix, subject string, idx map[string]Client) bool {
+	if len(nets) == 0 {
+		return false
+	}
+	if c, ok := idx[subject]; ok && c.IP != "" {
+		subject = c.IP
+	}
+	ip, err := netip.ParseAddr(subject)
+	if err != nil {
+		return false
+	}
+	for _, p := range nets {
+		if p.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 // isInfra: the traffic subject (a MAC or an IP) is a monitored device, one of its interfaces or an IPv6 link-local address.
