@@ -133,3 +133,34 @@ func TestMergeSharedUplinkPort(t *testing.T) {
 		t.Fatalf("a managed device is no client: %+v", c)
 	}
 }
+
+// The modem on the WAN port shows up in the gateway's ARP table; it is the upstream, not a LAN client.
+func TestMergeIgnoresUpstreamOnWANInterface(t *testing.T) {
+	st, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	m := NewManager(&config.Config{Devices: []config.Device{{Name: "gw", Role: "router", Addr: "10.0.0.1"}}},
+		st, live.NewHub(), enrich.New("", "", "", false), nopEvents{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	m.snaps["gw"] = &devSnap{role: "router", at: time.Now(),
+		wan: wanInterfaces(
+			[]Row{{"list": "WAN", "interface": "ether1"}, {"list": "LAN", "interface": "bridge"}},
+			[]Row{{"dst-address": "0.0.0.0/0", "active": "true", "immediate-gw": "203.0.113.1%pppoe-out1"}}),
+		arp: []Row{
+			{"mac-address": "02:00:00:00:00:0A", "address": "192.168.100.1", "status": "reachable", "interface": "ether1"}, // modem
+			{"mac-address": "02:00:00:00:00:0B", "address": "10.0.0.7", "status": "reachable", "interface": "bridge"},
+		},
+		bridge: []Row{{"mac-address": "02:00:00:00:00:0A", "on-interface": "ether1"}}}
+	m.merge()
+	if c, err := st.Client("02:00:00:00:00:0A"); err == nil {
+		t.Errorf("modem on the WAN port must not be a client: %+v", c)
+	}
+	if c, err := st.Client("02:00:00:00:00:0B"); err != nil || !c.Online {
+		t.Errorf("LAN client: %+v %v", c, err)
+	}
+	wan := wanInterfaces(nil, []Row{{"dst-address": "0.0.0.0/0", "active": "true", "gateway": "203.0.113.1%pppoe-out1"}, {"dst-address": "10.1.0.0/16", "gateway": "x%y"}})
+	if !wan["pppoe-out1"] || wan["y"] {
+		t.Errorf("default route interface: %v", wan)
+	}
+}

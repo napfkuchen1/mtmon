@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/netip"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -49,7 +50,8 @@ type devSnap struct {
 	nd6    []Row // /ipv6/neighbor: IPv6 address -> MAC (merges IPv6 traffic into the client)
 	wifi   []Row
 	bridge []Row
-	peers  []Row // /interface/wireguard/peers (absent without the wireguard package)
+	peers  []Row           // /interface/wireguard/peers (absent without the wireguard package)
+	wan    map[string]bool // interfaces that face the upstream: members of the WAN interface list, default-route interface
 	at     time.Time
 }
 
@@ -408,6 +410,35 @@ func (w *worker) l3Poll(ctx context.Context) {
 	if rows, err := w.c.Get(ctx, "/interface/wireguard/peers"); err == nil {
 		w.m.setSnap(w.d.Name, func(s *devSnap) { s.peers = rows })
 	}
+	members, merr := w.c.Get(ctx, "/interface/list/member")
+	routes, rerr := w.c.Get(ctx, "/ip/route")
+	if merr == nil || rerr == nil {
+		wan := wanInterfaces(members, routes)
+		w.m.setSnap(w.d.Name, func(s *devSnap) { s.wan = wan })
+	}
+}
+
+// wanInterfaces names the interfaces that lead to the upstream (modem, ISP): members of the interface list "WAN"
+// and the interface of the active default route (the part after "%" in the gateway). Hosts learned there are not
+// LAN clients. Field names are matched defensively; unknown shapes just yield fewer interfaces.
+func wanInterfaces(members, routes []Row) map[string]bool {
+	out := map[string]bool{}
+	for _, r := range members {
+		if strings.EqualFold(strings.TrimSpace(r["list"]), "WAN") && r["interface"] != "" && !r.Bool("disabled") {
+			out[r["interface"]] = true
+		}
+	}
+	for _, r := range routes {
+		if r["dst-address"] != "0.0.0.0/0" || r.Bool("disabled") || (r["active"] != "" && !r.Bool("active")) {
+			continue
+		}
+		for _, k := range []string{"immediate-gw", "gateway"} {
+			if _, ifc, ok := strings.Cut(r[k], "%"); ok && ifc != "" {
+				out[ifc] = true
+			}
+		}
+	}
+	return out
 }
 
 func (w *worker) dnsCache(ctx context.Context) {
@@ -554,7 +585,7 @@ func (m *Manager) Diagnostics() map[string]any {
 	devs := map[string]any{}
 	for name, s := range m.snaps {
 		devs[name] = map[string]any{"role": s.role, "polled": s.at.Unix(), "wifi": rowsOrEmpty(s.wifi), "bridge_hosts": rowsOrEmpty(s.bridge),
-			"arp": rowsOrEmpty(s.arp), "dhcp_leases": rowsOrEmpty(s.leases)}
+			"arp": rowsOrEmpty(s.arp), "dhcp_leases": rowsOrEmpty(s.leases), "wan_interfaces": wanList(s.wan)}
 	}
 	return map[string]any{"devices": devs, "uplink_ports": up}
 }
@@ -665,6 +696,9 @@ func (m *Manager) merge() {
 				continue
 			}
 			iface := r["on-interface"]
+			if s.wan[iface] {
+				continue // upstream side (modem, ISP): not a LAN client
+			}
 			mac := store.NormMAC(r["mac-address"])
 			if uplinks[dev+"|"+iface] {
 				// learned via a trunk to another managed device: not where the host is attached, unless no
@@ -691,7 +725,7 @@ func (m *Manager) merge() {
 			}
 		}
 		for _, r := range s.arp {
-			if r.Bool("invalid") || r["status"] == "failed" || r["status"] == "incomplete" {
+			if r.Bool("invalid") || r["status"] == "failed" || r["status"] == "incomplete" || s.wan[r["interface"]] {
 				continue
 			}
 			// DHCP-created ARP entries are "permanent" for as long as the lease lives: no sign of life
@@ -906,4 +940,13 @@ func (m *Manager) rekeyAlias(key, addr string) {
 			m.Log.Error("re-key vpn traffic", "from", addr, "to", key, "err", err)
 		}
 	}()
+}
+
+func wanList(m map[string]bool) []string {
+	out := []string{}
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
