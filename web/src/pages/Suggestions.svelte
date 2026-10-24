@@ -88,7 +88,7 @@
     {#each visible as s (s.id)}
       <article class="card sg {s.severity}" class:dim={s.hidden}>
         <div class="top">
-          <span class="badge {sevCls[s.severity]}">{sevLabel(s.severity)}</span>
+          <span class="badge {sevCls[s.severity]}">{sevLabel(s.severity)}</span>{#if s.learning} <span class="badge" title={t('Judged against traffic levels that mtmon is still re-learning')}>{t('learning')}</span>{/if}
           <span class="badge">{t(s.category)}</span>
           {#if confLabel(s.confidence)}<span class="badge" title={tr(s.limits || '')}>{confLabel(s.confidence)}</span>{/if}
           {#if s.hidden}<span class="muted">{until(s)}</span>{/if}

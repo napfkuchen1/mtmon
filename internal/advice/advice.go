@@ -38,7 +38,8 @@ type Suggestion struct {
 	Link       string   `json:"link,omitempty"` // UI route, e.g. "clients" or "device/gw-main"
 	Confidence string   `json:"confidence"`     // high | medium | low
 	Limits     string   `json:"limits,omitempty"`
-	Fix        *Fix     `json:"fix,omitempty"` // set when mtmon can apply the change itself (needs the router's admin login once)
+	Fix        *Fix     `json:"fix,omitempty"`      // set when mtmon can apply the change itself (needs the router's admin login once)
+	Learning   bool     `json:"learning,omitempty"` // judged against baselines that are being re-learned: shown as info
 }
 
 // Fix names the per-device features (see provision.FeatureKeys) that resolve a suggestion when switched on.

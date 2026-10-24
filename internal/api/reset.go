@@ -40,6 +40,10 @@ func (s *Server) dataReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Hub.Reset()
+	s.St.StartLearning(store.LearningDefault, true) // history is gone: baselines start again
+	if s.ResetBaseline != nil {
+		s.ResetBaseline()
+	}
 	s.adv.mu.Lock()
 	s.adv.at = s.adv.at.AddDate(-1, 0, 0) // cached suggestions are stale now
 	s.adv.mu.Unlock()

@@ -90,6 +90,7 @@ tbody tr.click { cursor: pointer; } tbody tr.click:hover td { background: var(--
 .pill-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .toast { position: fixed; bottom: 18px; right: 18px; background: var(--text); color: var(--bg); padding: 9px 14px; border-radius: 8px; z-index: 50; font-weight: 500; }
 pre.code { margin: 0; padding: 12px 14px; background: var(--card-2); border: 1px solid var(--border); border-radius: 8px; font: 12.5px/1.55 var(--mono); overflow-x: auto; white-space: pre; }
+.infobox { border: 1px solid var(--border-2); background: var(--card-2); color: var(--text); border-radius: 8px; padding: 10px 14px; }
 .warnbox { border: 1px solid var(--warn); background: var(--warn-bg); color: var(--text); border-radius: 8px; padding: 10px 14px; }
 @media (prefers-reduced-motion: no-preference) { .dot.pulse { animation: pulse 2s infinite; } }
 @keyframes pulse { 50% { opacity: .45; } }

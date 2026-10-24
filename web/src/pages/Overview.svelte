@@ -2,7 +2,7 @@
   import { api } from '../lib/api.js'
   import { app, go } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
-  import { bytes, bps, num } from '../lib/format.js'
+  import { bytes, bps, num, datetime } from '../lib/format.js'
   import { t, tr, i18n } from '../lib/i18n.svelte.js'
   import Chart from '../lib/Chart.svelte'
   import TopList from '../lib/TopList.svelte'
@@ -46,6 +46,7 @@
 
 <div class="head"><h1>{t('Overview')}</h1><span class="muted">{app.range === 'live' ? t('Last 5 minutes') : t('Last {range}', { range: app.range })}</span></div>
 
+{#if o?.learning_until}<div class="infobox" style="margin-bottom:12px">{t('mtmon is re-learning normal traffic until {time}. Spikes and recurring-traffic findings are recorded as info until then, so there are no false alarms.', { time: datetime(o.learning_until) })}</div>{/if}
 {#if d.error}<div class="warnbox">{t('Could not load data: {err}', { err: tr(d.error) })}</div>{/if}
 
 <div class="grid g6 kpis">

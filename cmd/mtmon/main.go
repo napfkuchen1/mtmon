@@ -134,6 +134,10 @@ func run(args []string) error {
 	al.Suggest = api.SuggestGroup
 	srv := &api.Server{Cfg: cfg, St: st, Hub: hub, En: en, Col: col, Pipe: pipe, UI: web.FS(), Version: version, TLS: !cfg.NoTLS,
 		Box: box, Mgr: pm, Cls: cls, Sys: sys}
+	srv.ResetBaseline = al.ResetBaseline
+	if st.NoteStart(version) {
+		log.Info("update changed how traffic is judged: baselines are re-learned", "hours", int(store.LearningDefault.Hours()))
+	}
 	if err := srv.LoadDevices(); err != nil {
 		return fmt.Errorf("devices: %w", err)
 	}

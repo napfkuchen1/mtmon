@@ -84,6 +84,10 @@ func (e *Engine) Raise(kind, subject, severity, msg string, cooldown time.Durati
 			msg += " (maintenance window)"
 		}
 	}
+	if kind == "traffic_spike" && e.St.LearningUntil() > 0 { // the baseline is being re-learned: record, do not alarm
+		severity = "info"
+		msg += " – learning: normal traffic is being re-learned"
+	}
 	key := kind + "|" + subject
 	e.mu.Lock()
 	if t, ok := e.last[key]; ok && time.Since(t) < cooldown {
@@ -140,6 +144,16 @@ func (e *Engine) inMaintenance(kind, subject string) bool {
 		}
 	}
 	return false
+}
+
+// ResetBaseline forgets the learned traffic level and the spike-per-day memory (a learning period follows).
+func (e *Engine) ResetBaseline() {
+	e.mu.Lock()
+	e.baseline, e.spikeRun = 0, 0
+	for k := range e.spikeDay {
+		delete(e.spikeDay, k)
+	}
+	e.mu.Unlock()
 }
 
 // --- poller.Events ---
@@ -361,7 +375,7 @@ func (e *Engine) recurringWAN(device string, now time.Time) (int, string) {
 
 // recurring counts the earlier days with an alert of this kind and subject within ±tol minutes of now's time of day.
 func (e *Engine) recurring(kind, subject string, now time.Time, tol int) (int, string) {
-	as, err := e.St.Alerts(2000)
+	as, err := e.St.BaselineAlerts(2000)
 	if err != nil {
 		return 0, ""
 	}
