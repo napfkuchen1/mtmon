@@ -15,8 +15,8 @@ func TestParse(t *testing.T) {
 			"", "forward", "192.168.88.7", "129.6.15.28", "UDP", "", 40000, 123, "", "192.168.88.7:40000->203.0.113.5:40000", "", "bridge", "ether1"},
 		{"firewall,info my own prefix input: in:ether1 out:(unknown 0), src-mac 00:00:00:00:00:01, proto ICMP (type 8, code 0), 198.51.100.9->192.0.2.1, len 84",
 			"my own prefix", "input", "198.51.100.9", "192.0.2.1", "ICMP", "type 8, code 0", 0, 0, "00:00:00:00:00:01", "", "", "ether1", "(unknown 0)"},
-		{"firewall,info MTM-34 input: in:bridge out:(unknown 0), connection-state:new,dnat src-mac D0:57:7E:CF:DB:4A, proto UDP, 192.168.0.100:59194->192.168.0.1:53, NAT 192.168.0.100:59194->(10.134.0.140:53->192.168.0.1:53), len 62",
-			"MTM-34", "input", "192.168.0.100", "192.168.0.1", "UDP", "", 59194, 53, "D0:57:7E:CF:DB:4A", "10.134.0.140:53->192.168.0.1:53", "new,dnat", "bridge", "(unknown 0)"},
+		{"firewall,info MTM-34 input: in:bridge out:(unknown 0), connection-state:new,dnat src-mac 02:00:5E:10:20:30, proto UDP, 192.168.0.100:59194->192.168.0.1:53, NAT 192.168.0.100:59194->(198.51.100.53:53->192.168.0.1:53), len 62",
+			"MTM-34", "input", "192.168.0.100", "192.168.0.1", "UDP", "", 59194, 53, "02:00:5E:10:20:30", "198.51.100.53:53->192.168.0.1:53", "new,dnat", "bridge", "(unknown 0)"},
 		{"gw firewall,info MTM-NEW forward: in:bridge out:ether1, connection-state:new proto TCP (SYN), 10.0.0.2:1->1.1.1.1:853, len 52",
 			"MTM-NEW", "forward", "10.0.0.2", "1.1.1.1", "TCP", "SYN", 1, 853, "", "", "new", "bridge", "ether1"},
 	}
