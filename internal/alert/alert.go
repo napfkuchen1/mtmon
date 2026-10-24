@@ -54,13 +54,15 @@ type Engine struct {
 	spikeRun    int
 	spikeDay    map[string]string    // client -> day of its last traffic_spike alert
 	watchDown   map[string]time.Time // watched client -> when it was last seen (it is offline and was reported)
+	ifFolded    map[string]bool      // device/iface -> the link-down was folded into the alert of the device behind it
+	resolved    map[string]bool      // device -> its offline alert was closed on return (a reboot note may follow)
 	hc          *http.Client
 	Notify      func(store.Alert) // test hook
 }
 
 func New(c *config.Config, s *store.Store, h *live.Hub, log *slog.Logger) *Engine {
 	return &Engine{Cfg: c, St: s, Hub: h, Log: log, start: time.Now(), last: map[string]time.Time{},
-		devUp: map[string]bool{}, pendingOff: map[string]string{}, offGroupDelay: 5 * time.Second, rebootGrace: 90 * time.Second, boot: map[string]bootInfo{}, downAt: map[string]time.Time{}, ifPending: map[string]bool{}, spikeDay: map[string]string{}, watchDown: map[string]time.Time{}, ifDown: map[string]time.Time{}, wan: map[string]*wanState{}, cpuHigh: map[string]int{}, hc: &http.Client{Timeout: 8 * time.Second}}
+		devUp: map[string]bool{}, pendingOff: map[string]string{}, offGroupDelay: 5 * time.Second, rebootGrace: 90 * time.Second, boot: map[string]bootInfo{}, downAt: map[string]time.Time{}, ifPending: map[string]bool{}, spikeDay: map[string]string{}, watchDown: map[string]time.Time{}, resolved: map[string]bool{}, ifFolded: map[string]bool{}, ifDown: map[string]time.Time{}, wan: map[string]*wanState{}, cpuHigh: map[string]int{}, hc: &http.Client{Timeout: 8 * time.Second}}
 }
 
 // SetDelays changes how long offline alerts wait for companions and for a reboot to finish (tests use short ones).
@@ -166,6 +168,21 @@ func (e *Engine) DeviceState(name string, up bool, errMsg string, cpu, temp floa
 	case queued:
 		e.queueOffline()
 	case up && seen && !prev && !wasPending: // came back before the offline alert went out: nothing to undo
+		e.mu.Lock()
+		out := time.Duration(0)
+		if t, ok := e.downAt[name]; ok {
+			out = time.Since(t)
+		}
+		e.mu.Unlock()
+		note := " – resolved: the device is reachable again"
+		if out > 0 {
+			note = " – resolved: back after " + fmtDur(out)
+		}
+		if n := e.St.ResolveAlerts("device_offline", name, note); n > 0 {
+			e.mu.Lock()
+			e.resolved[name] = true
+			e.mu.Unlock()
+		}
 		e.Raise("device_online", name, "info", name+" is back online", time.Minute)
 	}
 	if up && high >= 3 {
@@ -184,8 +201,18 @@ func (e *Engine) DeviceBoot(name, ver string, uptime int64) {
 	e.boot[name] = bootInfo{ver, uptime}
 	down, wasDown := e.downAt[name]
 	delete(e.downAt, name)
+	reported := e.resolved[name] // an offline alert went out for this outage and was closed on return
+	delete(e.resolved, name)
 	e.mu.Unlock()
 	if !ok || p.up <= 0 || uptime >= p.up {
+		return
+	}
+	if reported && wasDown { // the offline alert says what happened; no second info line about the same reboot
+		note := fmt.Sprintf(" – the device rebooted (uptime now %s)", fmtDur(time.Duration(uptime)*time.Second))
+		if ver != "" && p.ver != "" && ver != p.ver {
+			note = fmt.Sprintf(" – the device updated %s → %s and rebooted", p.ver, ver)
+		}
+		e.St.AmendAlert("device_offline", name, note)
 		return
 	}
 	gone := ""
@@ -445,6 +472,13 @@ func (e *Engine) InterfaceState(device, iface string, running bool) {
 	if wasDown && held { // not a reboot after all: report the flap late but complete
 		e.raiseIfaceDown(device, iface, key)
 	}
+	e.mu.Lock()
+	folded := e.ifFolded[key]
+	delete(e.ifFolded, key)
+	e.mu.Unlock()
+	if wasDown && folded { // its down was part of a device outage: that has its own alerts
+		return
+	}
 	if wasDown { // recovery after a down is always reported, with the outage length
 		e.Raise("iface_up", key, "info", fmt.Sprintf("Interface %s on %s is up again after %s", iface, device, fmtDur(time.Since(since))), 0)
 		return
@@ -452,7 +486,58 @@ func (e *Engine) InterfaceState(device, iface string, running bool) {
 	e.Raise("iface_up", key, "info", fmt.Sprintf("Interface %s on %s is up", iface, device), 5*time.Minute)
 }
 
+// downBehind names a managed device that hangs on this port and is unreachable right now: the link-down is then a
+// consequence (the device rebooted or lost power) and belongs to the device's own alert.
+func (e *Engine) downBehind(device, iface string) string {
+	ns, err := e.St.Neighbors()
+	if err != nil {
+		return ""
+	}
+	for _, n := range ns {
+		if n.Device != device {
+			continue
+		}
+		on := false
+		for _, p := range strings.Split(n.Iface, ",") {
+			p = strings.TrimSpace(p)
+			if i := strings.LastIndex(p, "/"); i >= 0 {
+				p = p[i+1:]
+			}
+			on = on || p == iface
+		}
+		if !on {
+			continue
+		}
+		name := n.Ident
+		if d, ok := e.Cfg.Device(name); !ok || d.Name == device {
+			name = ""
+			for _, d := range e.Cfg.AllDevices() {
+				if n.Addr != "" && d.Addr == n.Addr && d.Name != device {
+					name = d.Name
+				}
+			}
+		}
+		if name == "" {
+			continue
+		}
+		e.mu.Lock()
+		up, seen := e.devUp[name]
+		_, pending := e.pendingOff[name]
+		e.mu.Unlock()
+		if pending || (seen && !up) {
+			return name
+		}
+	}
+	return ""
+}
+
 func (e *Engine) raiseIfaceDown(device, iface, key string) {
+	if dev := e.downBehind(device, iface); dev != "" {
+		e.mu.Lock()
+		e.ifFolded[key] = true
+		e.mu.Unlock()
+		return
+	}
 	e.Raise("iface_down", key, "warning", fmt.Sprintf("Interface %s on %s went down", iface, device), 5*time.Minute)
 }
 

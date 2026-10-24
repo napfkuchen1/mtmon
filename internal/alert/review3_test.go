@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/napfkuchen1/mtmon/internal/config"
 	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
@@ -210,5 +211,40 @@ func TestWatchedClientInMaintenanceWindowWaits(t *testing.T) {
 	e.watchChecks()
 	if len(*got) != 0 {
 		t.Fatalf("alert during the maintenance window of its AP: %+v", *got)
+	}
+}
+
+// A reboot of the device behind a port: the link-down/up of that port folds into the device's own alerts, the offline
+// alert is closed (as info, with the reboot noted) when the device answers again.
+func TestRebootFoldsLinkAlertsAndResolvesOffline(t *testing.T) {
+	e, got := newEngine(t)
+	e.Cfg.Devices = []config.Device{{Name: "hex", Addr: "10.0.0.1", Role: "router"}, {Name: "ap", Addr: "10.0.0.2", Role: "ap"}}
+	e.St.SaveNeighbors("hex", []store.Neighbor{{Device: "hex", Iface: "ether2", MAC: "AA:00:00:00:00:A1", Ident: "ap"}})
+	e.DeviceState("ap", true, "", 1, 40)
+	e.DeviceBoot("ap", "7.19", 100000)
+	e.DeviceState("ap", false, "i/o timeout", 0, 0)
+	e.InterfaceState("hex", "ether2", false)
+	e.InterfaceState("hex", "ether2", true)
+	if kinds(*got) != "device_offline/ap" {
+		t.Fatalf("link alerts must fold into the device outage: %s", kinds(*got))
+	}
+	if e.St.OpenAlerts() != 1 {
+		t.Fatalf("open: %d", e.St.OpenAlerts())
+	}
+	e.DeviceState("ap", true, "", 1, 40)
+	e.DeviceBoot("ap", "7.19", 40) // uptime went backwards
+	if kinds(*got) != "device_offline/ap,device_online/ap" {
+		t.Fatalf("no extra reboot line expected: %s", kinds(*got))
+	}
+	as, _ := e.St.Alerts(10)
+	for _, a := range as {
+		if a.Kind == "device_offline" && (!a.Acked || a.Severity != "info" || !strings.Contains(a.Msg, "resolved: back after") || !strings.Contains(a.Msg, "rebooted (uptime now 40s)")) {
+			t.Errorf("offline alert after return: %+v", a)
+		}
+	}
+	// a link that is down while the device behind it answers is a real link problem
+	e.InterfaceState("hex", "ether2", false)
+	if !strings.Contains(kinds(*got), "iface_down/hex/ether2") {
+		t.Errorf("real link-down lost: %s", kinds(*got))
 	}
 }
