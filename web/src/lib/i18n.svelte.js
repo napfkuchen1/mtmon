@@ -51,5 +51,11 @@ export function tr(s) {
     const m = re.exec(s)
     if (m) return fill(to, Object.fromEntries(names.map((n, i) => [n, m[i + 1]])))
   }
+  // messages that grew notes after the fact ("… – resolved: back after 2m – the device rebooted …"): translate the parts
+  if (s.includes(' – ')) {
+    const parts = s.split(' – ')
+    const out = parts.map(p => tr(p))
+    if (out.some((p, i) => p !== parts[i])) return out.join(' – ')
+  }
   return s
 }

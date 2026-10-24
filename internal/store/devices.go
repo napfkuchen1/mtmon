@@ -190,6 +190,22 @@ func (s *Store) Alerts(limit int) ([]Alert, error) {
 	return out, nil
 }
 
+// ResolveAlerts closes the open alerts of one kind and subject: acknowledged, shown as info, with a note appended
+// (a device that is reachable again no longer counts as an open critical alert). Returns how many it closed.
+func (s *Store) ResolveAlerts(kind, subject, note string) int64 {
+	r, err := s.DB.Exec(`UPDATE alerts SET acked=1, severity='info', msg=msg||? WHERE kind=? AND subject=? AND acked=0`, note, kind, subject)
+	if err != nil {
+		return 0
+	}
+	n, _ := r.RowsAffected()
+	return n
+}
+
+// AmendAlert appends a note to the newest alert of this kind and subject (a fact that is only known later).
+func (s *Store) AmendAlert(kind, subject, note string) {
+	s.DB.Exec(`UPDATE alerts SET msg=msg||? WHERE id=(SELECT max(id) FROM alerts WHERE kind=? AND subject=?)`, note, kind, subject)
+}
+
 func (s *Store) AckAlert(id int64) error {
 	_, err := s.DB.Exec(`UPDATE alerts SET acked=1 WHERE id=?`, id)
 	return err
