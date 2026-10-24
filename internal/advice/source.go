@@ -10,11 +10,13 @@ import (
 	"github.com/napfkuchen1/mtmon/internal/live"
 	"github.com/napfkuchen1/mtmon/internal/provision"
 	"github.com/napfkuchen1/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/sysinfo"
 )
 
 // Live builds a Snapshot from the running system. Every query is bounded (rollup range scans, small
 // aggregates); results are memoised for the lifetime of one evaluation.
 type Live struct {
+	Disk    func(dir string) (free, total int64, ok bool) // nil: the real file system (tests inject a fixed answer)
 	St      *store.Store
 	Cfg     *config.Config
 	Hub     *live.Hub
@@ -246,6 +248,19 @@ func (l *Live) FwRules() []FwRule {
 			Managed: r.Managed, Hits7d: hits[[2]string{r.Device, r.Prefix}], Hits24h: hits24[[2]string{r.Device, r.Prefix}]})
 	}
 	return out
+}
+
+func (l *Live) SelfHealth() SelfHealth {
+	h := SelfHealth{RawRetentionDays: l.Cfg.RawRetention, RetentionDays: l.Cfg.Retention, DBBytes: l.St.DBBytes()}
+	disk := l.Disk
+	if disk == nil {
+		disk = sysinfo.Disk
+	}
+	if free, total, ok := disk(l.Cfg.DataDir); ok && total > 0 {
+		h.Known, h.FreeBytes, h.TotalBytes = true, free, total
+	}
+	h.GrowthPerDay, _ = l.St.DBGrowthPerDay()
+	return h
 }
 
 func (l *Live) FwHistory() time.Duration {

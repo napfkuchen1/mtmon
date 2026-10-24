@@ -32,6 +32,16 @@ type Snapshot interface {
 	FwRules() []FwRule
 	// FwHistory: how long firewall log history exists (0 = none).
 	FwHistory() time.Duration
+	// SelfHealth: free space of mtmon's own data directory and database growth.
+	SelfHealth() SelfHealth
+}
+
+// SelfHealth is mtmon's own resource situation. Known is false where the file system cannot be asked.
+type SelfHealth struct {
+	Known                           bool
+	FreeBytes, TotalBytes, DBBytes  int64
+	GrowthPerDay                    int64 // 0 = not growing or not enough samples yet
+	RawRetentionDays, RetentionDays int
 }
 
 // Ports queried from the flow rollups / raw flows.

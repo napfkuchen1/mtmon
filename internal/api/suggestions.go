@@ -44,6 +44,7 @@ func (s *Server) adviceResult(force bool) advice.Result {
 		return s.adv.res
 	}
 	l := advice.NewLive(s.St, s.Cfg, s.Hub, s.En, s.Started)
+	l.Disk = s.DiskFn
 	if s.Mgr != nil {
 		l.IsSelf = func(mac string) bool { _, ok := s.Mgr.SelfDevice(mac); return ok }
 	}

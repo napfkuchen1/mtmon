@@ -112,6 +112,7 @@ type Store struct {
 	FwDropped uint64
 
 	memo memoCache
+	dir  string
 }
 
 // Open opens (and migrates) the DB in dir.
@@ -144,7 +145,10 @@ func Open(dir string) (*Store, error) {
 	if err := migrateTokens(db); err != nil {
 		return nil, fmt.Errorf("token schema: %w", err)
 	}
-	return &Store{DB: db}, nil
+	if _, err := db.Exec(healthSchema); err != nil {
+		return nil, err
+	}
+	return &Store{DB: db, dir: dir}, nil
 }
 
 func (s *Store) Close() error { return s.DB.Close() }
@@ -156,6 +160,7 @@ func (s *Store) Maintain(ctx context.Context, rawDays, days int, backupDir strin
 	lastBackup := time.Time{}
 	for {
 		s.Cleanup(rawDays, days)
+		s.LogDBSize()
 		if backupDir != "" && time.Since(lastBackup) > 23*time.Hour {
 			if err := s.Backup(backupDir, 7); err == nil {
 				lastBackup = time.Now()
