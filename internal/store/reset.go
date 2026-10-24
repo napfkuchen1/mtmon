@@ -45,6 +45,9 @@ func (s *Store) ResetData(o ResetOpts) (*ResetResult, error) {
 			return nil, err
 		}
 	}
+	if _, err := tx.Exec(`DELETE FROM rollup_1d_dim`); err != nil {
+		return nil, err
+	}
 	clientQ := `DELETE FROM clients`
 	histQ := `DELETE FROM ip_history`
 	if o.KeepLabels {
@@ -59,6 +62,7 @@ func (s *Store) ResetData(o ResetOpts) (*ResetResult, error) {
 		{&res.Metrics, `DELETE FROM dev_metrics`}, {&res.Metrics, `DELETE FROM if_metrics`},
 		{&res.Alerts, `DELETE FROM alerts`}, {nil, `DELETE FROM advice_dismissed`},
 		{&res.Firewall, `DELETE FROM fw_events`}, {&res.Firewall, `DELETE FROM fw_hourly`},
+		{nil, `DELETE FROM fw_src_hourly`}, {nil, `DELETE FROM fw_dst_hourly`},
 	} {
 		if err := del(q.dst, q.sql); err != nil {
 			return nil, err

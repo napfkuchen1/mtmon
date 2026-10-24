@@ -51,6 +51,18 @@ type TopRow struct {
 
 // TopBy supports: clients, hosts, asn, country, ports, services, protocols, internal.
 func (s *Store) TopBy(what string, since int64, limit int, mac string) ([]TopRow, error) {
+	if mac == "" && what != "clients" && what != "internal" && olderThan(since, hybridMinAge) {
+		// a week or a month of destinations: memoised per hour of window start (daily rows change slowly anyway)
+		return memoize(&s.memo, "top|"+what+"|"+itoa(limit)+"|"+itoa(int(since/3600)), 2*time.Minute, sliceCopy[TopRow],
+			func() ([]TopRow, error) { return s.topBy(what, since, limit, mac) })
+	}
+	return s.topBy(what, since, limit, mac)
+}
+
+func (s *Store) topBy(what string, since int64, limit int, mac string) ([]TopRow, error) {
+	if _, ok := dimOf[what]; ok && mac == "" && olderThan(since, 8*24*time.Hour) {
+		return s.topByDim(what, since, limit)
+	}
 	var sel, grp, where string
 	switch what {
 	case "clients":
@@ -98,6 +110,10 @@ func (s *Store) TopBy(what string, since int64, limit int, mac string) ([]TopRow
 	q := `SELECT ` + sel + `, sum(r.b_up), sum(r.b_down), sum(r.b_int), sum(r.flows)
 		FROM ` + tbl + ` r ` + idx + join + ` WHERE r.ts>=?` + where
 	args := []any{since / al * al}
+	if src, sargs, ok := dimSource(since); ok && mac == "" && join == "" && what != "internal" {
+		q = `SELECT ` + sel + `, sum(r.b_up), sum(r.b_down), sum(r.b_int), sum(r.flows) FROM ` + src + ` r WHERE 1=1` + where
+		args = sargs
+	}
 	if mac != "" {
 		q += ` AND r.mac=?`
 		args = append(args, NormMAC(mac))

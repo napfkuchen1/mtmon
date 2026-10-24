@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS rollup_1d(
   svc TEXT, host TEXT, cc TEXT, asn INTEGER, asorg TEXT,
   b_up INTEGER, b_down INTEGER, b_int INTEGER, flows INTEGER,
   PRIMARY KEY(ts, rip, rport, proto)) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS rollup_d_svc ON rollup_1d(svc, ts);
 CREATE TABLE IF NOT EXISTS dev_metrics(
   ts INTEGER, device TEXT, cpu REAL, mem_used INTEGER, mem_total INTEGER,
   temp REAL, uptime INTEGER, clients INTEGER, up INTEGER);
@@ -109,6 +110,8 @@ type Store struct {
 	Dropped   uint64
 	fwQ       []FwEvent
 	FwDropped uint64
+
+	memo memoCache
 }
 
 // Open opens (and migrates) the DB in dir.
@@ -131,6 +134,12 @@ func Open(dir string) (*Store, error) {
 	}
 	if err := migrateClients(db); err != nil {
 		return nil, fmt.Errorf("clients schema: %w", err)
+	}
+	if err := migrateDim(db); err != nil {
+		return nil, fmt.Errorf("dimension rollups: %w", err)
+	}
+	if err := migrateFwTop(db); err != nil {
+		return nil, fmt.Errorf("firewall schema: %w", err)
 	}
 	if err := migrateTokens(db); err != nil {
 		return nil, fmt.Errorf("token schema: %w", err)
@@ -184,6 +193,7 @@ func (s *Store) Cleanup(rawDays, days int) {
 	s.DB.Exec(`DELETE FROM rollup_1h WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM rollup_1h_client WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM rollup_1d WHERE ts < ?`, cut)
+	s.DB.Exec(`DELETE FROM rollup_1d_dim WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM dev_metrics WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM if_metrics WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM alerts WHERE ts < ?`, cut)

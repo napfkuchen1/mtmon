@@ -41,15 +41,18 @@ Live-Raten sind ein 30-s-Mittel (Router exportieren aktive Flows alle `active-fl
 | `rollup_1h` | Stunde × Client × Ziel × Port | `retention_days` (30) |
 | `rollup_1h_client` | Stunde × Client (klein) | 30 Tage |
 | `rollup_1d` | Tag × Ziel × Port (ohne Client) | 30 Tage |
+| `rollup_1d_dim` | Tag × Dienst / Land / AS / Port / Protokoll (einige hundert Zeilen pro Tag) | 30 Tage |
+| `fw_src_hourly`, `fw_dst_hourly` | Firewall-Log je Stunde × Quelle bzw. Ziel (für „Top blockiert“) | wie Rohdaten |
 | `clients`, `ip_history`, `roam`, `seen_dest` | Inventar, IP-Historie, Roaming, „erstmals gesehen“ | bis Retention |
 | `dev_metrics`, `if_metrics` | 1 Sample/min | 30 Tage |
 | `alerts`, `neighbors`, `devices_state` | | 30 Tage |
 
 **Abfrage-Stufen** (`store/queries.go`): ≤ 2 h → Minute; ≤ 8 d → Stunde; darüber → Tag (Ziele) bzw. `rollup_1h_client` (Clients, Charts, Summen). Grund: gemessen auf 100 Clients × 30 Tage kostete eine einzelne Stufe bis zu 4,4 s; gestuft bleibt alles < 320 ms. Bei 24 h/7 d sind Top-Listen auf die volle Stunde ausgerichtet (bis zu 59 min mehr Daten als „24 h“).
+Seit 0.17: Listen ohne Client-Dimension (Ziele, Dienste, Länder …) über 25 h bis 8 d lesen die vollen Tage aus `rollup_1d` und nur den Rest des ersten Tags aus `rollup_1h` (`store/tiers.go`); ab 8 d liefern Dienste/Länder/AS/Ports/Protokolle `rollup_1d_dim`. Lange Fenster werden kurz zwischengespeichert (`store/memo.go`), die Overview-Abfragen laufen parallel. Anzahl Clients/Ziele je Dienst zählt bei langen Fenstern nur die letzten 24 h. `make scale-live` misst mit einem Datensatz in Größe einer echten Installation (≈ 2 GB, 50 Clients, ganztägig aktiv).
 Schreibpfad: Channel-freier Puffer (max. 200 000 Zeilen, danach Drop mit Zähler), 1-s-Flush, Rollups werden vor dem Upsert im Speicher voraggregiert.
 
 ## Sicherheit
-- Login: argon2id, 12-h-Session (Cookie HttpOnly, SameSite=Strict, Secure bei TLS), Rate-Limit 5 Fehlversuche/min/IP, Origin-Check bei schreibenden Calls, CSP/nosniff/frame-deny. Hinter einem Reverse-Proxy teilen sich alle Clients die Proxy-IP (gemeinsames Limit).
+- Login: argon2id, 12-h-Session (Cookie HttpOnly, SameSite=Strict, Secure bei TLS), Rate-Limit 5 Fehlversuche/min/IP (Login und API-Token getrennt), Origin-Check bei schreibenden Calls, CSP/nosniff/frame-deny. Hinter einem Reverse-Proxy mit privater Adresse zählt die echte Client-Adresse aus `X-Forwarded-For`/`X-Real-IP`.
 - Router-Zugang: eigener Read-only-User (`read,api,rest-api`, ohne write/policy/ssh/…), Quelladresse auf mtmon beschränkt, **Zertifikats-Pinning** (`fingerprint`), kein stilles `insecure`.
 - Flows nur von konfigurierten Exporter-IPs (`addr` oder `flow_sources`); andere werden gezählt und verworfen.
 - systemd-Härtung (`ProtectSystem=strict`, `NoNewPrivileges`, `SystemCallFilter` …) mit automatischem Fallback-Drop-in, falls der Container Sandbox-Optionen ablehnt.

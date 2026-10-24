@@ -186,42 +186,85 @@ func svcTable(since int64) (string, int64) {
 }
 
 // svcClientWindow is how far back client lists look when the main window is answered from rollup_1d.
-const svcClientWindow = 48 * 3600
+const svcClientWindow = 24 * 3600
 
-// Services lists all services with traffic in the window.
+// Services lists all services with traffic in the window. Windows of 25 h and more use the hybrid source (see
+// dimSource) or the daily service totals; their client and destination counts only look at the last svcClientWindow.
 func (s *Store) Services(since int64) ([]ServiceRow, error) {
+	if olderThan(since, hybridMinAge) {
+		return memoize(&s.memo, "services|"+itoa(int(since/3600)), time.Minute, sliceCopy[ServiceRow],
+			func() ([]ServiceRow, error) { return s.services(since) })
+	}
+	return s.services(since)
+}
+
+func (s *Store) services(since int64) ([]ServiceRow, error) {
 	tbl, al := svcTable(since)
-	q := `SELECT svc, sum(b_up), sum(b_down), sum(b_int), sum(flows), count(DISTINCT mac), count(DISTINCT rip)
-		FROM ` + tbl + ` WHERE ts>=? AND svc<>'' GROUP BY svc ORDER BY sum(b_up)+sum(b_down)+sum(b_int) DESC LIMIT 200`
-	if tbl == "rollup_1d" {
-		q = `SELECT svc, sum(b_up), sum(b_down), sum(b_int), sum(flows), 0, count(DISTINCT rip)
-		FROM rollup_1d WHERE ts>=? AND svc<>'' GROUP BY svc ORDER BY sum(b_up)+sum(b_down)+sum(b_int) DESC LIMIT 200`
-	}
-	rows, err := s.DB.Query(q, since/al*al)
-	if err != nil {
-		return nil, err
-	}
-	out := []ServiceRow{}
-	for rows.Next() {
-		var r ServiceRow
-		rows.Scan(&r.Name, &r.Up, &r.Down, &r.Int, &r.Flows, &r.Clients, &r.Dests)
-		out = append(out, r)
-	}
-	rows.Close()
-	if tbl == "rollup_1d" { // client counts from the recent hourly window only
-		cnt := map[string]int64{}
-		cr, err := s.DB.Query(`SELECT svc, count(DISTINCT mac) FROM rollup_1h WHERE ts>=? AND svc<>'' GROUP BY svc`, (time.Now().Unix()-svcClientWindow)/3600*3600)
-		if err == nil {
-			for cr.Next() {
-				var n string
-				var c int64
-				cr.Scan(&n, &c)
-				cnt[n] = c
+	// client and destination counts of long windows come from the recent hourly window: read it side by side
+	type counts map[string][2]int64
+	winCh := make(chan counts, 1)
+	_, _, hybrid := dimSource(since)
+	if tbl != "rollup_1d" && !hybrid {
+		winCh <- counts{}
+	} else {
+		go func() {
+			cnt := counts{}
+			cr, err := s.DB.Query(`SELECT svc, count(DISTINCT mac), count(DISTINCT rip) FROM rollup_1h INDEXED BY sqlite_autoindex_rollup_1h_1 WHERE ts>=? AND svc<>'' GROUP BY svc`,
+				max(since, time.Now().Unix()-svcClientWindow)/3600*3600)
+			if err == nil {
+				for cr.Next() {
+					var n string
+					var c, d int64
+					cr.Scan(&n, &c, &d)
+					cnt[n] = [2]int64{c, d}
+				}
+				cr.Close()
 			}
-			cr.Close()
+			winCh <- cnt
+		}()
+	}
+	const tail = ` AND svc<>'' GROUP BY svc ORDER BY sum(b_up)+sum(b_down)+sum(b_int) DESC LIMIT 200`
+	out := []ServiceRow{}
+	byWindow := true
+	if tbl == "rollup_1d" { // weeks: daily totals per service
+		sums, err := s.svcSumsDim(since)
+		if err != nil {
+			return nil, err
 		}
+		for _, r := range sums {
+			out = append(out, r)
+		}
+		sort.Slice(out, func(i, j int) bool { return out[i].Up+out[i].Down+out[i].Int > out[j].Up+out[j].Down+out[j].Int })
+		if len(out) > 200 {
+			out = out[:200]
+		}
+	} else {
+		// INDEXED BY: without it SQLite scans the whole (svc, ts) index instead of the time range
+		var q string
+		args := []any{since / al * al}
+		if src, sargs, ok := dimSource(since); ok {
+			q = `SELECT svc, sum(b_up), sum(b_down), sum(b_int), sum(flows), 0, 0 FROM ` + src + ` WHERE 1=1` + tail
+			args = sargs
+		} else {
+			byWindow = false
+			q = `SELECT svc, sum(b_up), sum(b_down), sum(b_int), sum(flows), count(DISTINCT mac), count(DISTINCT rip) FROM ` + tbl +
+				` INDEXED BY sqlite_autoindex_` + tbl + `_1 WHERE ts>=?` + tail
+		}
+		rows, err := s.DB.Query(q, args...)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			var r ServiceRow
+			rows.Scan(&r.Name, &r.Up, &r.Down, &r.Int, &r.Flows, &r.Clients, &r.Dests)
+			out = append(out, r)
+		}
+		rows.Close()
+	}
+	cnt := <-winCh
+	if byWindow {
 		for i := range out {
-			out[i].Clients = cnt[out[i].Name]
+			out[i].Clients, out[i].Dests = cnt[out[i].Name][0], cnt[out[i].Name][1]
 		}
 	}
 	return out, nil
@@ -266,6 +309,15 @@ type ServiceDetail struct {
 }
 
 func (s *Store) ServiceDetail(name string, since, bucket int64) (*ServiceDetail, error) {
+	if olderThan(since, hybridMinAge) {
+		return memoize(&s.memo, "svcdetail|"+name+"|"+itoa(int(since/3600))+"|"+itoa(int(bucket)), time.Minute,
+			func(d *ServiceDetail) *ServiceDetail { c := *d; return &c },
+			func() (*ServiceDetail, error) { return s.serviceDetail(name, since, bucket) })
+	}
+	return s.serviceDetail(name, since, bucket)
+}
+
+func (s *Store) serviceDetail(name string, since, bucket int64) (*ServiceDetail, error) {
 	tbl, al := svcTable(since)
 	if al >= 3600 && bucket < al {
 		bucket = al

@@ -126,8 +126,10 @@ func TestFirewallNamesEndpoints(t *testing.T) {
 	s.St.DB.Exec(`INSERT INTO clients(mac,hostname,vendor,ip,label,first_seen,last_seen,online) VALUES('AA:00:00:00:00:02','pixel','V','10.0.0.6','Anna phone',1,?,1)`, time.Now().Unix())
 	now := time.Now().Unix()
 	s.St.DB.Exec(`INSERT INTO fw_rules(device,prefix,chain,action,descr,managed) VALUES('gw','mtmon-drop','forward','drop','x',1)`)
-	s.St.DB.Exec(`INSERT INTO fw_events(ts,device,prefix,chain,in_if,out_if,proto,flags,src,sport,dst,dport,nat,len,mac,cstate) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		now, "gw", "mtmon-drop", "forward", "", "", "TCP", "", "10.0.0.6", 5000, "203.0.113.8", 443, "", 60, "", "")
+	s.St.EnqueueFw(store.FwEvent{TS: now, Device: "gw", Prefix: "mtmon-drop", Chain: "forward", Proto: "TCP", Src: "10.0.0.6", SPort: 5000, Dst: "203.0.113.8", DPort: 443, Len: 60})
+	if err := s.St.FlushFw(); err != nil {
+		t.Fatal(err)
+	}
 	_, c := login(t, ts, "test-password-1")
 	r, _ := c.Get(ts.URL + "/api/firewall/events?range=1h")
 	var ev []map[string]any

@@ -195,6 +195,9 @@ func (s *Store) Flush() error {
 			return fail(err)
 		}
 	}
+	if err := writeDims(tx, d1); err != nil {
+		return fail(err)
+	}
 	sd, err := tx.Prepare(`INSERT OR IGNORE INTO seen_dest(mac,rip,first) VALUES(?,?,?)`)
 	if err != nil {
 		return fail(err)

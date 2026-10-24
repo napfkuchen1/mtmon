@@ -44,6 +44,14 @@ func (s *Store) ClientActiveDests(mac string, within int64) ([]DestAgg, error) {
 // Tiers: 1-minute rollups up to ~2 h, hourly up to 36 h, per-destination daily rollups beyond (so windows
 // longer than 36 h are rounded to whole days). The daily tier has no client dimension at all.
 func (s *Store) TopDests(since int64, limit int) ([]DestAgg, error) {
+	if olderThan(since, hybridMinAge) {
+		return memoize(&s.memo, "dests|"+itoa(limit)+"|"+itoa(int(since/3600)), time.Minute, sliceCopy[DestAgg],
+			func() ([]DestAgg, error) { return s.topDests(since, limit) })
+	}
+	return s.topDests(since, limit)
+}
+
+func (s *Store) topDests(since int64, limit int) ([]DestAgg, error) {
 	if limit <= 0 || limit > AppDestLimit {
 		limit = AppDestLimit
 	}
