@@ -26,11 +26,14 @@ import (
 	"github.com/napfkuchen1/mtmon/internal/poller"
 	"github.com/napfkuchen1/mtmon/internal/secret"
 	"github.com/napfkuchen1/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/sysinfo"
 	"github.com/napfkuchen1/mtmon/internal/syslog"
 	"github.com/napfkuchen1/mtmon/internal/update"
 )
 
 type Server struct {
+	DiskFn  func(dir string) (free, total int64, ok bool) // nil: the real file system (tests)
+	cpu     sysinfo.CPU
 	fwMu    sync.Mutex
 	fwCache map[string]fwCacheEntry
 	Cfg     *config.Config
@@ -677,6 +680,16 @@ func (s *Server) system(w http.ResponseWriter, r *http.Request) {
 	if d := s.Col.Dec; d != nil {
 		pk, rec, er, nt = d.Stats()
 	}
+	disk := s.DiskFn
+	if disk == nil {
+		disk = sysinfo.Disk
+	}
+	free, total, _ := disk(s.Cfg.DataDir)
+	growth, _ := s.St.DBGrowthPerDay()
+	daysLeft := -1 // -1: no growth or not enough samples yet
+	if growth > 0 {
+		daysLeft = int(free / growth)
+	}
 	jsonOut(w, map[string]any{
 		"version": s.Version, "uptime_s": int64(time.Since(s.Started).Seconds()),
 		"flow_packets": pk, "flow_records": rec, "flow_errors": er, "flow_no_template": nt,
@@ -684,6 +697,8 @@ func (s *Server) system(w http.ResponseWriter, r *http.Request) {
 		"flows_ps":                      s.Hub.FlowsPS, "queue": s.St.QueueLen(), "db_dropped": s.St.Dropped,
 		"ignored_transit": s.Pipe.IgnoredCount(), "db_bytes": dbSize, "enrich": s.En.Status(),
 		"retention_days": s.Cfg.Retention, "raw_retention_days": s.Cfg.RawRetention,
+		"rss_bytes": sysinfo.RSS(), "cpu_pct": s.cpu.Percent(),
+		"data_dir_free_bytes": free, "data_dir_total_bytes": total, "db_growth_bytes_per_day": growth, "disk_days_left": daysLeft,
 	})
 }
 

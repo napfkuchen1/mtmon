@@ -107,6 +107,10 @@
         <tr><td class="muted">{t('Write queue · rows dropped')}</td><td class="r num">{s.queue} · {s.db_dropped}</td></tr>
         <tr><td class="muted">{t('Database size')}</td><td class="r num">{bytes(s.db_bytes)}</td></tr>
         <tr><td class="muted">{t('Retention (raw / rollup)')}</td><td class="r">{s.raw_retention_days} d / {s.retention_days} d</td></tr>
+        {#if s.rss_bytes}<tr><td class="muted">{t('Memory (mtmon)')}</td><td class="r num">{bytes(s.rss_bytes)}</td></tr>{/if}
+        <tr><td class="muted">{t('CPU (mtmon)')}</td><td class="r num">{s.cpu_pct.toFixed(1)} %</td></tr>
+        {#if s.data_dir_total_bytes}<tr><td class="muted">{t('Free disk space')}</td><td class="r num"><span class="badge {s.data_dir_free_bytes / s.data_dir_total_bytes < 0.15 ? 'bad' : ''}">{bytes(s.data_dir_free_bytes)} / {bytes(s.data_dir_total_bytes)}</span></td></tr>{/if}
+        <tr><td class="muted">{t('Database growth')}</td><td class="r num">{s.db_growth_bytes_per_day ? t('{size} per day', { size: bytes(s.db_growth_bytes_per_day) }) + (s.disk_days_left >= 0 ? ' · ' + t('full in about {n} days', { n: s.disk_days_left }) : '') : t('not enough samples yet')}</td></tr>
       {/if}
     </tbody></table></div>
   <div class="card"><div class="card-h"><h2>{t('Enrichment')}</h2></div>

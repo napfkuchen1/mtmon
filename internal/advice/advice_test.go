@@ -598,3 +598,22 @@ func TestIsPublic(t *testing.T) {
 		}
 	}
 }
+
+func TestMtmonDisk(t *testing.T) {
+	d := base()
+	skipped(t, d, "mtmon-disk") // unknown file system
+	const gb = 1 << 30
+	d.Self = SelfHealth{Known: true, TotalBytes: 100 * gb, FreeBytes: 60 * gb, DBBytes: 2 * gb, RawRetentionDays: 3, RetentionDays: 30}
+	expect(t, d, "mtmon-disk", 0)
+	d.Self.FreeBytes = 10 * gb // 10 % free
+	out := expect(t, d, "mtmon-disk", 1)
+	if out[0].Severity != SevWarning || len(out[0].Steps) == 0 {
+		t.Errorf("%+v", out[0])
+	}
+	d.Self.FreeBytes, d.Self.GrowthPerDay = 30*gb, 3*gb // plenty free now, but full in 10 days
+	if s := expect(t, d, "mtmon-disk", 1); len(s[0].Evidence) < 3 {
+		t.Errorf("forecast evidence: %v", s[0].Evidence)
+	}
+	d.Self.GrowthPerDay = gb / 2 // 60 days left
+	expect(t, d, "mtmon-disk", 0)
+}

@@ -19,6 +19,7 @@ type Data struct {
 	Contact map[string]bool
 	Rules   []FwRule
 	FwHist  time.Duration
+	Self    SelfHealth
 }
 
 func (d *Data) Now() time.Time {
@@ -48,4 +49,5 @@ func (d *Data) Roams24h() []RoamStat            { return d.RoamV }
 func (d *Data) IPChurn30d() map[string]int      { return d.Churn }
 func (d *Data) BlockedSources24h() []BlockedSrc { return d.Blocked }
 func (d *Data) FwRules() []FwRule               { return d.Rules }
+func (d *Data) SelfHealth() SelfHealth          { return d.Self }
 func (d *Data) FwHistory() time.Duration        { return d.FwHist }
