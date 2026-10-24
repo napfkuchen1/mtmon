@@ -8,6 +8,23 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.16.0] - 2026-10-24
+
+### New
+- **Maintenance window per device:** on the device page you can start a window of 30 minutes, 2 hours or 8 hours. While it is open, the device's offline alerts and the link-down alerts of the port that leads to it are recorded as info instead of warning/critical. Devices in maintenance are not part of the "cannot reach N devices" group alert.
+- **VPN peers are clients:** WireGuard peers, including Back to Home, appear on the Clients page with their name and a VPN icon. Back to Home peers are named after the user in the peer comment. Peers that route a whole network (site-to-site) are not shown as clients.
+- **Topology root:** the tree starts at the gateway (the router with NAT and DHCP). A "Root" selector on the Topology page overrides the choice.
+
+### Changed
+- **Suggestions:** high but steady memory use (for example on small access points) is only an info note. It stays a warning when memory is rising or less than 16 MiB stay free.
+- **Suggestions:** `fw-nolog` recognises isolation rules by their structure (a VLAN or interface list blocked from the private ranges), not only by words in the comment, and lists the unlogged drop rules that match packets right now first.
+- **Suggestions:** `chatty` recognises VPN tunnels by the interface type, whatever the interface is called, and skips VPN peers.
+- **Setup wizard (Router setup and Add device):** both use the same commands now. Existing objects are skipped, so the commands can be run twice. The `mtmon` user gets a random password instead of a fixed one, and the `www-ssl` command uses the mtmon address and warns that it replaces the existing list.
+- The Go toolchain is 1.26.10 (security fixes in the standard library).
+
+### Fixed
+- The Topology page API never returns `null` lists.
+
 ## [0.15.2] - 2026-10-24
 
 ### Fixed
