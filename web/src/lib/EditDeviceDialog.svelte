@@ -10,6 +10,8 @@
   let tab = $state('conn')  // conn | features
   let addr = $state(device.addr), port = $state(device.port || 443), role = $state(device.role || 'router'), site = $state(device.site || ''),
     user = $state(''), pass = $state(''), busy = $state(false), err = $state('')
+  let sites = $state([])  // sites already in use, offered when typing a site name
+  $effect(() => { api('/devices').then(r => { sites = [...new Set((r || []).map(d => d.site).filter(Boolean))].sort() }).catch(() => {}) })
   async function save() {
     busy = true; err = ''
     try {
@@ -31,7 +33,7 @@
     <label>{t('Address')}<input class="input" bind:value={addr} /></label>
     <label>{t('Port')}<input class="input" type="number" min="1" max="65535" bind:value={port} /></label>
     <label>{t('Role')}<select class="input" bind:value={role}><option value="router">router</option><option value="ap">ap</option><option value="switch">switch</option></select></label>
-    <label>{t('Site')}<input class="input" bind:value={site} placeholder={t('optional')} /></label>
+    <label>{t('Site')}<input class="input" bind:value={site} list="mtmon-sites" placeholder={t('optional')} /><datalist id="mtmon-sites">{#each sites as s}<option value={s}></option>{/each}</datalist></label>
     <label>{t('User')}<input class="input" bind:value={user} autocomplete="off" placeholder={t('unchanged')} /></label>
     <label>{t('Password')}<input class="input" type="password" bind:value={pass} autocomplete="new-password" placeholder={t('unchanged')} /></label>
   </div>

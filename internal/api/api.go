@@ -541,17 +541,14 @@ func (s *Server) topology(w http.ResponseWriter, r *http.Request) {
 	}
 	// device↔device links from /ip/neighbor (identity match)
 	ns, _ := s.St.Neighbors()
-	seen := map[string]bool{}
-	for _, n := range ns {
-		// both directions are kept: each side reports its own port (Label = port on the From side); the UI
-		// builds a tree out of them, so links that only exist as "seen through the switch" are not drawn
-		if _, ok := roleOf[n.Ident]; ok && n.Ident != n.Device {
-			k := n.Device + "|" + n.Ident + "|" + n.Iface
-			if !seen[k] {
-				seen[k] = true
-				edges = append(edges, edge{From: "d:" + n.Device, To: "d:" + n.Ident, Kind: "uplink", Label: n.Iface})
-			}
-		}
+	// one edge per directly connected pair, parent → child (Label = port on the parent); neighbors that are
+	// only visible "through" another device are not links (see deviceLinks)
+	managed := map[string]bool{}
+	for name := range roleOf {
+		managed[name] = true
+	}
+	for _, l := range deviceLinks(ns, managed, root) {
+		edges = append(edges, edge{From: "d:" + l.From, To: "d:" + l.To, Kind: "uplink", Label: l.Port})
 	}
 	// APs without a discovered uplink hang off the first router
 	linked := map[string]bool{}
@@ -610,7 +607,7 @@ func (s *Server) setup(w http.ResponseWriter, r *http.Request) {
 			"/certificate sign mtmon-ca\n" +
 			"/certificate add name=mtmon-ssl common-name=<ROUTER-IP> subject-alt-name=IP:<ROUTER-IP> days-valid=3650 key-usage=digital-signature,key-encipherment,tls-server\n" +
 			"/certificate sign mtmon-ssl ca=mtmon-ca\n" +
-			"/ip service set www-ssl certificate=mtmon-ssl disabled=no address=" + ip + "/32",
+			"/ip service set www-ssl certificate=mtmon-ssl disabled=no available-from=" + ip + "/32",
 		"fasttrack": "Traffic-Flow only sees traffic that is processed by the router CPU (MikroTik docs: hardware-offloaded traffic, e.g. bridge HW offload/switch-chip forwarding, is not exported). " +
 			"FastTrack-ed connections also bypass most of the packet path, so their flows can be missing or incomplete (community-reported; verify on your router). " +
 			"Check: /ip firewall filter print where action=fasttrack-connection  and  /interface bridge port print (hw=yes). " +

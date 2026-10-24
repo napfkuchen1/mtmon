@@ -533,7 +533,7 @@ func ruleDropNoLog(s Snapshot) ([]Suggestion, string) {
 		seen = true
 		var nolog []string
 		var iso []string
-		var zero, fired int
+		var zero, fired, isoFired int
 		drops := 0
 		for _, f := range d.Caps.Filter {
 			if f.Disabled || (f.Action != "drop" && f.Action != "reject") {
@@ -557,6 +557,9 @@ func ruleDropNoLog(s Snapshot) ([]Suggestion, string) {
 				}
 				if isIsolationRule(f) {
 					iso = append(iso, txt)
+					if f.Counted && f.Packets > 0 {
+						isoFired++
+					}
 				}
 				nolog = append(nolog, txt)
 			}
@@ -567,6 +570,7 @@ func ruleDropNoLog(s Snapshot) ([]Suggestion, string) {
 		ev := []string{
 			fmt.Sprintf("%d of %d active drop/reject rules on %s have logging switched off", len(nolog), drops, d.Name),
 			fmt.Sprintf("Rules: %s", list(nolog, 4)),
+			"Source: " + d.Caps.ReadNote(),
 		}
 		steps := []string{
 			"Enable logging with a short prefix on the rules you want to see, preferably the last drop rule of the input and forward chains.",
@@ -581,15 +585,20 @@ func ruleDropNoLog(s Snapshot) ([]Suggestion, string) {
 			steps = append(steps, "Isolation rules between segments are usually intentional. Do not log every drop there: put a log-only rule with a rate limit directly in front of the isolation rule, so you see that it works without flooding the log.")
 			cmds += "\n# isolation rule: log-only rule with a rate limit in front of it (copy the conditions of the drop rule)\n/ip firewall filter add chain=<chain> action=log log-prefix=isolation limit=5,10 place-before=<number of the drop rule> <same conditions as the drop rule>"
 		}
+		title := fmt.Sprintf("Blocked traffic on %s is not logged", d.Name)
+		if isoFired > 0 {
+			title = fmt.Sprintf("An isolation rule on %s blocks traffic you cannot see", d.Name)
+			ev = append([]string{fmt.Sprintf("%d isolation rule(s) are matching packets right now but are not logged: you cannot tell who tries to cross the segment", isoFired)}, ev...)
+		}
 		out = append(out, Suggestion{
 			Subject: d.Name, Severity: SevInfo, Category: CatMonitoring, Link: "firewall", Confidence: "high",
-			Title:    fmt.Sprintf("Blocked traffic on %s is not logged", d.Name),
+			Title:    title,
 			Why:      "A drop rule without logging blocks silently. The Firewall page of mtmon can then not show what was blocked, who tried, and whether a rule works as intended. You do not need to log everything, but the final catch-all drop rules are worth it.",
 			Evidence: ev,
 			Steps:    steps,
 			Fix:      &Fix{Device: d.Name, Features: []string{"firewall_logs"}},
 			Commands: cmds,
-			Limits:   "Based on the capabilities stored when the device was set up.",
+			Limits:   "Based on the rules stored at the last router probe (hourly, and right after setup or a feature change); " + d.Caps.ReadNote() + ".",
 		})
 	}
 	if !seen {

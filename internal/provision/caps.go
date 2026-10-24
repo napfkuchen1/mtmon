@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/napfkuchen1/mtmon/internal/poller"
 )
@@ -79,7 +80,8 @@ type Caps struct {
 	RoleWhy     string   `json:"role_why"`
 	ExportsFlow bool     `json:"suggest_flow"` // this device should export Traffic Flow
 	Warnings    []string `json:"warnings"`
-	Managed     bool     `json:"already_managed"` // carries mtmon-managed objects from an earlier setup
+	Managed     bool     `json:"already_managed"`     // carries mtmon-managed objects from an earlier setup
+	ProbedAt    int64    `json:"probed_at,omitempty"` // unix time the router was read
 }
 
 const ManagedTag = "mtmon-managed"
@@ -107,7 +109,7 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 		return nil, fmt.Errorf("RouterOS %q found - mtmon needs RouterOS 7 (REST API)", r["version"])
 	}
 	k := &Caps{Version: r["version"], Arch: r["architecture-name"], Model: r["board-name"],
-		CPUCount: r.Int("cpu-count"), MemTotal: r.Int("total-memory"), IfaceTypes: map[string]int{}}
+		CPUCount: r.Int("cpu-count"), MemTotal: r.Int("total-memory"), IfaceTypes: map[string]int{}, ProbedAt: time.Now().Unix()}
 	if id := get(ctx, c, "/system/identity"); len(id) > 0 {
 		k.Identity = id[0]["name"]
 	}

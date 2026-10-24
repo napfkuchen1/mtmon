@@ -118,3 +118,42 @@ func TestSmallSpikeNeedsDuration(t *testing.T) {
 		t.Fatalf("short small spike alerted: %s", kinds(*got))
 	}
 }
+
+// A planned update: the device is offline for a while and its neighbour's link flaps. That is one info line,
+// not a critical offline, a warning link-down and the matching recoveries.
+func TestUpdateRebootIsOneInfo(t *testing.T) {
+	e, got := newEngine(t)
+	e.rebootGrace = time.Hour // nothing fires by timer
+	e.DeviceState("rb", true, "", 5, 40)
+	e.DeviceBoot("rb", "7.24.2", 5000)
+	e.DeviceState("rb", false, "i/o timeout", 0, 0)
+	e.InterfaceState("sw", "ether2", false)
+	e.DeviceState("rb", true, "", 5, 40)
+	e.InterfaceState("sw", "ether2", true)
+	e.DeviceBoot("rb", "7.24.4", 20)
+	if kinds(*got) != "device_updated/rb" || (*got)[0].Severity != "info" || !strings.Contains((*got)[0].Msg, "7.24.2 → 7.24.4") {
+		t.Fatalf("update: %+v", *got)
+	}
+}
+
+// A link that stays down is still reported, once the grace is over.
+func TestHeldLinkDownStillFires(t *testing.T) {
+	e, got := newEngine(t)
+	e.rebootGrace = 20 * time.Millisecond
+	e.InterfaceState("sw", "ether3", false)
+	time.Sleep(200 * time.Millisecond)
+	if kinds(*got) != "iface_down/sw/ether3" {
+		t.Fatalf("held link: %+v", *got)
+	}
+}
+
+// A flap with no device reboot nearby is reported late but complete.
+func TestHeldLinkFlapWithoutRebootReported(t *testing.T) {
+	e, got := newEngine(t)
+	e.rebootGrace = time.Hour
+	e.InterfaceState("sw", "ether3", false)
+	e.InterfaceState("sw", "ether3", true)
+	if kinds(*got) != "iface_down/sw/ether3,iface_up/sw/ether3" {
+		t.Fatalf("flap: %+v", *got)
+	}
+}

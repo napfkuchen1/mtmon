@@ -284,8 +284,8 @@ func (s *Store) BlockedSources(since int64, limit int) ([]BlockedSource, int64, 
 	args := []any{since}
 	for k, r := range s.ruleIndex() {
 		if Verdict(r.Action) == "blocked" {
-			ph = append(ph, "?")
-			args = append(args, k[1])
+			ph = append(ph, "(?,?)")
+			args = append(args, k[0], k[1]) // prefixes are only unique per device (MTM-<rule id>)
 		}
 	}
 	if len(ph) == 0 {
@@ -293,7 +293,7 @@ func (s *Store) BlockedSources(since int64, limit int) ([]BlockedSource, int64, 
 	}
 	// Bounded cost: only the most recent blockedSample matching events are aggregated, however busy the log is.
 	args = append(args, blockedSample, limit)
-	rows, err := s.DB.Query(`SELECT src, count(*) FROM (SELECT src FROM fw_events WHERE ts>=? AND prefix IN (`+strings.Join(ph, ",")+`)
+	rows, err := s.DB.Query(`SELECT src, count(*) FROM (SELECT src FROM fw_events WHERE ts>=? AND (device,prefix) IN (VALUES `+strings.Join(ph, ",")+`)
 		AND src NOT GLOB '10.*' AND src NOT GLOB '192.168.*' AND src NOT GLOB '172.[123]*' AND src NOT GLOB '169.254.*'
 		ORDER BY ts DESC LIMIT ?) GROUP BY src ORDER BY 2 DESC LIMIT ?`, args...)
 	if err != nil {

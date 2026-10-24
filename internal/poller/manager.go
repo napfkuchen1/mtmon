@@ -288,6 +288,11 @@ func (w *worker) system(ctx context.Context) error {
 		Clients: w.wifiCount, LastOK: now.Unix()})
 	w.m.St.SaveDeviceState(store.DeviceState{Name: w.d.Name, Version: r["version"], Model: r["board-name"], LastOK: now.Unix()})
 	w.m.Ev.DeviceState(w.d.Name, true, "", cpu, temp)
+	if b, ok := w.m.Ev.(interface {
+		DeviceBoot(name, ver string, uptime int64)
+	}); ok {
+		b.DeviceBoot(w.d.Name, r["version"], up)
+	}
 	if now.Sub(w.aggAt) >= 60*time.Second {
 		w.aggAt = now
 		w.m.St.SaveDevMetric(store.DevMetric{TS: now.Unix(), Device: w.d.Name, CPU: cpu, MemUsed: total - free, MemTotal: total,

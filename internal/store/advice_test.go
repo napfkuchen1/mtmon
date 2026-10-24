@@ -95,6 +95,12 @@ func TestAdviceQueries(t *testing.T) {
 	if err != nil || len(bs) != 1 || bs[0].IP != "203.0.113.5" || bs[0].Hits != 2 || tot != 2 {
 		t.Fatalf("%+v %v %v", bs, tot, err)
 	}
+	// the same prefix on two routers (MTM-<rule id> repeats): an accept rule elsewhere must not count as blocked
+	st.SaveFwRules([]FwRule{{Device: "gw", Prefix: "MTM-2C", Chain: "forward", Action: "drop"}, {Device: "other", Prefix: "MTM-2C", Chain: "input", Action: "accept"}})
+	st.DB.Exec(`INSERT INTO fw_events(ts,device,prefix,chain,src,dst,dport) VALUES (?,'other','MTM-2C','input','203.0.113.9','1.1.1.1',22)`, now)
+	if bs, _, err = st.BlockedSources(now-3600, 10); err != nil || len(bs) != 1 || bs[0].IP != "203.0.113.5" {
+		t.Fatalf("prefix collision: %+v %v", bs, err)
+	}
 	st.DB.Exec(`INSERT INTO fw_hourly(ts,device,prefix,n) VALUES(?,'gw','drop-in',7)`, now/3600*3600-3600*30)
 	hits, oldest, err := st.FwHits(now - 86400)
 	if err != nil || len(hits) != 0 || oldest == 0 {

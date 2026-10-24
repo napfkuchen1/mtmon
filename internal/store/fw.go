@@ -323,14 +323,14 @@ func (s *Store) FwSummary(since int64) (*FwSummary, error) {
 	ph := ""
 	for k, r := range idx {
 		if Verdict(r.Action) == "blocked" {
-			blockedPrefixes = append(blockedPrefixes, k[1])
-			ph += ",?"
+			blockedPrefixes = append(blockedPrefixes, k[0], k[1]) // prefixes are only unique per device (MTM-<rule id>)
+			ph += ",(?,?)"
 		}
 	}
 	if ph != "" {
 		args := append([]any{since}, blockedPrefixes...)
-		sum.TopSrc = s.fwTop(`SELECT src, 0, count(*) FROM fw_events WHERE ts>=? AND prefix IN (`+ph[1:]+`) GROUP BY src ORDER BY 3 DESC LIMIT 10`, args)
-		sum.TopDst = s.fwTop(`SELECT dst, dport, count(*) FROM fw_events WHERE ts>=? AND prefix IN (`+ph[1:]+`) GROUP BY dst, dport ORDER BY 3 DESC LIMIT 10`, args)
+		sum.TopSrc = s.fwTop(`SELECT src, 0, count(*) FROM fw_events WHERE ts>=? AND (device,prefix) IN (VALUES `+ph[1:]+`) GROUP BY src ORDER BY 3 DESC LIMIT 10`, args)
+		sum.TopDst = s.fwTop(`SELECT dst, dport, count(*) FROM fw_events WHERE ts>=? AND (device,prefix) IN (VALUES `+ph[1:]+`) GROUP BY dst, dport ORDER BY 3 DESC LIMIT 10`, args)
 	}
 	return sum, nil
 }
