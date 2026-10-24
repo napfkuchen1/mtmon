@@ -54,7 +54,7 @@ func TestScale(t *testing.T) {
 					for k := 0; k < perClient; k++ {
 						z := int(rng.ExpFloat64()*float64(dests)/6) % dests
 						stmt.Exec(ts/step*step, fmt.Sprintf("AA:BB:CC:00:%02X:%02X", c/256, c%256), fmt.Sprintf("10.%d.%d.%d", 100+z/65536, z/256%256, z%256),
-							443, 6, "HTTPS", "", "", 0, "", rng.Intn(50000), rng.Intn(500000), 0, 1+rng.Intn(5))
+							443, 6, fmt.Sprintf("Service%02d", z%20), "", "", 0, "", rng.Intn(50000), rng.Intn(500000), 0, 1+rng.Intn(5))
 						n++
 					}
 				}
@@ -116,8 +116,16 @@ func TestScale(t *testing.T) {
 		{"top hosts 30d (hourly)", func() error { _, e := st.TopBy("hosts", now-30*86400, 20, ""); return e }},
 		{"top services 30d", func() error { _, e := st.TopBy("services", now-30*86400, 20, ""); return e }},
 		{"services list 30d", func() error { _, e := st.Services(now - 30*86400); return e }},
-		{"service detail 30d", func() error { _, e := st.ServiceDetail("HTTPS", now-30*86400, 14400); return e }},
+		{"service detail 30d", func() error { _, e := st.ServiceDetail("Service03", now-30*86400, 14400); return e }},
 		{"services of client 30d", func() error { _, e := st.ServicesOfClient("AA:BB:CC:00:00:05", now-30*86400); return e }},
+		{"advice: seed firewall log", func() error {
+			fwOnce.Do(func() {
+				if !reuse {
+					seedFw(st, rng, now, fwEvents)
+				}
+			})
+			return nil
+		}},
 		{"overview 24h (lists)", func() error { return overviewLists(st, now-86400) }},
 		{"overview 7d (lists)", func() error { return overviewLists(st, now-7*86400) }},
 		{"overview 30d (lists)", func() error { return overviewLists(st, now-30*86400) }},
@@ -132,14 +140,6 @@ func TestScale(t *testing.T) {
 		{"client top hosts 30d", func() error { _, e := st.TopBy("hosts", now-30*86400, 10, "AA:BB:CC:00:00:05"); return e }},
 		{"client connections 1h", func() error { _, e := st.Connections("AA:BB:CC:00:00:05", now-3600, 200, 0); return e }},
 		{"totals 30d", func() error { st.Totals(now - 30*86400); return nil }},
-		{"advice: seed firewall log", func() error {
-			fwOnce.Do(func() {
-				if !reuse {
-					seedFw(st, rng, now, fwEvents)
-				}
-			})
-			return nil
-		}},
 		{"advice: device metrics 6h", func() error { _, e := st.DevMetricStats(now-6*3600, 70, 85); return e }},
 		{"advice: port use 24h", func() error { _, e := st.PortUse(now-86400, advice.PortsOut); return e }},
 		{"advice: DoH hosts 24h", func() error { _, e := st.HostUse(now-86400, 443, advice.DoHSuffixes()); return e }},
@@ -161,6 +161,7 @@ func TestScale(t *testing.T) {
 	} {
 		best := time.Hour
 		for i := 0; i < 3; i++ {
+			st.ClearMemo() // measure the cold query, not the memo
 			s := time.Now()
 			if err := q.f(); err != nil {
 				t.Fatal(q.name, err)
@@ -171,7 +172,11 @@ func TestScale(t *testing.T) {
 		}
 		t.Logf("%-28s %8v", q.name, best.Round(time.Microsecond))
 		if best > 500*time.Millisecond {
-			t.Errorf("%s too slow: %v (gate 500ms)", q.name, best)
+			if live { // the live profile is an opt-in stress test: report, don't fail
+				t.Logf("SLOW %s: %v (gate 500ms)", q.name, best)
+			} else {
+				t.Errorf("%s too slow: %v (gate 500ms)", q.name, best)
+			}
 		}
 	}
 	s := time.Now()
@@ -186,12 +191,16 @@ func seedFw(st *store.Store, rng *rand.Rand, now int64, events int) {
 	tx.Exec(`INSERT OR IGNORE INTO fw_rules(device,prefix,chain,action,descr,managed) VALUES('gw','drop-in','input','drop','drop input',1),('gw','acc','forward','accept','accept',1),('gw','old','forward','drop','old rule',0)`)
 	ev, _ := tx.Prepare(`INSERT INTO fw_events(ts,device,prefix,chain,in_if,out_if,proto,flags,src,sport,dst,dport,nat,len,mac,cstate) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	for i := 0; i < events; i++ {
-		ts := now - int64(rng.Intn(3*86400))
-		ev.Exec(ts, "gw", "drop-in", "input", "ether1", "", "tcp", "", fmt.Sprintf("%d.%d.%d.%d", 45+rng.Intn(100), rng.Intn(256), rng.Intn(256), 1+rng.Intn(250)),
-			40000, "203.0.113.2", 22, "", 60, "", "new")
+		ts := now - 3*86400 + int64(i)*3*86400/int64(events) // arrives in time order, like the real log
+		// scanners come back: a few thousand noisy sources, a long tail of one-off ones
+		z := int(rng.ExpFloat64()*4000) % 60000
+		ev.Exec(ts, "gw", "drop-in", "input", "ether1", "", "tcp", "", fmt.Sprintf("%d.%d.%d.%d", 45+z/16384, z/64%256, z%64, 1+z%250),
+			40000, "203.0.113.2", []int{22, 23, 80, 443, 3389, 8080}[rng.Intn(6)], "", 60, "", "new")
 	}
 	ev.Close()
 	tx.Exec(`INSERT OR IGNORE INTO fw_hourly SELECT ts/3600*3600,'gw',prefix,count(*) FROM fw_events GROUP BY 1,3`)
+	tx.Exec(`INSERT OR IGNORE INTO fw_src_hourly SELECT ts/3600*3600,device,prefix,src,count(*) FROM fw_events GROUP BY 1,2,3,4`)
+	tx.Exec(`INSERT OR IGNORE INTO fw_dst_hourly SELECT ts/3600*3600,device,prefix,dst,dport,count(*) FROM fw_events GROUP BY 1,2,3,4,5`)
 	tx.Commit()
 }
 
@@ -223,18 +232,28 @@ func seedAdvice(st *store.Store, rng *rand.Rand, now int64, clients int) {
 	tx.Commit()
 }
 
-// overviewLists runs what the Overview page asks for one range: totals, series and the five top lists.
+// overviewLists runs what the Overview page asks for one range, side by side like the API handler does: totals,
+// series and the top lists.
 func overviewLists(st *store.Store, since int64) error {
-	st.Totals(since)
 	now := time.Now().Unix()
-	st.TotalsBetween(since-(now-since), since)
-	if _, err := st.Series(since, 3600, ""); err != nil {
-		return err
+	fs := []func() error{
+		func() error { st.Totals(since); return nil },
+		func() error { st.TotalsBetween(since-(now-since), since); return nil },
+		func() error { _, e := st.Series(since, 3600, ""); return e },
 	}
 	for _, w := range []string{"clients", "hosts", "services", "country"} {
-		if _, err := st.TopBy(w, since, 5, ""); err != nil {
-			return err
+		w := w
+		fs = append(fs, func() error { _, e := st.TopBy(w, since, 5, ""); return e })
+	}
+	errs := make(chan error, len(fs))
+	for _, f := range fs {
+		go func(f func() error) { errs <- f() }(f)
+	}
+	var first error
+	for range fs {
+		if e := <-errs; e != nil && first == nil {
+			first = e
 		}
 	}
-	return nil
+	return first
 }

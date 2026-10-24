@@ -2,7 +2,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 GO      ?= go
 
-.PHONY: all ui build test lint scale deploy-test release run-demo clean
+.PHONY: all ui build test lint scale scale-live deploy-test release run-demo clean
 
 all: test build
 
@@ -25,6 +25,9 @@ lint:                     ## static analysis + shell checks
 
 scale:                    ## 100 clients x 30 days data set; asserts every query < 500 ms
 	MTMON_SCALE=1 $(GO) test ./internal/integration -run TestScale -v -timeout 20m
+
+scale-live:               ## like scale, but sized like a real install (~2 GB, 50 clients around the clock); reports slow queries
+	MTMON_SCALE=1 MTMON_SCALE_PROFILE=live $(GO) test ./internal/integration -run TestScale -v -timeout 40m
 
 deploy-test: build        ## install/update/uninstall scripts against fake Proxmox tools
 	deploy/test/test-deploy.sh bin/mtmon

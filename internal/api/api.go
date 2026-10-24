@@ -247,7 +247,30 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	since, bucket, rn := parseRange(r)
-	up, down, flows := s.St.Totals(since)
+	// The queries are independent reads (WAL): run them side by side, the page takes as long as the slowest one.
+	var (
+		wg                                          sync.WaitGroup
+		up, down, flows                             int64
+		series                                      []store.Point
+		prev                                        any
+		topClients, topHosts, topServices, topCntry []store.TopRow
+	)
+	run := func(f func()) { wg.Add(1); go func() { defer wg.Done(); f() }() }
+	run(func() { up, down, flows = s.St.Totals(since) })
+	run(func() { series, _ = s.St.Series(since, bucket, "") })
+	// the equally long period before, for "+x %" deltas; nil when retention no longer covers it
+	if rn != "live" {
+		run(func() {
+			now := time.Now().Unix()
+			if pu, pd, pf, ok := s.St.TotalsBetween(since-(now-since), since); ok {
+				prev = map[string]int64{"bytes_up": pu, "bytes_down": pd, "flows": pf}
+			}
+		})
+	}
+	run(func() { topClients = must(s.topBy("clients", since, 5, "")) })
+	run(func() { topHosts = must(s.St.TopBy("hosts", since, 5, "")) })
+	run(func() { topServices = must(s.St.TopBy("services", since, 5, "")) })
+	run(func() { topCntry = must(s.St.TopBy("country", since, 5, "")) })
 	on, total := s.St.ClientCounts()
 	devs := s.Hub.Devices()
 	du := 0
@@ -256,24 +279,24 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 			du++
 		}
 	}
-	series, _ := s.St.Series(since, bucket, "")
-	// the equally long period before, for "+x %" deltas; nil when retention no longer covers it
-	var prev any
-	if rn != "live" {
-		now := time.Now().Unix()
-		if pu, pd, pf, ok := s.St.TotalsBetween(since-(now-since), since); ok {
-			prev = map[string]int64{"bytes_up": pu, "bytes_down": pd, "flows": pf}
+	wg.Wait()
+	for _, l := range []*[]store.TopRow{&topClients, &topHosts, &topServices, &topCntry} {
+		if *l == nil {
+			*l = []store.TopRow{}
 		}
+	}
+	if series == nil {
+		series = []store.Point{}
 	}
 	jsonOut(w, map[string]any{
 		"range": rn, "bytes_up": up, "bytes_down": down, "flows": flows, "prev": prev,
 		"clients_online": on, "clients_total": total,
 		"devices_up": du, "devices_total": len(s.Cfg.AllDevices()), "alerts_open": s.St.OpenAlerts(),
 		"series":        series,
-		"top_clients":   must(s.topBy("clients", since, 5, "")),
-		"top_hosts":     must(s.St.TopBy("hosts", since, 5, "")),
-		"top_services":  must(s.St.TopBy("services", since, 5, "")),
-		"top_countries": must(s.St.TopBy("country", since, 5, "")),
+		"top_clients":   topClients,
+		"top_hosts":     topHosts,
+		"top_services":  topServices,
+		"top_countries": topCntry,
 	})
 }
 

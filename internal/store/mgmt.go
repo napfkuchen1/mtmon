@@ -87,6 +87,8 @@ func (s *Store) DeleteDevice(name string, purge bool) error {
 		tx.Exec(`DELETE FROM dev_metrics WHERE device=?`, name)
 		tx.Exec(`DELETE FROM if_metrics WHERE device=?`, name)
 		tx.Exec(`DELETE FROM fw_events WHERE device=?`, name)
+		tx.Exec(`DELETE FROM fw_src_hourly WHERE device=?`, name)
+		tx.Exec(`DELETE FROM fw_dst_hourly WHERE device=?`, name)
 	}
 	return tx.Commit()
 }

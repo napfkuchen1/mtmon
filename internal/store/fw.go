@@ -75,9 +75,20 @@ func (s *Store) FlushFw() error {
 	}
 	defer ins.Close()
 	hourly := map[[3]any]int{}
+	srcs := map[[4]any]int{}
+	dsts := map[[5]any]int{}
 	for _, e := range es {
 		ins.Exec(e.TS, e.Device, e.Prefix, e.Chain, e.InIf, e.OutIf, e.Proto, e.Flags, e.Src, e.SPort, e.Dst, e.DPort, e.NAT, e.Len, e.MAC, e.CState)
-		hourly[[3]any{e.TS / 3600 * 3600, e.Device, e.Prefix}]++
+		h := e.TS / 3600 * 3600
+		hourly[[3]any{h, e.Device, e.Prefix}]++
+		srcs[[4]any{h, e.Device, e.Prefix, e.Src}]++
+		dsts[[5]any{h, e.Device, e.Prefix, e.Dst, e.DPort}]++
+	}
+	for k, n := range srcs {
+		tx.Exec(`INSERT INTO fw_src_hourly(ts,device,prefix,src,n) VALUES(?,?,?,?,?) ON CONFLICT DO UPDATE SET n=n+excluded.n`, k[0], k[1], k[2], k[3], n)
+	}
+	for k, n := range dsts {
+		tx.Exec(`INSERT INTO fw_dst_hourly(ts,device,prefix,dst,dport,n) VALUES(?,?,?,?,?,?) ON CONFLICT DO UPDATE SET n=n+excluded.n`, k[0], k[1], k[2], k[3], k[4], n)
 	}
 	for k, n := range hourly {
 		tx.Exec(`INSERT INTO fw_hourly(ts,device,prefix,n) VALUES(?,?,?,?) ON CONFLICT DO UPDATE SET n=n+excluded.n`, k[0], k[1], k[2], n)
@@ -329,8 +340,14 @@ func (s *Store) FwSummary(since int64) (*FwSummary, error) {
 	}
 	if ph != "" {
 		args := append([]any{since}, blockedPrefixes...)
-		sum.TopSrc = s.fwTop(`SELECT src, 0, count(*) FROM fw_events WHERE ts>=? AND (device,prefix) IN (VALUES `+ph[1:]+`) GROUP BY src ORDER BY 3 DESC LIMIT 10`, args)
-		sum.TopDst = s.fwTop(`SELECT dst, dport, count(*) FROM fw_events WHERE ts>=? AND (device,prefix) IN (VALUES `+ph[1:]+`) GROUP BY dst, dport ORDER BY 3 DESC LIMIT 10`, args)
+		args[0] = since / 3600 * 3600
+		done := make(chan struct{})
+		go func() { // both lists scan an hour-by-hour table: read them side by side
+			sum.TopDst = s.fwTop(`SELECT dst, dport, sum(n) FROM fw_dst_hourly WHERE ts>=? AND (device,prefix) IN (VALUES `+ph[1:]+`) GROUP BY dst, dport ORDER BY 3 DESC LIMIT 10`, args)
+			close(done)
+		}()
+		sum.TopSrc = s.fwTop(`SELECT src, 0, sum(n) FROM fw_src_hourly WHERE ts>=? AND (device,prefix) IN (VALUES `+ph[1:]+`) GROUP BY src ORDER BY 3 DESC LIMIT 10`, args)
+		<-done
 	}
 	return sum, nil
 }
@@ -365,4 +382,6 @@ func (s *Store) cleanupFw(rawCut, cut int64) {
 		s.DB.Exec(`DELETE FROM fw_events WHERE rowid <= (SELECT max(rowid) FROM fw_events) - ?`, FwRowCap)
 	}
 	s.DB.Exec(`DELETE FROM fw_hourly WHERE ts < ?`, cut)
+	s.DB.Exec(`DELETE FROM fw_src_hourly WHERE ts < ?`, rawCut)
+	s.DB.Exec(`DELETE FROM fw_dst_hourly WHERE ts < ?`, rawCut)
 }
