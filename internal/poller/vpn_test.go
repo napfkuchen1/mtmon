@@ -64,7 +64,7 @@ func TestVPNAliases(t *testing.T) {
 	if obs[0].MAC != "VPN:192.168.216.4" || len(obs[0].Aliases) != 2 || obs[0].Aliases[1] != "fd00::4" {
 		t.Errorf("dual-stack peer: %+v", obs[0])
 	}
-	if obs[1].MAC != "VPN:fd00::9" || obs[1].IP != "fd00::9" {
+	if obs[1].MAC != "VPN:FD00::9" || obs[1].IP != "fd00::9" {
 		t.Errorf("IPv6-only peer: %+v", obs[1])
 	}
 }

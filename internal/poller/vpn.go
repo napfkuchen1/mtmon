@@ -17,7 +17,7 @@ const bthPrefix = "back-to-home-vpn" // comment of Back to Home peers: "back-to-
 // client observations. Only peers with single-host addresses (/32, /128) are clients: a peer that routes a whole
 // network is a site-to-site link and not one device. All host addresses of a peer (IPv4 and IPv6) are aliases of
 // the one client, so tunnel traffic over either family lands on it. Name: Back to Home user (from the comment), peer name,
-// comment, address. The key is the tunnel address, so renamed dynamic peers keep their history.
+// comment, address. The key is the tunnel address (upper case like every client key), so renamed dynamic peers keep their history.
 func vpnObservations(device string, peers []Row) []store.Observation {
 	var out []store.Observation
 	for _, p := range peers {
@@ -56,7 +56,7 @@ func vpnObservations(device string, peers []Row) []store.Observation {
 			name = host.String()
 		}
 		d := ParseDuration(strings.TrimSpace(p["last-handshake"]))
-		out = append(out, store.Observation{MAC: "VPN:" + host.String(), Hostname: name, Vendor: VPNVendor, IP: host.String(),
+		out = append(out, store.Observation{MAC: "VPN:" + strings.ToUpper(host.String()), Hostname: name, Vendor: VPNVendor, IP: host.String(),
 			Device: device, Iface: p["interface"], Via: "WireGuard peer", Present: d > 0 && d <= 3*time.Minute, Aliases: aliases})
 	}
 	return out
