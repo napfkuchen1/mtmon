@@ -272,3 +272,41 @@ func TestNewClientAlertModes(t *testing.T) {
 		t.Fatalf("mode off: %s", kinds(*got))
 	}
 }
+
+func TestWANQualityAlertAndRecovery(t *testing.T) {
+	e, got := newEngine(t)
+	now := time.Now()
+	for i := 0; i < 20; i++ { // 5 minutes of probes, half of them lost
+		e.St.AddWANSample(now.Add(-time.Duration(i)*15*time.Second), "1.1.1.1:443", i%2 == 0, 20)
+	}
+	e.wanQualityChecks()
+	e.wanQualityChecks() // once
+	if kinds(*got) != "wan_quality/internet" || (*got)[0].Severity != "warning" {
+		t.Fatalf("poor connection: %+v", *got)
+	}
+	e.St.DB.Exec(`DELETE FROM wan_quality`)
+	for i := 0; i < 20; i++ {
+		e.St.AddWANSample(now.Add(-time.Duration(i)*15*time.Second), "1.1.1.1:443", true, 20)
+	}
+	e.wanQualityChecks()
+	if kinds(*got) != "wan_quality/internet,wan_quality_ok/internet" {
+		t.Fatalf("recovery: %s", kinds(*got))
+	}
+	as, _ := e.St.Alerts(5)
+	for _, a := range as {
+		if a.Kind == "wan_quality" && !a.Acked {
+			t.Errorf("the poor-connection alert must be closed on recovery: %+v", a)
+		}
+	}
+}
+
+func TestWANQualityNeedsEnoughProbes(t *testing.T) {
+	e, got := newEngine(t)
+	for i := 0; i < 3; i++ {
+		e.St.AddWANSample(time.Now(), "1.1.1.1:443", false, 0)
+	}
+	e.wanQualityChecks()
+	if len(*got) != 0 {
+		t.Fatalf("3 probes are no evidence: %+v", *got)
+	}
+}
