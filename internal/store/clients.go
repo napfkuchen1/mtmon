@@ -112,6 +112,7 @@ func (s *Store) UpsertClients(obs []Observation) ([]string, error) {
 					seen, seen, seen, seen, o.Via, o.Hostname, o.Hostname, o.IP, o.IP, o.Vendor, o.Vendor, o.Device, o.Device, o.Iface, o.Iface, o.MAC)
 			}
 		}
+		addWifiSample(tx, now, o)
 		for _, ip := range append([]string{o.IP}, o.Aliases...) {
 			if ip != "" {
 				tx.Exec(`INSERT INTO ip_history(ip,mac,first,last) VALUES(?,?,?,?)

@@ -6,7 +6,7 @@
   import { app, toast } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
   import { bps, bytes, datetime, clock, display, protoName, signalQuality } from '../lib/format.js'
-  import { t, tr } from '../lib/i18n.svelte.js'
+  import { t, tr, i18n } from '../lib/i18n.svelte.js'
   import Chart from '../lib/Chart.svelte'
   import TopList from '../lib/TopList.svelte'
   import ClassifyDialog from '../lib/ClassifyDialog.svelte'
@@ -78,6 +78,11 @@
     try { await api('/clients/' + encodeURIComponent(mac) + '/label', { method: 'PUT', body: { label } }); editing = false; toast(t('Saved')); d.data = await api('/clients/' + encodeURIComponent(mac) + '?range=' + rg()) }
     catch (e) { toast(tr(e.message)) }
   }
+  const wf = poll(() => api('/clients/' + encodeURIComponent(app.route.params.id) + '/wifi?range=' + rg()), 30000)
+  const sigSeries = $derived([{ name: t('Signal (avg)'), color: 'var(--accent)', points: (wf.data?.points || []).map(p => ({ x: p.ts, y: p.avg + 100 })) },
+    { name: t('Signal (weakest)'), color: 'var(--bad)', points: (wf.data?.points || []).map(p => ({ x: p.ts, y: p.min + 100 })) }])
+  const dbm = v => Math.round(v - 100) + ' dBm'
+  const sigX = ts => new Date(ts * 1000).toLocaleString(i18n.locale, { hour12: false, month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })
   const arrow = $derived({ u: t('↑ out'), d: t('↓ in'), i: t('⇄ lan') })
   const sq = $derived(c ? signalQuality(c.signal) : {})
 </script>
@@ -167,6 +172,13 @@
     <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Blocked connection attempts')}</h2><span class="muted" style="font-size:12.5px">{t('dropped by the firewall – not visible in flows')}</span></div>
       <div class="scroll" style="max-height:300px;overflow-y:auto"><table><thead><tr><th>{t('Time')}</th><th>{t('Target')}</th><th>{t('Proto')}</th><th>{t('Rule')}</th><th>{t('Router')}</th></tr></thead>
         <tbody>{#each blocked.data as e, i (e.ts + e.dst + e.dport + i)}<tr><td class="mono muted">{clock(e.ts)}</td><td><IPName ip={e.dst} port={e.dport} name={e.dst_name} org={e.dst_org} cc={e.dst_country} /></td><td class="mono">{e.proto}</td><td>{tr(e.rule)}</td><td class="muted">{e.device}</td></tr>{/each}</tbody></table></div></div>
+  {/if}
+
+  {#if c.wifi || wf.data?.points?.length}
+    <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Wi-Fi signal')}</h2><span class="muted" style="font-size:12px">{t('5-minute values; weak = below -75 dBm')}</span></div>
+      <div class="card-b"><Chart series={sigSeries} fmt={dbm} xfmt={sigX} height={170} empty={t('No Wi-Fi history yet – it fills while the client is connected')} />
+        {#if wf.data?.events?.length}<div style="margin-top:10px;font-size:13px"><b>{t('Changes')}</b>
+          {#each wf.data.events.slice().reverse().slice(0, 12) as ev}<div class="muted">{datetime(ev.ts)} · {ev.kind === 'roam' ? t('moved to another access point') : t('switched band')}: {ev.from} → <b>{ev.to}</b></div>{/each}</div>{/if}</div></div>
   {/if}
 
   <div class="grid g2" style="margin-top:16px">

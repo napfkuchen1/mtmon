@@ -18,6 +18,14 @@
   const caps = $derived(x?.caps && x.caps.version ? x.caps : null)
   let logQ = $state(''), logLevel = $state('')
   const lg = poll(() => api('/devices/' + encodeURIComponent(app.route.params.id) + '/log?range=' + (app.range === 'live' ? '1h' : app.range) + '&level=' + logLevel + '&q=' + encodeURIComponent(logQ)), 10000)
+
+  const wb = poll(() => api('/devices/' + encodeURIComponent(app.route.params.id) + '/wifi?range=' + (app.range === 'live' ? '1h' : app.range)), 30000)
+  const bandColors = ['var(--accent)', 'var(--down)', 'var(--up)', 'var(--bad)']
+  const bandSeries = $derived.by(() => {
+    const by = new Map()
+    for (const p of wb.data?.bands || []) { if (!by.has(p.band)) by.set(p.band, []); by.get(p.band).push({ x: p.ts, y: p.clients }) }
+    return [...by.entries()].map(([band, points], i) => ({ name: band || '?', color: bandColors[i % bandColors.length], points }))
+  })
   const man = poll(() => api('/devices/' + encodeURIComponent(app.route.params.id) + '/manifest'), 0)
   let off = $state(false), oUser = $state('admin'), oPass = $state(''), oPurge = $state(false), oBusy = $state(false), oRes = $state(null), oErr = $state('')
   async function offboard(mode) {
@@ -77,6 +85,12 @@
       </tbody></table></div>
     {:else}<div class="card-b muted">{t('No log lines yet. Switch on "Router event log" under Devices → Edit → Features so the router sends them.')}</div>{/if}
   </div>
+
+  {#if bandSeries.length}
+    <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Wi-Fi clients per band')}</h2>
+      <span class="muted" style="font-size:12px">{#if caps?.wifi_ifs?.length}{caps.wifi_ifs.map(w => w.name + (w.band ? ' ' + w.band : '') + (w.channel ? ' · ' + w.channel : '')).join(' | ')}{/if}</span></div>
+      <div class="card-b"><Chart series={bandSeries} fmt={v => String(Math.round(v))} height={170} empty={t('No Wi-Fi history yet')} /></div></div>
+  {/if}
 
   {#if caps}
     <div class="card" style="margin-bottom:16px"><div class="card-h"><h2>{t('Capabilities')}</h2><span class="muted" style="font-size:12.5px">{t('detected automatically when added')}</span></div>
