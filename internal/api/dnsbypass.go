@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/napfkuchen1/mtmon/internal/dnsbypass"
+	"github.com/napfkuchen1/mtmon/internal/probe"
 	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
@@ -27,7 +28,7 @@ func (s *Server) dnsBypass() ([]dnsbypass.Client, map[string]dnsbypass.Client) {
 	if c.by != nil && time.Since(c.at) < bypassTTL {
 		return c.list, c.by
 	}
-	list, err := dnsbypass.Detect(s.St, time.Now().Add(-dnsbypass.Window).Unix())
+	list, err := dnsbypass.Detect(s.St, time.Now().Add(-dnsbypass.Window).Unix(), dnsbypass.ProbeHosts(s.probeTargets())...)
 	if err != nil {
 		return c.list, c.by // keep the old answer, an empty map is fine for callers
 	}
@@ -37,6 +38,14 @@ func (s *Server) dnsBypass() ([]dnsbypass.Client, map[string]dnsbypass.Client) {
 		c.by[x.MAC] = x
 	}
 	return c.list, c.by
+}
+
+// probeTargets are the host:port pairs of mtmon's WAN-quality probe (configured or the default resolvers).
+func (s *Server) probeTargets() []string {
+	if len(s.Cfg.WANTargets) > 0 {
+		return s.Cfg.WANTargets
+	}
+	return probe.DefaultTargets
 }
 
 // dnsBypassList: GET /api/dns-bypass – clients that do not use the router's DNS (last 7 days), the alert setting.

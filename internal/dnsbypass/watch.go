@@ -24,6 +24,7 @@ type Watcher struct {
 	St    *store.Store
 	Raise func(kind, subject, severity, msg string)
 	Name  func(mac string) string // display name of a client; optional
+	Probe func() []string         // WAN-probe targets (host:port), never a DoH finding; optional
 	Every time.Duration           // 0 = 15 minutes
 }
 
@@ -52,7 +53,11 @@ func (w *Watcher) Check(now time.Time) {
 	if w.St.GetMeta(MetaAlert) != "on" {
 		return
 	}
-	cs, err := Detect(w.St, now.Add(-Window).Unix())
+	var ignore []string
+	if w.Probe != nil {
+		ignore = ProbeHosts(w.Probe())
+	}
+	cs, err := Detect(w.St, now.Add(-Window).Unix(), ignore...)
 	if err != nil {
 		return
 	}
