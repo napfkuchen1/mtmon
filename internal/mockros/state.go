@@ -155,11 +155,19 @@ func (s *Server) authz(r *http.Request) (bool, bool) {
 func (s *Server) dynamic(w http.ResponseWriter, r *http.Request, canWrite bool) bool {
 	path := strings.TrimPrefix(r.URL.Path, "/rest")
 	if path == "/export" && r.Method == "POST" {
+		io.Copy(io.Discard, r.Body)
 		if !canWrite {
-			rosErr(w, 403, "forbidden")
+			s.mu.Lock()
+			ro := s.ROExport
+			s.mu.Unlock()
+			if !ro {
+				rosErr(w, 403, "forbidden")
+				return true
+			}
+			// a read-only user that may export: the text comes inline, one secret-looking line included
+			writeJSON(w, 200, []obj{{"ret": "# 2026-10-25 by RouterOS 7.24.4\n/ip service\nset www-ssl disabled=no\n/user\nadd name=ops password=hunter2\n/system identity\nset name=gw\n"}})
 			return true
 		}
-		io.Copy(io.Discard, r.Body)
 		s.mu.Lock()
 		s.Exports++
 		fail := s.FailExport
