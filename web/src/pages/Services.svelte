@@ -8,6 +8,8 @@
   import Chart from '../lib/Chart.svelte'
   import ClassifyDialog from '../lib/ClassifyDialog.svelte'
   import AppList from '../lib/AppList.svelte'
+  import UsageDialog from '../lib/UsageDialog.svelte'
+  let usage = $state(null)
   const rg = () => (app.range === 'live' ? '1h' : app.range)
   const name = $derived(app.route.params.id)
 
@@ -75,7 +77,7 @@
           {#each appsq.data?.categories || [] as c}<button class="btn sm" class:primary={acat === c} onclick={() => (acat = c)}>{tr(c)}</button>{/each}</div>
         <span class="muted" style="font-size:12.5px">{t('Detected from DNS names of the busiest destinations · all clients')}</span>
       </div>
-      <AppList apps={appRows} unknown={appsq.data?.unknown_bytes || 0} known={appsq.data?.known_bytes || 0} truncated={appsq.data?.truncated} showActive={false} empty={appsq.loading ? t('Loading…') : null} />
+      <AppList onpick={a => (usage = { what: 'apps', key: a.key, title: tr(a.name) })} apps={appRows} unknown={appsq.data?.unknown_bytes || 0} known={appsq.data?.known_bytes || 0} truncated={appsq.data?.truncated} showActive={false} empty={appsq.loading ? t('Loading…') : null} />
     </div>
   {:else}
   <div class="card">
@@ -132,6 +134,7 @@
   {/if}
 {/if}
 
+{#if usage}<UsageDialog what={usage.what} keyOf={usage.key} title={usage.title} range={app.range === 'live' ? '1h' : app.range} onclose={() => (usage = null)} />{/if}
 {#if dlg}<ClassifyDialog init={dlg} known={services.map(s => s.name)} onclose={() => (dlg = null)} onsaved={saved} />{/if}
 
 <style>

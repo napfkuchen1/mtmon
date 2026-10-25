@@ -92,6 +92,7 @@ func New(s *Server) http.Handler {
 	m.HandleFunc("GET /api/clients/{mac}/connections", a(s.clientConns))
 	m.HandleFunc("PUT /api/clients/{mac}/label", a(s.setLabel))
 	m.HandleFunc("GET /api/top/{what}", a(s.top))
+	m.HandleFunc("GET /api/usage/{what}", a(s.usage))
 	m.HandleFunc("GET /api/series", a(s.series))
 	m.HandleFunc("GET /api/topology", a(s.topology))
 	m.HandleFunc("GET /api/alerts", a(s.alerts))
