@@ -11,6 +11,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 ## [0.19.0] - 2026-10-25
 
 ### New
+- **Config history** on the device page: once a day (and with "Snapshot now") mtmon reads the router's firewall, NAT, addresses, routes, DHCP, bridge/VLAN, WireGuard, services and users with the read-only login and shows what was added, removed or changed since the last snapshot. Passwords, keys and live counters are never stored; the last 30 snapshots are kept. A change raises a warning alert (info during a maintenance window).
 - **Who uses it?** A click on a row in Insights (destinations, ports, ASNs, countries, protocols) or on an application on the Services page opens a list of the clients behind it, busiest first, with a link to each client. It reads the per-client rollups, so it works for every range.
 - **Speed tests: start time.** Besides the interval you can set a start time, for example "every 3 hours from 01:30"; tests then land on fixed, known times (plus the random delay).
 

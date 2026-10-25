@@ -46,6 +46,18 @@
       toast(minutes ? t('Maintenance window started') : t('Maintenance window ended'))
     } catch (e) { toast(e.message) } finally { mBusy = false }
   }
+  const cfg = poll(() => api('/devices/' + encodeURIComponent(app.route.params.id) + '/config'), 60000)
+  let cBusy = $state(false)
+  async function snapshotNow() {
+    cBusy = true
+    try {
+      const r = await api('/devices/' + encodeURIComponent(name) + '/config/snapshot', { method: 'POST' })
+      toast(r.changed ? t('{n} changes found', { n: r.changed }) : t('No change since the last snapshot'))
+      cfg.data = await api('/devices/' + encodeURIComponent(name) + '/config')
+    } catch (e) { toast(tr(e.message)) } finally { cBusy = false }
+  }
+  const kindCls = { added: 'ok', removed: 'bad', changed: 'warn' }
+  const kindLbl = $derived({ added: t('added'), removed: t('removed'), changed: t('changed') })
   const sCls = { applied: 'ok', reverted: '', 'revert-failed': 'bad' }
   const sLbl = $derived({ applied: t('applied'), reverted: t('reverted'), 'revert-failed': t('revert failed') })
 </script>
@@ -139,6 +151,24 @@
           <tr><td><b>{n.ident || n.mac}</b><div class="muted mono">{n.addr} · {n.mac}</div></td><td class="r muted">{n.iface}<br>{n.platform}</td></tr>
         {/each}
       </tbody></table>{#if !x.neighbors.length}<div class="empty">{t('No neighbors seen')}</div>{/if}</div></div>
+  </div>
+  <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Config history')}</h2>
+    <button class="btn sm" disabled={cBusy} onclick={snapshotNow}>{cBusy ? t('Reading …') : t('Snapshot now')}</button></div>
+    {#if (cfg.data?.snapshots?.length || 0) < 2}
+      <div class="empty">{cfg.data?.snapshots?.length ? t('One snapshot stored. Changes show up here as soon as the configuration differs from it.') : t('No snapshot yet. mtmon reads the configuration once a day, or press Snapshot now.')}</div>
+    {:else}
+      <div class="card-b muted" style="padding-bottom:0">{t('Changes between {a} and {b}', { a: datetime(cfg.data.from), b: datetime(cfg.data.to) })}</div>
+      {#if cfg.data.changes.length}
+        <div class="scroll"><table><tbody>
+          {#each cfg.data.changes as c (c.section + c.id + c.kind)}
+            <tr><td><span class="badge {kindCls[c.kind]}">{kindLbl[c.kind]}</span></td>
+              <td><b>{c.label}</b><div class="muted mono">{c.section}</div></td>
+              <td class="mono" style="font-size:12px">{#each c.fields as f}<div>{f.key}: {#if c.kind === 'changed'}<s class="muted">{f.old || '–'}</s> → {f.new || '–'}{:else}{c.kind === 'removed' ? f.old : f.new}{/if}</div>{/each}</td></tr>
+          {/each}
+        </tbody></table></div>
+      {:else}<div class="empty">{t('No difference')}</div>{/if}
+    {/if}
+    <div class="card-b muted" style="font-size:12px">{t('Passwords and keys are never stored. Only the {n} newest snapshots are kept.', { n: 30 })}</div>
   </div>
   {#if x.source === 'ui'}
     <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Changes on the router')}</h2>
