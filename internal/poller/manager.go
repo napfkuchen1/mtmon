@@ -420,6 +420,13 @@ func (w *worker) l3Poll(ctx context.Context) {
 	addrs, _ := w.c.Get(ctx, "/ip/address")
 	pppoe, _ := w.c.Get(ctx, "/interface/pppoe-client") // absent without the ppp package: nothing to show then
 	ifs, _ := w.c.Get(ctx, "/interface")
+	// the router's own delegated IPv6 prefixes are internal, too (absent without the ipv6 package: nothing to learn)
+	a6, _ := w.c.Get(ctx, "/ipv6/address")
+	d6, _ := w.c.Get(ctx, "/ipv6/dhcp-client")
+	p6, _ := w.c.Get(ctx, "/ipv6/pool")
+	if ps := ownV6Prefixes(a6, d6, p6); len(ps) > 0 {
+		w.m.Cfg.LearnNets(ps, time.Now())
+	}
 	w.m.setSnap(w.d.Name, func(s *devSnap) { s.addrs, s.pppoe, s.ifs, s.routes = addrs, pppoe, ifs, routes })
 	if merr == nil || rerr == nil {
 		wan := wanInterfaces(members, routes)

@@ -107,6 +107,7 @@ func (p *Pipeline) Diagnostics() map[string]any {
 	nets := []string{}
 	if p.Cfg != nil {
 		nets = append(nets, p.Cfg.LocalNets...)
+		nets = append(nets, p.Cfg.LearnedNets()...) // the routers' own delegated IPv6 prefixes, learned automatically
 	}
 	return map[string]any{"local_nets": nets, "by_interface": rows, "ignored_recent": ign, "note": "in_if/out_if are the router's interface indexes (since boot); dir x = dropped because neither address is in local_nets"}
 }
