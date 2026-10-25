@@ -44,7 +44,6 @@ Eine lokale Claude-Session kann die echte mtmon-Instanz des Nutzers **nur lesen*
 - **Aufruf** (mtmon nutzt standardmäßig ein selbstsigniertes Zertifikat, daher `-k` im LAN):
   `curl -sk -H "Authorization: Bearer $MTMON_TOKEN" "$MTMON_URL/api/diagnostics"`
 - **Nützliche Endpunkte (alle GET):** `/api/diagnostics` (Rohdaten der Router: WLAN, Bridge-Hosts, ARP, DHCP, Neighbors, Clients samt `via`) · `/api/topology` · `/api/clients?range=1h` · `/api/clients/{mac}` · `/api/devices` · `/api/overview?range=24h` · `/api/system` · `/api/suggestions`.
-- **Was Cowork prüfen darf:** `docs/cowork-checks.md` (Regeln + Checkliste je Issue, nur lesen, keine Daten in Issues).
 - **Grenzen:** Der Token kann nichts ändern (jedes POST/PUT/DELETE liefert 401) und nicht an `/api/tokens` oder `/api/access`. Router-Änderungen laufen nur über die UI mit Admin-Login. Antworten enthalten MACs, IPs und Hostnamen: lokal auswerten, nicht in Commits, Issues oder PR-Texte kopieren.
 - **Widerrufen:** Pro Rechner einen eigenen, benannten Token anlegen; bei Verdacht in den Einstellungen widerrufen (wirkt sofort).
 
