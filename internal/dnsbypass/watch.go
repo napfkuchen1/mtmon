@@ -57,7 +57,8 @@ func (w *Watcher) Check(now time.Time) {
 	if w.Probe != nil {
 		ignore = ProbeHosts(w.Probe())
 	}
-	cs, err := Detect(w.St, now.Add(-Window).Unix(), ignore...)
+	resets := LoadResets(w.St)
+	cs, err := DetectOpts(w.St, now.Add(-Window).Unix(), Options{Ignore: ignore, Resets: resets, Now: now})
 	if err != nil {
 		return
 	}
@@ -93,7 +94,11 @@ func (w *Watcher) Check(now time.Time) {
 					res = append(res, r.IP)
 				}
 			}
-			w.Raise("dns_bypass", c.MAC+"|"+typ, "info", fmt.Sprintf("%s bypasses the local DNS (%s) via %s", name, typ, strings.Join(res, ", ")))
+			again := ""
+			if resets[c.MAC] > 0 {
+				again = " again"
+			}
+			w.Raise("dns_bypass", c.MAC+"|"+typ, "info", fmt.Sprintf("%s bypasses the local DNS%s (%s) via %s", name, again, typ, strings.Join(res, ", ")))
 		}
 	}
 	out := make([]string, 0, len(seen))

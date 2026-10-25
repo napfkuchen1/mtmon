@@ -376,7 +376,7 @@ func (s *Server) clients(w http.ResponseWriter, r *http.Request) {
 		rt := rates[c.MAC]
 		u := usage[c.MAC]
 		bt := []string{}
-		if b, ok := byp[c.MAC]; ok {
+		if b, ok := byp[c.MAC]; ok && b.Active {
 			bt = b.Types
 		}
 		out = append(out, map[string]any{"client": c, "up_bps": rt.UpBps, "down_bps": rt.DownBps, "bytes_up": u[0], "bytes_down": u[1],

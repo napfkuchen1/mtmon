@@ -128,7 +128,8 @@
       <span class="mono"> {x.ipv6_prefixes.slice(0, 4).map(p => p.prefix).join(', ')}{x.ipv6_prefixes.length > 4 ? ' …' : ''}</span></div>
   {/if}
   {#if x.dns_bypass}
-    <div class="card" style="margin-bottom:16px"><div class="card-h"><h2>{t('Does not use the router’s DNS')}</h2><span class="muted" style="font-size:12.5px">{x.dns_bypass.types.map(tr).join(' · ')} · {t('last 7 days')}</span></div>
+    <div class="card" style="margin-bottom:16px"><div class="card-h"><h2>{t('Does not use the router’s DNS')}</h2><span class="muted" style="font-size:12.5px">{x.dns_bypass.types.map(tr).join(' · ')} · {t('last 7 days')}{#if !x.dns_bypass.active} · {t('ended')}{/if}</span>
+      <button class="btn sm" onclick={async () => { try { await api('/dns-bypass/reset', { method: 'POST', body: { mac: x.client.mac } }); toast(t('Marked as fixed')); location.reload() } catch (e) { toast(tr(e.message)) } }}>{t('Mark as fixed')}</button></div>
       <div class="card-b">
         <p class="muted" style="margin-top:0">{t('Name lookups of this device go around the router, so DNS filters and host names in mtmon do not apply to it.')}</p>
         <table><tbody>{#each x.dns_bypass.resolvers as r}<tr><td><span class="badge">{tr(r.type)}</span></td><td class="mono">{r.ip}</td><td class="muted">{r.host || ''}</td><td class="r num">{t('{n} connections', { n: r.flows })}</td></tr>{/each}</tbody></table>
