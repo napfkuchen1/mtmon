@@ -10,11 +10,13 @@ import (
 	"github.com/napfkuchen1/mtmon/internal/live"
 	"github.com/napfkuchen1/mtmon/internal/provision"
 	"github.com/napfkuchen1/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/sysinfo"
 )
 
 // Live builds a Snapshot from the running system. Every query is bounded (rollup range scans, small
 // aggregates); results are memoised for the lifetime of one evaluation.
 type Live struct {
+	Disk    func(dir string) (free, total int64, ok bool) // nil: the real file system (tests inject a fixed answer)
 	St      *store.Store
 	Cfg     *config.Config
 	Hub     *live.Hub
@@ -118,6 +120,13 @@ func convCaps(k provision.Caps) *Caps {
 		FlowTargets: k.Flow.Targets, LogActions: len(k.LogActions), WwwSSL: k.WwwSSL, WwwSSLAddr: k.WwwSSLAddr}
 	c.Addresses = k.Addresses
 	c.ProbedAt = k.ProbedAt
+	c.FilesReadable, c.NewestBackup, c.NewestExport = k.Files.Readable, k.Files.NewestBackup, k.Files.NewestExport
+	c.UpdateInstalled, c.UpdateLatest, c.UpdateChannel = k.Update.Installed, k.Update.Latest, k.Update.Channel
+	c.CAP, c.CAPsMAN = k.CAP, k.CAPsMAN
+	c.IPv6PD, c.RAValid, c.RAPreferred = k.IPv6PD, k.RAValid, k.RAPreferred
+	for _, x := range k.Certs {
+		c.Certs = append(c.Certs, Cert{Name: x.Name, Service: x.Service, Expires: x.Expires})
+	}
 	c.DNSRedirectUDP = k.DNSRedirect.UDP && k.DNSRedirect.UDPPackets > 0
 	c.DNSRedirectTCP = k.DNSRedirect.TCP && k.DNSRedirect.TCPPackets > 0
 	for _, f := range k.Filter {
@@ -137,8 +146,10 @@ func (l *Live) Clients() []Client {
 	}
 	l.clsOK = true
 	rows, _ := l.St.Clients()
+	grp, _ := l.St.ClientGroups()
+	sig, _ := l.St.WifiSignalStats(l.now.Add(-24 * time.Hour).Unix())
 	for _, c := range rows {
-		l.cls = append(l.cls, Client{MAC: c.MAC, Label: c.Label, Hostname: c.Hostname, Vendor: c.Vendor, IP: c.IP,
+		l.cls = append(l.cls, Client{Group: c.Group, ChattyMult: grp[c.MAC].ChattyMult, IgnoreWeak: grp[c.MAC].IgnoreWeak, SigSamples: sig[c.MAC].Samples, WeakFrac: sig[c.MAC].WeakFrac, MAC: c.MAC, Label: c.Label, Hostname: c.Hostname, Vendor: c.Vendor, IP: c.IP,
 			Device: c.Device, SSID: c.SSID, Band: c.Band, Signal: c.Signal, WiFi: c.WiFi, Online: c.Online,
 			FirstSeen: c.FirstSeen, LastSeen: c.LastSeen})
 	}
@@ -214,6 +225,17 @@ func (l *Live) IPChurn30d() map[string]int {
 	return m
 }
 
+func (l *Live) IPv6Prefixes14d() map[string][]V6Prefix {
+	m, _ := l.St.IPv6Prefixes("", l.now.Add(-14*24*time.Hour).Unix())
+	out := make(map[string][]V6Prefix, len(m))
+	for mac, ps := range m {
+		for _, p := range ps {
+			out[mac] = append(out[mac], V6Prefix{Prefix: p.Prefix, Addrs: p.Addrs, First: p.First, Last: p.Last})
+		}
+	}
+	return out
+}
+
 func (l *Live) BlockedSources24h() []BlockedSrc {
 	rows, _, _ := l.St.BlockedSources(l.now.Add(-24*time.Hour).Unix(), 300)
 	var out []BlockedSrc
@@ -246,6 +268,19 @@ func (l *Live) FwRules() []FwRule {
 			Managed: r.Managed, Hits7d: hits[[2]string{r.Device, r.Prefix}], Hits24h: hits24[[2]string{r.Device, r.Prefix}]})
 	}
 	return out
+}
+
+func (l *Live) SelfHealth() SelfHealth {
+	h := SelfHealth{RawRetentionDays: l.Cfg.RawRetention, RetentionDays: l.Cfg.Retention, DBBytes: l.St.DBBytes()}
+	disk := l.Disk
+	if disk == nil {
+		disk = sysinfo.Disk
+	}
+	if free, total, ok := disk(l.Cfg.DataDir); ok && total > 0 {
+		h.Known, h.FreeBytes, h.TotalBytes = true, free, total
+	}
+	h.GrowthPerDay, _ = l.St.DBGrowthPerDay()
+	return h
 }
 
 func (l *Live) FwHistory() time.Duration {

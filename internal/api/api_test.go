@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/napfkuchen1/mtmon/internal/config"
 	"github.com/napfkuchen1/mtmon/internal/enrich"
@@ -30,7 +31,8 @@ func newTestServer(t *testing.T) (*httptest.Server, *Server) {
 	en := enrich.New("", "", "", false)
 	s := &Server{Cfg: cfg, St: st, Hub: hub, En: en, Col: &flow.Collector{Dec: flow.NewDecoder()},
 		Pipe: live.NewPipeline(cfg, st, en, hub), Version: "test",
-		UI: fstest.MapFS{"index.html": {Data: []byte("<html>spa</html>")}, "assets/a.js": {Data: []byte("x")}}}
+		DiskFn: func(string) (int64, int64, bool) { return 80 << 30, 100 << 30, true }, // plenty free, whatever this host has
+		UI:     fstest.MapFS{"index.html": {Data: []byte("<html>spa</html>")}, "assets/a.js": {Data: []byte("x")}}}
 	ts := httptest.NewServer(New(s))
 	t.Cleanup(ts.Close)
 	return ts, s
@@ -192,5 +194,23 @@ func TestDeviceMaintenanceWindow(t *testing.T) {
 	}
 	if code := put("/api/devices/ap1/maintenance", `{"minutes":0}`); code != 200 || len(s.St.Maintenance()) != 0 {
 		t.Errorf("end: %d %v", code, s.St.Maintenance())
+	}
+}
+
+func TestSystemReportsOwnHealth(t *testing.T) {
+	ts, s := newTestServer(t)
+	s.Started = time.Now()
+	s.St.DB.Exec(`INSERT INTO db_size_log VALUES(?,?),(?,?)`, time.Now().Unix()-86400, 1<<30, time.Now().Unix(), 2<<30)
+	_, c := login(t, ts, "test-password-1")
+	r, _ := c.Get(ts.URL + "/api/system")
+	var m map[string]float64
+	json.NewDecoder(r.Body).Decode(&m)
+	for _, k := range []string{"rss_bytes", "cpu_pct", "data_dir_free_bytes", "data_dir_total_bytes", "db_growth_bytes_per_day", "disk_days_left"} {
+		if _, ok := m[k]; !ok {
+			t.Errorf("/api/system lacks %s: %v", k, m)
+		}
+	}
+	if m["data_dir_free_bytes"] != float64(80<<30) || m["db_growth_bytes_per_day"] < 1e9 || m["disk_days_left"] != 80 {
+		t.Errorf("%v", m)
 	}
 }

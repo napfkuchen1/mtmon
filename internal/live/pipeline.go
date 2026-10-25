@@ -8,6 +8,7 @@ import (
 	"github.com/napfkuchen1/mtmon/internal/config"
 	"github.com/napfkuchen1/mtmon/internal/enrich"
 	"github.com/napfkuchen1/mtmon/internal/flow"
+	"github.com/napfkuchen1/mtmon/internal/speedtest"
 	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
@@ -32,6 +33,7 @@ type Pipeline struct {
 	seen              map[dkey]int64
 	dnsSeen           map[rkey]int64
 	Ignored, Internal uint64
+	diag              pipeDiag
 }
 
 type dkey struct {
@@ -110,18 +112,22 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 		row.TS = ts.Unix()
 		switch {
 		case sl && !dl:
+			p.diag.note(r, "u")
 			row.Dir, row.CIP, row.RIP, row.CPort, row.RPort = "u", src.String(), dst.String(), r.SrcPort, r.DstPort
 		case dl && !sl:
+			p.diag.note(r, "d")
 			row.Dir, row.CIP, row.RIP, row.CPort, row.RPort = "d", dst.String(), src.String(), r.DstPort, r.SrcPort
 		case sl && dl:
 			if p.dupInternal(r, row.TS) {
 				continue
 			}
+			p.diag.note(r, "i")
 			row.Dir, row.CIP, row.RIP, row.CPort, row.RPort = "i", src.String(), dst.String(), r.SrcPort, r.DstPort
 		default:
 			p.mu.Lock()
 			p.Ignored++
 			p.mu.Unlock()
+			p.diag.note(r, "x")
 			continue
 		}
 		row.MAC = p.Hub.MACFor(row.CIP)
@@ -140,6 +146,9 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 			row.Svc = p.Cls.Classify(r.Proto, row.RPort, row.CPort, rip, row.Host, row.ASN)
 		} else {
 			row.Svc = enrich.Service(r.Proto, row.RPort, row.CPort)
+		}
+		if speedtest.Traffic.Match(row.CIP, row.RIP) { // mtmon's own speed test: visible, but not client behaviour
+			row.Svc = store.SpeedtestSvc
 		}
 		rows = append(rows, row)
 		p.Hub.AddFlow(row)

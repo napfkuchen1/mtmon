@@ -6,6 +6,8 @@
   import { bps, deviceKind } from '../lib/format.js'
   import { ICONS } from '../lib/icons.js'
   import Empty from '../lib/Empty.svelte'
+  import Upstream from '../lib/Upstream.svelte'
+  import { modeText, labelText } from '../lib/upstream.js'
 
   const d = poll(() => api('/topology'), 5000)
   const CW = 168, RH = 52, PAD = 16, GP = 12 // client cell width / row height, outer padding, container padding
@@ -59,7 +61,7 @@
   const layout = $derived.by(() => {
     const nodes = d.data?.nodes || [], edges = d.data?.edges || []
     const { devs, root, parent, label, order } = tree
-    if (!root) return { groups: [], pos: new Map(), height: 0, edgesOut: [] }
+    if (!root) return { groups: [], pos: new Map(), height: 0, edgesOut: [], upNodes: [] }
     const cl = nodes.filter(n => n.type === 'client')
     const cparent = new Map(edges.filter(e => e.to.startsWith('c:')).map(e => [e.to, e.from]))
     const inner = Math.max(CW + 2 * GP, W - 2 * PAD)
@@ -80,7 +82,14 @@
       return { dv, kids, cols, rows, cw, ch, isCollapsed, bps: kids.reduce((s, k) => s + k.bps, 0) }
     })
     const pos = new Map()
-    pos.set(root.id, { x: W / 2, y: 44 })
+    // the ISP modem / router in front of the gateway is drawn above it
+    const upSrc = (d.data?.upstream || []).filter(u => 'd:' + u.device === root.id)
+    const top = upSrc.length ? 84 : 0
+    const upNodes = upSrc.map((u, i) => {
+      const x = W / 2 + (i - (upSrc.length - 1) / 2) * 200
+      return { u, x, y: 34, text: u.modes.map(modeText).join(' · '), a: { x, y: 58 }, b: { x: W / 2, y: 44 + top - 24 } }
+    })
+    pos.set(root.id, { x: W / 2, y: 44 + top })
     // pack groups into bands (rows of groups) that fit the width, then centre every band
     const bands = []; let cur = [], curW = 0
     for (const g of groups) {
@@ -88,7 +97,7 @@
       cur.push(g); curW += g.cw + 16
     }
     if (cur.length) bands.push(cur)
-    let y = 112
+    let y = 112 + top
     for (const bnd of bands) {
       const total = bnd.reduce((s, g) => s + g.cw + 16, -16)
       let x = PAD + Math.max(0, (inner - total) / 2), bandH = 0
@@ -116,7 +125,7 @@
         edgesOut.push({ id: 'g:' + g.dv.id, from: g.dv.id, to: 'grp:' + g.dv.id, a: { x: dp.x, y: dp.y + (isRoot ? 24 : 34) }, b: { x: g.cx + g.cw / 2, y: g.cy }, label: '', kind: g.kids.every(k => k.wifi) ? 'wifi' : 'wired', bps: g.bps })
       }
     }
-    return { groups, pos, height: Math.max(y, 200), edgesOut, root }
+    return { groups, pos, height: Math.max(y, 200), edgesOut, root, upNodes }
   })
 
   // hover: highlight the path client -> device(s) -> router
@@ -150,6 +159,7 @@
   <div class="legend"><span><i style="background:var(--ok)"></i>{t('Wired')}</span>
     {#each ssids as sid}<span><i style="background:{palette[ssids.indexOf(sid) % palette.length]};border-radius:50%"></i>{sid}</span>{/each}</div></div>
 {#if d.error}<div class="warnbox">{tr(d.error)}</div>{/if}
+<Upstream items={d.data?.upstream || []} />
 <div class="card wrap" bind:clientWidth={W}>
   {#if d.data && d.data.nodes.length}
     <svg width={W} height={layout.height} role="img" aria-label={t('Network topology')}>
@@ -157,6 +167,18 @@
         <path d="M{e.a.x} {e.a.y} C{e.a.x} {(e.a.y + e.b.y) / 2}, {e.b.x} {(e.a.y + e.b.y) / 2}, {e.b.x} {e.b.y}" fill="none" stroke={edgeOn(e) ? 'var(--accent)' : e.label ? portCol(e.label) : col(e)}
           stroke-width={edgeOn(e) ? 3 : e.label ? 2.6 : ew(e)} stroke-dasharray={e.kind === 'wifi' ? '5 4' : ''} opacity={hov ? (edgeOn(e) ? 1 : 0.18) : 0.85} />
         {#if e.label}<g transform="translate({e.b.x},{e.b.y - 13})" opacity={hov && !edgeOn(e) ? 0.3 : 1}><rect x="-31" y="-9" width="62" height="18" rx="9" fill="var(--card)" stroke={portCol(e.label)} stroke-width="1.6" /><text text-anchor="middle" y="4" font-size="10.5" font-weight="600" fill={portCol(e.label)}>{e.label.split(',')[0].slice(-9)}</text></g>{/if}
+      {/each}
+
+      {#each layout.upNodes as n (n.u.port + n.u.mac + n.u.ip)}
+        <path d="M{n.a.x} {n.a.y} C{n.a.x} {(n.a.y + n.b.y) / 2}, {n.b.x} {(n.a.y + n.b.y) / 2}, {n.b.x} {n.b.y}" fill="none" stroke={portCol(n.u.port)} stroke-width="2.6" stroke-dasharray="2 4" opacity="0.85" />
+        <g transform="translate({(n.a.x + n.b.x) / 2},{(n.a.y + n.b.y) / 2})"><rect x={-(n.u.port.length * 3.4 + 12)} y="-9" width={n.u.port.length * 6.8 + 24} height="18" rx="9" fill="var(--card)" stroke={portCol(n.u.port)} stroke-width="1.6" /><text text-anchor="middle" y="4" font-size="10.5" font-weight="600" fill={portCol(n.u.port)}>{n.u.port}</text></g>
+        <g transform="translate({n.x},{n.y})" class="node">
+          <title>{labelText(n.u)}{n.u.ip ? ' · ' + n.u.ip : ''}{n.text ? ' · ' + n.text : ''}</title>
+          <rect x="-96" y="-24" width="192" height="48" rx="11" fill="var(--card)" stroke="var(--border-2)" stroke-width="2" stroke-dasharray="5 3" />
+          <g transform="translate(-86,-9) scale(.75)" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d={ICONS.network} /></g>
+          <text x="-62" y="-4" font-size="12.5" font-weight="700" fill="var(--text)">{short(labelText(n.u), 24)}</text>
+          <text x="-62" y="13" font-size="10.5" fill="var(--muted)">{short((n.u.ip ? n.u.ip + ' · ' : '') + n.text, 30)}</text>
+        </g>
       {/each}
 
       {#each layout.groups as g (g.dv.id)}
@@ -210,7 +232,7 @@
   .head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
   .tools { display: inline-flex; gap: 8px; margin-left: auto; }
   .rootsel { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
-  .rootsel select { max-width: 160px; }
+  .rootsel select { width: auto; max-width: min(340px, 60vw); }
   .wrap { padding: 4px 0; overflow: hidden; }
   .node { cursor: pointer; } .node:hover rect { stroke: var(--accent); }
   .gh { cursor: pointer; } .gh:hover text { fill: var(--text); }

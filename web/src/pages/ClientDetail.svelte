@@ -6,7 +6,7 @@
   import { app, toast } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
   import { bps, bytes, datetime, clock, display, protoName, signalQuality } from '../lib/format.js'
-  import { t, tr } from '../lib/i18n.svelte.js'
+  import { t, tr, i18n } from '../lib/i18n.svelte.js'
   import Chart from '../lib/Chart.svelte'
   import TopList from '../lib/TopList.svelte'
   import ClassifyDialog from '../lib/ClassifyDialog.svelte'
@@ -70,10 +70,25 @@
     try { await api('/clients/' + encodeURIComponent(mac) + '/icon', { method: 'PUT', body: { icon: k } }); d.data = await api('/clients/' + encodeURIComponent(mac) + '?range=' + rg()); toast(t('Saved')) }
     catch (e) { toast(tr(e.message)) }
   }
+  const gl = poll(() => api('/groups'), 60000)
+  const groupNames = $derived((gl.data?.groups || []).map(g => g.name))
+  async function setGroup(group) {
+    try { await api('/clients/' + encodeURIComponent(mac) + '/group', { method: 'PUT', body: { group } }); d.data = await api('/clients/' + encodeURIComponent(mac) + '?range=' + rg()); toast(t('Saved')) }
+    catch (e) { toast(tr(e.message)) }
+  }
+  async function toggleWatch() {
+    try { await api('/clients/' + encodeURIComponent(mac) + '/watch', { method: 'PUT', body: { watch: !c.watch } }); d.data = await api('/clients/' + encodeURIComponent(mac) + '?range=' + rg()); toast(t('Saved')) }
+    catch (e) { toast(tr(e.message)) }
+  }
   async function saveLabel() {
     try { await api('/clients/' + encodeURIComponent(mac) + '/label', { method: 'PUT', body: { label } }); editing = false; toast(t('Saved')); d.data = await api('/clients/' + encodeURIComponent(mac) + '?range=' + rg()) }
     catch (e) { toast(tr(e.message)) }
   }
+  const wf = poll(() => api('/clients/' + encodeURIComponent(app.route.params.id) + '/wifi?range=' + rg()), 30000)
+  const sigSeries = $derived([{ name: t('Signal (avg)'), color: 'var(--accent)', points: (wf.data?.points || []).map(p => ({ x: p.ts, y: p.avg + 100 })) },
+    { name: t('Signal (weakest)'), color: 'var(--bad)', points: (wf.data?.points || []).map(p => ({ x: p.ts, y: p.min + 100 })) }])
+  const dbm = v => Math.round(v - 100) + ' dBm'
+  const sigX = ts => new Date(ts * 1000).toLocaleString(i18n.locale, { hour12: false, month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })
   const arrow = $derived({ u: t('↑ out'), d: t('↓ in'), i: t('⇄ lan') })
   const sq = $derived(c ? signalQuality(c.signal) : {})
 </script>
@@ -93,6 +108,9 @@
       {#if !x?.address_only}<button class="btn sm" onclick={() => { label = c.label || c.hostname; editing = true }}>{t('Rename')}</button>{/if}
     {/if}
     <span class="badge {c.online ? 'ok' : ''}">{c.online ? t('online') : t('offline')}</span>
+    {#if !x?.address_only && groupNames.length}<select class="input" style="width:auto" aria-label={t('Group')} value={c.group || ''} onchange={e => setGroup(e.currentTarget.value)}><option value="">{t('No group')}</option>{#each groupNames as g}<option value={g}>{g}</option>{/each}</select>
+      {#if !c.group && x?.suggested_group && groupNames.includes(x.suggested_group)}<button class="btn sm" onclick={() => setGroup(x.suggested_group)}>{t('Suggested: {g}', { g: x.suggested_group })}</button>{/if}{/if}
+    {#if !x?.address_only}<button class="btn sm" class:primary={c.watch} aria-pressed={c.watch} title={t('Alert me when this client stays offline')} onclick={toggleWatch}>★ {c.watch ? t('Watched') : t('Watch')}</button>{/if}
     {#if c.wifi}<span class="badge acc">{t('Wi-Fi')} {c.ssid}{c.band ? ' · ' + c.band : ''}</span>{:else}<span class="badge">{t('wired')}</span>{/if}
     {#if c.vendor}<span class="badge">{tr(c.vendor)}</span>{/if}
   </div>
@@ -105,6 +123,23 @@
     <div class="card card-b kpi"><div class="l">{t('Seen')}</div><div class="v" style="font-size:17px">{datetime(c.last_seen)}</div><div class="l">{t('first {date}', { date: datetime(c.first_seen) })}</div>{#if c.online && c.via}<div class="l" title={t('What mtmon currently sees that proves this device is on the network')}>{t('Online via')}: {c.via}</div>{/if}</div>
   </div>
 
+  {#if x.ipv6_prefixes?.length > 1}
+    <div class="infobox" style="margin-bottom:16px">{t('{n} IPv6 addresses from old prefixes: this client had addresses in {p} different /64 prefixes in the last 14 days (the provider changes the prefix).', { n: x.ipv6_prefixes.slice(1).reduce((a, p) => a + p.addrs, 0), p: x.ipv6_prefixes.length })}
+      <span class="mono"> {x.ipv6_prefixes.slice(0, 4).map(p => p.prefix).join(', ')}{x.ipv6_prefixes.length > 4 ? ' …' : ''}</span></div>
+  {/if}
+  {#if x.dns_bypass}
+    <div class="card" style="margin-bottom:16px"><div class="card-h"><h2>{t('Does not use the router’s DNS')}</h2><span class="muted" style="font-size:12.5px">{x.dns_bypass.types.map(tr).join(' · ')} · {t('last 7 days')}{#if !x.dns_bypass.active} · {t('ended')}{/if}</span>
+      <button class="btn sm" onclick={async () => { try { await api('/dns-bypass/reset', { method: 'POST', body: { mac: x.client.mac } }); toast(t('Marked as fixed')); location.reload() } catch (e) { toast(tr(e.message)) } }}>{t('Mark as fixed')}</button></div>
+      <div class="card-b">
+        <p class="muted" style="margin-top:0">{t('Name lookups of this device go around the router, so DNS filters and host names in mtmon do not apply to it.')}</p>
+        <table><tbody>{#each x.dns_bypass.resolvers as r}<tr><td><span class="badge">{tr(r.type)}</span></td><td class="mono">{r.ip}</td><td class="muted">{r.host || ''}</td><td class="r num">{t('{n} connections', { n: r.flows })}</td></tr>{/each}</tbody></table>
+        <ul class="hints">
+          {#if x.dns_bypass.types.includes('DoT') || x.dns_bypass.types.includes('DoQ')}<li>{t('Android: Settings → Network → Private DNS → Off or Automatic. Home Assistant OS: ha dns options --fallback=false.')}</li>{/if}
+          {#if x.dns_bypass.types.includes('DoH')}<li>{t('Browser: switch off “secure DNS” / DNS over HTTPS, or serve the canary domain use-application-dns.net from your DNS.')}</li>{/if}
+          {#if x.dns_bypass.types.includes('external DNS')}<li>{t('Hand out the router (or your own resolver) as DNS server in DHCP and redirect other DNS traffic to it (see Suggestions).')}</li>{/if}
+        </ul>
+      </div></div>
+  {/if}
   {#if x.new_destinations?.length}
     <div class="warnbox" style="margin-bottom:16px"><b>{x.new_destinations.length > 1 ? t('{n} destinations contacted for the first time in the last 24 h:', { n: x.new_destinations.length }) : t('1 destination contacted for the first time in the last 24 h:')}</b>
       <span class="mono"> {x.new_destinations.slice(0, 8).join(', ')}{x.new_destinations.length > 8 ? ' …' : ''}</span></div>
@@ -164,6 +199,13 @@
         <tbody>{#each blocked.data as e, i (e.ts + e.dst + e.dport + i)}<tr><td class="mono muted">{clock(e.ts)}</td><td><IPName ip={e.dst} port={e.dport} name={e.dst_name} org={e.dst_org} cc={e.dst_country} /></td><td class="mono">{e.proto}</td><td>{tr(e.rule)}</td><td class="muted">{e.device}</td></tr>{/each}</tbody></table></div></div>
   {/if}
 
+  {#if c.wifi || wf.data?.points?.length}
+    <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Wi-Fi signal')}</h2><span class="muted" style="font-size:12px">{t('5-minute values; weak = below -75 dBm')}</span></div>
+      <div class="card-b"><Chart series={sigSeries} fmt={dbm} xfmt={sigX} height={170} empty={t('No Wi-Fi history yet – it fills while the client is connected')} />
+        {#if wf.data?.events?.length}<div style="margin-top:10px;font-size:13px"><b>{t('Changes')}</b>
+          {#each wf.data.events.slice().reverse().slice(0, 12) as ev}<div class="muted">{datetime(ev.ts)} · {ev.kind === 'roam' ? t('moved to another access point') : t('switched band')}: {ev.from} → <b>{ev.to}</b></div>{/each}</div>{/if}</div></div>
+  {/if}
+
   <div class="grid g2" style="margin-top:16px">
     <div class="card"><div class="card-h"><h2>{t('IP history')}</h2></div><table><tbody>
       {#each x.ip_history as h}<tr><td class="mono">{h.ip}</td><td class="r muted">{datetime(h.first)} → {datetime(h.last)}</td></tr>{/each}
@@ -176,6 +218,7 @@
 {#if dlg}<ClassifyDialog init={dlg} onclose={() => (dlg = null)} />{/if}
 
 <style>
+  .hints { margin: 10px 0 0; padding-left: 18px; font-size: 13px; }
   .avwrap { position: relative; display: inline-block; } .avbtn { border: 0; background: none; padding: 0; cursor: pointer; border-radius: 50%; } .avbtn:hover { filter: brightness(.95); outline: 2px solid var(--accent); outline-offset: 2px; }
   .head { margin-bottom: 14px; } .title { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .chip { display: inline-flex; align-items: center; gap: 8px; padding: 3px 6px 3px 10px; border-radius: 999px; background: var(--accent-bg, var(--card-2)); border: 1px solid var(--accent); font-size: 13px; }

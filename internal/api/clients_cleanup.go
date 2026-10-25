@@ -64,6 +64,16 @@ func (s *Server) featureRoutes(m *http.ServeMux, a func(http.HandlerFunc) http.H
 	m.HandleFunc("POST /api/tokens", a(s.tokensCreate))
 	m.HandleFunc("DELETE /api/tokens/{id}", a(s.tokensDelete))
 	m.HandleFunc("PUT /api/clients/{mac}/icon", a(s.clientIcon))
+	m.HandleFunc("PUT /api/clients/{mac}/watch", a(s.clientWatch))
+	m.HandleFunc("POST /api/clients/watch", a(s.clientsWatch))
+	m.HandleFunc("GET /api/learning", a(s.learning))
+	m.HandleFunc("POST /api/learning/reset", a(s.learningReset))
+	m.HandleFunc("GET /api/internet", a(s.internet))
+	m.HandleFunc("PUT /api/internet", a(s.internetSave))
+	s.speedRoutes(m, a)
+	m.HandleFunc("GET /api/dns-bypass", a(s.dnsBypassList))
+	m.HandleFunc("PUT /api/dns-bypass", a(s.dnsBypassSave))
+	m.HandleFunc("POST /api/dns-bypass/reset", a(s.dnsBypassReset))
 	m.HandleFunc("PUT /api/devices/{name}", a(s.editDevice))
 	m.HandleFunc("GET /api/devices/{name}/features", a(s.deviceFeaturesGet))
 	m.HandleFunc("POST /api/devices/{name}/features", a(s.deviceFeaturesApply))
@@ -74,4 +84,10 @@ func (s *Server) featureRoutes(m *http.ServeMux, a func(http.HandlerFunc) http.H
 	m.HandleFunc("GET /api/export/clients", a(s.exportClients))
 	m.HandleFunc("GET /api/clients/{mac}/apps", a(s.clientApps))
 	m.HandleFunc("GET /api/apps", a(s.apps))
+	for _, h := range routeHooks { // routes registered by feature files (init)
+		h(s, m, a)
+	}
 }
+
+// routeHooks lets a feature file register its own routes from init(), so adding a feature does not touch this list.
+var routeHooks []func(s *Server, m *http.ServeMux, a func(http.HandlerFunc) http.HandlerFunc)

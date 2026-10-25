@@ -53,6 +53,10 @@ type devSnap struct {
 	bridge []Row
 	peers  []Row           // /interface/wireguard/peers (absent without the wireguard package)
 	wan    map[string]bool // interfaces that face the upstream: members of the WAN interface list, default-route interface
+	addrs  []Row           // /ip/address (transfer net towards a modem)
+	pppoe  []Row           // /interface/pppoe-client
+	ifs    []Row           // /interface (name, type) to tell ports, PPPoE and tunnels apart
+	routes []Row           // /ip/route (default route: double NAT)
 	at     time.Time
 }
 
@@ -413,21 +417,42 @@ func (w *worker) l3Poll(ctx context.Context) {
 	}
 	members, merr := w.c.Get(ctx, "/interface/list/member")
 	routes, rerr := w.c.Get(ctx, "/ip/route")
+	addrs, _ := w.c.Get(ctx, "/ip/address")
+	pppoe, _ := w.c.Get(ctx, "/interface/pppoe-client") // absent without the ppp package: nothing to show then
+	ifs, _ := w.c.Get(ctx, "/interface")
+	// the router's own delegated IPv6 prefixes are internal, too (absent without the ipv6 package: nothing to learn)
+	a6, _ := w.c.Get(ctx, "/ipv6/address")
+	d6, _ := w.c.Get(ctx, "/ipv6/dhcp-client")
+	p6, _ := w.c.Get(ctx, "/ipv6/pool")
+	if ps := ownV6Prefixes(a6, d6, p6); len(ps) > 0 {
+		w.m.Cfg.LearnNets(ps, time.Now())
+	}
+	w.m.setSnap(w.d.Name, func(s *devSnap) { s.addrs, s.pppoe, s.ifs, s.routes = addrs, pppoe, ifs, routes })
 	if merr == nil || rerr == nil {
 		wan := wanInterfaces(members, routes)
+		if w.d.Role == "ap" { // an access point has no upstream side; its only bridge is its LAN
+			wan = map[string]bool{}
+		}
 		w.m.setSnap(w.d.Name, func(s *devSnap) { s.wan = wan })
+		if n := w.m.St.RemoveWANClients(w.d.Name, wanList(wan)); n > 0 { // leftovers from before the WAN check existed
+			w.m.Log.Info("removed offline records learned on a WAN interface", "device", w.d.Name, "count", n)
+		}
 	}
 }
 
-// wanInterfaces names the interfaces that lead to the upstream (modem, ISP): members of the interface list "WAN"
-// and the interface of the active default route (the part after "%" in the gateway). Hosts learned there are not
-// LAN clients. Field names are matched defensively; unknown shapes just yield fewer interfaces.
+// wanInterfaces names the interfaces that lead to the upstream (modem, ISP). Members of the interface list "WAN"
+// are authoritative; only without such a list the interface of the active default route (the part after "%" in the
+// gateway) is used, because on a downstream router that route runs over the LAN bridge. Hosts learned on a WAN
+// interface are not LAN clients. Field names are matched defensively; unknown shapes just yield fewer interfaces.
 func wanInterfaces(members, routes []Row) map[string]bool {
 	out := map[string]bool{}
 	for _, r := range members {
 		if strings.EqualFold(strings.TrimSpace(r["list"]), "WAN") && r["interface"] != "" && !r.Bool("disabled") {
 			out[r["interface"]] = true
 		}
+	}
+	if len(out) > 0 {
+		return out
 	}
 	for _, r := range routes {
 		if r["dst-address"] != "0.0.0.0/0" || r.Bool("disabled") || (r["active"] != "" && !r.Bool("active")) {
@@ -611,6 +636,67 @@ func (m *Manager) uplinkPorts() map[string]bool {
 	return out
 }
 
+// deviceDepths counts the hops of every managed device from the gateway (the device with WAN interfaces, else the
+// routers) along the neighbor links. Needs m.mu held for m.snaps. Unreachable devices are absent.
+func (m *Manager) deviceDepths() map[string]int {
+	out := map[string]int{}
+	ns, err := m.St.Neighbors()
+	if err != nil {
+		return out
+	}
+	adj := map[string][]string{}
+	managed := map[string]bool{}
+	for _, d := range m.Cfg.AllDevices() {
+		managed[d.Name] = true
+	}
+	for _, n := range ns {
+		if managed[n.Device] && managed[n.Ident] && n.Device != n.Ident {
+			adj[n.Device] = append(adj[n.Device], n.Ident)
+			adj[n.Ident] = append(adj[n.Ident], n.Device)
+		}
+	}
+	var queue []string
+	for _, d := range m.Cfg.AllDevices() {
+		if s := m.snaps[d.Name]; s != nil && len(s.wan) > 0 {
+			out[d.Name] = 0
+			queue = append(queue, d.Name)
+		}
+	}
+	if len(queue) == 0 { // no WAN info yet: routers are the best guess
+		for _, d := range m.Cfg.AllDevices() {
+			if d.Role == "router" {
+				out[d.Name] = 0
+				queue = append(queue, d.Name)
+			}
+		}
+	}
+	for len(queue) > 0 {
+		d := queue[0]
+		queue = queue[1:]
+		for _, n := range adj[d] {
+			if _, seen := out[n]; !seen {
+				out[n] = out[d] + 1
+				queue = append(queue, n)
+			}
+		}
+	}
+	return out
+}
+
+// nearer reports whether device a is closer to the gateway than b (unknown devices are farthest; ties by name so
+// the result does not depend on map order).
+func nearer(depth map[string]int, a, b string) bool {
+	da, oka := depth[a]
+	db, okb := depth[b]
+	switch {
+	case oka != okb:
+		return oka
+	case da != db:
+		return da < db
+	}
+	return a < b
+}
+
 // Diagnostics returns the raw tables the last poll cycle got from every device plus the derived uplink ports, so a
 // wrong location or presence can be explained from real data. No credentials are involved.
 func (m *Manager) Diagnostics() map[string]any {
@@ -625,9 +711,14 @@ func (m *Manager) Diagnostics() map[string]any {
 	devs := map[string]any{}
 	for name, s := range m.snaps {
 		devs[name] = map[string]any{"role": s.role, "polled": s.at.Unix(), "wifi": rowsOrEmpty(s.wifi), "bridge_hosts": rowsOrEmpty(s.bridge),
-			"arp": rowsOrEmpty(s.arp), "dhcp_leases": rowsOrEmpty(s.leases), "wan_interfaces": wanList(s.wan)}
+			"arp": rowsOrEmpty(s.arp), "dhcp_leases": rowsOrEmpty(s.leases), "wan_interfaces": wanList(s.wan),
+			"ip_addresses": rowsOrEmpty(s.addrs), "pppoe_clients": rowsOrEmpty(s.pppoe), "routes": rowsOrEmpty(s.routes)}
 	}
-	return map[string]any{"devices": devs, "uplink_ports": up}
+	ups := []Upstream{}
+	for name, s := range m.snaps {
+		ups = append(ups, upstreamsFor(name, s, m.En.Vendor)...)
+	}
+	return map[string]any{"devices": devs, "uplink_ports": up, "upstream": ups}
 }
 
 func rowsOrEmpty(r []Row) []Row {
@@ -714,6 +805,7 @@ func (m *Manager) merge() {
 	// hosts learned on an uplink port (an unmanaged switch may sit in between) and MACs of the managed devices
 	// themselves; see the shared-port pass below
 	shared := map[string]edgeLoc{}
+	depth := m.deviceDepths() // hops from the gateway; the shared port nearest to it wins
 	ownMAC := m.neighborIdents()
 	names := map[string]string{}
 	for _, d := range m.Cfg.AllDevices() {
@@ -743,7 +835,7 @@ func (m *Manager) merge() {
 			if uplinks[dev+"|"+iface] {
 				// learned via a trunk to another managed device: not where the host is attached, unless no
 				// device behind that trunk has it on a port of its own (then an unmanaged switch is in between)
-				if _, ok := shared[mac]; !ok {
+				if old, ok := shared[mac]; !ok || nearer(depth, dev, old.dev) {
 					shared[mac] = edgeLoc{dev, iface, false}
 				}
 				continue
@@ -892,6 +984,13 @@ func (m *Manager) merge() {
 			ipmac[ip] = mac
 		}
 	}
+	v6 := map[string]string{}
+	for ip, mac := range nd6 {
+		if _, ok := byMAC[mac]; ok && store.IsGlobalIPv6(ip) {
+			v6[ip] = mac
+		}
+	}
+	m.St.NoteIPv6(v6, time.Now().Unix()) // evidence for addresses from old (dynamic) prefixes
 	var newOnes []store.Observation
 	idents := m.neighborIdents()
 	for mac, o := range byMAC {
@@ -980,6 +1079,21 @@ func (m *Manager) rekeyAlias(key, addr string) {
 			m.Log.Error("re-key vpn traffic", "from", addr, "to", key, "err", err)
 		}
 	}()
+}
+
+// WANSummary names the WAN interfaces of the gateways ("gw: ether1, pppoe-out1"), stored with each speed test so
+// results after a failover or a changed uplink are not mixed up.
+func (m *Manager) WANSummary() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var parts []string
+	for name, s := range m.snaps {
+		if l := wanList(s.wan); len(l) > 0 {
+			parts = append(parts, name+": "+strings.Join(l, ", "))
+		}
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, "; ")
 }
 
 func wanList(m map[string]bool) []string {

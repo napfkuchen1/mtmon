@@ -598,3 +598,113 @@ func TestIsPublic(t *testing.T) {
 		}
 	}
 }
+
+func TestMtmonDisk(t *testing.T) {
+	d := base()
+	skipped(t, d, "mtmon-disk") // unknown file system
+	const gb = 1 << 30
+	d.Self = SelfHealth{Known: true, TotalBytes: 100 * gb, FreeBytes: 60 * gb, DBBytes: 2 * gb, RawRetentionDays: 3, RetentionDays: 30}
+	expect(t, d, "mtmon-disk", 0)
+	d.Self.FreeBytes = 10 * gb // 10 % free
+	out := expect(t, d, "mtmon-disk", 1)
+	if out[0].Severity != SevWarning || len(out[0].Steps) == 0 {
+		t.Errorf("%+v", out[0])
+	}
+	d.Self.FreeBytes, d.Self.GrowthPerDay = 30*gb, 3*gb // plenty free now, but full in 10 days
+	if s := expect(t, d, "mtmon-disk", 1); len(s[0].Evidence) < 3 {
+		t.Errorf("forecast evidence: %v", s[0].Evidence)
+	}
+	d.Self.GrowthPerDay = gb / 2 // 60 days left
+	expect(t, d, "mtmon-disk", 0)
+}
+
+func TestVPNPeerIdle(t *testing.T) {
+	d := base()
+	skipped(t, d, "vpn-peer-idle")
+	old := t0.Add(-100 * 24 * time.Hour).Unix()
+	d.Cls = []Client{
+		{MAC: "VPN:192.168.216.2", Hostname: "alice", IP: "192.168.216.2", Device: "gw", FirstSeen: old, LastSeen: old},                               // never connected
+		{MAC: "VPN:192.168.216.3", Hostname: "bob", IP: "192.168.216.3", Device: "gw", FirstSeen: old, LastSeen: t0.Add(-40 * 24 * time.Hour).Unix()}, // idle
+		{MAC: "VPN:192.168.216.4", Hostname: "carol", IP: "192.168.216.4", Device: "gw", FirstSeen: old, LastSeen: t0.Unix(), Online: true},
+		{MAC: "VPN:192.168.216.5", Hostname: "dave", IP: "192.168.216.5", Device: "gw", FirstSeen: t0.Add(-3 * 24 * time.Hour).Unix(), LastSeen: t0.Add(-3 * 24 * time.Hour).Unix()}, // too new to judge
+		{MAC: "AA:BB:CC:00:00:01", Hostname: "laptop", FirstSeen: old, LastSeen: old},                                                                                                // not a VPN peer
+	}
+	out := expect(t, d, "vpn-peer-idle", 2)
+	if !strings.Contains(strings.Join(out[0].Evidence, " "), "No handshake") && !strings.Contains(strings.Join(out[1].Evidence, " "), "No handshake") {
+		t.Errorf("never-connected peer not recognised: %+v", out)
+	}
+}
+
+func TestBlockedRepliesAreOneSuggestion(t *testing.T) {
+	d := base()
+	d.Blocked = []BlockedSrc{{IP: "93.184.216.34", Hits: 500, CC: "US", ASN: 15133}, {IP: "93.184.216.35", Hits: 400, CC: "US", ASN: 15133}, {IP: "93.184.216.36", Hits: 300, CC: "US", ASN: 15133}}
+	d.Contact = map[string]bool{"93.184.216.34": true, "93.184.216.35": true, "93.184.216.36": true}
+	out := expect(t, d, "fw-origin", 1)
+	if out[0].Subject != "replies" || !strings.Contains(out[0].Title, "3 addresses") || len(out[0].Evidence) != 4 {
+		t.Errorf("%+v", out[0])
+	}
+}
+
+func TestBackupAge(t *testing.T) {
+	d := base()
+	skipped(t, d, "backup-age") // no capabilities
+	d.Devs = []Device{{Name: "gw", Role: "router", Caps: &Caps{}}}
+	skipped(t, d, "backup-age") // /file not readable for the monitoring user
+	d.Devs[0].Caps.FilesReadable = true
+	out := expect(t, d, "backup-age", 1) // no file at all
+	if !strings.Contains(out[0].Evidence[0], "No *.backup") || !strings.Contains(out[0].Commands, "/system backup save name=gw") {
+		t.Errorf("%+v", out[0])
+	}
+	d.Devs[0].Caps.NewestBackup = t0.Add(-45 * 24 * time.Hour).Unix()
+	if o := expect(t, d, "backup-age", 1); !strings.Contains(o[0].Evidence[0], "45 days old") {
+		t.Errorf("%+v", o[0])
+	}
+	d.Devs[0].Caps.NewestExport = t0.Add(-3 * 24 * time.Hour).Unix() // a recent export counts as well
+	expect(t, d, "backup-age", 0)
+}
+
+func TestRouterOSUpdateAndCerts(t *testing.T) {
+	d := base()
+	skipped(t, d, "routeros-update")
+	d.Devs = []Device{
+		{Name: "gw", Version: "7.19.1", Caps: &Caps{UpdateInstalled: "7.19.1", UpdateLatest: "7.20.2", UpdateChannel: "stable"}},
+		{Name: "ap", Version: "7.20.2", Caps: &Caps{UpdateInstalled: "7.20.2", UpdateLatest: "7.20.2"}},
+		{Name: "ap2", Version: "7.18", Caps: &Caps{UpdateInstalled: "7.18", UpdateLatest: "7.20.2"}},
+		{Name: "sw", Version: "6.49"}, // never checked
+	}
+	out := expect(t, d, "routeros-update", 1)
+	if !strings.Contains(out[0].Title, "2 devices") || len(out[0].Evidence) != 2 {
+		t.Errorf("%+v", out[0])
+	}
+	// certificates
+	d.Devs = []Device{{Name: "gw", Caps: &Caps{Certs: []Cert{{Name: "mtmon-ssl", Service: "www-ssl", Expires: t0.Add(10 * 24 * time.Hour).Unix()}}}},
+		{Name: "ap", Caps: &Caps{Certs: []Cert{{Name: "x", Service: "www-ssl", Expires: t0.Add(400 * 24 * time.Hour).Unix()}}}}}
+	if o := expect(t, d, "cert-expiry", 1); !strings.Contains(o[0].Title, "expires in 10 days") {
+		t.Errorf("%+v", o[0])
+	}
+	d.Devs[0].Caps.Certs[0].Expires = t0.Add(-24 * time.Hour).Unix()
+	if o := expect(t, d, "cert-expiry", 1); !strings.Contains(o[0].Title, "has expired") {
+		t.Errorf("%+v", o[0])
+	}
+	skipped(t, base(), "cert-expiry")
+}
+
+func TestCapsmanVersionMismatch(t *testing.T) {
+	d := base()
+	skipped(t, d, "capsman-version")
+	d.Devs = []Device{
+		{Name: "hex", Version: "7.20.2", Caps: &Caps{CAPsMAN: true}},
+		{Name: "ap1", Version: "7.20.2", Caps: &Caps{CAP: true}},
+		{Name: "ap2", Version: "7.19.1", Caps: &Caps{CAP: true}},
+	}
+	out := expect(t, d, "capsman-version", 1)
+	if out[0].Severity != SevWarning || len(out[0].Evidence) != 2 {
+		t.Errorf("%+v", out[0])
+	}
+	d.Devs[2].Version = "7.20.1" // patch level only
+	if o := expect(t, d, "capsman-version", 1); o[0].Severity != SevInfo {
+		t.Errorf("patch difference: %+v", o[0])
+	}
+	d.Devs[2].Version = "7.20.2"
+	expect(t, d, "capsman-version", 0)
+}
