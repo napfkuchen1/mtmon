@@ -41,7 +41,7 @@ func TestCloudflareMeasuresDownUpAndPing(t *testing.T) {
 	if res.Err != "" {
 		t.Fatal(res.Err)
 	}
-	if res.DownBps <= 0 || res.UpBps <= 0 || res.PingMS <= 0 || res.Bytes < 4<<20 {
+	if res.DownBps <= 0 || res.UpBps <= 0 || res.PingMS < 0 || res.Bytes < 4<<20 /* loopback connects can round to 0 ms on a coarse Windows clock */ {
 		t.Errorf("%+v", res)
 	}
 }
@@ -301,4 +301,34 @@ func (b *blockingProvider) Name() string { return "block" }
 func (b *blockingProvider) Run(context.Context, Opts) Result {
 	<-b.block
 	return Result{DownBps: 1e6}
+}
+
+func TestAnchorSlot(t *testing.T) {
+	loc := time.Local
+	at := func(h, m int) time.Time { return time.Date(2026, 10, 20, h, m, 0, 0, loc) }
+	start := 1*60 + 30
+	for _, c := range []struct {
+		name  string
+		after time.Time
+		iv    time.Duration
+		want  time.Time
+	}{
+		{"before first slot", at(0, 10), 3 * time.Hour, at(1, 30)},
+		{"after a slot", at(1, 31), 3 * time.Hour, at(4, 30)},
+		{"on a slot moves on", at(4, 30), 3 * time.Hour, at(7, 30)},
+		{"late evening wraps to the grid", at(23, 0), 3 * time.Hour, at(22, 30).Add(3 * time.Hour)},
+	} {
+		if got := anchorSlot(c.after, start, c.iv); !got.Equal(c.want) {
+			t.Errorf("%s: got %v want %v", c.name, got, c.want)
+		}
+	}
+}
+
+func TestShortErr(t *testing.T) {
+	if got := shortErr(`{"type":"log","level":"error","message":"Configuration - Couldn't resolve host name"}`); got != "Configuration - Couldn't resolve host name" {
+		t.Errorf("json: %q", got)
+	}
+	if got := shortErr("  plain  "); got != "plain" {
+		t.Errorf("plain: %q", got)
+	}
 }

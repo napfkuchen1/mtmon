@@ -134,6 +134,7 @@ func run(args []string) error {
 			}
 		}}
 	al.Suggest = api.SuggestGroup
+	speedtest.UserAgent = "mtmon/" + version
 	srv := &api.Server{Cfg: cfg, St: st, Hub: hub, En: en, Col: col, Pipe: pipe, UI: web.FS(), Version: version, TLS: !cfg.NoTLS,
 		Box: box, Mgr: pm, Cls: cls, Sys: sys}
 	srv.ResetBaseline = al.ResetBaseline

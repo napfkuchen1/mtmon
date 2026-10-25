@@ -28,6 +28,7 @@ type Settings struct {
 	IntervalMin  int      `json:"interval_min"`    // 0 = off
 	WindowFrom   string   `json:"window_from"`     // "HH:MM" local time, with WindowTo; empty = any time
 	WindowTo     string   `json:"window_to"`
+	StartAt      string   `json:"start_at"`   // "HH:MM" anchor: runs land on start_at + n*interval; empty = interval after the last test
 	JitterMin    int      `json:"jitter_min"` // random delay added to every run so installs do not all hit the servers at :00
 	MaxMB        int      `json:"max_mb"`     // download volume per test and stream budget
 	MaxSec       int      `json:"max_sec"`    // duration limit per direction
@@ -116,6 +117,11 @@ func (s Settings) Validate() (Settings, error) {
 	}
 	if s.WindowFrom != "" && s.WindowFrom == s.WindowTo {
 		return s, errors.New("time window start and end must differ")
+	}
+	if s.StartAt != "" {
+		if _, ok := parseHM(s.StartAt); !ok {
+			return s, fmt.Errorf("start time %q is not HH:MM", s.StartAt)
+		}
 	}
 	if s.JitterMin < 0 || s.JitterMin > 240 {
 		return s, errors.New("jitter must be 0-240 minutes")

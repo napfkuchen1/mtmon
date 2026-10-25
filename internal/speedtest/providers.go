@@ -3,6 +3,8 @@ package speedtest
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -26,7 +28,8 @@ func (p Cloudflare) Run(ctx context.Context, o Opts) Result {
 	c := newClient(o.Family)
 	defer c.CloseIdleConnections()
 	start := time.Now()
-	ping, jit, err := latency(ctx, c, p.base()+"/__down?bytes=0", 5)
+	// latency = TCP connect time (one round trip); TLS and HTTP time would inflate it
+	ping, jit, err := connectLatency(ctx, o.Family, hostPort(p.base()), 7)
 	if err != nil {
 		res.Err = trimErr(err)
 		return res
@@ -84,6 +87,21 @@ func (p Hetzner) Run(ctx context.Context, o Opts) Result {
 	}
 	res.DownBps = bps(n, d)
 	return res
+}
+
+// hostPort turns a base URL into host:port for a TCP connect.
+func hostPort(base string) string {
+	u, err := url.Parse(base)
+	if err != nil || u.Host == "" {
+		return base
+	}
+	if u.Port() == "" {
+		if u.Scheme == "http" {
+			return net.JoinHostPort(u.Hostname(), "80")
+		}
+		return net.JoinHostPort(u.Hostname(), "443")
+	}
+	return u.Host
 }
 
 func trimErr(err error) string {
