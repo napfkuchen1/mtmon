@@ -38,20 +38,23 @@ type AppsResult struct {
 	Truncated bool `json:"truncated"`
 }
 
+// classifyDest names the application behind one destination (see classifyDests).
+func classifyDest(d store.DestAgg, name func(netip.Addr) string) (enrich.App, bool) {
+	host := d.Host
+	if host == "" && name != nil {
+		if a, err := netip.ParseAddr(d.RIP); err == nil {
+			host = name(a.Unmap())
+		}
+	}
+	return enrich.ClassifyApp(host, d.ASOrg, uint8(d.Proto), uint16(d.Port))
+}
+
 // classifyDests groups destinations by application. name resolves a destination address when the
 // rollup row has no host (cache-only lookup).
 func classifyDests(dests, recent []store.DestAgg, name func(netip.Addr) string, now int64) AppsResult {
 	by := map[string]*AppRow{}
 	var res AppsResult
-	classify := func(d store.DestAgg) (enrich.App, bool) {
-		host := d.Host
-		if host == "" && name != nil {
-			if a, err := netip.ParseAddr(d.RIP); err == nil {
-				host = name(a.Unmap())
-			}
-		}
-		return enrich.ClassifyApp(host, d.ASOrg, uint8(d.Proto), uint16(d.Port))
-	}
+	classify := func(d store.DestAgg) (enrich.App, bool) { return classifyDest(d, name) }
 	row := func(a enrich.App) *AppRow {
 		r := by[a.Key]
 		if r == nil {

@@ -7,7 +7,9 @@ import server from './i18n/server.js'
 import v07 from './i18n/v07_server.js'
 import v014 from './i18n/v014_server.js'
 import v015 from './i18n/v015_server.js'
-const srv = { ...server, ...v07, ...v014, ...v015 }
+// files i18n/x_srv_*.js (one per feature) are picked up automatically
+const extraSrv = Object.assign({}, ...Object.values(import.meta.glob('./i18n/x_srv_*.js', { eager: true, import: 'default' })))
+const srv = { ...server, ...v07, ...v014, ...v015, ...extraSrv }
 
 function load() {
   try { const v = localStorage.getItem('mtmon.lang'); if (v === 'de' || v === 'en') return v } catch {}
@@ -48,6 +50,12 @@ export function tr(s) {
   for (const { re, names, to } of templates()) {
     const m = re.exec(s)
     if (m) return fill(to, Object.fromEntries(names.map((n, i) => [n, m[i + 1]])))
+  }
+  // messages that grew notes after the fact ("… – resolved: back after 2m – the device rebooted …"): translate the parts
+  if (s.includes(' – ')) {
+    const parts = s.split(' – ')
+    const out = parts.map(p => tr(p))
+    if (out.some((p, i) => p !== parts[i])) return out.join(' – ')
   }
   return s
 }

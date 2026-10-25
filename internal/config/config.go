@@ -8,8 +8,14 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
+	"time"
 )
+
+// LearnedNetsKeep is how long a learned prefix stays internal after the router last reported it (a delegated IPv6
+// prefix changes now and then; flows exported shortly after the change still carry the old one).
+const LearnedNetsKeep = 7 * 24 * time.Hour
 
 type Device struct {
 	Name        string   `json:"name"`
@@ -62,11 +68,14 @@ type Config struct {
 	SMTP          *SMTP    `json:"alert_smtp,omitempty"`
 	SyslogListen  string   `json:"syslog_listen,omitempty"` // default :5514 (UDP, RouterOS firewall logs)
 	DNSResolvers  []string `json:"dns_resolvers,omitempty"` // allowed resolvers; empty = disable "rogue DNS" alert
+	WANTargets    []string `json:"wan_targets,omitempty"`   // host:port (TCP) probed to measure the internet connection; default three public resolvers
 	AdminHash     string   `json:"admin_hash,omitempty"`    // argon2id, set via `mtmon passwd`
 	AdminUser     string   `json:"admin_user,omitempty"`
 	UpdateRepo    string   `json:"update_repo,omitempty"` // GitHub owner/name for update checks (default napfkuchen1/mtmon)
 
 	localPrefixes []netip.Prefix
+	learnedMu     sync.RWMutex
+	learned       map[netip.Prefix]time.Time // prefixes of the routers themselves (delegated IPv6), last seen
 	path          string
 	mu            sync.RWMutex
 	dyn           []Device // devices added via the UI (DB), merged with Devices
@@ -166,7 +175,45 @@ func (c *Config) IsLocal(ip netip.Addr) bool {
 			return true
 		}
 	}
+	c.learnedMu.RLock()
+	defer c.learnedMu.RUnlock()
+	for p := range c.learned {
+		if p.Contains(ip) {
+			return true
+		}
+	}
 	return false
+}
+
+// LearnNets marks prefixes the routers report for themselves (the delegated global IPv6 prefix) as internal, in
+// addition to local_nets, so client traffic on a GUA is not dropped as transit. Prefixes that were not reported
+// for LearnedNetsKeep are forgotten.
+func (c *Config) LearnNets(ps []netip.Prefix, now time.Time) {
+	c.learnedMu.Lock()
+	defer c.learnedMu.Unlock()
+	if c.learned == nil {
+		c.learned = map[netip.Prefix]time.Time{}
+	}
+	for _, p := range ps {
+		c.learned[p.Masked()] = now
+	}
+	for p, t := range c.learned {
+		if now.Sub(t) > LearnedNetsKeep {
+			delete(c.learned, p)
+		}
+	}
+}
+
+// LearnedNets lists the learned prefixes (diagnostics).
+func (c *Config) LearnedNets() []string {
+	c.learnedMu.RLock()
+	defer c.learnedMu.RUnlock()
+	out := make([]string, 0, len(c.learned))
+	for p := range c.learned {
+		out = append(out, p.String())
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (c *Config) Path() string { return c.path }

@@ -38,7 +38,8 @@ type Suggestion struct {
 	Link       string   `json:"link,omitempty"` // UI route, e.g. "clients" or "device/gw-main"
 	Confidence string   `json:"confidence"`     // high | medium | low
 	Limits     string   `json:"limits,omitempty"`
-	Fix        *Fix     `json:"fix,omitempty"` // set when mtmon can apply the change itself (needs the router's admin login once)
+	Fix        *Fix     `json:"fix,omitempty"`      // set when mtmon can apply the change itself (needs the router's admin login once)
+	Learning   bool     `json:"learning,omitempty"` // judged against baselines that are being re-learned: shown as info
 }
 
 // Fix names the per-device features (see provision.FeatureKeys) that resolve a suggestion when switched on.
@@ -79,7 +80,7 @@ var Rules = []Rule{
 	{"dns-bypass", ruleDNSBypass}, {"dns-doh", ruleDoH},
 	{"dominant-client", ruleDominant}, {"upload-heavy", ruleUploadHeavy}, {"chatty", ruleChatty},
 	{"flow-disabled", ruleFlowDisabled}, {"flow-silent", ruleFlowSilent}, {"no-syslog", ruleNoSyslog},
-	{"static-lease", ruleStaticLease}, {"stale-clients", ruleStaleClients},
+	{"static-lease", ruleStaticLease}, {"stale-clients", ruleStaleClients}, {"mtmon-disk", ruleMtmonDisk}, {"backup-age", ruleBackupAge}, {"ra-lifetimes", ruleRALifetimes}, {"routeros-update", ruleRouterOSUpdate}, {"capsman-version", ruleCapsmanVersion}, {"cert-expiry", ruleCertExpiry},
 }
 
 // Evaluate runs every rule (a panicking rule is reported as skipped, never fatal) and sorts the result:

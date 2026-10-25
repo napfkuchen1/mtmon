@@ -4,8 +4,8 @@ export class AuthError extends Error {}
 export async function api(path, opts = {}) {
   const res = await fetch('/api' + path, {
     method: opts.method || 'GET',
-    headers: opts.body ? { 'Content-Type': 'application/json' } : {},
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
+    headers: opts.body ? { 'Content-Type': 'application/json' } : opts.raw ? { 'Content-Type': 'text/plain' } : {},
+    body: opts.body ? JSON.stringify(opts.body) : opts.raw,
     credentials: 'same-origin'
   })
   if (res.status === 401 && path !== '/login') throw new AuthError('unauthorized')

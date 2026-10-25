@@ -25,32 +25,39 @@ import (
 	"github.com/napfkuchen1/mtmon/internal/live"
 	"github.com/napfkuchen1/mtmon/internal/poller"
 	"github.com/napfkuchen1/mtmon/internal/secret"
+	"github.com/napfkuchen1/mtmon/internal/speedtest"
 	"github.com/napfkuchen1/mtmon/internal/store"
+	"github.com/napfkuchen1/mtmon/internal/sysinfo"
 	"github.com/napfkuchen1/mtmon/internal/syslog"
 	"github.com/napfkuchen1/mtmon/internal/update"
 )
 
 type Server struct {
-	fwMu    sync.Mutex
-	fwCache map[string]fwCacheEntry
-	Cfg     *config.Config
-	St      *store.Store
-	Hub     *live.Hub
-	En      *enrich.Enricher
-	Col     *flow.Collector
-	Pipe    *live.Pipeline
-	UI      fs.FS // embedded web/dist (may be nil in tests)
-	Version string
-	Started time.Time
-	sess    *sessions
-	mux     *http.ServeMux
-	up      websocket.Upgrader
-	TLS     bool
+	DiskFn        func(dir string) (free, total int64, ok bool) // nil: the real file system (tests)
+	cpu           sysinfo.CPU
+	fwMu          sync.Mutex
+	fwCache       map[string]fwCacheEntry
+	Cfg           *config.Config
+	St            *store.Store
+	Hub           *live.Hub
+	En            *enrich.Enricher
+	Col           *flow.Collector
+	Pipe          *live.Pipeline
+	UI            fs.FS // embedded web/dist (may be nil in tests)
+	Version       string
+	Started       time.Time
+	sess          *sessions
+	mux           *http.ServeMux
+	up            websocket.Upgrader
+	TLS           bool
+	ResetBaseline func() // forget learned traffic levels in the alert engine (set by main)
 
 	Box     *secret.Box        // credential encryption (nil in tests that do not use device management)
 	Mgr     *poller.Manager    // device workers; Reload() after device changes
 	Cls     *enrich.Classifier // service classification
 	Sys     *syslog.Server     // firewall log receiver
+	Speed   *speedtest.Runner  // scheduled speed tests (nil: not available)
+	bypass  bypassCache        // DNS-bypass detection (dnsbypass.go)
 	Upd     *update.Manager    // self-update (nil in tests that do not use it)
 	provMu  sync.Mutex         // one provisioning / offboarding at a time
 	reclass atomic.Bool        // service relabelling in progress
@@ -85,6 +92,7 @@ func New(s *Server) http.Handler {
 	m.HandleFunc("GET /api/clients/{mac}/connections", a(s.clientConns))
 	m.HandleFunc("PUT /api/clients/{mac}/label", a(s.setLabel))
 	m.HandleFunc("GET /api/top/{what}", a(s.top))
+	m.HandleFunc("GET /api/usage/{what}", a(s.usage))
 	m.HandleFunc("GET /api/series", a(s.series))
 	m.HandleFunc("GET /api/topology", a(s.topology))
 	m.HandleFunc("GET /api/alerts", a(s.alerts))
@@ -273,6 +281,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	run(func() { topServices = must(s.St.TopBy("services", since, 5, "")) })
 	run(func() { topCntry = must(s.St.TopBy("country", since, 5, "")) })
 	on, total := s.St.ClientCounts()
+	watched, watchedOn := s.St.WatchCounts()
 	devs := s.Hub.Devices()
 	du := 0
 	for _, d := range devs {
@@ -291,7 +300,8 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonOut(w, map[string]any{
 		"range": rn, "bytes_up": up, "bytes_down": down, "flows": flows, "prev": prev,
-		"clients_online": on, "clients_total": total,
+		"learning_until": s.St.LearningUntil(), "learning_reason": s.St.LearningReason(),
+		"clients_online": on, "clients_total": total, "watched_total": watched, "watched_online": watchedOn,
 		"devices_up": du, "devices_total": len(s.Cfg.AllDevices()), "alerts_open": s.St.OpenAlerts(),
 		"series":        series,
 		"top_clients":   topClients,
@@ -357,11 +367,21 @@ func (s *Server) clients(w http.ResponseWriter, r *http.Request) {
 	for _, t := range must(s.St.TopBy("clients", since, 10000, "")) {
 		usage[t.Key] = [2]int64{t.Up, t.Down}
 	}
+	_, byp := s.dnsBypass()
 	out := make([]map[string]any, 0, len(cl))
+	want := r.URL.Query().Get("group") // "" = all, "none" = ungrouped
 	for _, c := range cl {
+		if want != "" && (want == "none" && c.Group != "" || want != "none" && c.Group != want) {
+			continue
+		}
 		rt := rates[c.MAC]
 		u := usage[c.MAC]
-		out = append(out, map[string]any{"client": c, "up_bps": rt.UpBps, "down_bps": rt.DownBps, "bytes_up": u[0], "bytes_down": u[1]})
+		bt := []string{}
+		if b, ok := byp[c.MAC]; ok && b.Active {
+			bt = b.Types
+		}
+		out = append(out, map[string]any{"client": c, "up_bps": rt.UpBps, "down_bps": rt.DownBps, "bytes_up": u[0], "bytes_down": u[1],
+			"suggested_group": suggestedGroup(c), "dns_bypass": bt})
 	}
 	jsonOut(w, out)
 }
@@ -379,8 +399,14 @@ func (s *Server) clientDetail(w http.ResponseWriter, r *http.Request) {
 	if time.Since(time.Unix(c.FirstSeen, 0)) > 24*time.Hour {
 		nd, _ = s.St.NewDests(mac, int64(ranges["24h"].d.Seconds()))
 	}
+	_, byp := s.dnsBypass()
+	var bypass any // null when the client uses the router's DNS
+	if b, ok := byp[mac]; ok {
+		bypass = b
+	}
 	jsonOut(w, map[string]any{
-		"client": c, "range": rn, "address_only": addrOnly,
+		"client": c, "range": rn, "address_only": addrOnly, "suggested_group": suggestedGroup(*c), "dns_bypass": bypass,
+		"ipv6_prefixes":    v6prefixes(s.St, mac),
 		"ip_history":       must(s.St.IPHistory(mac)),
 		"roams":            must(s.St.Roams(mac)),
 		"series":           must(s.St.Series(since, bucket, mac)),
@@ -464,10 +490,31 @@ func (s *Server) top(w http.ResponseWriter, r *http.Request) {
 	if limit <= 0 || limit > 500 {
 		limit = 20
 	}
+	group := r.URL.Query().Get("group")
+	want := limit
+	if group != "" && (r.PathValue("what") == "clients" || r.PathValue("what") == "internal") {
+		limit = 500 // filter first, then cut
+	}
 	rows, err := s.topBy(r.PathValue("what"), since, limit, r.URL.Query().Get("mac"))
 	if err != nil {
 		jerr(w, 400, err.Error())
 		return
+	}
+	if group != "" && (r.PathValue("what") == "clients" || r.PathValue("what") == "internal") {
+		cl, _ := s.St.Clients()
+		in := map[string]bool{}
+		for _, c := range cl {
+			if group == "none" && c.Group == "" || group != "none" && c.Group == group {
+				in[c.MAC] = true
+			}
+		}
+		kept := rows[:0]
+		for _, x := range rows {
+			if in[x.Key] && len(kept) < want {
+				kept = append(kept, x)
+			}
+		}
+		rows = kept
 	}
 	jsonOut(w, map[string]any{"range": rn, "rows": rows})
 }
@@ -627,7 +674,7 @@ func (s *Server) topology(w http.ResponseWriter, r *http.Request) {
 	if edges == nil {
 		edges = []edge{}
 	}
-	jsonOut(w, map[string]any{"nodes": nodes, "edges": edges, "root": root, "root_override": override})
+	jsonOut(w, map[string]any{"nodes": nodes, "edges": edges, "root": root, "root_override": override, "upstream": s.upstreams()})
 }
 
 func localIP(r *http.Request) string {
@@ -677,6 +724,16 @@ func (s *Server) system(w http.ResponseWriter, r *http.Request) {
 	if d := s.Col.Dec; d != nil {
 		pk, rec, er, nt = d.Stats()
 	}
+	disk := s.DiskFn
+	if disk == nil {
+		disk = sysinfo.Disk
+	}
+	free, total, _ := disk(s.Cfg.DataDir)
+	growth, _ := s.St.DBGrowthPerDay()
+	daysLeft := -1 // -1: no growth or not enough samples yet
+	if growth > 0 {
+		daysLeft = int(free / growth)
+	}
 	jsonOut(w, map[string]any{
 		"version": s.Version, "uptime_s": int64(time.Since(s.Started).Seconds()),
 		"flow_packets": pk, "flow_records": rec, "flow_errors": er, "flow_no_template": nt,
@@ -684,6 +741,9 @@ func (s *Server) system(w http.ResponseWriter, r *http.Request) {
 		"flows_ps":                      s.Hub.FlowsPS, "queue": s.St.QueueLen(), "db_dropped": s.St.Dropped,
 		"ignored_transit": s.Pipe.IgnoredCount(), "db_bytes": dbSize, "enrich": s.En.Status(),
 		"retention_days": s.Cfg.Retention, "raw_retention_days": s.Cfg.RawRetention,
+		"learning_until": s.St.LearningUntil(), "learning_reason": s.St.LearningReason(),
+		"rss_bytes": sysinfo.RSS(), "cpu_pct": s.cpu.Percent(),
+		"data_dir_free_bytes": free, "data_dir_total_bytes": total, "db_growth_bytes_per_day": growth, "disk_days_left": daysLeft,
 	})
 }
 

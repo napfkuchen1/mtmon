@@ -11,11 +11,21 @@
   const name = $derived(app.route.params.id)
   const d = poll(() => api('/devices/' + encodeURIComponent(app.route.params.id) + '?range=' + (app.range === 'live' ? '1h' : app.range)), 5000)
   const x = $derived(d.data)
-  const ifaces = $derived((x?.ifaces || []).slice().sort((a, b) => (b.rx_bps + b.tx_bps) - (a.rx_bps + a.tx_bps)))
+  const ifaces = $derived((x?.ifaces || []).slice().sort((a, b) => a.iface.localeCompare(b.iface, undefined, { numeric: true })))
   const cpu = $derived([{ name: 'CPU %', color: 'var(--accent)', points: (x?.metrics || []).map(m => ({ x: m.ts, y: m.cpu })) }])
   const mem = $derived([{ name: 'RAM %', color: 'var(--down)', points: (x?.metrics || []).map(m => ({ x: m.ts, y: m.mem_total ? (m.mem_used * 100) / m.mem_total : 0 })) }])
   let showAll = $state(false)
   const caps = $derived(x?.caps && x.caps.version ? x.caps : null)
+  let logQ = $state(''), logLevel = $state('')
+  const lg = poll(() => api('/devices/' + encodeURIComponent(app.route.params.id) + '/log?range=' + (app.range === 'live' ? '1h' : app.range) + '&level=' + logLevel + '&q=' + encodeURIComponent(logQ)), 10000)
+
+  const wb = poll(() => api('/devices/' + encodeURIComponent(app.route.params.id) + '/wifi?range=' + (app.range === 'live' ? '1h' : app.range)), 30000)
+  const bandColors = ['var(--accent)', 'var(--down)', 'var(--up)', 'var(--bad)']
+  const bandSeries = $derived.by(() => {
+    const by = new Map()
+    for (const p of wb.data?.bands || []) { if (!by.has(p.band)) by.set(p.band, []); by.get(p.band).push({ x: p.ts, y: p.clients }) }
+    return [...by.entries()].map(([band, points], i) => ({ name: band || '?', color: bandColors[i % bandColors.length], points }))
+  })
   const man = poll(() => api('/devices/' + encodeURIComponent(app.route.params.id) + '/manifest'), 0)
   let off = $state(false), oUser = $state('admin'), oPass = $state(''), oPurge = $state(false), oBusy = $state(false), oRes = $state(null), oErr = $state('')
   async function offboard(mode) {
@@ -64,6 +74,24 @@
       {app.live.devices.find(v => v.name === name)?.up ? ' ' + t('Online') : ' ' + t('Offline')}</div><div class="l">{tr(x.state?.last_err) || ''}</div></div>
   </div>
 
+  <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Event log')}</h2>
+      <span class="muted" style="font-size:12px">{t('system, account, DHCP, Wi-Fi, WireGuard, script lines the router sends to mtmon (kept 7 days)')}</span>
+      <span style="flex:1"></span>
+      <select class="input" style="width:auto" bind:value={logLevel} aria-label={t('Level')}><option value="">{t('All levels')}</option><option value="warning">{t('Warning and worse')}</option><option value="error">{t('Errors')}</option></select>
+      <input class="input" style="width:200px" placeholder={t('Search…')} bind:value={logQ} aria-label={t('Search the event log')} /></div>
+    {#if lg.data?.events?.length}
+      <div class="scroll" style="max-height:340px;overflow-y:auto"><table><tbody>
+        {#each lg.data.events as ev, i (ev.ts + '|' + i)}<tr><td class="mono muted" style="white-space:nowrap">{datetime(ev.ts)}</td><td><span class="badge {ev.level === 'critical' || ev.level === 'error' ? 'bad' : ev.level === 'warning' ? 'warn' : ''}">{ev.level || '·'}</span></td><td class="muted" style="font-size:12px">{ev.topics}</td><td>{ev.msg}</td></tr>{/each}
+      </tbody></table></div>
+    {:else}<div class="card-b muted">{t('No log lines yet. Switch on "Router event log" under Devices → Edit → Features so the router sends them.')}</div>{/if}
+  </div>
+
+  {#if bandSeries.length}
+    <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Wi-Fi clients per band')}</h2>
+      <span class="muted" style="font-size:12px">{#if caps?.wifi_ifs?.length}{caps.wifi_ifs.map(w => w.name + (w.band ? ' ' + w.band : '') + (w.channel ? ' · ' + w.channel : '')).join(' | ')}{/if}</span></div>
+      <div class="card-b"><Chart series={bandSeries} fmt={v => String(Math.round(v))} height={170} empty={t('No Wi-Fi history yet')} /></div></div>
+  {/if}
+
   {#if caps}
     <div class="card" style="margin-bottom:16px"><div class="card-h"><h2>{t('Capabilities')}</h2><span class="muted" style="font-size:12.5px">{t('detected automatically when added')}</span></div>
       <div class="card-b caps">
@@ -72,6 +100,7 @@
         <div><span class="l">{t('Network')}</span><b>{caps.dhcp_server ? 'DHCP' : '—'} · {caps.nat ? 'NAT' : t('no NAT')} · {t('{n} bridge(s)', { n: caps.bridges?.length || 0 })}{caps.hw_offload ? ' · ' + t('HW offload') : ''}</b></div>
         <div><span class="l">Firewall</span><b>{t('{n} rules', { n: caps.filter_rules?.length || 0 })}{caps.fasttrack ? ' · FastTrack' : ''}</b></div>
         <div><span class="l">{t('Hardware')}</span><b>{[caps.arch, caps.cpu_count ? t('{n} cores', { n: caps.cpu_count }) : '', caps.mem_total ? Math.round(caps.mem_total / 1048576) + ' MB' : ''].filter(Boolean).join(' · ') || '—'}</b></div>
+        {#if caps.files?.readable}<div><span class="l">{t('Newest backup / export')}</span><b>{#if caps.files.newest_backup || caps.files.newest_export}{datetime(Math.max(caps.files.newest_backup || 0, caps.files.newest_export || 0))}{:else}<span class="muted">{t('none found')}</span>{/if}</b></div>{/if}
         <div><span class="l">{t('Packages')}</span><b>{(caps.packages || []).join(', ')}</b></div>
       </div></div>
   {/if}

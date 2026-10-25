@@ -29,6 +29,7 @@ type Result struct {
 	Rollback   []StepResult          `json:"rollback,omitempty"`
 	Error      string                `json:"error,omitempty"`
 	Backup     string                `json:"backup,omitempty"`
+	Skipped    []string              `json:"skipped,omitempty"`
 	MonUser    string                `json:"-"`
 	MonPass    string                `json:"-"`
 	FwMeta     []FwMeta              `json:"-"`
