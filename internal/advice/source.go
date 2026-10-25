@@ -2,12 +2,14 @@ package advice
 
 import (
 	"encoding/json"
+	"net"
 	"net/netip"
 	"time"
 
 	"github.com/napfkuchen1/mtmon/internal/config"
 	"github.com/napfkuchen1/mtmon/internal/enrich"
 	"github.com/napfkuchen1/mtmon/internal/live"
+	"github.com/napfkuchen1/mtmon/internal/probe"
 	"github.com/napfkuchen1/mtmon/internal/provision"
 	"github.com/napfkuchen1/mtmon/internal/store"
 	"github.com/napfkuchen1/mtmon/internal/sysinfo"
@@ -199,7 +201,30 @@ func (l *Live) PortUse24h() []PortUse {
 
 func (l *Live) DoH24h() []PortUse {
 	rows, _ := l.St.HostUse(l.now.Add(-24*time.Hour).Unix(), 443, DoHSuffixes())
-	return conv(rows)
+	targets := probe.DefaultTargets
+	if l.Cfg != nil && len(l.Cfg.WANTargets) > 0 {
+		targets = l.Cfg.WANTargets
+	}
+	return dropProbeTargets(conv(rows), targets)
+}
+
+// dropProbeTargets removes mtmon's own WAN-quality probe (TCP 443 to public resolvers) from the DoH traffic, the
+// same exclusion the DNS-bypass list applies.
+func dropProbeTargets(rows []PortUse, targets []string) []PortUse {
+	skip := map[string]bool{}
+	for _, t := range targets {
+		if h, _, err := net.SplitHostPort(t); err == nil {
+			t = h
+		}
+		skip[t] = true
+	}
+	out := rows[:0:0]
+	for _, r := range rows {
+		if !skip[r.RIP] {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 func (l *Live) InboundRecent() []Inbound {

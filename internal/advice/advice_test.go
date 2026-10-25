@@ -456,6 +456,17 @@ func TestDoH(t *testing.T) {
 	expect(t, d, "dns-doh", 0)
 }
 
+func TestDropProbeTargets(t *testing.T) {
+	rows := []PortUse{{MAC: "mtmon", RIP: "8.8.8.8", Host: "dns.google", Port: 443, Flows: 1925}, {MAC: "A", RIP: "8.8.4.4", Host: "dns.google", Port: 443, Flows: 100}}
+	got := dropProbeTargets(rows, []string{"1.1.1.1:443", "8.8.8.8:443"})
+	if len(got) != 1 || got[0].MAC != "A" {
+		t.Fatalf("probe host not dropped: %+v", got)
+	}
+	d := withFlows(base())
+	d.DoH = dropProbeTargets(rows[:1], []string{"8.8.8.8:443"})
+	expect(t, d, "dns-doh", 0)
+}
+
 const GB = 1_000_000_000
 
 func TestDominantClient(t *testing.T) {
