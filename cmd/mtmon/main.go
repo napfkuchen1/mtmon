@@ -31,6 +31,7 @@ import (
 	"github.com/napfkuchen1/mtmon/internal/poller"
 	"github.com/napfkuchen1/mtmon/internal/probe"
 	"github.com/napfkuchen1/mtmon/internal/secret"
+	"github.com/napfkuchen1/mtmon/internal/speedtest"
 	"github.com/napfkuchen1/mtmon/internal/store"
 	"github.com/napfkuchen1/mtmon/internal/syslog"
 	"github.com/napfkuchen1/mtmon/internal/update"
@@ -135,6 +136,11 @@ func run(args []string) error {
 	srv := &api.Server{Cfg: cfg, St: st, Hub: hub, En: en, Col: col, Pipe: pipe, UI: web.FS(), Version: version, TLS: !cfg.NoTLS,
 		Box: box, Mgr: pm, Cls: cls, Sys: sys}
 	srv.ResetBaseline = al.ResetBaseline
+	srv.Speed = &speedtest.Runner{St: st, Log: log,
+		Busy:    func() (float64, float64) { s := hub.Snapshot(hub.LastSeq(), 0); return s.DownBps, s.UpBps },
+		WAN:     pm.WANSummary,
+		Raise:   func(kind, subject, sev, msg string) { al.Raise(kind, subject, sev, msg, 6*time.Hour) },
+		Resolve: func(kind, subject, note string) { st.ResolveAlerts(kind, subject, note) }}
 	if st.NoteStart(version) {
 		log.Info("update changed how traffic is judged: baselines are re-learned", "hours", int(store.LearningDefault.Hours()))
 	}
@@ -168,6 +174,7 @@ func run(args []string) error {
 	go srv.Upd.Run(ctx)
 	go st.Maintain(ctx, cfg.RawRetention, cfg.Retention, backup)
 	go en.RunReverseDNS(ctx)
+	go srv.Speed.Run(ctx)
 	go srv.WarmCaches(ctx)
 	go pm.Run(ctx)
 	go al.Run(ctx.Done())

@@ -70,6 +70,11 @@ CREATE TABLE IF NOT EXISTS client_groups(
 
 CREATE TABLE IF NOT EXISTS wan_quality(
   ts INTEGER, target TEXT, sent INTEGER, lost INTEGER, rtt_sum REAL, rtt_max REAL, PRIMARY KEY(ts, target)) WITHOUT ROWID;
+-- scheduled speed tests (internal/speedtest): one row per test and provider; up/down 0 = not measured
+CREATE TABLE IF NOT EXISTS speedtests(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, provider TEXT NOT NULL, server TEXT, family TEXT,
+  down_bps REAL, up_bps REAL, ping_ms REAL, jitter_ms REAL, bytes INTEGER, dur_s REAL, err TEXT, wan TEXT, src TEXT);
+CREATE INDEX IF NOT EXISTS speedtests_ts ON speedtests(ts);
 CREATE TABLE IF NOT EXISTS dev_metrics(
   ts INTEGER, device TEXT, cpu REAL, mem_used INTEGER, mem_total INTEGER,
   temp REAL, uptime INTEGER, clients INTEGER, up INTEGER);
@@ -220,6 +225,7 @@ func (s *Store) Cleanup(rawDays, days int) {
 
 	s.DB.Exec(`DELETE FROM wifi_hist WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM wan_quality WHERE ts < ?`, cut)
+	s.pruneSpeedtests(now)
 	s.DB.Exec(`DELETE FROM if_metrics WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM alerts WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM roam WHERE ts < ?`, cut)
