@@ -239,6 +239,10 @@ func (s *Server) dynamic(w http.ResponseWriter, r *http.Request, canWrite bool) 
 			rosErr(w, 400, "failure: action name can contain only letters and numbers")
 			return true
 		}
+		if menu == "/system/logging" && !validTopics(str(in["topics"])) {
+			rosErr(w, 400, "input does not match any value of topic")
+			return true
+		}
 		if menu == "/user" && !s.hasGroup(str(in["group"])) {
 			rosErr(w, 400, "failure: no such group")
 			return true
@@ -310,3 +314,19 @@ func (s *Server) dupName(menu, name string) bool {
 }
 
 func (s *Server) hasGroup(name string) bool { return s.dupName("/user/group", name) }
+
+// logTopics are the topics RouterOS 7.24 accepts that the tests use; unknown ones (e.g. "wifi") are rejected like on a real router.
+var logTopics = map[string]bool{"system": true, "account": true, "critical": true, "dhcp": true, "wireless": true,
+	"wireguard": true, "script": true, "firewall": true, "info": true, "error": true, "warning": true, "web-proxy": true}
+
+func validTopics(list string) bool {
+	if list == "" {
+		return true
+	}
+	for _, t := range strings.Split(list, ",") {
+		if !logTopics[strings.TrimPrefix(t, "!")] {
+			return false
+		}
+	}
+	return true
+}
