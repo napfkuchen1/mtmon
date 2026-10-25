@@ -53,6 +53,10 @@ type devSnap struct {
 	bridge []Row
 	peers  []Row           // /interface/wireguard/peers (absent without the wireguard package)
 	wan    map[string]bool // interfaces that face the upstream: members of the WAN interface list, default-route interface
+	addrs  []Row           // /ip/address (transfer net towards a modem)
+	pppoe  []Row           // /interface/pppoe-client
+	ifs    []Row           // /interface (name, type) to tell ports, PPPoE and tunnels apart
+	routes []Row           // /ip/route (default route: double NAT)
 	at     time.Time
 }
 
@@ -413,6 +417,10 @@ func (w *worker) l3Poll(ctx context.Context) {
 	}
 	members, merr := w.c.Get(ctx, "/interface/list/member")
 	routes, rerr := w.c.Get(ctx, "/ip/route")
+	addrs, _ := w.c.Get(ctx, "/ip/address")
+	pppoe, _ := w.c.Get(ctx, "/interface/pppoe-client") // absent without the ppp package: nothing to show then
+	ifs, _ := w.c.Get(ctx, "/interface")
+	w.m.setSnap(w.d.Name, func(s *devSnap) { s.addrs, s.pppoe, s.ifs, s.routes = addrs, pppoe, ifs, routes })
 	if merr == nil || rerr == nil {
 		wan := wanInterfaces(members, routes)
 		if w.d.Role == "ap" { // an access point has no upstream side; its only bridge is its LAN
@@ -696,9 +704,14 @@ func (m *Manager) Diagnostics() map[string]any {
 	devs := map[string]any{}
 	for name, s := range m.snaps {
 		devs[name] = map[string]any{"role": s.role, "polled": s.at.Unix(), "wifi": rowsOrEmpty(s.wifi), "bridge_hosts": rowsOrEmpty(s.bridge),
-			"arp": rowsOrEmpty(s.arp), "dhcp_leases": rowsOrEmpty(s.leases), "wan_interfaces": wanList(s.wan)}
+			"arp": rowsOrEmpty(s.arp), "dhcp_leases": rowsOrEmpty(s.leases), "wan_interfaces": wanList(s.wan),
+			"ip_addresses": rowsOrEmpty(s.addrs), "pppoe_clients": rowsOrEmpty(s.pppoe), "routes": rowsOrEmpty(s.routes)}
 	}
-	return map[string]any{"devices": devs, "uplink_ports": up}
+	ups := []Upstream{}
+	for name, s := range m.snaps {
+		ups = append(ups, upstreamsFor(name, s, m.En.Vendor)...)
+	}
+	return map[string]any{"devices": devs, "uplink_ports": up, "upstream": ups}
 }
 
 func rowsOrEmpty(r []Row) []Row {

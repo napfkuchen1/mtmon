@@ -3,6 +3,8 @@ package api
 import (
 	"net/http"
 	"time"
+
+	"github.com/napfkuchen1/mtmon/internal/poller"
 )
 
 // internet: GET /api/internet?range=… – quality of the internet connection as measured by mtmon's own probes, plus
@@ -22,6 +24,7 @@ func (s *Server) internet(w http.ResponseWriter, r *http.Request) {
 		"day":            s.St.WANQualitySince(now - 86400),
 		"targets":        s.St.WANTargets(since),
 		"series":         s.St.WANSeries(since, bucket),
+		"upstream":       s.upstreams(),
 		"reconnects_24h": downs, "last_drop": lastDown, "last_reconnect": lastUp,
 	})
 }
@@ -43,4 +46,12 @@ func (s *Server) internetSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	jsonOut(w, map[string]bool{"enabled": in.Enabled})
+}
+
+// upstreams lists the ISP modems / routers in front of the gateways (never nil).
+func (s *Server) upstreams() []poller.Upstream {
+	if s.Mgr == nil {
+		return []poller.Upstream{}
+	}
+	return s.Mgr.Upstreams()
 }
