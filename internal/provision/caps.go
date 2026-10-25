@@ -91,6 +91,11 @@ type Caps struct {
 	// Export is what one POST /rest/export with the monitoring login looked like (#46): decides whether a
 	// config-drift view can work. Only counts and flags, never the text. Refreshed once a day.
 	Export ExportProbe `json:"export_probe"`
+	// IPv6: a DHCPv6 client asks the ISP for a prefix (dynamic prefix), and the lifetimes the router advertises in RAs
+	// ("/ipv6 nd prefix default"). Seconds, 0 = not readable.
+	IPv6PD      bool  `json:"ipv6_pd"`
+	RAValid     int64 `json:"ra_valid_s,omitempty"`
+	RAPreferred int64 `json:"ra_preferred_s,omitempty"`
 }
 
 // ExportProbe is poller.ExportResult plus the time it was taken (unix, 0 = never probed).
@@ -154,6 +159,15 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 	k.Certs = []Cert{}
 	if rows, err := c.Get(ctx, "/file"); err == nil { // a read-only user may be refused here: then nothing is claimed
 		k.Files = parseFiles(rows)
+	}
+	for _, r := range get(ctx, c, "/ipv6/dhcp-client") { // absent without the ipv6 package
+		if !r.Bool("disabled") && strings.Contains(r["request"], "prefix") {
+			k.IPv6PD = true
+		}
+	}
+	if nd := get(ctx, c, "/ipv6/nd/prefix/default"); len(nd) > 0 {
+		k.RAValid = int64(poller.ParseDuration(nd[0]["valid-lifetime"]).Seconds())
+		k.RAPreferred = int64(poller.ParseDuration(nd[0]["preferred-lifetime"]).Seconds())
 	}
 	if id := get(ctx, c, "/system/identity"); len(id) > 0 {
 		k.Identity = id[0]["name"]

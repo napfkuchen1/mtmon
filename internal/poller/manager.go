@@ -977,6 +977,13 @@ func (m *Manager) merge() {
 			ipmac[ip] = mac
 		}
 	}
+	v6 := map[string]string{}
+	for ip, mac := range nd6 {
+		if _, ok := byMAC[mac]; ok && store.IsGlobalIPv6(ip) {
+			v6[ip] = mac
+		}
+	}
+	m.St.NoteIPv6(v6, time.Now().Unix()) // evidence for addresses from old (dynamic) prefixes
 	var newOnes []store.Observation
 	idents := m.neighborIdents()
 	for mac, o := range byMAC {

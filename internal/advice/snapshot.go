@@ -26,6 +26,8 @@ type Snapshot interface {
 	InboundRecent() []Inbound
 	Roams24h() []RoamStat
 	IPChurn30d() map[string]int
+	// IPv6Prefixes14d: per client the /64 prefixes its global IPv6 addresses were seen in (newest first).
+	IPv6Prefixes14d() map[string][]V6Prefix
 	BlockedSources24h() []BlockedSrc
 	// ContactedByLAN: which of the remote addresses exchanged traffic with a LAN client in the last 24 h.
 	ContactedByLAN(ips []string) map[string]bool
@@ -80,7 +82,9 @@ type Caps struct {
 	UpdateInstalled            string // RouterOS the router reported at its last update check
 	UpdateLatest               string // newest version in the router's channel at that check ("" = never checked)
 	UpdateChannel              string
-	CAP, CAPsMAN               bool // device is a CAP / runs the CAPsMAN controller
+	CAP, CAPsMAN               bool  // device is a CAP / runs the CAPsMAN controller
+	IPv6PD                     bool  // a DHCPv6 client requests a prefix: the IPv6 prefix is dynamic
+	RAValid, RAPreferred       int64 // lifetimes of the router advertisements ("nd prefix default"), seconds, 0 = unknown
 }
 
 // Cert is a certificate used by a router service (www-ssl, api-ssl).
@@ -262,4 +266,11 @@ func routers(s Snapshot) []Device {
 		}
 	}
 	return out
+}
+
+// V6Prefix is one /64 a client had global addresses in, with the first and last time it was seen.
+type V6Prefix struct {
+	Prefix      string
+	Addrs       int
+	First, Last int64
 }

@@ -15,5 +15,6 @@ export default {
   "Show clients": "Clients anzeigen",
   "1 client does not use your router’s DNS (DNS-over-TLS/HTTPS or a public DNS server).": "1 Client nutzt nicht den DNS deines Routers (DNS-over-TLS/HTTPS oder ein öffentlicher DNS-Server).",
   "{n} clients do not use your router’s DNS (DNS-over-TLS/HTTPS or a public DNS server).": "{n} Clients nutzen nicht den DNS deines Routers (DNS-over-TLS/HTTPS oder ein öffentlicher DNS-Server).",
+  "{n} IPv6 addresses from old prefixes: this client had addresses in {p} different /64 prefixes in the last 14 days (the provider changes the prefix).": "{n} IPv6-Adressen aus alten Präfixen: Dieser Client hatte in den letzten 14 Tagen Adressen in {p} verschiedenen /64-Präfixen (der Provider wechselt das Präfix).",
   "DoT": "DoT", "DoQ": "DoQ", "DoH": "DoH", "external DNS": "externer DNS"
 }

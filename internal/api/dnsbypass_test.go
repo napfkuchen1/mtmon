@@ -75,3 +75,31 @@ func TestDNSBypassAPI(t *testing.T) {
 		t.Error("alert setting not kept")
 	}
 }
+
+func TestClientDetailIPv6Prefixes(t *testing.T) {
+	ts, s := newTestServer(t)
+	_, c := login(t, ts, "test-password-1")
+	mac := "AA:00:00:00:00:09"
+	s.St.DB.Exec(`INSERT INTO clients(mac,hostname,first_seen,last_seen,online) VALUES(?,?,1,1,1)`, mac, "nas")
+	get := func() map[string]json.RawMessage {
+		r, err := c.Get(ts.URL + "/api/clients/" + mac)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer r.Body.Close()
+		var m map[string]json.RawMessage
+		json.NewDecoder(r.Body).Decode(&m)
+		return m
+	}
+	if string(get()["ipv6_prefixes"]) != "[]" {
+		t.Fatalf("no history: must be [] not null: %s", get()["ipv6_prefixes"])
+	}
+	now := time.Now().Unix()
+	s.St.NoteIPv6(map[string]string{"2001:db8:1:1::10": mac}, now-86400)
+	s.St.NoteIPv6(map[string]string{"2001:db8:1:2::10": mac}, now)
+	var ps []store.V6Prefix
+	json.Unmarshal(get()["ipv6_prefixes"], &ps)
+	if len(ps) != 2 || ps[0].Prefix != "2001:db8:1:2::/64" {
+		t.Errorf("%+v", ps)
+	}
+}

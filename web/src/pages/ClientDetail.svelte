@@ -123,6 +123,10 @@
     <div class="card card-b kpi"><div class="l">{t('Seen')}</div><div class="v" style="font-size:17px">{datetime(c.last_seen)}</div><div class="l">{t('first {date}', { date: datetime(c.first_seen) })}</div>{#if c.online && c.via}<div class="l" title={t('What mtmon currently sees that proves this device is on the network')}>{t('Online via')}: {c.via}</div>{/if}</div>
   </div>
 
+  {#if x.ipv6_prefixes?.length > 1}
+    <div class="infobox" style="margin-bottom:16px">{t('{n} IPv6 addresses from old prefixes: this client had addresses in {p} different /64 prefixes in the last 14 days (the provider changes the prefix).', { n: x.ipv6_prefixes.slice(1).reduce((a, p) => a + p.addrs, 0), p: x.ipv6_prefixes.length })}
+      <span class="mono"> {x.ipv6_prefixes.slice(0, 4).map(p => p.prefix).join(', ')}{x.ipv6_prefixes.length > 4 ? ' …' : ''}</span></div>
+  {/if}
   {#if x.dns_bypass}
     <div class="card" style="margin-bottom:16px"><div class="card-h"><h2>{t('Does not use the router’s DNS')}</h2><span class="muted" style="font-size:12.5px">{x.dns_bypass.types.map(tr).join(' · ')} · {t('last 7 days')}</span></div>
       <div class="card-b">
