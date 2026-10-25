@@ -71,6 +71,8 @@ func (s *Server) featureRoutes(m *http.ServeMux, a func(http.HandlerFunc) http.H
 	m.HandleFunc("GET /api/internet", a(s.internet))
 	m.HandleFunc("PUT /api/internet", a(s.internetSave))
 	s.speedRoutes(m, a)
+	m.HandleFunc("GET /api/dns-bypass", a(s.dnsBypassList))
+	m.HandleFunc("PUT /api/dns-bypass", a(s.dnsBypassSave))
 	m.HandleFunc("PUT /api/devices/{name}", a(s.editDevice))
 	m.HandleFunc("GET /api/devices/{name}/features", a(s.deviceFeaturesGet))
 	m.HandleFunc("POST /api/devices/{name}/features", a(s.deviceFeaturesApply))

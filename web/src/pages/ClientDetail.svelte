@@ -123,6 +123,18 @@
     <div class="card card-b kpi"><div class="l">{t('Seen')}</div><div class="v" style="font-size:17px">{datetime(c.last_seen)}</div><div class="l">{t('first {date}', { date: datetime(c.first_seen) })}</div>{#if c.online && c.via}<div class="l" title={t('What mtmon currently sees that proves this device is on the network')}>{t('Online via')}: {c.via}</div>{/if}</div>
   </div>
 
+  {#if x.dns_bypass}
+    <div class="card" style="margin-bottom:16px"><div class="card-h"><h2>{t('Does not use the router’s DNS')}</h2><span class="muted" style="font-size:12.5px">{x.dns_bypass.types.map(tr).join(' · ')} · {t('last 7 days')}</span></div>
+      <div class="card-b">
+        <p class="muted" style="margin-top:0">{t('Name lookups of this device go around the router, so DNS filters and host names in mtmon do not apply to it.')}</p>
+        <table><tbody>{#each x.dns_bypass.resolvers as r}<tr><td><span class="badge">{tr(r.type)}</span></td><td class="mono">{r.ip}</td><td class="muted">{r.host || ''}</td><td class="r num">{t('{n} connections', { n: r.flows })}</td></tr>{/each}</tbody></table>
+        <ul class="hints">
+          {#if x.dns_bypass.types.includes('DoT') || x.dns_bypass.types.includes('DoQ')}<li>{t('Android: Settings → Network → Private DNS → Off or Automatic. Home Assistant OS: ha dns options --fallback=false.')}</li>{/if}
+          {#if x.dns_bypass.types.includes('DoH')}<li>{t('Browser: switch off “secure DNS” / DNS over HTTPS, or serve the canary domain use-application-dns.net from your DNS.')}</li>{/if}
+          {#if x.dns_bypass.types.includes('external DNS')}<li>{t('Hand out the router (or your own resolver) as DNS server in DHCP and redirect other DNS traffic to it (see Suggestions).')}</li>{/if}
+        </ul>
+      </div></div>
+  {/if}
   {#if x.new_destinations?.length}
     <div class="warnbox" style="margin-bottom:16px"><b>{x.new_destinations.length > 1 ? t('{n} destinations contacted for the first time in the last 24 h:', { n: x.new_destinations.length }) : t('1 destination contacted for the first time in the last 24 h:')}</b>
       <span class="mono"> {x.new_destinations.slice(0, 8).join(', ')}{x.new_destinations.length > 8 ? ' …' : ''}</span></div>
@@ -201,6 +213,7 @@
 {#if dlg}<ClassifyDialog init={dlg} onclose={() => (dlg = null)} />{/if}
 
 <style>
+  .hints { margin: 10px 0 0; padding-left: 18px; font-size: 13px; }
   .avwrap { position: relative; display: inline-block; } .avbtn { border: 0; background: none; padding: 0; cursor: pointer; border-radius: 50%; } .avbtn:hover { filter: brightness(.95); outline: 2px solid var(--accent); outline-offset: 2px; }
   .head { margin-bottom: 14px; } .title { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .chip { display: inline-flex; align-items: center; gap: 8px; padding: 3px 6px 3px 10px; border-radius: 999px; background: var(--accent-bg, var(--card-2)); border: 1px solid var(--accent); font-size: 13px; }

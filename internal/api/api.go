@@ -57,6 +57,7 @@ type Server struct {
 	Cls     *enrich.Classifier // service classification
 	Sys     *syslog.Server     // firewall log receiver
 	Speed   *speedtest.Runner  // scheduled speed tests (nil: not available)
+	bypass  bypassCache        // DNS-bypass detection (dnsbypass.go)
 	Upd     *update.Manager    // self-update (nil in tests that do not use it)
 	provMu  sync.Mutex         // one provisioning / offboarding at a time
 	reclass atomic.Bool        // service relabelling in progress
@@ -365,6 +366,7 @@ func (s *Server) clients(w http.ResponseWriter, r *http.Request) {
 	for _, t := range must(s.St.TopBy("clients", since, 10000, "")) {
 		usage[t.Key] = [2]int64{t.Up, t.Down}
 	}
+	_, byp := s.dnsBypass()
 	out := make([]map[string]any, 0, len(cl))
 	want := r.URL.Query().Get("group") // "" = all, "none" = ungrouped
 	for _, c := range cl {
@@ -373,8 +375,12 @@ func (s *Server) clients(w http.ResponseWriter, r *http.Request) {
 		}
 		rt := rates[c.MAC]
 		u := usage[c.MAC]
+		bt := []string{}
+		if b, ok := byp[c.MAC]; ok {
+			bt = b.Types
+		}
 		out = append(out, map[string]any{"client": c, "up_bps": rt.UpBps, "down_bps": rt.DownBps, "bytes_up": u[0], "bytes_down": u[1],
-			"suggested_group": suggestedGroup(c)})
+			"suggested_group": suggestedGroup(c), "dns_bypass": bt})
 	}
 	jsonOut(w, out)
 }
@@ -392,8 +398,13 @@ func (s *Server) clientDetail(w http.ResponseWriter, r *http.Request) {
 	if time.Since(time.Unix(c.FirstSeen, 0)) > 24*time.Hour {
 		nd, _ = s.St.NewDests(mac, int64(ranges["24h"].d.Seconds()))
 	}
+	_, byp := s.dnsBypass()
+	var bypass any // null when the client uses the router's DNS
+	if b, ok := byp[mac]; ok {
+		bypass = b
+	}
 	jsonOut(w, map[string]any{
-		"client": c, "range": rn, "address_only": addrOnly, "suggested_group": suggestedGroup(*c),
+		"client": c, "range": rn, "address_only": addrOnly, "suggested_group": suggestedGroup(*c), "dns_bypass": bypass,
 		"ip_history":       must(s.St.IPHistory(mac)),
 		"roams":            must(s.St.Roams(mac)),
 		"series":           must(s.St.Series(since, bucket, mac)),
