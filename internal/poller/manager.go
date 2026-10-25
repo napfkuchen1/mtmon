@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/netip"
 	"reflect"
 	"sort"
@@ -528,7 +529,11 @@ func parseSignal(s string) int {
 	if i := strings.IndexAny(s, "@/ "); i > 0 {
 		s = s[:i]
 	}
-	return int((Row{"x": s}).Int("x"))
+	n := (Row{"x": s}).Int("x")
+	if n < math.MinInt16 || n > math.MaxInt16 { // a dBm value is tiny; anything else is garbage
+		return 0
+	}
+	return int(n)
 }
 
 // noteSelfMACs remembers the MAC addresses of a managed device's own interfaces, so the router/AP itself
