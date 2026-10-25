@@ -1054,6 +1054,21 @@ func (m *Manager) rekeyAlias(key, addr string) {
 	}()
 }
 
+// WANSummary names the WAN interfaces of the gateways ("gw: ether1, pppoe-out1"), stored with each speed test so
+// results after a failover or a changed uplink are not mixed up.
+func (m *Manager) WANSummary() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var parts []string
+	for name, s := range m.snaps {
+		if l := wanList(s.wan); len(l) > 0 {
+			parts = append(parts, name+": "+strings.Join(l, ", "))
+		}
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, "; ")
+}
+
 func wanList(m map[string]bool) []string {
 	out := []string{}
 	for k := range m {

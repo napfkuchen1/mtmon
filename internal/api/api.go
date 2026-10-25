@@ -25,6 +25,7 @@ import (
 	"github.com/napfkuchen1/mtmon/internal/live"
 	"github.com/napfkuchen1/mtmon/internal/poller"
 	"github.com/napfkuchen1/mtmon/internal/secret"
+	"github.com/napfkuchen1/mtmon/internal/speedtest"
 	"github.com/napfkuchen1/mtmon/internal/store"
 	"github.com/napfkuchen1/mtmon/internal/sysinfo"
 	"github.com/napfkuchen1/mtmon/internal/syslog"
@@ -55,6 +56,7 @@ type Server struct {
 	Mgr     *poller.Manager    // device workers; Reload() after device changes
 	Cls     *enrich.Classifier // service classification
 	Sys     *syslog.Server     // firewall log receiver
+	Speed   *speedtest.Runner  // scheduled speed tests (nil: not available)
 	Upd     *update.Manager    // self-update (nil in tests that do not use it)
 	provMu  sync.Mutex         // one provisioning / offboarding at a time
 	reclass atomic.Bool        // service relabelling in progress
