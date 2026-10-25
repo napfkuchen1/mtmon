@@ -1,0 +1,19 @@
+// German translations – DNS bypass
+export default {
+  "DNS bypass": "DNS-Umgehung",
+  "Does not use the router’s DNS: {types}": "Nutzt nicht den DNS des Routers: {types}",
+  "Does not use the router’s DNS": "Nutzt nicht den DNS des Routers",
+  "last 7 days": "letzte 7 Tage",
+  "Name lookups of this device go around the router, so DNS filters and host names in mtmon do not apply to it.": "Namensabfragen dieses Geräts umgehen den Router: DNS-Filter und Hostnamen in mtmon greifen hier nicht.",
+  "{n} connections": "{n} Verbindungen",
+  "Android: Settings → Network → Private DNS → Off or Automatic. Home Assistant OS: ha dns options --fallback=false.": "Android: Einstellungen → Netzwerk → Privates DNS → Aus oder Automatisch. Home Assistant OS: ha dns options --fallback=false.",
+  "Browser: switch off “secure DNS” / DNS over HTTPS, or serve the canary domain use-application-dns.net from your DNS.": "Browser: „Sicheres DNS“ / DNS over HTTPS ausschalten oder die Canary-Domain use-application-dns.net im eigenen DNS beantworten.",
+  "Hand out the router (or your own resolver) as DNS server in DHCP and redirect other DNS traffic to it (see Suggestions).": "Den Router (oder den eigenen Resolver) per DHCP als DNS-Server verteilen und anderen DNS-Verkehr dorthin umleiten (siehe Vorschläge).",
+  "{n} clients do not use the router’s DNS (last 7 days)": "{n} Clients nutzen nicht den DNS des Routers (letzte 7 Tage)",
+  "Alert when a client starts bypassing the local DNS": "Warnen, wenn ein Client den lokalen DNS umgeht",
+  "Alert (info) when a client starts to use DNS-over-TLS/QUIC/HTTPS or a public DNS server directly. Off by default; switching it on records the current state first, so existing clients do not raise alerts.": "Info-Alarm, wenn ein Client beginnt, DNS-over-TLS/QUIC/HTTPS oder einen öffentlichen DNS-Server direkt zu nutzen. Standardmäßig aus; beim Einschalten wird zuerst der Ist-Zustand erfasst, bestehende Clients lösen also keinen Alarm aus.",
+  "Show clients": "Clients anzeigen",
+  "1 client does not use your router’s DNS (DNS-over-TLS/HTTPS or a public DNS server).": "1 Client nutzt nicht den DNS deines Routers (DNS-over-TLS/HTTPS oder ein öffentlicher DNS-Server).",
+  "{n} clients do not use your router’s DNS (DNS-over-TLS/HTTPS or a public DNS server).": "{n} Clients nutzen nicht den DNS deines Routers (DNS-over-TLS/HTTPS oder ein öffentlicher DNS-Server).",
+  "DoT": "DoT", "DoQ": "DoQ", "DoH": "DoH", "external DNS": "externer DNS"
+}

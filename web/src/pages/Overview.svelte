@@ -9,6 +9,7 @@
   import Spark from '../lib/Spark.svelte'
   import InternetCard from '../lib/InternetCard.svelte'
   import SpeedCard from '../lib/SpeedCard.svelte'
+  const byp = poll(() => api('/dns-bypass'), 120000)
   import WorldMap from '../lib/WorldMap.svelte'
   import GroupsSummary from '../lib/GroupsSummary.svelte'
 
@@ -67,6 +68,7 @@
 </div>
 
 <GroupsSummary />
+{#if byp.data?.total}<div class="infobox" style="margin-top:16px">{byp.data.total === 1 ? t('1 client does not use your router’s DNS (DNS-over-TLS/HTTPS or a public DNS server).') : t('{n} clients do not use your router’s DNS (DNS-over-TLS/HTTPS or a public DNS server).', { n: byp.data.total })} <a href="#/clients/dns-bypass">{t('Show clients')}</a></div>{/if}
 <InternetCard />
 <SpeedCard />
 

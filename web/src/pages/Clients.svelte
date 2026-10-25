@@ -9,7 +9,7 @@
   import CleanupDialog from '../lib/CleanupDialog.svelte'
   let cleanup = $state(false)
 
-  let q = $state(''), kind = $state('all'), sortKey = $state('live'), desc = $state(true)
+  let q = $state(''), kind = $state(app.route.params.id === 'dns-bypass' ? 'dnsbypass' : 'all'), sortKey = $state('live'), desc = $state(true)
   let sel = $state({}) // mac -> true: selected for the bulk action
   let grp = $state('') // group filter: '' all, 'none', or a group name
   const gl = poll(() => api('/groups'), 30000)
@@ -26,6 +26,7 @@
     if (kind === 'wired') r = r.filter(x => !x.c.wifi && x.c.online)
     if (kind === 'offline') r = r.filter(x => !x.c.online)
     if (kind === 'watched') r = r.filter(x => x.c.watch)
+    if (kind === 'dnsbypass') r = r.filter(x => x.dns_bypass?.length)
     if (grp === 'none') r = r.filter(x => !x.c.group)
     else if (grp) r = r.filter(x => x.c.group === grp)
     const val = x => ({ name: display(x.c).toLowerCase(), ip: x.c.ip.split('.').map(n => n.padStart(3, '0')).join('.'), live: x.live, usage: x.bytes_up + x.bytes_down, signal: x.c.signal || -999, seen: x.c.last_seen, device: x.c.device }[sortKey])
@@ -34,7 +35,7 @@
   })
   function sort(k) { if (sortKey === k) desc = !desc; else { sortKey = k; desc = k !== 'name' && k !== 'ip' } }
   const arrow = k => sortKey === k ? (desc ? ' ↓' : ' ↑') : ''
-  const kinds = $derived([['all', t('All')], ['online', t('Online')], ['wifi', t('Wi-Fi')], ['wired', t('Wired')], ['offline', t('Offline')], ['watched', '★ ' + t('Watched')]])
+  const kinds = $derived([['all', t('All')], ['online', t('Online')], ['wifi', t('Wi-Fi')], ['wired', t('Wired')], ['offline', t('Offline')], ['watched', '★ ' + t('Watched')], ['dnsbypass', t('DNS bypass')]])
   const picked = $derived(Object.keys(sel).filter(k => sel[k]))
   async function groupSelected(group, auto = false) {
     try { const r = await api('/clients/group', { method: 'POST', body: auto ? { macs: picked, auto: true } : { macs: picked, group } }); sel = {}; d.data = await api('/clients?range=' + (app.range === 'live' ? '1h' : app.range)); toast(t('{n} clients updated', { n: r.count })) }
@@ -84,7 +85,7 @@
           <tr class="click" onclick={() => go('client/' + encodeURIComponent(x.c.mac))}>
             <td onclick={e => e.stopPropagation()}><input type="checkbox" aria-label={t('Select')} bind:checked={sel[x.c.mac]} /></td>
             <td><div style="display:flex;gap:10px;align-items:center"><Avatar client={x.c} online={x.c.online} />
-              <div><b>{#if x.c.watch}<span title={t('Watched: alert when offline')}>★ </span>{/if}{display(x.c)}</b>{#if x.c.group} <span class="badge">{x.c.group}</span>{:else if x.suggested_group && groups.includes(x.suggested_group)} <span class="muted" style="font-size:11.5px" title={t('Suggested group')}>({x.suggested_group}?)</span>{/if}<div class="muted mono" style="font-size:11.5px">{x.c.mac}{#if x.c.vendor} · {tr(x.c.vendor)}{/if}</div></div></div></td>
+              <div><b>{#if x.c.watch}<span title={t('Watched: alert when offline')}>★ </span>{/if}{display(x.c)}</b>{#if x.dns_bypass?.length} <span class="badge warn" title={t('Does not use the router’s DNS: {types}', { types: x.dns_bypass.map(tr).join(', ') })}>{t('DNS bypass')}</span>{/if}{#if x.c.group} <span class="badge">{x.c.group}</span>{:else if x.suggested_group && groups.includes(x.suggested_group)} <span class="muted" style="font-size:11.5px" title={t('Suggested group')}>({x.suggested_group}?)</span>{/if}<div class="muted mono" style="font-size:11.5px">{x.c.mac}{#if x.c.vendor} · {tr(x.c.vendor)}{/if}</div></div></div></td>
             <td class="mono">{x.c.ip || '—'}</td>
             <td>{#if x.c.device}{x.c.device}{#if x.c.wifi}<div><span class="badge acc">{x.c.ssid || t('Wi-Fi')}{x.c.band ? ' · ' + x.c.band : ''}</span></div>{:else}<div class="muted">{x.c.iface}</div>{/if}{:else}<span class="muted">—</span>{/if}</td>
             <td>{#if x.c.wifi && x.c.online}<span class="badge {signalQuality(x.c.signal).cls}">{signalQuality(x.c.signal).txt}</span>{:else}<span class="muted">—</span>{/if}</td>

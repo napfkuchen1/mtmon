@@ -25,6 +25,7 @@ import (
 	"github.com/napfkuchen1/mtmon/internal/alert"
 	"github.com/napfkuchen1/mtmon/internal/api"
 	"github.com/napfkuchen1/mtmon/internal/config"
+	"github.com/napfkuchen1/mtmon/internal/dnsbypass"
 	"github.com/napfkuchen1/mtmon/internal/enrich"
 	"github.com/napfkuchen1/mtmon/internal/flow"
 	"github.com/napfkuchen1/mtmon/internal/live"
@@ -175,6 +176,17 @@ func run(args []string) error {
 	go st.Maintain(ctx, cfg.RawRetention, cfg.Retention, backup)
 	go en.RunReverseDNS(ctx)
 	go srv.Speed.Run(ctx)
+	go (&dnsbypass.Watcher{St: st, Name: func(mac string) string {
+		if c, err := st.Client(mac); err == nil {
+			return api.ClientName(*c)
+		}
+		return ""
+	}, Raise: func(kind, subject, sev, msg string) {
+		if st.LearningUntil() > 0 { // baselines are being re-learned: record, do not alarm
+			sev, msg = "info", msg+" – learning: normal traffic is being re-learned"
+		}
+		al.Raise(kind, subject, sev, msg, 24*time.Hour)
+	}}).Run(ctx)
 	go srv.WarmCaches(ctx)
 	go pm.Run(ctx)
 	go al.Run(ctx.Done())
