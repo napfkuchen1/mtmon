@@ -235,7 +235,7 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie("mtmon_session"); err == nil {
 		s.sess.drop(c.Value)
 	}
-	http.SetCookie(w, &http.Cookie{Name: "mtmon_session", Value: "", Path: "/", MaxAge: -1})
+	http.SetCookie(w, &http.Cookie{Name: "mtmon_session", Value: "", Path: "/", HttpOnly: true, Secure: s.secureRequest(r), SameSite: http.SameSiteStrictMode, MaxAge: -1})
 	jsonOut(w, map[string]bool{"ok": true})
 }
 

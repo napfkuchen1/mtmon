@@ -93,13 +93,13 @@ func compile(rs []store.ServiceRule) []compiled {
 		c := compiled{ServiceRule: r, rank: kindRank[r.Kind]}
 		switch r.Kind {
 		case "port":
-			n, _ := strconv.Atoi(r.Value)
+			n, _ := strconv.ParseUint(r.Value, 10, 16)
 			c.port = uint16(n)
 			if r.Proto != 0 {
 				c.spec = 1
 			}
 		case "asn":
-			n, _ := strconv.Atoi(r.Value)
+			n, _ := strconv.ParseUint(r.Value, 10, 32)
 			c.asn = uint32(n)
 		case "cidr":
 			c.prefix, _ = netip.ParsePrefix(r.Value)
