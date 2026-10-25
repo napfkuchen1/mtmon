@@ -28,6 +28,33 @@ func TestIsSelf(t *testing.T) {
 	}
 }
 
+func TestSelfMACByAddr(t *testing.T) {
+	st, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	caps := `{"addresses":["192.168.0.1/24 on bridge","2001:db8:1::1/64 on pppoe-out1","fe80::1/64 on bridge"]}`
+	if err := st.UpsertDevice(store.DeviceRow{Name: "gw", Addr: "192.168.0.1", Scheme: "https", Port: 443, Caps: []byte(caps)}); err != nil {
+		t.Fatal(err)
+	}
+	m := &Manager{Cfg: &config.Config{Devices: []config.Device{{Name: "gw", Addr: "192.168.0.1"}}}, St: st, self: map[string]string{}}
+	m.noteSelfMACs("gw", []Row{{"mac-address": "04:F4:1C:29:A5:DD"}, {"mac-address": "04:F4:1C:29:A5:DC"}})
+	for ip, want := range map[string]string{
+		"2001:db8:1::1": "04:F4:1C:29:A5:DC", // dynamic WAN address on the PPPoE interface: the router, not a client
+		"192.168.0.1":   "04:F4:1C:29:A5:DC",
+		"2001:db8:1::5": "", // a client in the same prefix
+		"fe80::1":       "", // link-local is left to the EUI-64 logic
+	} {
+		if got := m.SelfMACByAddr(ip); got != want {
+			t.Errorf("SelfMACByAddr(%s) = %q, want %q", ip, got, want)
+		}
+	}
+	if d, ok := m.SelfByAddr("2001:db8:1::1"); !ok || d != "gw" {
+		t.Errorf("SelfByAddr with the stored 'addr on iface' format = %q,%v", d, ok)
+	}
+}
+
 func TestUplinkPorts(t *testing.T) {
 	st, err := store.Open(t.TempDir())
 	if err != nil {

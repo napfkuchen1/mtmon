@@ -25,6 +25,7 @@ type Watcher struct {
 	Raise func(kind, subject, severity, msg string)
 	Name  func(mac string) string // display name of a client; optional
 	Probe func() []string         // WAN-probe targets (host:port), never a DoH finding; optional
+	Self  func(mac string) bool   // true for a managed router/AP itself, never a bypass; optional
 	Every time.Duration           // 0 = 15 minutes
 }
 
@@ -58,7 +59,7 @@ func (w *Watcher) Check(now time.Time) {
 		ignore = ProbeHosts(w.Probe())
 	}
 	resets := LoadResets(w.St)
-	cs, err := DetectOpts(w.St, now.Add(-Window).Unix(), Options{Ignore: ignore, Resets: resets, Now: now})
+	cs, err := DetectOpts(w.St, now.Add(-Window).Unix(), Options{Ignore: ignore, Skip: w.Self, Resets: resets, Now: now})
 	if err != nil {
 		return
 	}

@@ -77,6 +77,7 @@ func Detect(st *store.Store, since int64, ignore ...string) ([]Client, error) {
 // clock for the Active flag (zero = time.Now).
 type Options struct {
 	Ignore []string
+	Skip   func(mac string) bool // true for a managed router/AP itself: its own DNS is no client bypass; optional
 	Resets map[string]int64
 	Now    time.Time
 }
@@ -123,6 +124,15 @@ func DetectOpts(st *store.Store, since int64, o Options) ([]Client, error) {
 				}
 			}
 		}
+	}
+	if o.Skip != nil {
+		kept := rows[:0]
+		for _, r := range rows {
+			if !o.Skip(r.MAC) {
+				kept = append(kept, r)
+			}
+		}
+		rows = kept
 	}
 	out := fromRows(rows, o.Ignore)
 	now := o.Now

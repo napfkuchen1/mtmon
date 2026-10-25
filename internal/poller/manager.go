@@ -43,6 +43,9 @@ type Manager struct {
 	known   map[string]bool
 	primed  bool
 	self    map[string]string // MAC of a managed device's own interface -> device name (never a client)
+	addrMu  sync.Mutex
+	addrAt  time.Time
+	addrMAC map[string]string // address configured on a managed device -> one of its own MACs
 }
 
 type devSnap struct {
@@ -577,9 +580,7 @@ func (m *Manager) SelfByAddr(ip string) (string, bool) {
 				continue
 			}
 			for _, x := range c.Addresses {
-				if pf, err := netip.ParsePrefix(x); err == nil && pf.Addr() == a {
-					return r.Name, true
-				} else if ad, err := netip.ParseAddr(x); err == nil && ad == a {
+				if ad, ok := addrOf(x); ok && ad == a {
 					return r.Name, true
 				}
 			}
@@ -593,6 +594,58 @@ func (m *Manager) SelfByAddr(ip string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// addrOf parses an entry of the stored capabilities ("192.168.1.1/24 on bridge", "2001:db8::1/64 on pppoe-out1").
+func addrOf(s string) (netip.Addr, bool) {
+	if i := strings.IndexByte(s, ' '); i > 0 {
+		s = s[:i]
+	}
+	if pf, err := netip.ParsePrefix(s); err == nil {
+		return pf.Addr(), true
+	}
+	ad, err := netip.ParseAddr(s)
+	return ad, err == nil
+}
+
+// SelfMACByAddr returns one of the own interface MACs of the managed device that has this IP address configured
+// (WAN / PPPoE addresses included, dynamic ones too), or "". The flow pipeline books the device's own traffic on
+// that MAC, so it never turns into a pseudo-client. The address list is rebuilt at most every 30 s.
+func (m *Manager) SelfMACByAddr(ip string) string {
+	m.addrMu.Lock()
+	defer m.addrMu.Unlock()
+	if m.addrMAC == nil || time.Since(m.addrAt) > 30*time.Second {
+		macs := map[string]string{} // device -> smallest own MAC
+		m.mu.Lock()
+		for mac, dev := range m.self {
+			if old, ok := macs[dev]; !ok || mac < old {
+				macs[dev] = mac
+			}
+		}
+		m.mu.Unlock()
+		out := map[string]string{}
+		if rows, err := m.St.DeviceRows(); err == nil {
+			for _, r := range rows {
+				mac := macs[r.Name]
+				var c struct {
+					Addresses []string `json:"addresses"`
+				}
+				if mac == "" || json.Unmarshal(r.Caps, &c) != nil {
+					continue
+				}
+				for _, x := range c.Addresses {
+					if ad, ok := addrOf(x); ok && !ad.IsLinkLocalUnicast() {
+						out[ad.String()] = mac
+					}
+				}
+			}
+		}
+		m.addrMAC, m.addrAt = out, time.Now()
+	}
+	if a, err := netip.ParseAddr(ip); err == nil {
+		return m.addrMAC[a.String()]
+	}
+	return ""
 }
 
 // isSelf reports whether the observation is one of the managed devices themselves.
