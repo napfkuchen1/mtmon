@@ -162,6 +162,9 @@ func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	out["export_probes"] = probes
+	if s.Pipe != nil {
+		out["flow_pipeline"] = s.Pipe.Diagnostics()
+	}
 	ns, _ := s.St.Neighbors()
 	out["neighbors"] = ns
 	cl, _ := s.St.Clients()
