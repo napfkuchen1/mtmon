@@ -12,6 +12,7 @@
   import Insights from './pages/Insights.svelte'
   import Suggestions from './pages/Suggestions.svelte'
   import Services from './pages/Services.svelte'
+  import Internet from './pages/Internet.svelte'
   import Firewall from './pages/Firewall.svelte'
   import Topology from './pages/Topology.svelte'
   import Alerts from './pages/Alerts.svelte'
@@ -33,6 +34,7 @@
     ['devices', 'Devices', 'M4 6h16v5H4zM4 13h16v5H4zM7 8.5h.01M7 15.5h.01'],
     ['alerts', 'Alerts', 'M6 9a6 6 0 1112 0c0 6 3 7 3 8H3c0-1 3-2 3-8zM10 21h4'],
     ['suggestions', 'Suggestions', 'M9 18h6M10 21h4M12 3a6 6 0 00-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0012 3z'],
+    ['internet', 'Internet', 'M3 12a9 9 0 0118 0M6.5 12a5.5 5.5 0 0111 0M10 12a2 2 0 014 0M12 15v6'],
     ['services', 'Services', 'M4 6h7v5H4zM13 6h7v5h-7zM4 13h7v5H4zM13 13h7v5h-7z'],
     ['firewall', 'Firewall', 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4'],
     ['insights', 'Insights', 'M4 20V10M10 20V4M16 20v-7M22 20H2'],
@@ -175,6 +177,7 @@
         {:else if app.route.name === 'suggestions'}<Suggestions />
         {:else if app.route.name === 'inbox'}<Inbox />
         {:else if app.route.name === 'services'}<Services />
+        {:else if app.route.name === 'internet'}<Internet />
         {:else if app.route.name === 'firewall'}<Firewall />
         {:else if app.route.name === 'topology'}<Topology />
         {:else if app.route.name === 'alerts'}<Alerts />
