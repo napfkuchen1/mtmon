@@ -30,7 +30,7 @@ func GuessLabel(hostname, vendor, mac, ip string) (label, reason, conf string) {
 		h = ""
 	}
 	if h != "" && !strings.EqualFold(strings.ReplaceAll(h, "-", ":"), mac) {
-		if i := strings.IndexByte(h, '.'); i > 0 { // drop domain (.lan, .fritz.box …)
+		if i := strings.IndexByte(h, '.'); i > 0 && !strings.ContainsAny(h, " ()[]") { // drop domain (.lan, .fritz.box …), not the dot in "TV (Mr.Name)"
 			h = h[:i]
 		}
 		if clean := strings.TrimSpace(noiseSuffix.ReplaceAllString(h, "")); len(clean) >= 3 {

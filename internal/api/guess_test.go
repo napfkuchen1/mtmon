@@ -9,6 +9,8 @@ func TestGuessLabel(t *testing.T) {
 	}{
 		{"Daniels-iPhone", "Apple", "AA:BB:CC:00:3F:A2", "", "Daniels iPhone", "medium"},
 		{"printer.fritz.box", "HP", "AA:BB:CC:00:3F:A2", "", "printer", "medium"},
+		{"pi.hole.lan", "", "AA:BB:CC:00:3F:A2", "", "pi", "medium"},
+		{"Brand-TV-Room (Mr.Name)", "", "AA:BB:CC:00:3F:A2", "", "Brand TV Room (Mr.Name)", "medium"},
 		{"ESP_A1B2C3", "Espressif", "AA:BB:CC:00:3F:A2", "", "ESP", "medium"},
 		{"192.168.1.5", "Sonos Inc", "AA:BB:CC:00:3F:A2", "", "Sonos speaker 3F:A2", "low"},
 		{"", "Private (randomized)", "AA:BB:CC:00:3F:A2", "", "Phone/laptop 3F:A2", "low"},

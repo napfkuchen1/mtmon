@@ -8,6 +8,11 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.20.0] - 2026-10-25
+
+### Fixed
+- The suggested label for a client with a dot inside the hostname, like `TV-Room (Mr.Name)`, was cut at the first dot ("TV Room (Mr"). The domain is now only removed from plain host names (`nas.fritz.box` still gives "nas"). Suggestions are computed on the fly, so existing clients get the corrected suggestion at once; labels you set yourself are never touched.
+
 ## [0.19.0] - 2026-10-25
 
 ### New
