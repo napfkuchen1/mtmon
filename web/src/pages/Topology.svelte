@@ -6,6 +6,7 @@
   import { bps, deviceKind } from '../lib/format.js'
   import { ICONS } from '../lib/icons.js'
   import Empty from '../lib/Empty.svelte'
+  import Upstream from '../lib/Upstream.svelte'
 
   const d = poll(() => api('/topology'), 5000)
   const CW = 168, RH = 52, PAD = 16, GP = 12 // client cell width / row height, outer padding, container padding
@@ -150,6 +151,7 @@
   <div class="legend"><span><i style="background:var(--ok)"></i>{t('Wired')}</span>
     {#each ssids as sid}<span><i style="background:{palette[ssids.indexOf(sid) % palette.length]};border-radius:50%"></i>{sid}</span>{/each}</div></div>
 {#if d.error}<div class="warnbox">{tr(d.error)}</div>{/if}
+<Upstream items={d.data?.upstream || []} />
 <div class="card wrap" bind:clientWidth={W}>
   {#if d.data && d.data.nodes.length}
     <svg width={W} height={layout.height} role="img" aria-label={t('Network topology')}>

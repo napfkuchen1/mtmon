@@ -128,3 +128,20 @@ func TestSpeedtestImportAPI(t *testing.T) {
 		t.Errorf("garbage: %d", code)
 	}
 }
+
+// The upstream list is part of the topology and the internet answer and is never null (the UI iterates it).
+func TestUpstreamListIsNeverNull(t *testing.T) {
+	ts, _ := newTestServer(t)
+	_, c := login(t, ts, "test-password-1")
+	for _, p := range []string{"/api/topology", "/api/internet"} {
+		r, err := c.Get(ts.URL + p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := io.ReadAll(r.Body)
+		r.Body.Close()
+		if !strings.Contains(string(b), `"upstream":[]`) {
+			t.Errorf("%s: %.200s", p, b)
+		}
+	}
+}

@@ -661,7 +661,7 @@ func (s *Server) topology(w http.ResponseWriter, r *http.Request) {
 	if edges == nil {
 		edges = []edge{}
 	}
-	jsonOut(w, map[string]any{"nodes": nodes, "edges": edges, "root": root, "root_override": override})
+	jsonOut(w, map[string]any{"nodes": nodes, "edges": edges, "root": root, "root_override": override, "upstream": s.upstreams()})
 }
 
 func localIP(r *http.Request) string {

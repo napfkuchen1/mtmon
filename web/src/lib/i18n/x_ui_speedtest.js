@@ -77,5 +77,13 @@ export default {
   "{p} % of the contracted speed": "{p} % der Vertragsgeschwindigkeit",
   "Tests (7 d)": "Tests (7 Tage)",
   "{f} failed": "{f} fehlgeschlagen",
-  "Internet": "Internet"
+  "Internet": "Internet",
+  "Upstream": "Upstream",
+  "Modem / router": "Modem / Router",
+  "Modem / router ({vendor})": "Modem / Router ({vendor})",
+  "ONT / modem (no IP)": "ONT / Modem (ohne IP)",
+  "on {port} of {dev}": "an {port} von {dev}",
+  "transfer net {net}": "Übergabenetz {net}",
+  "double NAT": "doppeltes NAT",
+  "tunnel": "Tunnel"
 }
