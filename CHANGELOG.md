@@ -11,6 +11,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 ## [0.19.0] - 2026-10-25
 
 ### New
+- **Who uses it?** A click on a row in Insights (destinations, ports, ASNs, countries, protocols) or on an application on the Services page opens a list of the clients behind it, busiest first, with a link to each client. It reads the per-client rollups, so it works for every range.
 - **Speed tests: start time.** Besides the interval you can set a start time, for example "every 3 hours from 01:30"; tests then land on fixed, known times (plus the random delay).
 
 - **DNS bypass: period, "mark as fixed", ended state.** The DNS-bypass card in Settings has a period (1 hour, 24 hours, 7 days, 30 days). "Mark as fixed" (per client or for all) ignores older traffic; the client shows as "under observation" and is flagged again, with a new alert, only if it bypasses the local DNS again (this can take up to an hour). A bypass without traffic for 24 hours counts as ended and no longer shows as a badge or in the overview count.
