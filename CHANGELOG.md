@@ -11,6 +11,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 ## [0.20.0] - 2026-10-25
 
 ### Fixed
+- The number of Wi-Fi clients shown for an access point (CAPsMAN) now counts only the clients currently connected through that device, instead of a stale value.
 - Suggestions judged against baselines that are still being re-learned now also carry `provisional: true` in the API (next to `learning`).
 - Speed tests: when Ookla is selected but its CLI is not installed, mtmon no longer stores a failed Ookla result with every round. The round skips Ookla, "Run now" says why if nothing else is selected, and the settings show a hint.
 - The suggested label for a client with a dot inside the hostname, like `TV-Room (Mr.Name)`, was cut at the first dot ("TV Room (Mr"). The domain is now only removed from plain host names (`nas.fritz.box` still gives "nas"). Suggestions are computed on the fly, so existing clients get the corrected suggestion at once; labels you set yourself are never touched.

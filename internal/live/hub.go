@@ -67,6 +67,7 @@ type Hub struct {
 	seq      uint64
 	ifaces   map[string]IfRate // device|iface
 	devices  map[string]DevLive
+	wifiN    map[string]int    // device → Wi-Fi clients placed on it by the client merge (beats the device's own registration table)
 	ipmac    map[string]string // ip → mac
 	names    map[string]string // mac → display name
 	totalUp  []ev
@@ -123,7 +124,28 @@ func eui64MAC(ip string) string {
 
 func (h *Hub) SetName(mac, name string) { h.mu.Lock(); h.names[mac] = name; h.mu.Unlock() }
 
-func (h *Hub) SetDevice(d DevLive) { h.mu.Lock(); h.devices[d.Name] = d; h.mu.Unlock() }
+func (h *Hub) SetDevice(d DevLive) {
+	h.mu.Lock()
+	if n, ok := h.wifiN[d.Name]; ok {
+		d.Clients = n
+	}
+	h.devices[d.Name] = d
+	h.mu.Unlock()
+}
+
+// SetWifiClients replaces the per-device count of Wi-Fi clients. An access point under CAPsMAN has no registration
+// table of its own, so the count comes from where the client merge placed each client.
+func (h *Hub) SetWifiClients(n map[string]int) {
+	h.mu.Lock()
+	h.wifiN = n
+	for name, d := range h.devices {
+		if c, ok := n[name]; ok {
+			d.Clients = c
+			h.devices[name] = d
+		}
+	}
+	h.mu.Unlock()
+}
 
 // RemoveDevice forgets live state of a device that was removed.
 func (h *Hub) RemoveDevice(name string) {

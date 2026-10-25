@@ -55,6 +55,18 @@ func TestSelfMACByAddr(t *testing.T) {
 	}
 }
 
+func TestWifiPerDevice(t *testing.T) {
+	obs := []store.Observation{
+		{MAC: "A", Device: "cap1", WiFi: true, Present: true}, {MAC: "B", Device: "cap1", WiFi: true, Present: true},
+		{MAC: "C", Device: "cap2", WiFi: true, Present: true}, {MAC: "D", Device: "gw", WiFi: false, Present: true},
+		{MAC: "E", Device: "cap2", WiFi: true, Present: false}, {MAC: "F", Device: "other", WiFi: true, Present: true},
+	}
+	got := wifiPerDevice(obs, []config.Device{{Name: "gw"}, {Name: "cap1"}, {Name: "cap2"}})
+	if got["cap1"] != 2 || got["cap2"] != 1 || got["gw"] != 0 || len(got) != 3 {
+		t.Fatalf("wifiPerDevice = %v", got)
+	}
+}
+
 func TestUplinkPorts(t *testing.T) {
 	st, err := store.Open(t.TempDir())
 	if err != nil {
