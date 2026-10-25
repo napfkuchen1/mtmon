@@ -24,6 +24,10 @@ type Speedtest struct {
 	Src      string  `json:"src,omitempty"` // "" = measured by mtmon, "import" = imported history
 }
 
+// SpeedtestSvc labels the flows of mtmon's own speed tests: they stay visible, but do not feed "new destination"
+// history or the per-client live rates that spike detection uses.
+const SpeedtestSvc = "Speed test"
+
 // SpeedtestRetentionDefault is how long results are kept: one tiny row per test, so much longer than flows.
 const SpeedtestRetentionDefault = 365
 

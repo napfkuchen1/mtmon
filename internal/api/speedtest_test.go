@@ -102,3 +102,29 @@ func TestSpeedtestAPI(t *testing.T) {
 		t.Errorf("csv: %d %s", code, b)
 	}
 }
+
+func TestSpeedtestImportAPI(t *testing.T) {
+	ts, _ := newTestServer(t)
+	_, c := login(t, ts, "test-password-1")
+	post := func(body string) (int, map[string]any) {
+		req, _ := http.NewRequest("POST", ts.URL+"/api/internet/speedtests/import", strings.NewReader(body))
+		r, err := c.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer r.Body.Close()
+		var m map[string]any
+		json.NewDecoder(r.Body).Decode(&m)
+		return r.StatusCode, m
+	}
+	csv := "id,ping,jitter,download,upload,time,type,created,error\n1,12,1,480.5,95,10,ookla,2025-03-01T10:00:00Z,\n2,0,0,0,0,0,ookla,2025-03-01T11:00:00Z,timeout\n"
+	if code, m := post(csv); code != 200 || m["added"] != float64(2) || m["duplicates"] != float64(0) {
+		t.Fatalf("first import: %d %v", code, m)
+	}
+	if code, m := post(csv); code != 200 || m["added"] != float64(0) || m["duplicates"] != float64(2) {
+		t.Fatalf("second import: %d %v", code, m)
+	}
+	if code, _ := post("this is not a speed test export"); code != 400 {
+		t.Errorf("garbage: %d", code)
+	}
+}

@@ -32,6 +32,8 @@ type Status struct {
 type Runner struct {
 	St  *store.Store
 	Log *slog.Logger
+	// DataDir is where an installed Ookla CLI is looked for (<DataDir>/ookla/speedtest).
+	DataDir string
 	// Busy returns the current WAN traffic (down, up in bit/s) so a test does not measure the family's streaming.
 	Busy func() (down, up float64)
 	// WAN names the WAN interface(s) that are up (stored with each result); optional.
@@ -69,6 +71,8 @@ func (r *Runner) providers(s Settings) []Provider {
 			out = append(out, Cloudflare{})
 		case "hetzner":
 			out = append(out, Hetzner{Location: s.Hetzner})
+		case "ookla":
+			out = append(out, Ookla{DataDir: r.DataDir, ServerID: s.OoklaID})
 		}
 	}
 	return out
@@ -258,7 +262,11 @@ func (r *Runner) round(ctx context.Context, s Settings) {
 		wan = r.WAN()
 	}
 	for _, p := range r.providers(s) {
-		for _, fam := range s.Families {
+		fams := s.Families
+		if p.Name() == "ookla" && len(fams) > 1 {
+			fams = fams[:1] // the CLI picks the address family itself
+		}
+		for _, fam := range fams {
 			if ctx.Err() != nil {
 				return
 			}

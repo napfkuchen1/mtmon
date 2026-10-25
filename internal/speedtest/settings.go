@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/napfkuchen1/mtmon/internal/store"
@@ -22,8 +23,10 @@ type Settings struct {
 	Providers    []string `json:"providers"` // "cloudflare", "hetzner"
 	Families     []string `json:"families"`  // "4", "6" or "" (system choice); one test per family and provider
 	Hetzner      string   `json:"hetzner_server"`
-	IntervalMin  int      `json:"interval_min"` // 0 = off
-	WindowFrom   string   `json:"window_from"`  // "HH:MM" local time, with WindowTo; empty = any time
+	OoklaID      int      `json:"ookla_server_id"` // 0 = automatic
+	OoklaOK      bool     `json:"ookla_accepted"`  // the user accepted Ookla\'s licence and privacy terms (needed to run it)
+	IntervalMin  int      `json:"interval_min"`    // 0 = off
+	WindowFrom   string   `json:"window_from"`     // "HH:MM" local time, with WindowTo; empty = any time
 	WindowTo     string   `json:"window_to"`
 	JitterMin    int      `json:"jitter_min"` // random delay added to every run so installs do not all hit the servers at :00
 	MaxMB        int      `json:"max_mb"`     // download volume per test and stream budget
@@ -44,7 +47,7 @@ var HetznerServers = map[string]string{
 	"ash": "ash-speed.hetzner.com", "hil": "hil-speed.hetzner.com", "sin": "sin-speed.hetzner.com",
 }
 
-var validProviders = map[string]bool{"cloudflare": true, "hetzner": true}
+var validProviders = map[string]bool{"cloudflare": true, "hetzner": true, "ookla": true}
 
 // DefaultSettings is conservative on purpose: off, hourly when switched on, small tests, 50 % busy guard.
 func DefaultSettings() Settings {
@@ -91,6 +94,12 @@ func (s Settings) Validate() (Settings, error) {
 	}
 	if _, ok := HetznerServers[s.Hetzner]; !ok {
 		return s, fmt.Errorf("unknown Hetzner location %q", s.Hetzner)
+	}
+	if s.OoklaID < 0 || s.OoklaID > 99999999 {
+		return s, errors.New("Ookla server id must be 0 (automatic) or a positive number")
+	}
+	if slices.Contains(s.Providers, "ookla") && !s.OoklaOK {
+		return s, errors.New("accept the Ookla licence terms first to use Ookla")
 	}
 	if s.IntervalMin < 0 || s.IntervalMin > 7*24*60 || (s.IntervalMin > 0 && s.IntervalMin < 15) {
 		return s, errors.New("interval must be 0 (off) or between 15 minutes and 7 days")

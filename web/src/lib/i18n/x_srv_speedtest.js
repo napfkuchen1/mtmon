@@ -1,5 +1,10 @@
 // German translations of backend text – speed tests
 export default {
+  "Ookla server id must be 0 (automatic) or a positive number": "Die Ookla-Server-ID muss 0 (automatisch) oder eine positive Zahl sein",
+  "accept the Ookla licence terms first to use Ookla": "Für Ookla zuerst die Lizenzbedingungen akzeptieren",
+  "file too large (8 MB at most)": "Datei zu groß (höchstens 8 MB)",
+  "empty file": "Leere Datei",
+  "no speed tests found in the file": "Keine Speedtests in der Datei gefunden",
   "speed_low": "Internet-Geschwindigkeit niedrig",
   "Internet speed ({s}) stayed below {p} % of the contracted speed in the last {n} tests: {d}/{u} Mbit/s down/up (contract {cd}/{cu})": "Internet-Geschwindigkeit ({s}) blieb in den letzten {n} Tests unter {p} % der Vertragsgeschwindigkeit: {d}/{u} Mbit/s runter/rauf (Vertrag {cd}/{cu})",
   " – speed is back above the limit": " – Geschwindigkeit liegt wieder über dem Grenzwert",

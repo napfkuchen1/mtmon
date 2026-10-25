@@ -50,7 +50,13 @@ func newClient(family string) *http.Client {
 	}
 	d := &net.Dialer{Timeout: 5 * time.Second}
 	tr := &http.Transport{
-		DialContext:         func(ctx context.Context, _, addr string) (net.Conn, error) { return d.DialContext(ctx, network, addr) },
+		DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
+			c, err := d.DialContext(ctx, network, addr)
+			if err == nil {
+				Traffic.Note(c.LocalAddr(), c.RemoteAddr()) // so the flow pipeline can label this traffic
+			}
+			return c, err
+		},
 		TLSHandshakeTimeout: 8 * time.Second, DisableCompression: true, MaxIdleConnsPerHost: 8,
 	}
 	return &http.Client{Transport: tr}
