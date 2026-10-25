@@ -26,6 +26,8 @@ type Status struct {
 	NextTS   int64  `json:"next_ts"` // 0 = nothing scheduled
 	Skipped  string `json:"skipped"` // why the last due run did not start
 	SkippedT int64  `json:"skipped_ts"`
+	// OoklaMissing: Ookla is selected but its CLI is not installed, so it is left out of the rounds.
+	OoklaMissing bool `json:"ookla_missing"`
 }
 
 // Runner schedules and runs the tests.
@@ -72,7 +74,10 @@ func (r *Runner) providers(s Settings) []Provider {
 		case "hetzner":
 			out = append(out, Hetzner{Location: s.Hetzner})
 		case "ookla":
-			out = append(out, Ookla{DataDir: r.DataDir, ServerID: s.OoklaID})
+			// without the CLI every round would only store a failed row; Status.OoklaMissing tells the UI
+			if o := (Ookla{DataDir: r.DataDir, ServerID: s.OoklaID}); o.Installed() {
+				out = append(out, o)
+			}
 		}
 	}
 	return out
@@ -83,6 +88,13 @@ func (r *Runner) Status() Status {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	st := Status{Running: r.running, Skipped: r.skipped}
+	if r.St != nil {
+		for _, n := range LoadSettings(r.St).Providers {
+			if n == "ookla" && r.Providers == nil && !(Ookla{DataDir: r.DataDir}).Installed() {
+				st.OoklaMissing = true
+			}
+		}
+	}
 	if !r.next.IsZero() {
 		st.NextTS = r.next.Unix()
 	}
@@ -242,6 +254,9 @@ func (r *Runner) RunNow() error {
 	r.mu.Unlock()
 	if reason := r.allowed(s, true); reason != "" && reason != SkipPaused {
 		return ErrRefused(reason)
+	}
+	if len(s.Providers) > 0 && len(r.providers(s)) == 0 {
+		return ErrRefused("no selected speed-test provider is available (Ookla CLI not installed)")
 	}
 	r.mu.Lock()
 	ctx := r.base

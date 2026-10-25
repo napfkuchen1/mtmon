@@ -332,3 +332,24 @@ func TestShortErr(t *testing.T) {
 		t.Errorf("plain: %q", got)
 	}
 }
+
+func TestOoklaMissingIsSkipped(t *testing.T) {
+	now := time.Now()
+	r := newRunner(t, &now, &fakeProvider{})
+	r.Providers = nil
+	r.DataDir = t.TempDir()
+	t.Setenv("PATH", t.TempDir())
+	save(t, r, func(s *Settings) { s.Providers, s.OoklaOK = []string{"ookla"}, true })
+	if !r.Status().OoklaMissing {
+		t.Fatal("status must flag the missing CLI")
+	}
+	if got := r.providers(LoadSettings(r.St)); len(got) != 0 {
+		t.Fatalf("missing Ookla must be left out, got %d", len(got))
+	}
+	if err := r.RunNow(); err == nil {
+		t.Fatal("RunNow must refuse when Ookla is the only provider and missing")
+	}
+	if items, _ := r.St.Speedtests(0, 10); len(items) != 0 {
+		t.Fatalf("no failed rows expected, got %d", len(items))
+	}
+}

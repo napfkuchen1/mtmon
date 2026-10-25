@@ -148,6 +148,7 @@
             <select class="input sm" bind:value={form.hetzner_server}>{#each x.hetzner_servers as s}<option value={s}>{s}</option>{/each}</select></label></div>
         <div class="fld"><label class="chk"><input type="checkbox" checked={form.providers.includes('ookla')} onchange={() => (form.providers = toggle(form.providers, 'ookla'))} /> Ookla ({t('official CLI, download, upload, latency')})</label>
           <span class="muted" style="font-weight:400">{t('mtmon does not ship the Ookla speedtest CLI: install it yourself (into the data directory under ookla/speedtest, or into PATH).')}</span>
+          {#if form.providers.includes('ookla') && status.ookla_missing}<span class="badge warn">{t('Ookla CLI not found: Ookla is skipped until it is installed.')}</span>{/if}
           {#if form.providers.includes('ookla')}
             <label class="chk"><input type="checkbox" bind:checked={form.ookla_accepted} /> {t('I accept the Ookla licence and privacy terms (needed to run it)')}</label>
             <span class="inl">{t('Server id (0 = automatic)')} <input class="input sm" type="number" min="0" bind:value={form.ookla_server_id} /></span>{/if}</div>

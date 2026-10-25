@@ -36,6 +36,9 @@ func (p Ookla) binary() string {
 	return ""
 }
 
+// Installed reports whether the CLI can be run.
+func (p Ookla) Installed() bool { return p.RunCmd != nil || p.binary() != "" }
+
 func (p Ookla) Run(ctx context.Context, o Opts) Result {
 	res := Result{Server: "ookla"}
 	bin := p.binary()
