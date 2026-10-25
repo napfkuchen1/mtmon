@@ -46,7 +46,7 @@
 
 <div class="head"><h1>{t('Overview')}</h1><span class="muted">{app.range === 'live' ? t('Last 5 minutes') : t('Last {range}', { range: app.range })}</span></div>
 
-{#if o?.learning_until}<div class="infobox" style="margin-bottom:12px">{t('mtmon is re-learning normal traffic until {time}. Spikes and recurring-traffic findings are recorded as info until then, so there are no false alarms.', { time: datetime(o.learning_until) })}</div>{/if}
+{#if o?.learning_until}<div class="infobox" style="margin-bottom:12px">{t('mtmon is re-learning normal traffic until {time}. Spikes and recurring-traffic findings are recorded as info until then, so there are no false alarms.', { time: datetime(o.learning_until) })}{#if o.learning_reason} <b>{o.learning_reason.startsWith('update ') ? t('Reason: update to {v}', { v: o.learning_reason.slice(7) }) : o.learning_reason === 'data reset' ? t('Reason: data reset') : t('Reason: baselines reset')}</b>{/if}</div>{/if}
 {#if d.error}<div class="warnbox">{t('Could not load data: {err}', { err: tr(d.error) })}</div>{/if}
 
 <div class="grid g6 kpis">

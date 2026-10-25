@@ -8,7 +8,8 @@ import (
 // learning: GET /api/learning – is a learning period running (after a reset or an update that changed detection)?
 func (s *Server) learning(w http.ResponseWriter, r *http.Request) {
 	until := s.St.LearningUntil()
-	jsonOut(w, map[string]any{"active": until > 0, "until": until, "baseline_since": s.St.BaselineSince()})
+	jsonOut(w, map[string]any{"active": until > 0, "until": until, "reason": s.St.LearningReason(),
+		"baseline_since": s.St.BaselineSince()})
 }
 
 // learningReset: POST /api/learning/reset {hours} – "reset baselines only": traffic level and recurring-pattern
@@ -27,7 +28,7 @@ func (s *Server) learningReset(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 400, "at most 336 hours")
 		return
 	}
-	s.St.StartLearning(time.Duration(in.Hours)*time.Hour, true)
+	s.St.StartLearning(time.Duration(in.Hours)*time.Hour, true, "baselines reset")
 	if s.ResetBaseline != nil {
 		s.ResetBaseline()
 	}

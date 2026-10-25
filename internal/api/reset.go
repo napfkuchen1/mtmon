@@ -40,7 +40,7 @@ func (s *Server) dataReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Hub.Reset()
-	s.St.StartLearning(store.LearningDefault, true) // history is gone: baselines start again
+	s.St.StartLearning(store.LearningDefault, true, "data reset") // history is gone: baselines start again
 	if s.ResetBaseline != nil {
 		s.ResetBaseline()
 	}
