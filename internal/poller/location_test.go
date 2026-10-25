@@ -184,3 +184,40 @@ func TestSelfByAddr(t *testing.T) {
 		}
 	}
 }
+
+// The WAN list is authoritative: a downstream router's default route runs over its LAN bridge, which must not
+// count as upstream. Without a list the default-route interface is the fallback.
+func TestWANInterfacesListWins(t *testing.T) {
+	members := []Row{{"list": "WAN", "interface": "ether1"}, {"list": "LAN", "interface": "ether2"}}
+	routes := []Row{{"dst-address": "0.0.0.0/0", "active": "true", "immediate-gw": "192.168.1.1%bridge1"}}
+	if w := wanInterfaces(members, routes); len(w) != 1 || !w["ether1"] {
+		t.Errorf("list must win over the route: %v", w)
+	}
+	if w := wanInterfaces(nil, routes); !w["bridge1"] {
+		t.Errorf("route fallback without a list: %v", w)
+	}
+}
+
+func TestRemoveWANClients(t *testing.T) {
+	st, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	st.DB.Exec(`INSERT INTO clients(mac,ip,device,iface,online,label,first_seen,last_seen) VALUES
+		('02:00:00:00:00:0A','192.168.100.1','gw','ether1',0,'',1,1),
+		('02:00:00:00:00:0B','10.0.0.7','gw','bridge',0,'',1,1),
+		('02:00:00:00:00:0C','192.168.100.2','gw','ether1',1,'',1,1),
+		('02:00:00:00:00:0D','192.168.100.3','gw','ether1',0,'keep me',1,1)`)
+	if n := st.RemoveWANClients("gw", []string{"ether1"}); n != 1 {
+		t.Fatalf("removed %d, want 1", n)
+	}
+	if _, err := st.Client("02:00:00:00:00:0A"); err == nil {
+		t.Error("offline modem record must go")
+	}
+	for _, m := range []string{"02:00:00:00:00:0B", "02:00:00:00:00:0C", "02:00:00:00:00:0D"} {
+		if _, err := st.Client(m); err != nil {
+			t.Errorf("%s must stay: %v", m, err)
+		}
+	}
+}

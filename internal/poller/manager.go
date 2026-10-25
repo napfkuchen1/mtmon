@@ -415,19 +415,29 @@ func (w *worker) l3Poll(ctx context.Context) {
 	routes, rerr := w.c.Get(ctx, "/ip/route")
 	if merr == nil || rerr == nil {
 		wan := wanInterfaces(members, routes)
+		if w.d.Role == "ap" { // an access point has no upstream side; its only bridge is its LAN
+			wan = map[string]bool{}
+		}
 		w.m.setSnap(w.d.Name, func(s *devSnap) { s.wan = wan })
+		if n := w.m.St.RemoveWANClients(w.d.Name, wanList(wan)); n > 0 { // leftovers from before the WAN check existed
+			w.m.Log.Info("removed offline records learned on a WAN interface", "device", w.d.Name, "count", n)
+		}
 	}
 }
 
-// wanInterfaces names the interfaces that lead to the upstream (modem, ISP): members of the interface list "WAN"
-// and the interface of the active default route (the part after "%" in the gateway). Hosts learned there are not
-// LAN clients. Field names are matched defensively; unknown shapes just yield fewer interfaces.
+// wanInterfaces names the interfaces that lead to the upstream (modem, ISP). Members of the interface list "WAN"
+// are authoritative; only without such a list the interface of the active default route (the part after "%" in the
+// gateway) is used, because on a downstream router that route runs over the LAN bridge. Hosts learned on a WAN
+// interface are not LAN clients. Field names are matched defensively; unknown shapes just yield fewer interfaces.
 func wanInterfaces(members, routes []Row) map[string]bool {
 	out := map[string]bool{}
 	for _, r := range members {
 		if strings.EqualFold(strings.TrimSpace(r["list"]), "WAN") && r["interface"] != "" && !r.Bool("disabled") {
 			out[r["interface"]] = true
 		}
+	}
+	if len(out) > 0 {
+		return out
 	}
 	for _, r := range routes {
 		if r["dst-address"] != "0.0.0.0/0" || r.Bool("disabled") || (r["active"] != "" && !r.Bool("active")) {
