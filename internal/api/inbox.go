@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/napfkuchen1/mtmon/internal/provision"
 	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
@@ -150,6 +151,17 @@ func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
 			out[k] = v
 		}
 	}
+	// what one POST /rest/export with the monitoring login looked like per device (counts and flags, no text)
+	probes := map[string]any{}
+	if rows, err := s.St.DeviceRows(); err == nil {
+		for _, row := range rows {
+			var c provision.Caps
+			if json.Unmarshal(row.Caps, &c) == nil && c.Export.At > 0 {
+				probes[row.Name] = c.Export
+			}
+		}
+	}
+	out["export_probes"] = probes
 	ns, _ := s.St.Neighbors()
 	out["neighbors"] = ns
 	cl, _ := s.St.Clients()

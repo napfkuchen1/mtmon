@@ -88,6 +88,15 @@ type Caps struct {
 	Files       Files    `json:"files"`               // newest backup / export file (read-only /file listing)
 	Certs       []Cert   `json:"certs"`               // certificates that services use (www-ssl, api-ssl) and when they expire
 	Update      Update   `json:"update"`              // RouterOS update state as the router last checked
+	// Export is what one POST /rest/export with the monitoring login looked like (#46): decides whether a
+	// config-drift view can work. Only counts and flags, never the text. Refreshed once a day.
+	Export ExportProbe `json:"export_probe"`
+}
+
+// ExportProbe is poller.ExportResult plus the time it was taken (unix, 0 = never probed).
+type ExportProbe struct {
+	poller.ExportResult
+	At int64 `json:"at,omitempty"`
 }
 
 // Cert is a certificate a router service uses; Expires is a unix time (0 = unknown).
