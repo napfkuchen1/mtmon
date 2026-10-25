@@ -8,6 +8,27 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.18.0] - 2026-10-25
+
+### New
+- **Speed tests:** mtmon measures your line from its own host (not from a router). Cloudflare (download, upload, latency) and Hetzner (download) are built in; the official Ookla command-line tool can be used if you install it yourself. Choose the interval, a time window, a random delay, the size of a test and a daily or monthly data budget; tests are skipped while the line is busy. The new **Internet** page shows the history, charts and a table (failed tests are marked as failed, never as 0 Mbit/s), with CSV/JSON export, a "Run now" button and an import of the MySpeed export. Enter your contracted speed to get a warning when several tests in a row stay far below it. The Overview shows the latest result. Switched **off** by default.
+- **Modem in front of the router:** the ISP modem (for example a FRITZ!Box) is shown above the topology and on the Internet page with the way the line comes in: PPPoE, DS-Lite, transfer network, double NAT, or "ONT without IP". It is not counted as a client.
+- **Clients that bypass your DNS:** mtmon flags clients that use DNS-over-TLS, DNS-over-QUIC, DNS-over-HTTPS or a public DNS server directly. Badge and filter on the Clients page, details and hints (Android, Home Assistant, browser) on the client page, a notice on the Overview. An optional alert (off by default) tells you when a client starts doing it.
+- **IPv6 prefix hint:** when your provider changes the IPv6 prefix and the router keeps announcing old ones for weeks, a suggestion explains it, and the client page shows "addresses from old prefixes". No router command is offered yet.
+- **Learning period explained:** the Overview banner says why mtmon is learning (update, data reset or reset of the baselines), and `/api/system` reports it.
+- **Diagnostics:** `/api/diagnostics` shows how many flows each router interface delivered per direction and the last flows that were dropped (to find missing upload/download of VPN peers), the modem data, and whether the read-only router user may export the configuration (counts only, no text).
+
+### Changed
+- The speed test of mtmon itself is labelled "Speed test" in the traffic lists and no longer counts as new destinations or as the host's own traffic spike.
+- Overview, Services and the long-range charts are kept warm in the background, so the first page load after a pause is fast.
+- The release workflow pins its actions by commit.
+
+### Fixed
+- The router event log set-up failed on RouterOS 7.24 because of an unknown log topic; unknown topics are now skipped instead of undoing everything.
+- The age of the newest backup was missing on RouterOS 7.24 (the file time comes under a different name).
+- Wired devices behind an unmanaged switch were sometimes placed on the uplink of an access point instead of the router.
+- The WAN port list is now taken from the interface list "WAN" only (a downstream router's LAN bridge was counted as WAN), access points have no WAN, and old records of the modem are removed.
+
 ## [0.17.0] - 2026-10-24
 
 ### New
