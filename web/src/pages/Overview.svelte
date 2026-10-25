@@ -8,6 +8,7 @@
   import TopList from '../lib/TopList.svelte'
   import Spark from '../lib/Spark.svelte'
   import InternetCard from '../lib/InternetCard.svelte'
+  import SpeedCard from '../lib/SpeedCard.svelte'
   import WorldMap from '../lib/WorldMap.svelte'
   import GroupsSummary from '../lib/GroupsSummary.svelte'
 
@@ -67,6 +68,7 @@
 
 <GroupsSummary />
 <InternetCard />
+<SpeedCard />
 
 <div class="grid g2" style="margin-top:16px">
   <div class="card"><div class="card-h"><h2>{t('Top clients')}</h2><a href="#/insights">{t('All →')}</a></div><TopList rows={o?.top_clients || []} onpick={pickClient} /></div>

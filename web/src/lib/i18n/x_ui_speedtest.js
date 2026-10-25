@@ -65,5 +65,17 @@ export default {
   "Download": "Download",
   "Upload": "Upload",
   "Loading…": "Lädt…",
+  "Import MySpeed…": "MySpeed importieren…",
+  "Import the CSV or JSON export of MySpeed (Mbit/s, ms)": "CSV- oder JSON-Export von MySpeed importieren (Mbit/s, ms)",
+  "Imported {a} tests ({d} already known, {s} skipped)": "{a} Tests importiert ({d} schon bekannt, {s} übersprungen)",
+  "official CLI, download, upload, latency": "offizielle CLI, Download, Upload, Latenz",
+  "mtmon does not ship the Ookla speedtest CLI: install it yourself (into the data directory under ookla/speedtest, or into PATH).": "mtmon liefert die Ookla-Speedtest-CLI nicht mit: bitte selbst installieren (ins Datenverzeichnis unter ookla/speedtest oder in den PATH).",
+  "I accept the Ookla licence and privacy terms (needed to run it)": "Ich akzeptiere die Lizenz- und Datenschutzbedingungen von Ookla (nötig zum Ausführen)",
+  "Server id (0 = automatic)": "Server-ID (0 = automatisch)",
+  "Speed": "Geschwindigkeit",
+  "last test {when}": "letzter Test {when}",
+  "{p} % of the contracted speed": "{p} % der Vertragsgeschwindigkeit",
+  "Tests (7 d)": "Tests (7 Tage)",
+  "{f} failed": "{f} fehlgeschlagen",
   "Internet": "Internet"
 }

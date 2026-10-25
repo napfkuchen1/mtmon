@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/csv"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -29,6 +30,7 @@ func (s *Server) speedRoutes(m *http.ServeMux, a func(http.HandlerFunc) http.Han
 	m.HandleFunc("GET /api/internet/speedtests/export", a(s.speedtestsExport))
 	m.HandleFunc("PUT /api/internet/speedtest/settings", a(s.speedtestSettings))
 	m.HandleFunc("POST /api/internet/speedtest", a(s.speedtestRun))
+	m.HandleFunc("POST /api/internet/speedtests/import", a(s.speedtestsImport))
 }
 
 // speedtests: GET /api/internet/speedtests?range=30d – settings, state, summary and the results (newest first, at
@@ -125,4 +127,25 @@ func (s *Server) speedtestsExport(w http.ResponseWriter, r *http.Request) {
 			f(t.DownBps / 1e6), f(t.UpBps / 1e6), f(t.PingMS), f(t.JitterMS), strconv.FormatInt(t.Bytes, 10), csvSafe(t.Err)})
 	}
 	cw.Flush()
+}
+
+// speedtestsImport: POST /api/internet/speedtests/import – body is a MySpeed export (CSV or JSON, up to 8 MB).
+// Importing the same file twice adds nothing the second time.
+func (s *Server) speedtestsImport(w http.ResponseWriter, r *http.Request) {
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 8<<20))
+	if err != nil {
+		jerr(w, 400, "file too large (8 MB at most)")
+		return
+	}
+	rows, bad, err := speedtest.ParseMySpeed(data)
+	if err != nil {
+		jerr(w, 400, err.Error())
+		return
+	}
+	added, dup, err := s.St.ImportSpeedtests(rows)
+	if err != nil {
+		jerr(w, 500, err.Error())
+		return
+	}
+	jsonOut(w, map[string]int{"added": added, "duplicates": dup, "skipped": bad})
 }

@@ -136,7 +136,7 @@ func run(args []string) error {
 	srv := &api.Server{Cfg: cfg, St: st, Hub: hub, En: en, Col: col, Pipe: pipe, UI: web.FS(), Version: version, TLS: !cfg.NoTLS,
 		Box: box, Mgr: pm, Cls: cls, Sys: sys}
 	srv.ResetBaseline = al.ResetBaseline
-	srv.Speed = &speedtest.Runner{St: st, Log: log,
+	srv.Speed = &speedtest.Runner{St: st, Log: log, DataDir: cfg.DataDir,
 		Busy:    func() (float64, float64) { s := hub.Snapshot(hub.LastSeq(), 0); return s.DownBps, s.UpBps },
 		WAN:     pm.WANSummary,
 		Raise:   func(kind, subject, sev, msg string) { al.Raise(kind, subject, sev, msg, 6*time.Hour) },

@@ -41,12 +41,22 @@
     try {
       const body = { ...form, interval_min: num(form.interval_min), jitter_min: num(form.jitter_min), max_mb: num(form.max_mb), max_sec: num(form.max_sec),
         streams: num(form.streams), budget_day_mb: num(form.budget_day_mb), budget_month_mb: num(form.budget_month_mb), skip_busy_pct: num(form.skip_busy_pct),
-        contract_down_mbps: num(form.contract_down_mbps), contract_up_mbps: num(form.contract_up_mbps), alert_below_pct: num(form.alert_below_pct), alert_count: num(form.alert_count) }
+        ookla_server_id: num(form.ookla_server_id), contract_down_mbps: num(form.contract_down_mbps), contract_up_mbps: num(form.contract_up_mbps), alert_below_pct: num(form.alert_below_pct), alert_count: num(form.alert_count) }
       await api('/internet/speedtest/settings', { method: 'PUT', body })
       editing = false
       toast(t('Saved'))
       d.data = await api('/internet/speedtests?range=' + range)
     } catch (e) { toast(tr(e.message)) }
+  }
+  async function importFile(e) {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    try {
+      const r = await api('/internet/speedtests/import', { method: 'POST', raw: await f.text() })
+      toast(t('Imported {a} tests ({d} already known, {s} skipped)', { a: r.added, d: r.duplicates, s: r.skipped }))
+      d.data = await api('/internet/speedtests?range=' + range)
+    } catch (err) { toast(tr(err.message)) }
   }
   async function runNow() {
     busy = true
@@ -81,6 +91,7 @@
     <button class="btn primary" disabled={status.running || busy} onclick={runNow}>{t('Run now')}</button>
     <a class="btn" href={'/api/internet/speedtests/export?format=csv&range=' + range} download>CSV</a>
     <a class="btn" href={'/api/internet/speedtests/export?format=json&range=' + range} download>JSON</a>
+    <label class="btn" title={t('Import the CSV or JSON export of MySpeed (Mbit/s, ms)')}>{t('Import MySpeed…')}<input type="file" accept=".csv,.json,text/csv,application/json" hidden onchange={importFile} /></label>
   </div>
 
   {#if !items.length}
@@ -125,6 +136,11 @@
           <label class="chk"><input type="checkbox" checked={form.providers.includes('cloudflare')} onchange={() => (form.providers = toggle(form.providers, 'cloudflare'))} /> Cloudflare ({t('download, upload, latency')})</label>
           <label class="chk"><input type="checkbox" checked={form.providers.includes('hetzner')} onchange={() => (form.providers = toggle(form.providers, 'hetzner'))} /> Hetzner ({t('download only')})
             <select class="input sm" bind:value={form.hetzner_server}>{#each x.hetzner_servers as s}<option value={s}>{s}</option>{/each}</select></label></div>
+        <div class="fld"><label class="chk"><input type="checkbox" checked={form.providers.includes('ookla')} onchange={() => (form.providers = toggle(form.providers, 'ookla'))} /> Ookla ({t('official CLI, download, upload, latency')})</label>
+          <span class="muted" style="font-weight:400">{t('mtmon does not ship the Ookla speedtest CLI: install it yourself (into the data directory under ookla/speedtest, or into PATH).')}</span>
+          {#if form.providers.includes('ookla')}
+            <label class="chk"><input type="checkbox" bind:checked={form.ookla_accepted} /> {t('I accept the Ookla licence and privacy terms (needed to run it)')}</label>
+            <span class="inl">{t('Server id (0 = automatic)')} <input class="input sm" type="number" min="0" bind:value={form.ookla_server_id} /></span>{/if}</div>
         <div class="fld"><span>{t('IP version')}</span>
           {#each [['', 'auto'], ['4', 'IPv4'], ['6', 'IPv6']] as [v, label]}<label class="chk"><input type="checkbox" checked={form.families.includes(v)} onchange={() => (form.families = toggle(form.families, v))} /> {label}</label>{/each}</div>
         <label class="fld"><span>{t('Interval')}</span><select class="input" bind:value={form.interval_min}>{#each intervals as [v, label]}<option value={v}>{t(label)}</option>{/each}</select></label>

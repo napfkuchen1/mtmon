@@ -8,6 +8,7 @@ import (
 	"github.com/napfkuchen1/mtmon/internal/config"
 	"github.com/napfkuchen1/mtmon/internal/enrich"
 	"github.com/napfkuchen1/mtmon/internal/flow"
+	"github.com/napfkuchen1/mtmon/internal/speedtest"
 	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
@@ -145,6 +146,9 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 			row.Svc = p.Cls.Classify(r.Proto, row.RPort, row.CPort, rip, row.Host, row.ASN)
 		} else {
 			row.Svc = enrich.Service(r.Proto, row.RPort, row.CPort)
+		}
+		if speedtest.Traffic.Match(row.CIP, row.RIP) { // mtmon's own speed test: visible, but not client behaviour
+			row.Svc = store.SpeedtestSvc
 		}
 		rows = append(rows, row)
 		p.Hub.AddFlow(row)
