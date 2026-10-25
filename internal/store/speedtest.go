@@ -125,18 +125,20 @@ type SpeedStat struct {
 
 // SpeedtestSummary aggregates a window. Failed tests are counted separately and never enter the statistics.
 type SpeedtestSummary struct {
-	Tests  int       `json:"tests"`
-	Failed int       `json:"failed"`
-	Down   SpeedStat `json:"down_bps"`
-	Up     SpeedStat `json:"up_bps"`
-	Ping   SpeedStat `json:"ping_ms"`
-	Bytes  int64     `json:"bytes"`
+	Tests          int       `json:"tests"`
+	Failed         int       `json:"failed"`
+	FailedImported int       `json:"failed_imported"` // part of Failed that comes from imported history
+	Down           SpeedStat `json:"down_bps"`
+	Up             SpeedStat `json:"up_bps"`
+	Ping           SpeedStat `json:"ping_ms"`
+	Bytes          int64     `json:"bytes"`
 }
 
 func (s *Store) SpeedtestSummary(since int64) SpeedtestSummary {
 	var out SpeedtestSummary
 	s.DB.QueryRow(`SELECT count(*), coalesce(sum(coalesce(err,'')<>''),0), coalesce(sum(coalesce(bytes,0)),0) FROM speedtests WHERE ts>=?`, since).
 		Scan(&out.Tests, &out.Failed, &out.Bytes)
+	s.DB.QueryRow(`SELECT count(*) FROM speedtests WHERE ts>=? AND coalesce(err,'')<>'' AND coalesce(src,'')='import'`, since).Scan(&out.FailedImported)
 	stat := func(col string) SpeedStat {
 		var st SpeedStat
 		s.DB.QueryRow(`SELECT count(*), coalesce(min(`+col+`),0), coalesce(avg(`+col+`),0), coalesce(max(`+col+`),0) FROM speedtests

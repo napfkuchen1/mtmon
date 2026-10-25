@@ -27,7 +27,14 @@
     { name: t('Upload'), color: 'var(--up)', points: pts('up_bps') },
     ...contract(st?.contract_down_mbps, 'var(--muted)', t('Contract download'))
   ])
-  const pingSeries = $derived([{ name: t('Latency'), color: 'var(--accent)', points: pts('ping_ms') }])
+  // MySpeed's history is Ookla ("auto"/"custom" server choice); label it so, and keep it apart from mtmon's own tests
+  const provName = i => (i.src === 'import' && (i.provider === 'auto' || i.provider === 'custom' || i.provider === 'myspeed') ? 'MySpeed (Ookla)' : i.provider)
+  const seriesColors = ['var(--accent)', 'var(--down)', 'var(--up)', 'var(--muted)']
+  const provNames = $derived([...new Set(ok.filter(i => i.ping_ms > 0).map(provName))])
+  // one latency line per provider: the methods differ (Ookla ICMP-like, Cloudflare TCP connect) and must not be mixed
+  const pingSeries = $derived(provNames.map((n, k) => ({ name: n, color: seriesColors[k % seriesColors.length], points: ok.filter(i => i.ping_ms > 0 && provName(i) === n).map(i => ({ x: i.ts, y: i.ping_ms })).reverse() })))
+  const lastPing = $derived(ok.find(i => i.ping_ms > 0))
+  const pingAvg = $derived.by(() => { const l = lastPing ? ok.filter(i => i.ping_ms > 0 && provName(i) === provName(lastPing)) : []; return l.length ? l.reduce((a, i) => a + i.ping_ms, 0) / l.length : 0 })
   const sum = $derived(x?.summary)
   const last = $derived(x?.last)
   const lastUp = $derived(ok.find(i => i.up_bps > 0))
@@ -105,10 +112,10 @@
         <div class="l muted">{t('avg {a} · min {n} · max {m}', { a: bps(sum.down_bps.avg), n: bps(sum.down_bps.min), m: bps(sum.down_bps.max) })}</div></div></div>
       <div class="card"><div class="card-b kpi"><div class="l muted">{t('Upload')}</div><div class="v num">{lastUp ? bps(lastUp.up_bps) : '—'}</div>
         <div class="l muted">{sum.up_bps.n ? t('avg {a} · min {n} · max {m}', { a: bps(sum.up_bps.avg), n: bps(sum.up_bps.min), m: bps(sum.up_bps.max) }) : t('not measured by the selected providers')}</div></div></div>
-      <div class="card"><div class="card-b kpi"><div class="l muted">{t('Latency')}</div><div class="v num">{last?.ping_ms ? last.ping_ms.toFixed(0) + ' ms' : '—'}</div>
-        <div class="l muted">{sum.ping_ms.n ? t('avg {a} ms · max {m} ms', { a: sum.ping_ms.avg.toFixed(0), m: sum.ping_ms.max.toFixed(0) }) : '—'}</div></div></div>
+      <div class="card"><div class="card-b kpi"><div class="l muted">{t('Latency')}</div><div class="v num">{lastPing ? lastPing.ping_ms.toFixed(0) + ' ms' : '—'}</div>
+        <div class="l muted">{lastPing ? t('avg {a} ms · {p}', { a: pingAvg.toFixed(0), p: provName(lastPing) }) : '—'}</div></div></div>
       <div class="card"><div class="card-b kpi"><div class="l muted">{t('Tests')}</div><div class="v num">{sum.tests}</div>
-        <div class="l muted">{t('{f} failed · {b} used', { f: sum.failed, b: bytes(sum.bytes) })} {#if last}· {t('last {when}', { when: ago(last.ts) })}{/if}</div></div></div>
+        <div class="l muted">{sum.failed_imported ? t('{f} failed ({i} imported) · {b} used', { f: sum.failed, i: sum.failed_imported, b: bytes(sum.bytes) }) : t('{f} failed · {b} used', { f: sum.failed, b: bytes(sum.bytes) })} {#if last}· {t('last {when}', { when: ago(last.ts) })}{/if}</div></div></div>
     </div>
     <div class="card" style="margin-bottom:16px"><div class="card-h"><h2>{t('Speed over time')}</h2>
       <span class="muted">{t('Failed tests are not drawn as 0 Mbit/s.')}</span></div>
@@ -119,11 +126,11 @@
     <div class="card" style="margin-bottom:16px"><div class="card-h"><h2>{t('Latest tests')}</h2></div>
       <div class="scroll"><table><thead><tr><th>{t('Time')}</th><th>{t('Provider')}</th><th>{t('IP')}</th><th class="r">{t('Download')}</th><th class="r">{t('Upload')}</th><th class="r">{t('Latency')}</th><th class="r">{t('Data')}</th><th></th></tr></thead>
         <tbody>{#each (more ? items : items.slice(0, 15)) as i}
-          <tr><td class="num">{when(i.ts)}</td><td>{i.provider} <span class="muted mono" style="font-size:11px">{i.server}</span>{#if i.src === 'import'} <span class="badge">{t('imported')}</span>{/if}</td>
+          <tr><td class="num">{when(i.ts)}</td><td>{provName(i)} <span class="muted mono" style="font-size:11px">{i.server}</span>{#if i.src === 'import'} <span class="badge">{t('imported')}</span>{/if}</td>
             <td>{famLabel(i.family)}</td>
             <td class="r num">{i.error ? '—' : i.down_bps ? bps(i.down_bps) : '—'}</td><td class="r num">{i.error ? '—' : i.up_bps ? bps(i.up_bps) : '—'}</td>
             <td class="r num">{!i.error && i.ping_ms ? i.ping_ms.toFixed(0) + ' ms' : '—'}</td><td class="r num">{i.bytes ? bytes(i.bytes) : '—'}</td>
-            <td>{#if i.error}<span class="badge bad" title={i.error}>{t('failed')}</span>{/if}</td></tr>
+            <td>{#if i.error}<span class="badge bad" title={i.error}>{t('failed')}</span> <span class="muted err" title={i.error}>{i.error}</span>{/if}</td></tr>
         {/each}</tbody></table></div>
       {#if items.length > 15 && !more}<div class="card-b"><button class="btn" onclick={() => (more = true)}>{t('Show all {n}', { n: items.length })}</button></div>{/if}
     </div>
@@ -149,6 +156,7 @@
         <label class="fld"><span>{t('Interval')}</span><select class="input" bind:value={form.interval_min}>{#each intervals as [v, label]}<option value={v}>{t(label)}</option>{/each}</select></label>
         <div class="fld"><span>{t('Only between (local time, empty = any time)')}</span>
           <span class="inl"><input class="input sm" type="time" bind:value={form.window_from} /> – <input class="input sm" type="time" bind:value={form.window_to} /></span></div>
+        <label class="fld"><span>{t('Start time (runs land on this time + n × interval, empty = interval after the last test)')}</span><input class="input sm" type="time" bind:value={form.start_at} /></label>
         <label class="fld"><span>{t('Random delay up to (minutes)')}</span><input class="input sm" type="number" min="0" max="240" bind:value={form.jitter_min} /></label>
         <div class="fld"><span>{t('Per test and direction')}</span>
           <span class="inl"><input class="input sm" type="number" min="5" max="2000" bind:value={form.max_mb} /> MB · <input class="input sm" type="number" min="3" max="60" bind:value={form.max_sec} /> s · <input class="input sm" type="number" min="1" max="8" bind:value={form.streams} /> {t('streams')}</span></div>
@@ -175,4 +183,5 @@
   .chk { display: flex; align-items: center; gap: 8px; font-weight: 400; }
   .inl { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; font-weight: 400; }
   .inl .input { width: 86px; }
+  .err { font-size: 11px; display: inline-block; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
 </style>

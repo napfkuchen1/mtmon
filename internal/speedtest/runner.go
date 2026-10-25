@@ -111,10 +111,29 @@ func (r *Runner) schedule(s Settings) {
 	if s.JitterMin > 0 {
 		jit = time.Duration(rand.Int63n(int64(s.JitterMin)*60)) * time.Second
 	}
-	r.next = base.Add(time.Duration(s.IntervalMin)*time.Minute + jit)
+	iv := time.Duration(s.IntervalMin) * time.Minute
+	if hm, ok := parseHM(s.StartAt); ok && s.StartAt != "" {
+		after := r.now()
+		if last := r.St.SpeedtestLastTS(); last > 0 {
+			after = time.Unix(last, 0)
+		}
+		r.next = anchorSlot(after, hm, iv).Add(jit)
+	} else {
+		r.next = base.Add(iv + jit)
+	}
 	if r.next.Before(r.now()) { // overdue (mtmon was off): soon, but not instantly
 		r.next = r.now().Add(time.Duration(30+rand.Intn(120)) * time.Second)
 	}
+}
+
+// anchorSlot returns the first slot after t on the grid start + n*iv (start = minutes since local midnight of t's day).
+func anchorSlot(t time.Time, startMin int, iv time.Duration) time.Time {
+	ref := time.Date(t.Year(), t.Month(), t.Day(), startMin/60, startMin%60, 0, 0, t.Location())
+	k := int64(t.Sub(ref) / iv)
+	if t.Sub(ref) < 0 && t.Sub(ref)%iv != 0 {
+		k-- // floor, not truncation towards zero
+	}
+	return ref.Add(time.Duration(k+1) * iv)
 }
 
 // Reschedule drops the planned time so the next tick plans again from the current settings.

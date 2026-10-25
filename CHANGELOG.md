@@ -10,7 +10,15 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ## [0.19.0] - 2026-10-25
 
+### New
+- **Speed tests: start time.** Besides the interval you can set a start time, for example "every 3 hours from 01:30"; tests then land on fixed, known times (plus the random delay).
+
+### Changed
+- Speed tests: the latency is now the TCP connect time (median of several), not the time of a full HTTPS request, so it matches the Ookla and ping values much better.
+- Speed tests: "auto" history from MySpeed is shown as "MySpeed (Ookla)"; the latency chart has one line per provider; the latency card compares with the average of the same provider. Failed tests show their error text in the table, and the counter reads "142 failed (139 imported)". Raw JSON in imported error texts is reduced to the message.
+
 ### Fixed
+- Speed tests against Hetzner failed with `EOF`: their servers reset connections with the default Go user agent. All speed-test requests now send `mtmon/<version>`.
 - The WAN-quality probe of mtmon itself (connections to 1.1.1.1, 8.8.8.8, 9.9.9.9 on port 443) was listed as "DoH" in the DNS-bypass list; the probe targets are now ignored.
 
 ## [0.18.0] - 2026-10-25

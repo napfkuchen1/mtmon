@@ -41,7 +41,7 @@ func ParseMySpeed(data []byte) (rows []store.Speedtest, skipped int, err error) 
 		t := store.Speedtest{TS: ts, Provider: strings.ToLower(first(r, "type", "provider")), Server: "myspeed",
 			DownBps: mbit(first(r, "download", "down")), UpBps: mbit(first(r, "upload", "up")),
 			PingMS: num(first(r, "ping", "latency")), JitterMS: num(first(r, "jitter")), DurS: num(first(r, "time", "duration")),
-			Err: strings.TrimSpace(first(r, "error"))}
+			Err: shortErr(first(r, "error"))}
 		if t.Provider == "" {
 			t.Provider = "myspeed"
 		}
@@ -101,6 +101,29 @@ func parseTime(s string) int64 {
 		}
 	}
 	return 0
+}
+
+// shortErr reduces an error column to one readable line: MySpeed stores raw Ookla JSON log lines there, from
+// which only the message is kept.
+func shortErr(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, "{") {
+		var o struct {
+			Message string `json:"message"`
+			Error   string `json:"error"`
+		}
+		if json.Unmarshal([]byte(s), &o) == nil {
+			if o.Message != "" {
+				s = o.Message
+			} else if o.Error != "" {
+				s = o.Error
+			}
+		}
+	}
+	if len(s) > 160 {
+		s = s[:160] + "…"
+	}
+	return s
 }
 
 func csvRecords(data []byte) ([]map[string]string, error) {

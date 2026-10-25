@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -38,16 +40,32 @@ type Provider interface {
 	Run(ctx context.Context, o Opts) Result
 }
 
+// UserAgent is sent with every request. Hetzner's speed hosts reset connections that carry Go's default agent, so
+// main sets it to "mtmon/<version>".
+var UserAgent = "mtmon"
+
+type uaTransport struct{ rt http.RoundTripper }
+
+func (t uaTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	r = r.Clone(r.Context())
+	r.Header.Set("User-Agent", UserAgent)
+	return t.rt.RoundTrip(r)
+}
+
+func networkFor(family string) string {
+	switch family {
+	case "4":
+		return "tcp4"
+	case "6":
+		return "tcp6"
+	}
+	return "tcp"
+}
+
 // newClient returns an HTTP client that connects over the requested IP family only. No overall timeout: the
 // context bounds every call.
 func newClient(family string) *http.Client {
-	network := "tcp"
-	switch family {
-	case "4":
-		network = "tcp4"
-	case "6":
-		network = "tcp6"
-	}
+	network := networkFor(family)
 	d := &net.Dialer{Timeout: 5 * time.Second}
 	tr := &http.Transport{
 		DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
@@ -59,7 +77,7 @@ func newClient(family string) *http.Client {
 		},
 		TLSHandshakeTimeout: 8 * time.Second, DisableCompression: true, MaxIdleConnsPerHost: 8,
 	}
-	return &http.Client{Transport: tr}
+	return &http.Client{Transport: uaTransport{tr}}
 }
 
 // countWriter discards and counts what is read from a response.
@@ -192,45 +210,34 @@ func upload(parent context.Context, c *http.Client, o Opts, url string) (int64, 
 	return total.Load(), dur, nil
 }
 
-// latency times n small GETs on a fresh keep-alive connection (the first one pays for TCP+TLS and is dropped);
-// returns the mean and the mean absolute difference of consecutive samples (jitter) in ms.
-func latency(ctx context.Context, c *http.Client, url string, n int) (mean, jitter float64, err error) {
+// connectLatency times n TCP connects to addr (host:port) and returns the median and the mean absolute difference of
+// consecutive samples (jitter) in ms. A connect is one round trip, so TLS and HTTP time do not inflate it.
+func connectLatency(ctx context.Context, family, addr string, n int) (median, jitter float64, err error) {
+	d := &net.Dialer{Timeout: 5 * time.Second}
 	var samples []float64
-	for i := 0; i <= n; i++ {
-		req, e := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-		if e != nil {
-			return 0, 0, e
-		}
+	for i := 0; i < n; i++ {
 		t0 := time.Now()
-		resp, e := c.Do(req)
+		c, e := d.DialContext(ctx, networkFor(family), addr)
 		if e != nil {
 			return 0, 0, e
 		}
-		io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<16))
-		resp.Body.Close()
-		if resp.StatusCode != 200 {
-			return 0, 0, fmt.Errorf("HTTP %d", resp.StatusCode)
-		}
-		if i > 0 {
-			samples = append(samples, float64(time.Since(t0).Microseconds())/1000)
-		}
+		samples = append(samples, float64(time.Since(t0).Nanoseconds())/1e6)
+		c.Close()
 	}
-	var sum, diff float64
-	for i, v := range samples {
-		sum += v
-		if i > 0 {
-			d := v - samples[i-1]
-			if d < 0 {
-				d = -d
-			}
-			diff += d
-		}
+	var diff float64
+	for i := 1; i < len(samples); i++ {
+		diff += math.Abs(samples[i] - samples[i-1])
 	}
-	mean = sum / float64(len(samples))
 	if len(samples) > 1 {
 		jitter = diff / float64(len(samples)-1)
 	}
-	return mean, jitter, nil
+	s := append([]float64(nil), samples...)
+	sort.Float64s(s)
+	median = s[len(s)/2]
+	if len(s)%2 == 0 {
+		median = (s[len(s)/2-1] + s[len(s)/2]) / 2
+	}
+	return median, jitter, nil
 }
 
 func bps(bytes int64, d time.Duration) float64 {
