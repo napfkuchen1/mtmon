@@ -25,21 +25,22 @@ const (
 
 // Suggestion is one concrete, explainable improvement. All text is English; the UI translates it.
 type Suggestion struct {
-	ID         string   `json:"id"`   // rule id + subject, stable so dismissals stick
-	Rule       string   `json:"rule"` // rule id
-	Subject    string   `json:"subject,omitempty"`
-	Severity   string   `json:"severity"`
-	Category   string   `json:"category"`
-	Title      string   `json:"title"`
-	Why        string   `json:"why"`
-	Evidence   []string `json:"evidence"`
-	Steps      []string `json:"steps"`          // how to fix (UI steps)
-	Commands   string   `json:"commands"`       // ready-to-copy RouterOS commands (optional)
-	Link       string   `json:"link,omitempty"` // UI route, e.g. "clients" or "device/gw-main"
-	Confidence string   `json:"confidence"`     // high | medium | low
-	Limits     string   `json:"limits,omitempty"`
-	Fix        *Fix     `json:"fix,omitempty"`      // set when mtmon can apply the change itself (needs the router's admin login once)
-	Learning   bool     `json:"learning,omitempty"` // judged against baselines that are being re-learned: shown as info
+	ID          string   `json:"id"`   // rule id + subject, stable so dismissals stick
+	Rule        string   `json:"rule"` // rule id
+	Subject     string   `json:"subject,omitempty"`
+	Severity    string   `json:"severity"`
+	Category    string   `json:"category"`
+	Title       string   `json:"title"`
+	Why         string   `json:"why"`
+	Evidence    []string `json:"evidence"`
+	Steps       []string `json:"steps"`          // how to fix (UI steps)
+	Commands    string   `json:"commands"`       // ready-to-copy RouterOS commands (optional)
+	Link        string   `json:"link,omitempty"` // UI route, e.g. "clients" or "device/gw-main"
+	Confidence  string   `json:"confidence"`     // high | medium | low
+	Limits      string   `json:"limits,omitempty"`
+	Fix         *Fix     `json:"fix,omitempty"`         // set when mtmon can apply the change itself (needs the router's admin login once)
+	Provisional bool     `json:"provisional,omitempty"` // same as Learning, under the name API clients look for
+	Learning    bool     `json:"learning,omitempty"`    // judged against baselines that are being re-learned: shown as info
 }
 
 // Fix names the per-device features (see provision.FeatureKeys) that resolve a suggestion when switched on.
