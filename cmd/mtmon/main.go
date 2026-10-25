@@ -168,6 +168,7 @@ func run(args []string) error {
 	go srv.Upd.Run(ctx)
 	go st.Maintain(ctx, cfg.RawRetention, cfg.Retention, backup)
 	go en.RunReverseDNS(ctx)
+	go srv.WarmCaches(ctx)
 	go pm.Run(ctx)
 	go al.Run(ctx.Done())
 	go (&probe.Prober{St: st, Log: log, Targets: func() []string { return cfg.WANTargets }, Enabled: func() bool { return st.GetMeta("wan_probe") != "off" }}).Run(ctx)
