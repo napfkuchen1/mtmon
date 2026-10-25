@@ -2,8 +2,7 @@
   // The ISP modem / router in front of a gateway (not a client): label, address, port and how the line is brought in.
   import { t } from './i18n.svelte.js'
   let { items = [], compact = false } = $props()
-  const modeText = m => (m.startsWith('transfer net ') ? t('transfer net {net}', { net: m.slice(13) }) : m === 'double NAT' ? t('double NAT') : m === 'tunnel' ? t('tunnel') : m)
-  const labelText = u => (u.no_ip ? t('ONT / modem (no IP)') : u.vendor ? t('Modem / router ({vendor})', { vendor: u.label.replace(/^Modem \/ router \(/, '').replace(/\)$/, '') }) : t('Modem / router'))
+  import { modeText, labelText } from './upstream.js'
 </script>
 {#if items.length}
   <div class="ups" class:compact>
