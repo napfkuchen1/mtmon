@@ -241,7 +241,7 @@ func (e *Engine) DeviceBoot(name, ver string, uptime int64) {
 		e.Raise("device_updated", name, "info", fmt.Sprintf("%s updated %s → %s (reboot%s)", name, p.ver, ver, gone), 0)
 		return
 	}
-	e.Raise("device_reboot", name, "info", fmt.Sprintf("%s rebooted (version %s%s)", name, ver, gone), time.Minute)
+	e.Raise("device_reboot", name, "info", fmt.Sprintf("%s rebooted %s ago (version %s%s)", name, fmtDur(time.Duration(uptime)*time.Second), ver, gone), time.Minute)
 }
 
 // reachReason names why a poll failed in one word: a timeout (nothing answers, usually the path or the device is
@@ -488,7 +488,7 @@ func (e *Engine) InterfaceState(device, iface string, running bool) {
 		return
 	}
 	if wasDown && held { // not a reboot after all: report the flap late but complete
-		e.raiseIfaceDown(device, iface, key)
+		e.raiseIfaceFlap(device, iface, key, time.Since(since))
 	}
 	e.mu.Lock()
 	folded := e.ifFolded[key]
@@ -498,7 +498,8 @@ func (e *Engine) InterfaceState(device, iface string, running bool) {
 		return
 	}
 	if wasDown { // recovery after a down is always reported, with the outage length
-		e.Raise("iface_up", key, "info", fmt.Sprintf("Interface %s on %s is up again after %s", iface, device, fmtDur(time.Since(since))), 0)
+		// a second "up" with the same text within a minute is the same recovery seen twice (poll overlap)
+		e.Raise("iface_up", key, "info", fmt.Sprintf("Interface %s on %s is up again after %s", iface, device, fmtDur(time.Since(since))), time.Minute)
 		return
 	}
 	e.Raise("iface_up", key, "info", fmt.Sprintf("Interface %s on %s is up", iface, device), 5*time.Minute)
@@ -547,6 +548,22 @@ func (e *Engine) downBehind(device, iface string) string {
 		}
 	}
 	return ""
+}
+
+// raiseIfaceFlap reports a link that went down and came back inside the reboot grace. That is most often the device
+// itself (or the one behind the port) restarting, so it is an info line with the length, not a warning.
+func (e *Engine) raiseIfaceFlap(device, iface, key string, d time.Duration) {
+	if dev := e.downBehind(device, iface); dev != "" {
+		e.mu.Lock()
+		e.ifFolded[key] = true
+		e.mu.Unlock()
+		return
+	}
+	if d < e.rebootGrace {
+		e.Raise("iface_down", key, "info", fmt.Sprintf("Interface %s on %s went down for %s (short flap, possibly a restart)", iface, device, fmtDur(d)), 5*time.Minute)
+		return
+	}
+	e.raiseIfaceDown(device, iface, key)
 }
 
 func (e *Engine) raiseIfaceDown(device, iface, key string) {

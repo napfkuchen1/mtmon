@@ -310,3 +310,21 @@ func TestWANQualityNeedsEnoughProbes(t *testing.T) {
 		t.Fatalf("3 probes are no evidence: %+v", *got)
 	}
 }
+
+// A short flap inside the reboot grace is one info line, and a repeated "up" is not reported twice.
+func TestShortFlapIsInfoAndUpNotDuplicated(t *testing.T) {
+	e, got := newEngine(t)
+	e.rebootGrace = time.Hour
+	e.InterfaceState("ap", "ether2", false)
+	e.InterfaceState("ap", "ether2", true)
+	e.InterfaceState("ap", "ether2", true)
+	if kinds(*got) != "iface_down/ap/ether2,iface_up/ap/ether2,iface_up/ap/ether2" && kinds(*got) != "iface_down/ap/ether2,iface_up/ap/ether2" {
+		t.Fatalf("flap: %+v", *got)
+	}
+	if (*got)[0].Severity != "info" || !strings.Contains((*got)[0].Msg, "short flap") {
+		t.Fatalf("flap must be info: %+v", (*got)[0])
+	}
+	if strings.Count(kinds(*got), "iface_up") != 1 {
+		t.Fatalf("duplicate iface_up: %+v", *got)
+	}
+}
