@@ -26,8 +26,8 @@ func TestRALifetimes(t *testing.T) {
 		!strings.Contains(s.Evidence[0], "4 weeks") && !strings.Contains(s.Evidence[0], "30.0 days") {
 		t.Errorf("%+v", s)
 	}
-	if !strings.Contains(s.Limits, "not verified") {
-		t.Errorf("no unverified RouterOS syntax may be given as fact: %+v", s)
+	if !strings.Contains(s.Limits, "not verified") || strings.Contains(strings.Join(s.Steps, " "), "Shorten") {
+		t.Errorf("no unverified RouterOS syntax may be given as fact, and no advice to change the ND defaults: %+v", s)
 	}
 	// short lifetimes: fine
 	d.Devs[0].Caps.RAValid, d.Devs[0].Caps.RAPreferred = 7200, 3600

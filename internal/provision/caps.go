@@ -91,8 +91,8 @@ type Caps struct {
 	// Export is what one POST /rest/export with the monitoring login looked like (#46): decides whether a
 	// config-drift view can work. Only counts and flags, never the text. Refreshed once a day.
 	Export ExportProbe `json:"export_probe"`
-	// IPv6: a DHCPv6 client asks the ISP for a prefix (dynamic prefix), and the lifetimes the router advertises in RAs
-	// ("/ipv6 nd prefix default"). Seconds, 0 = not readable.
+	// IPv6: a DHCPv6 client asks the ISP for a prefix (dynamic prefix), and the lifetimes of the delegated prefix in the
+	// router advertisements (dynamic global rows of "/ipv6 nd prefix"). Seconds, 0 = not readable.
 	IPv6PD      bool  `json:"ipv6_pd"`
 	RAValid     int64 `json:"ra_valid_s,omitempty"`
 	RAPreferred int64 `json:"ra_preferred_s,omitempty"`
@@ -165,9 +165,18 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 			k.IPv6PD = true
 		}
 	}
-	if nd := get(ctx, c, "/ipv6/nd/prefix/default"); len(nd) > 0 {
-		k.RAValid = int64(poller.ParseDuration(nd[0]["valid-lifetime"]).Seconds())
-		k.RAPreferred = int64(poller.ParseDuration(nd[0]["preferred-lifetime"]).Seconds())
+	// the delegated prefix is announced with the (ticking) lifetimes of the ISP lease: read the dynamic global rows of
+	// /ipv6/nd/prefix, not "nd prefix default" (that only applies to prefixes without lifetimes of their own, e.g. ULA)
+	for _, r := range get(ctx, c, "/ipv6/nd/prefix") {
+		if !r.Bool("dynamic") || r.Bool("disabled") || isULAorLL(r["prefix"]) {
+			continue
+		}
+		if v := int64(poller.ParseDuration(r["valid-lifetime"]).Seconds()); v > k.RAValid {
+			k.RAValid = v
+		}
+		if p := int64(poller.ParseDuration(r["preferred-lifetime"]).Seconds()); p > k.RAPreferred {
+			k.RAPreferred = p
+		}
 	}
 	if id := get(ctx, c, "/system/identity"); len(id) > 0 {
 		k.Identity = id[0]["name"]
@@ -386,4 +395,11 @@ func (k *Caps) suggestRole() {
 	if k.Managed {
 		k.Warnings = append(k.Warnings, "This device already holds objects tagged “mtmon-managed” (earlier setup). Run offboarding or clean up first, otherwise duplicates will be created.")
 	}
+}
+
+// isULAorLL: fc00::/7 (unique local) and fe80::/10 (link local) prefixes are not the ISP's delegated prefix.
+func isULAorLL(p string) bool {
+	p = strings.ToLower(strings.TrimSpace(p))
+	return strings.HasPrefix(p, "fc") || strings.HasPrefix(p, "fd") || strings.HasPrefix(p, "fe8") || strings.HasPrefix(p, "fe9") ||
+		strings.HasPrefix(p, "fea") || strings.HasPrefix(p, "feb")
 }

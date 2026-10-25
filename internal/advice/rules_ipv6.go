@@ -12,10 +12,10 @@ const (
 	raLongPreferred = 24 * 3600
 )
 
-// ruleRALifetimes: with a dynamic IPv6 prefix (the ISP changes it on reconnect) and the RouterOS default router
-// advertisement lifetimes (valid 4 weeks, preferred 1 week), clients keep addresses from old prefixes and may pick a
-// dead one as source address ("IPv6 is sometimes slow"). Advice only; no router command is given because the exact
-// RouterOS syntax is not verified here.
+// ruleRALifetimes: with a dynamic IPv6 prefix (the ISP changes it on reconnect) the router announces the delegated
+// prefix with the lifetimes of the ISP lease (often a day or more). After a prefix change clients keep the old
+// address as preferred until that runs out and may pick a dead one as source address ("IPv6 is sometimes slow").
+// Advice only; no router command is given because the exact RouterOS syntax is not verified here.
 func ruleRALifetimes(s Snapshot) ([]Suggestion, string) {
 	var cands []Device
 	for _, d := range routers(s) {
@@ -51,7 +51,7 @@ func ruleRALifetimes(s Snapshot) ([]Suggestion, string) {
 		if len(rows) == 0 {
 			continue // long lifetimes, but no client shows the effect (yet)
 		}
-		ev := []string{fmt.Sprintf("%s advertises IPv6 prefixes with valid lifetime %s and preferred lifetime %s", d.Name, fmtSecs(d.Caps.RAValid), fmtSecs(d.Caps.RAPreferred)),
+		ev := []string{fmt.Sprintf("%s announces its delegated IPv6 prefix with valid lifetime %s and preferred lifetime %s (from the provider's lease)", d.Name, fmtSecs(d.Caps.RAValid), fmtSecs(d.Caps.RAPreferred)),
 			fmt.Sprintf("%d clients had global IPv6 addresses from more than one /64 prefix in the last 14 days", len(rows))}
 		for i, r := range rows {
 			if i == 5 {
@@ -64,15 +64,17 @@ func ruleRALifetimes(s Snapshot) ([]Suggestion, string) {
 		}
 		out = append(out, Suggestion{
 			Subject: d.Name, Severity: SevTip, Category: CatHygiene, Link: "device/" + d.Name, Confidence: "medium",
-			Title:    fmt.Sprintf("IPv6 router advertisements on %s keep old prefixes alive", d.Name),
-			Why:      "Your provider changes the IPv6 prefix from time to time. The router default announces each prefix as valid for weeks, so clients keep adding addresses from every old prefix and may choose a dead one as source address. Browsers hide this with fallbacks, so it shows up as \"IPv6 is sometimes slow or broken\".",
+			Title:    fmt.Sprintf("Old IPv6 prefixes stay in use on clients after a prefix change (%s)", d.Name),
+			Why:      "Your provider changes the delegated IPv6 prefix. The router announces it with the lifetimes of the provider's lease, so after a change clients keep the old address as preferred for up to that time and may choose a dead one as source address. Browsers hide this with fallbacks, so it shows up as \"IPv6 is sometimes slow or broken\".",
 			Evidence: ev,
 			Steps: []string{
-				"Shorten the valid and the preferred lifetime of the router's IPv6 ND prefix defaults to well below the time between two prefix changes (for a nightly change: a few hours).",
-				"Trade-off: with short lifetimes clients drop their IPv6 address sooner when the router is unreachable for a while.",
-				"Already existing old addresses disappear when their lifetime runs out or when the client reconnects.",
+				"Best fix: ask your provider for a static IPv6 prefix.",
+				"Some providers keep the same prefix if the router asks for it again (a prefix hint on the DHCPv6 client); this depends on the provider.",
+				"Avoid needless reconnects of the internet line, each one can mean a new prefix.",
+				"Changing \"/ipv6 nd prefix default\" does not help here: it only applies to prefixes without lifetimes of their own (for example your ULA prefix).",
+				"Old addresses on clients disappear when their lifetime runs out or when the client reconnects.",
 			},
-			Limits: "No ready-made command is shown: the exact RouterOS syntax and sensible values were not verified against the RouterOS documentation (IPv6 → ND → Prefix defaults). mtmon only learns about client addresses from the router's neighbour table, so the list may be incomplete.",
+			Limits: "No ready-made command is shown: the RouterOS syntax of the prefix hint was not verified against the RouterOS documentation. mtmon only learns about client addresses from the router's neighbour table, so the list may be incomplete.",
 		})
 	}
 	return out, ""
