@@ -1100,6 +1100,7 @@ func (m *Manager) merge() {
 		}
 	}
 	m.Hub.SetIPMap(ipmac, hubNames)
+	m.Hub.SetWifiClients(wifiPerDevice(obs, m.Cfg.AllDevices()))
 	if _, err := m.St.UpsertClients(obs); err != nil {
 		m.Log.Error("upsert clients", "err", err)
 	}
@@ -1107,6 +1108,23 @@ func (m *Manager) merge() {
 	for _, o := range newOnes {
 		m.Ev.NewClient(o.MAC, o.Hostname, o.IP)
 	}
+}
+
+// wifiPerDevice counts the Wi-Fi clients that are present on each managed device, as the client merge placed them
+// (the AP a client talks to, not the CAPsMAN controller that lists all registrations).
+func wifiPerDevice(obs []store.Observation, devs []config.Device) map[string]int {
+	out := make(map[string]int, len(devs))
+	for _, d := range devs {
+		out[d.Name] = 0
+	}
+	for _, o := range obs {
+		if o.WiFi && o.Present && o.Device != "" {
+			if _, ok := out[o.Device]; ok {
+				out[o.Device]++
+			}
+		}
+	}
+	return out
 }
 
 func containsClient(cs []store.Client, mac string) bool {
