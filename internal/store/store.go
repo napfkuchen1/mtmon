@@ -169,6 +169,9 @@ func Open(dir string) (*Store, error) {
 	if err := migrateTokens(db); err != nil {
 		return nil, fmt.Errorf("token schema: %w", err)
 	}
+	if err := migrateConfigSnap(db); err != nil {
+		return nil, fmt.Errorf("config snapshot schema: %w", err)
+	}
 	if _, err := db.Exec(healthSchema); err != nil {
 		return nil, err
 	}

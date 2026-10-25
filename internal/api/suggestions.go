@@ -118,6 +118,7 @@ func (s *Server) refreshCaps() {
 		}
 		c.Export = s.exportProbe(ctx, cl, row.Caps)
 		cancel()
+		s.checkConfigDue(row.Name)
 		if raw, err := json.Marshal(c); err == nil {
 			s.St.SetDeviceCaps(row.Name, raw)
 		}

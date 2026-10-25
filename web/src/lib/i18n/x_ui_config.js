@@ -1,0 +1,16 @@
+// German translations – config history card
+export default {
+  "Config history": "Konfigurationsverlauf",
+  "Snapshot now": "Jetzt sichern",
+  "Reading …": "Lese …",
+  "{n} changes found": "{n} Änderungen gefunden",
+  "No change since the last snapshot": "Keine Änderung seit dem letzten Snapshot",
+  "added": "neu",
+  "removed": "entfernt",
+  "changed": "geändert",
+  "One snapshot stored. Changes show up here as soon as the configuration differs from it.": "Ein Snapshot gespeichert. Änderungen erscheinen hier, sobald die Konfiguration davon abweicht.",
+  "No snapshot yet. mtmon reads the configuration once a day, or press Snapshot now.": "Noch kein Snapshot. mtmon liest die Konfiguration einmal täglich, oder „Jetzt sichern“ drücken.",
+  "Changes between {a} and {b}": "Änderungen zwischen {a} und {b}",
+  "No difference": "Kein Unterschied",
+  "Passwords and keys are never stored. Only the {n} newest snapshots are kept.": "Passwörter und Schlüssel werden nie gespeichert. Es bleiben nur die {n} neuesten Snapshots.",
+}
