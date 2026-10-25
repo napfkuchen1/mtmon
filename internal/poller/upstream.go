@@ -114,7 +114,7 @@ func upstreamsFor(dev string, s *devSnap, vendor func(mac string) string) []Upst
 			if r["interface"] != p || r.Bool("invalid") {
 				continue
 			}
-			if st := r["status"]; st != "reachable" && st != "delay" && st != "probe" {
+			if st := r["status"]; st != "reachable" && st != "delay" && st != "probe" && st != "stale" {
 				continue
 			}
 			mac := strings.ToUpper(r["mac-address"])

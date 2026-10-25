@@ -65,6 +65,18 @@ func TestUpstreamOntWithoutIPAndDoubleNAT(t *testing.T) {
 	}
 }
 
+// An ARP entry that aged to "stale" still proves the modem is there; the banner must not flip to "ONT / modem (no IP)".
+func TestUpstreamStaleARPKeepsModem(t *testing.T) {
+	s := &devSnap{role: "router", wan: map[string]bool{"ether1": true, "pppoe-out1": true},
+		ifs:   []Row{{"name": "ether1", "type": "ether"}, {"name": "pppoe-out1", "type": "pppoe-out"}},
+		pppoe: []Row{{"interface": "ether1"}},
+		arp:   []Row{{"mac-address": "3c:a6:2f:11:22:33", "address": "192.168.178.1", "interface": "ether1", "status": "stale"}}}
+	got := upstreamsFor("gw", s, vend)
+	if len(got) != 1 || got[0].NoIP || got[0].IP != "192.168.178.1" {
+		t.Errorf("stale ARP: %+v", got)
+	}
+}
+
 func TestUpstreamNothingWithoutWAN(t *testing.T) {
 	if got := upstreamsFor("ap", &devSnap{role: "ap", arp: []Row{{"mac-address": "aa:bb:cc:00:00:01", "interface": "bridge", "status": "reachable"}}}, nil); got != nil {
 		t.Errorf("an AP has no upstream: %+v", got)
