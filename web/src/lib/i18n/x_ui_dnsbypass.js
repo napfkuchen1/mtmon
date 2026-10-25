@@ -16,5 +16,11 @@ export default {
   "1 client does not use your router’s DNS (DNS-over-TLS/HTTPS or a public DNS server).": "1 Client nutzt nicht den DNS deines Routers (DNS-over-TLS/HTTPS oder ein öffentlicher DNS-Server).",
   "{n} clients do not use your router’s DNS (DNS-over-TLS/HTTPS or a public DNS server).": "{n} Clients nutzen nicht den DNS deines Routers (DNS-over-TLS/HTTPS oder ein öffentlicher DNS-Server).",
   "{n} IPv6 addresses from old prefixes: this client had addresses in {p} different /64 prefixes in the last 14 days (the provider changes the prefix).": "{n} IPv6-Adressen aus alten Präfixen: Dieser Client hatte in den letzten 14 Tagen Adressen in {p} verschiedenen /64-Präfixen (der Provider wechselt das Präfix).",
+  "{n} clients do not use the router’s DNS": "{n} Clients nutzen nicht den DNS des Routers",
+  "Period": "Zeitraum", "1 hour": "1 Stunde", "24 hours": "24 Stunden", "7 days": "7 Tage", "30 days": "30 Tage",
+  "active": "aktiv", "ended": "beendet", "ended (last {when})": "beendet (zuletzt {when})",
+  "Marked as fixed": "Als behoben markiert", "Mark as fixed": "Als behoben markieren", "Mark all as fixed": "Alle als behoben markieren",
+  "under observation: no bypass since {when}": "unter Beobachtung: keine Umgehung seit {when}",
+  "“Mark as fixed” ignores older traffic. If the client bypasses the local DNS again it is flagged again (and alerted, if the alert is on) – this can take up to an hour. A bypass counts as ended after {h} h without traffic.": "„Als behoben markieren“ ignoriert älteren Verkehr. Umgeht der Client den lokalen DNS erneut, wird er wieder markiert (und gemeldet, wenn die Meldung an ist) – das kann bis zu einer Stunde dauern. Eine Umgehung gilt nach {h} h ohne Verkehr als beendet.",
   "DoT": "DoT", "DoQ": "DoQ", "DoH": "DoH", "external DNS": "externer DNS"
 }

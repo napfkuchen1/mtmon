@@ -6,6 +6,7 @@ package dnsbypass
 import (
 	"net"
 	"sort"
+	"time"
 
 	"github.com/napfkuchen1/mtmon/internal/advice"
 	"github.com/napfkuchen1/mtmon/internal/store"
@@ -41,6 +42,8 @@ type Client struct {
 	Flows     int64      `json:"flows"`
 	First     int64      `json:"first"`
 	Last      int64      `json:"last"`
+	Active    bool       `json:"active"`                  // seen within EndedAfter; false = ended, not a current problem
+	Since     int64      `json:"checked_since,omitempty"` // time of the last "mark as fixed" (only later flows count)
 	Resolvers []Resolver `json:"resolvers"`
 }
 
@@ -67,11 +70,70 @@ func Classify(r store.DNSUseRow) string {
 // ignore lists addresses that are not a resolver choice of the client even though they answer on 443: the WAN-quality
 // probe of mtmon itself connects to public resolvers (1.1.1.1:443, 8.8.8.8:443 ...) and must not show up as DoH.
 func Detect(st *store.Store, since int64, ignore ...string) ([]Client, error) {
-	rows, err := st.DNSUse(since, advice.DoHSuffixes())
+	return DetectOpts(st, since, Options{Ignore: ignore})
+}
+
+// Options refine Detect: Resets are the "mark as fixed" times per MAC (only flows after them count), Now fixes the
+// clock for the Active flag (zero = time.Now).
+type Options struct {
+	Ignore []string
+	Resets map[string]int64
+	Now    time.Time
+}
+
+// DetectOpts is Detect with per-client resets.
+func DetectOpts(st *store.Store, since int64, o Options) ([]Client, error) {
+	doh := advice.DoHSuffixes()
+	rows, err := st.DNSUse(since, doh)
 	if err != nil {
 		return nil, err
 	}
-	return fromRows(rows, ignore), nil
+	// a client that was marked as fixed is read again from the hour after the reset
+	byFrom := map[int64]map[string]bool{}
+	for mac, ts := range o.Resets {
+		if f := resetFrom(ts); f > since {
+			if byFrom[f] == nil {
+				byFrom[f] = map[string]bool{}
+			}
+			byFrom[f][mac] = true
+		}
+	}
+	if len(byFrom) > 0 {
+		reset := map[string]bool{}
+		for _, macs := range byFrom {
+			for m := range macs {
+				reset[m] = true
+			}
+		}
+		kept := rows[:0]
+		for _, r := range rows {
+			if !reset[r.MAC] {
+				kept = append(kept, r)
+			}
+		}
+		rows = kept
+		for f, macs := range byFrom {
+			again, err := st.DNSUse(f, doh)
+			if err != nil {
+				return nil, err
+			}
+			for _, r := range again {
+				if macs[r.MAC] {
+					rows = append(rows, r)
+				}
+			}
+		}
+	}
+	out := fromRows(rows, o.Ignore)
+	now := o.Now
+	if now.IsZero() {
+		now = time.Now()
+	}
+	for i := range out {
+		out[i].Active = out[i].Last >= now.Add(-EndedAfter).Unix()-3600 // Last is the start of an hourly bucket
+		out[i].Since = o.Resets[out[i].MAC]
+	}
+	return out, nil
 }
 
 // ProbeHosts returns the host part of probe targets ("1.1.1.1:443" -> "1.1.1.1"), for Detect's ignore list.

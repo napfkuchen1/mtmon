@@ -74,6 +74,59 @@ func TestDNSBypassAPI(t *testing.T) {
 	if !list.Alert {
 		t.Error("alert setting not kept")
 	}
+	var short struct {
+		Total int    `json:"total"`
+		Range string `json:"range"`
+	}
+	get("/api/dns-bypass?range=1h", &short)
+	if short.Range != "1h" || short.Total != 1 {
+		t.Fatalf("range 1h: %+v", short)
+	}
+	get("/api/dns-bypass?range=bogus", &short)
+	if short.Range != "7d" {
+		t.Errorf("bad range not defaulted: %+v", short)
+	}
+
+	// mark as fixed: the old flows no longer count, the client is under observation
+	post := func(body string) {
+		r, err := c.Post(ts.URL+"/api/dns-bypass/reset", "application/json", strings.NewReader(body))
+		if err != nil || r.StatusCode != 200 {
+			t.Fatalf("reset: %v %v", err, r)
+		}
+		r.Body.Close()
+	}
+	post(`{"mac":"` + mac + `"}`)
+	var after struct {
+		Total     int        `json:"total"`
+		Clients   []struct{} `json:"clients"`
+		Observing []struct {
+			MAC string `json:"mac"`
+		} `json:"observing"`
+	}
+	get("/api/dns-bypass", &after)
+	if after.Total != 0 || len(after.Clients) != 0 || len(after.Observing) != 1 || after.Observing[0].MAC != mac {
+		t.Fatalf("after reset: %+v", after)
+	}
+	get("/api/clients", &cl)
+	if len(cl[0].Bypass) != 0 {
+		t.Errorf("badge after reset: %+v", cl)
+	}
+	// a new flow in a later hour flags the client again
+	later := now/3600*3600 + 2*3600 + 60
+	for i := 0; i < 6; i++ {
+		s.St.Enqueue(store.FlowRow{TS: later, MAC: mac, CIP: "192.168.0.9", RIP: "1.1.1.1", RPort: 853, CPort: uint16(42000 + i), Proto: 6, Dir: "u", Bytes: 500})
+	}
+	if err := s.St.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	s.bypass.mu.Lock()
+	s.bypass.by = nil // the 5 min cache would hide the new flows
+	s.bypass.mu.Unlock()
+	get("/api/dns-bypass", &after)
+	if len(after.Clients) != 1 || len(after.Observing) != 0 {
+		t.Fatalf("after new flows: %+v", after)
+	}
+	post(`{"all":true}`) // flows of the later hour are still newer than the reset, so the client stays flagged
 }
 
 func TestClientDetailIPv6Prefixes(t *testing.T) {

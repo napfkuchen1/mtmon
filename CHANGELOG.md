@@ -13,6 +13,8 @@ The first section below lists everything mtmon already covers. Later releases ad
 ### New
 - **Speed tests: start time.** Besides the interval you can set a start time, for example "every 3 hours from 01:30"; tests then land on fixed, known times (plus the random delay).
 
+- **DNS bypass: period, "mark as fixed", ended state.** The DNS-bypass card in Settings has a period (1 hour, 24 hours, 7 days, 30 days). "Mark as fixed" (per client or for all) ignores older traffic; the client shows as "under observation" and is flagged again, with a new alert, only if it bypasses the local DNS again (this can take up to an hour). A bypass without traffic for 24 hours counts as ended and no longer shows as a badge or in the overview count.
+
 ### Changed
 - **Tables stay put:** the Clients list is sorted by name by default, and the sort you pick is remembered in the browser. A sort by a live value (Now, Usage, Signal) uses a snapshot refreshed every 10 seconds, the Insights rankings keep their order for 30 seconds, and the interfaces of a device are listed by name, so rows no longer jump while you read.
 - Speed tests: the latency is now the TCP connect time (median of several), not the time of a full HTTPS request, so it matches the Ookla and ping values much better.

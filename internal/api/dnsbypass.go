@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,7 +30,7 @@ func (s *Server) dnsBypass() ([]dnsbypass.Client, map[string]dnsbypass.Client) {
 	if c.by != nil && time.Since(c.at) < bypassTTL {
 		return c.list, c.by
 	}
-	list, err := dnsbypass.Detect(s.St, time.Now().Add(-dnsbypass.Window).Unix(), dnsbypass.ProbeHosts(s.probeTargets())...)
+	list, err := s.detectBypass(dnsbypass.Window)
 	if err != nil {
 		return c.list, c.by // keep the old answer, an empty map is fine for callers
 	}
@@ -40,6 +42,16 @@ func (s *Server) dnsBypass() ([]dnsbypass.Client, map[string]dnsbypass.Client) {
 	return c.list, c.by
 }
 
+// detectBypass runs the detection over the given period, honouring the "mark as fixed" times.
+func (s *Server) detectBypass(window time.Duration) ([]dnsbypass.Client, error) {
+	now := time.Now()
+	return dnsbypass.DetectOpts(s.St, now.Add(-window).Unix(), dnsbypass.Options{
+		Ignore: dnsbypass.ProbeHosts(s.probeTargets()), Resets: dnsbypass.LoadResets(s.St), Now: now})
+}
+
+// bypassRanges are the periods the DNS-bypass view can look at.
+var bypassRanges = map[string]time.Duration{"1h": time.Hour, "24h": 24 * time.Hour, "7d": dnsbypass.Window, "30d": 30 * 24 * time.Hour}
+
 // probeTargets are the host:port pairs of mtmon's WAN-quality probe (configured or the default resolvers).
 func (s *Server) probeTargets() []string {
 	if len(s.Cfg.WANTargets) > 0 {
@@ -48,9 +60,20 @@ func (s *Server) probeTargets() []string {
 	return probe.DefaultTargets
 }
 
-// dnsBypassList: GET /api/dns-bypass – clients that do not use the router's DNS (last 7 days), the alert setting.
+// dnsBypassList: GET /api/dns-bypass?range=1h|24h|7d|30d – clients that do not use the router's DNS (default 7 days),
+// split into active and ended, plus clients under observation after "mark as fixed"; the alert setting.
 func (s *Server) dnsBypassList(w http.ResponseWriter, r *http.Request) {
-	list, _ := s.dnsBypass()
+	rn := r.URL.Query().Get("range")
+	win, ok := bypassRanges[rn]
+	if !ok {
+		rn, win = "7d", dnsbypass.Window
+	}
+	var list []dnsbypass.Client
+	if rn == "7d" {
+		list, _ = s.dnsBypass()
+	} else if l, err := s.detectBypass(win); err == nil {
+		list = l
+	}
 	names := map[string]string{}
 	cl, _ := s.St.Clients()
 	for _, c := range cl {
@@ -60,16 +83,79 @@ func (s *Server) dnsBypassList(w http.ResponseWriter, r *http.Request) {
 		dnsbypass.Client
 		Name string `json:"name"`
 	}
-	out := make([]row, 0, len(list))
-	for _, c := range list {
-		n := names[c.MAC]
-		if n == "" {
-			n = c.MAC
+	nameOf := func(mac string) string {
+		if n := names[mac]; n != "" {
+			return n
 		}
-		out = append(out, row{c, n})
+		return mac
 	}
-	jsonOut(w, map[string]any{"clients": out, "total": len(out), "window_days": int(dnsbypass.Window.Hours() / 24),
+	out := make([]row, 0, len(list))
+	active := 0
+	listed := map[string]bool{}
+	for _, c := range list {
+		out = append(out, row{c, nameOf(c.MAC)})
+		listed[c.MAC] = true
+		if c.Active {
+			active++
+		}
+	}
+	// marked as fixed and nothing found since: show as "under observation" so the reset is visible
+	type watch struct {
+		MAC   string `json:"mac"`
+		Name  string `json:"name"`
+		Since int64  `json:"since"`
+	}
+	obs := []watch{}
+	for mac, ts := range dnsbypass.LoadResets(s.St) {
+		if !listed[mac] {
+			obs = append(obs, watch{mac, nameOf(mac), ts})
+		}
+	}
+	sort.Slice(obs, func(i, j int) bool { return obs[i].Since > obs[j].Since })
+	jsonOut(w, map[string]any{"clients": out, "total": active, "ended": len(out) - active, "observing": obs, "range": rn,
+		"window_days": int(win.Hours() / 24), "ended_after_h": int(dnsbypass.EndedAfter.Hours()),
 		"alert": s.St.GetMeta(dnsbypass.MetaAlert) == "on"})
+}
+
+// dnsBypassReset: POST /api/dns-bypass/reset {mac | "all"} – "mark as fixed": only flows after now count for the
+// client. A bypass that returns is flagged again (and alerted, if the alert is on); the flag can take up to an hour
+// to come back because the evidence is read from hourly buckets.
+func (s *Server) dnsBypassReset(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		MAC string `json:"mac"`
+		All bool   `json:"all"`
+	}
+	if !readJSON(w, r, &in) {
+		return
+	}
+	in.MAC = strings.TrimSpace(in.MAC)
+	if !in.All && in.MAC == "" {
+		jerr(w, 400, "mac or all required")
+		return
+	}
+	now := time.Now()
+	resets := dnsbypass.LoadResets(s.St)
+	macs := map[string]bool{}
+	if in.All {
+		list, _ := s.dnsBypass()
+		for _, c := range list {
+			macs[c.MAC] = true
+		}
+	} else {
+		macs[in.MAC] = true
+	}
+	for m := range macs {
+		resets[m] = now.Unix()
+	}
+	if err := dnsbypass.SaveResets(s.St, resets, now); err != nil {
+		jerr(w, 500, err.Error())
+		return
+	}
+	dnsbypass.ForgetSeen(s.St, macs)
+	s.bypass.mu.Lock()
+	s.bypass.by = nil
+	s.bypass.mu.Unlock()
+	jsonOut(w, map[string]int{"reset": len(macs)})
 }
 
 // dnsBypassSave: PUT /api/dns-bypass {alert} – switches the "a client started bypassing the local DNS" alert on or off.
