@@ -26,12 +26,24 @@ type Snapshot interface {
 	InboundRecent() []Inbound
 	Roams24h() []RoamStat
 	IPChurn30d() map[string]int
+	// IPv6Prefixes14d: per client the /64 prefixes its global IPv6 addresses were seen in (newest first).
+	IPv6Prefixes14d() map[string][]V6Prefix
 	BlockedSources24h() []BlockedSrc
 	// ContactedByLAN: which of the remote addresses exchanged traffic with a LAN client in the last 24 h.
 	ContactedByLAN(ips []string) map[string]bool
 	FwRules() []FwRule
 	// FwHistory: how long firewall log history exists (0 = none).
 	FwHistory() time.Duration
+	// SelfHealth: free space of mtmon's own data directory and database growth.
+	SelfHealth() SelfHealth
+}
+
+// SelfHealth is mtmon's own resource situation. Known is false where the file system cannot be asked.
+type SelfHealth struct {
+	Known                           bool
+	FreeBytes, TotalBytes, DBBytes  int64
+	GrowthPerDay                    int64 // 0 = not growing or not enough samples yet
+	RawRetentionDays, RetentionDays int
 }
 
 // Ports queried from the flow rollups / raw flows.
@@ -64,6 +76,21 @@ type Caps struct {
 	DNSRedirectTCP             bool
 	WifiIfs                    []WifiIf
 	ProbedAt                   int64 // unix time the router was read, 0 = unknown (older stored probe)
+	FilesReadable              bool  // the router lets mtmon list its files
+	NewestBackup, NewestExport int64 // unix time of the newest *.backup / *.rsc file, 0 = none
+	Certs                      []Cert
+	UpdateInstalled            string // RouterOS the router reported at its last update check
+	UpdateLatest               string // newest version in the router's channel at that check ("" = never checked)
+	UpdateChannel              string
+	CAP, CAPsMAN               bool  // device is a CAP / runs the CAPsMAN controller
+	IPv6PD                     bool  // a DHCPv6 client requests a prefix: the IPv6 prefix is dynamic
+	RAValid, RAPreferred       int64 // lifetimes of the router advertisements ("nd prefix default"), seconds, 0 = unknown
+}
+
+// Cert is a certificate used by a router service (www-ssl, api-ssl).
+type Cert struct {
+	Name, Service string
+	Expires       int64 // unix, 0 = unknown
 }
 
 // ReadNote says when the router was last read, for the evidence of rules that depend on its rule set.
@@ -102,6 +129,12 @@ type Client struct {
 	Signal                           int // dBm, 0 = unknown
 	WiFi, Online                     bool
 	FirstSeen, LastSeen              int64
+	SigSamples                       int64   // Wi-Fi signal readings of the last 24 h (0 = no history)
+	WeakFrac                         float64 // share of those readings weaker than WeakSignal
+
+	Group      string  // client group ("" = none)
+	ChattyMult float64 // the group's factor for the "many connections" limit (0 = 1)
+	IgnoreWeak bool    // the group says a weak Wi-Fi signal is normal
 }
 
 // Display is the best human name for a client.
@@ -233,4 +266,11 @@ func routers(s Snapshot) []Device {
 		}
 	}
 	return out
+}
+
+// V6Prefix is one /64 a client had global addresses in, with the first and last time it was seen.
+type V6Prefix struct {
+	Prefix      string
+	Addrs       int
+	First, Last int64
 }

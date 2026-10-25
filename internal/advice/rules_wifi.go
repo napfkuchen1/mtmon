@@ -10,6 +10,10 @@ const (
 	WeakSignal   = -75 // dBm
 	RoamsPerDay  = 20
 	APClientsMax = 30
+	// weak-signal judges by the last 24 h when at least WeakMinSamples readings exist: weak = below WeakSignal in more
+	// than WeakFrac of them. Without history it falls back to the last poll.
+	WeakMinSamples = 60
+	WeakFrac       = 0.5
 	// a client counts as "online" for Wi-Fi rules when it is flagged online and has a Wi-Fi association
 )
 
@@ -30,9 +34,18 @@ func ruleWeakSignal(s Snapshot) ([]Suggestion, string) {
 	}
 	byAP := map[string][]Client{}
 	total := map[string]int{}
+	usedHistory := false
 	for _, c := range cls {
 		total[c.Device]++
-		if c.Signal != 0 && c.Signal < WeakSignal {
+		if c.IgnoreWeak {
+			continue
+		}
+		if c.SigSamples >= WeakMinSamples {
+			usedHistory = true
+			if c.WeakFrac > WeakFrac {
+				byAP[c.Device] = append(byAP[c.Device], c)
+			}
+		} else if c.Signal != 0 && c.Signal < WeakSignal {
 			byAP[c.Device] = append(byAP[c.Device], c)
 		}
 	}
@@ -42,7 +55,11 @@ func ruleWeakSignal(s Snapshot) ([]Suggestion, string) {
 		var names []string
 		iot := 0
 		for _, c := range weak {
-			names = append(names, fmt.Sprintf("%s (%d dBm)", c.Display(), c.Signal))
+			if c.SigSamples >= WeakMinSamples {
+				names = append(names, fmt.Sprintf("%s (%d dBm now, weak in %.0f %% of the last 24 h)", c.Display(), c.Signal, c.WeakFrac*100))
+			} else {
+				names = append(names, fmt.Sprintf("%s (%d dBm)", c.Display(), c.Signal))
+			}
 			if IsIoT24(c) {
 				iot++
 			}
@@ -64,7 +81,7 @@ func ruleWeakSignal(s Snapshot) ([]Suggestion, string) {
 				"Check the transmit power and channel width of the access point; 5 GHz reaches less far through walls than 2.4 GHz.",
 				"Metal, mirrors and aquariums between device and access point reduce the signal a lot.",
 			},
-			Limits: "mtmon shows the signal at the moment of the last poll; it does not keep signal history, so this may be a short dip of a moving device.",
+			Limits: weakLimits(usedHistory),
 		})
 	}
 	return out, ""
@@ -348,4 +365,11 @@ func ruleStaticLease(s Snapshot) ([]Suggestion, string) {
 		Commands: strings.Join(cmds, "\n"),
 		Limits:   "Wired devices and devices with a server-like name are checked; mtmon cannot see whether a device is always on.",
 	}}, ""
+}
+
+func weakLimits(history bool) string {
+	if history {
+		return "Based on the signal readings of the last 24 h (weak = below -75 dBm for more than half of them); clients with too few readings are judged by the last poll only."
+	}
+	return "mtmon has no signal history for these clients yet and shows the signal at the moment of the last poll, so this may be a short dip of a moving device."
 }

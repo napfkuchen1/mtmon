@@ -1,0 +1,17 @@
+// German translations of backend text – grouped suggestions, recurring spikes, idle VPN peers
+export default {
+  "Blocked packets from {n} addresses look like late replies, not a scan": "Blockierte Pakete von {n} Adressen sehen wie verspätete Antworten aus, nicht wie ein Scan",
+  "Devices in your network talked to these addresses, and the firewall now blocks packets coming back from them. That usually happens after a connection was lost (WAN reconnect, modem resync, router restart): the replies arrive, the router no longer knows the connection and drops them. This is normal. A raw drop rule for these addresses would only break the connection.": "Geräte in deinem Netz haben mit diesen Adressen gesprochen, und die Firewall blockiert jetzt Pakete, die von dort zurückkommen. Das passiert meist nach einem Verbindungsabbruch (WAN-Neuverbindung, Modem-Resync, Router-Neustart): Die Antworten kommen an, der Router kennt die Verbindung nicht mehr und verwirft sie. Das ist normal. Eine Raw-Drop-Regel für diese Adressen würde nur die Verbindung zerstören.",
+  "A LAN client exchanged traffic with each of these addresses in the last 24 h": "Ein LAN-Client hat in den letzten 24 h mit jeder dieser Adressen Daten ausgetauscht",
+  "… and {n} more": "… und {n} weitere",
+  "mtmon cannot see the packets themselves, only that these addresses talked to your network and were blocked at the same time. If you do not recognise a connection, look it up under Clients.": "mtmon sieht die Pakete selbst nicht, nur dass diese Adressen mit deinem Netz gesprochen haben und gleichzeitig blockiert wurden. Erkennst du eine Verbindung nicht, schau unter Clients nach.",
+  "{text} – recurring: the same client had a spike on {n} earlier days around {time}, probably scheduled (speed test, backup, update)": "{text} – wiederkehrend: derselbe Client hatte an {n} früheren Tagen gegen {time} eine Spitze, vermutlich geplant (Speedtest, Backup, Update)",
+  "VPN peer {name} is not used": "VPN-Peer {name} wird nicht genutzt",
+  "A WireGuard peer that never connects (a Back to Home invitation nobody accepted, a phone that is gone) is still a valid key into your network. Removing unused peers keeps that door count small.": "Ein WireGuard-Peer, der sich nie verbindet (eine nie angenommene Back-to-Home-Einladung, ein Handy, das es nicht mehr gibt), ist weiter ein gültiger Schlüssel ins Netz. Unbenutzte Peers zu entfernen hält die Zahl der Türen klein.",
+  "WireGuard peer {name} (tunnel address {ip}) on {dev}": "WireGuard-Peer {name} (Tunnel-Adresse {ip}) auf {dev}",
+  "No handshake since mtmon first saw the peer more than {n} days ago": "Kein Handshake, seit mtmon den Peer vor mehr als {n} Tagen zum ersten Mal sah",
+  "Last handshake more than {n} days ago": "Letzter Handshake vor mehr als {n} Tagen",
+  "If nobody uses this peer any more, remove it on the router (command below). A Back to Home user is removed in the MikroTik app under Back to Home → Users.": "Nutzt niemand den Peer mehr, entferne ihn am Router (Befehl unten). Einen Back-to-Home-Nutzer entfernst du in der MikroTik-App unter Back to Home → Users.",
+  "Keep it if it is a seldom-used device, such as a holiday laptop.": "Behalte ihn, wenn es ein selten genutztes Gerät ist, etwa ein Urlaubs-Laptop.",
+  "mtmon only knows the handshake time the router reports; a peer that connects once a year would also show up here.": "mtmon kennt nur die Handshake-Zeit, die der Router meldet; ein Peer, der sich einmal im Jahr verbindet, taucht hier ebenfalls auf.",
+}

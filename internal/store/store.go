@@ -54,6 +54,30 @@ CREATE TABLE IF NOT EXISTS rollup_1d(
   b_up INTEGER, b_down INTEGER, b_int INTEGER, flows INTEGER,
   PRIMARY KEY(ts, rip, rport, proto)) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS rollup_d_svc ON rollup_1d(svc, ts);
+CREATE TABLE IF NOT EXISTS log_events(
+  ts INTEGER, device TEXT, topics TEXT, level TEXT, msg TEXT);
+CREATE INDEX IF NOT EXISTS log_events_dev ON log_events(device, ts);
+CREATE INDEX IF NOT EXISTS log_events_ts ON log_events(ts);
+
+CREATE TABLE IF NOT EXISTS wifi_hist(
+  ts INTEGER, mac TEXT, device TEXT, band TEXT, n INTEGER, sig_sum INTEGER, sig_min INTEGER, sig_max INTEGER, weak INTEGER,
+  tx_sum REAL, rx_sum REAL, PRIMARY KEY(ts, mac, device, band)) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS wifi_hist_mac ON wifi_hist(mac, ts);
+
+CREATE TABLE IF NOT EXISTS client_groups(
+  name TEXT PRIMARY KEY, new_alert INTEGER NOT NULL DEFAULT 1, chatty_mult REAL NOT NULL DEFAULT 1,
+  spike_info INTEGER NOT NULL DEFAULT 0, ignore_weak INTEGER NOT NULL DEFAULT 0, watch_default INTEGER NOT NULL DEFAULT 0);
+
+CREATE TABLE IF NOT EXISTS wan_quality(
+  ts INTEGER, target TEXT, sent INTEGER, lost INTEGER, rtt_sum REAL, rtt_max REAL, PRIMARY KEY(ts, target)) WITHOUT ROWID;
+-- global IPv6 addresses seen per client (router neighbour table): evidence for addresses from old, dynamic prefixes
+CREATE TABLE IF NOT EXISTS ipv6_hist(
+  mac TEXT NOT NULL, ip TEXT NOT NULL, first INTEGER NOT NULL, last INTEGER NOT NULL, PRIMARY KEY(mac, ip)) WITHOUT ROWID;
+-- scheduled speed tests (internal/speedtest): one row per test and provider; up/down 0 = not measured
+CREATE TABLE IF NOT EXISTS speedtests(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, provider TEXT NOT NULL, server TEXT, family TEXT,
+  down_bps REAL, up_bps REAL, ping_ms REAL, jitter_ms REAL, bytes INTEGER, dur_s REAL, err TEXT, wan TEXT, src TEXT);
+CREATE INDEX IF NOT EXISTS speedtests_ts ON speedtests(ts);
 CREATE TABLE IF NOT EXISTS dev_metrics(
   ts INTEGER, device TEXT, cpu REAL, mem_used INTEGER, mem_total INTEGER,
   temp REAL, uptime INTEGER, clients INTEGER, up INTEGER);
@@ -112,6 +136,7 @@ type Store struct {
 	FwDropped uint64
 
 	memo memoCache
+	dir  string
 }
 
 // Open opens (and migrates) the DB in dir.
@@ -144,7 +169,10 @@ func Open(dir string) (*Store, error) {
 	if err := migrateTokens(db); err != nil {
 		return nil, fmt.Errorf("token schema: %w", err)
 	}
-	return &Store{DB: db}, nil
+	if _, err := db.Exec(healthSchema); err != nil {
+		return nil, err
+	}
+	return &Store{DB: db, dir: dir}, nil
 }
 
 func (s *Store) Close() error { return s.DB.Close() }
@@ -156,6 +184,7 @@ func (s *Store) Maintain(ctx context.Context, rawDays, days int, backupDir strin
 	lastBackup := time.Time{}
 	for {
 		s.Cleanup(rawDays, days)
+		s.LogDBSize()
 		if backupDir != "" && time.Since(lastBackup) > 23*time.Hour {
 			if err := s.Backup(backupDir, 7); err == nil {
 				lastBackup = time.Now()
@@ -195,6 +224,12 @@ func (s *Store) Cleanup(rawDays, days int) {
 	s.DB.Exec(`DELETE FROM rollup_1d WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM rollup_1d_dim WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM dev_metrics WHERE ts < ?`, cut)
+	s.DB.Exec(`DELETE FROM log_events WHERE ts < ?`, now.AddDate(0, 0, -LogRetentionDays).Unix())
+
+	s.DB.Exec(`DELETE FROM wifi_hist WHERE ts < ?`, cut)
+	s.DB.Exec(`DELETE FROM wan_quality WHERE ts < ?`, cut)
+	s.pruneSpeedtests(now)
+	s.DB.Exec(`DELETE FROM ipv6_hist WHERE last < ?`, now.AddDate(0, 0, -IPv6HistDays).Unix())
 	s.DB.Exec(`DELETE FROM if_metrics WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM alerts WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM roam WHERE ts < ?`, cut)

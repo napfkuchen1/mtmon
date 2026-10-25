@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/napfkuchen1/mtmon/internal/config"
 	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
@@ -161,5 +162,169 @@ func TestHeldLinkFlapWithoutRebootReported(t *testing.T) {
 	e.InterfaceState("sw", "ether3", true)
 	if kinds(*got) != "iface_down/sw/ether3,iface_up/sw/ether3" {
 		t.Fatalf("flap: %+v", *got)
+	}
+}
+
+// A spike of the same client at the same time of day on three earlier days is a schedule (speed test), not an incident.
+func TestRecurringSpikeIsInfo(t *testing.T) {
+	e, got := newEngine(t)
+	now := time.Now()
+	e.St.DB.Exec(`INSERT INTO clients(mac,first_seen,last_seen) VALUES('m',?,?)`, now.Unix(), now.Unix()) // new client: would be a warning
+	for d := 1; d <= 3; d++ {
+		e.St.AddAlert(store.Alert{TS: now.AddDate(0, 0, -d).Add(4 * time.Minute).Unix(), Kind: "traffic_spike", Subject: "m", Severity: "warning", Msg: "x"})
+	}
+	e.Hub.AddFlow(store.FlowRow{MAC: "m", Dir: "d", Bytes: 10_000})
+	e.Checks()
+	e.Hub.AddFlow(store.FlowRow{MAC: "m", Dir: "d", Bytes: 2 << 30})
+	e.Checks()
+	if len(*got) != 1 || (*got)[0].Severity != "info" || !strings.Contains((*got)[0].Msg, "recurring") {
+		t.Fatalf("recurring spike: %+v", *got)
+	}
+}
+
+func TestWatchedClientOfflineAndBack(t *testing.T) {
+	e, got := newEngine(t)
+	now := time.Now()
+	gone := now.Add(-30 * time.Minute).Unix()
+	e.St.DB.Exec(`INSERT INTO clients(mac,hostname,first_seen,last_seen,online,device,watch) VALUES('AA:00:00:00:00:01','intercom',?,?,0,'ap',1)`, gone-86400, gone)
+	e.St.DB.Exec(`INSERT INTO clients(mac,hostname,first_seen,last_seen,online,watch) VALUES('AA:00:00:00:00:02','tv',?,?,0,0)`, gone-86400, gone) // not watched
+	e.watchChecks()
+	e.watchChecks() // reported once
+	if kinds(*got) != "client_offline/AA:00:00:00:00:01" || (*got)[0].Severity != "warning" || !strings.Contains((*got)[0].Msg, "intercom") {
+		t.Fatalf("offline: %+v", *got)
+	}
+	e.St.DB.Exec(`UPDATE clients SET online=1, last_seen=? WHERE mac='AA:00:00:00:00:01'`, now.Unix())
+	e.mu.Lock()
+	delete(e.last, "client_online|AA:00:00:00:00:01")
+	e.mu.Unlock()
+	e.watchChecks()
+	if len(*got) != 2 || (*got)[1].Kind != "client_online" || (*got)[1].Severity != "info" || !strings.Contains((*got)[1].Msg, "back online after") {
+		t.Fatalf("back: %+v", *got)
+	}
+}
+
+func TestWatchedClientInMaintenanceWindowWaits(t *testing.T) {
+	e, got := newEngine(t)
+	gone := time.Now().Add(-30 * time.Minute).Unix()
+	e.St.DB.Exec(`INSERT INTO clients(mac,hostname,first_seen,last_seen,online,device,watch) VALUES('AA:00:00:00:00:01','intercom',?,?,0,'ap',1)`, gone-86400, gone)
+	e.St.SetMaintenance("ap", time.Now().Add(time.Hour).Unix())
+	e.watchChecks()
+	if len(*got) != 0 {
+		t.Fatalf("alert during the maintenance window of its AP: %+v", *got)
+	}
+}
+
+// A reboot of the device behind a port: the link-down/up of that port folds into the device's own alerts, the offline
+// alert is closed (as info, with the reboot noted) when the device answers again.
+func TestRebootFoldsLinkAlertsAndResolvesOffline(t *testing.T) {
+	e, got := newEngine(t)
+	e.Cfg.Devices = []config.Device{{Name: "hex", Addr: "10.0.0.1", Role: "router"}, {Name: "ap", Addr: "10.0.0.2", Role: "ap"}}
+	e.St.SaveNeighbors("hex", []store.Neighbor{{Device: "hex", Iface: "ether2", MAC: "AA:00:00:00:00:A1", Ident: "ap"}})
+	e.DeviceState("ap", true, "", 1, 40)
+	e.DeviceBoot("ap", "7.19", 100000)
+	e.DeviceState("ap", false, "i/o timeout", 0, 0)
+	e.InterfaceState("hex", "ether2", false)
+	e.InterfaceState("hex", "ether2", true)
+	if kinds(*got) != "device_offline/ap" {
+		t.Fatalf("link alerts must fold into the device outage: %s", kinds(*got))
+	}
+	if e.St.OpenAlerts() != 1 {
+		t.Fatalf("open: %d", e.St.OpenAlerts())
+	}
+	e.DeviceState("ap", true, "", 1, 40)
+	e.DeviceBoot("ap", "7.19", 40) // uptime went backwards
+	if kinds(*got) != "device_offline/ap,device_online/ap" {
+		t.Fatalf("no extra reboot line expected: %s", kinds(*got))
+	}
+	as, _ := e.St.Alerts(10)
+	for _, a := range as {
+		if a.Kind == "device_offline" && (!a.Acked || a.Severity != "info" || !strings.Contains(a.Msg, "resolved: back after") || !strings.Contains(a.Msg, "rebooted (uptime now 40s)")) {
+			t.Errorf("offline alert after return: %+v", a)
+		}
+	}
+	// a link that is down while the device behind it answers is a real link problem
+	e.InterfaceState("hex", "ether2", false)
+	if !strings.Contains(kinds(*got), "iface_down/hex/ether2") {
+		t.Errorf("real link-down lost: %s", kinds(*got))
+	}
+}
+
+func TestNewClientAlertModes(t *testing.T) {
+	e, got := newEngine(t)
+	e.St.DB.Exec(`INSERT INTO clients(mac,vendor,first_seen,last_seen) VALUES('DC:A6:32:00:00:01','Raspberry Pi',1,1),('3C:22:FB:00:00:02','',1,1),('2A:00:00:00:00:03','Apple',1,1)`)
+	e.NewClient("DC:A6:32:00:00:01", "nas", "192.168.88.5") // known manufacturer, real MAC
+	if len(*got) != 0 {
+		t.Fatalf("default mode must not alert for a known device: %s", kinds(*got))
+	}
+	e.NewClient("3C:22:FB:00:00:02", "x", "192.168.88.6")      // no vendor
+	e.NewClient("2A:00:00:00:00:03", "iphone", "192.168.88.7") // randomised MAC
+	if kinds(*got) != "new_client/3C:22:FB:00:00:02,new_client/2A:00:00:00:00:03" {
+		t.Fatalf("unknown devices: %s", kinds(*got))
+	}
+	e.St.SetMeta("alert_new_client", "all")
+	e.NewClient("DC:A6:32:00:00:01", "nas", "192.168.88.5")
+	if len(*got) != 3 {
+		t.Fatalf("mode all: %s", kinds(*got))
+	}
+	e.St.SetMeta("alert_new_client", "off")
+	e.NewClient("3C:22:FB:00:00:02", "x", "192.168.88.6")
+	if len(*got) != 3 {
+		t.Fatalf("mode off: %s", kinds(*got))
+	}
+}
+
+func TestWANQualityAlertAndRecovery(t *testing.T) {
+	e, got := newEngine(t)
+	now := time.Now()
+	for i := 0; i < 20; i++ { // 5 minutes of probes, half of them lost
+		e.St.AddWANSample(now.Add(-time.Duration(i)*15*time.Second), "1.1.1.1:443", i%2 == 0, 20)
+	}
+	e.wanQualityChecks()
+	e.wanQualityChecks() // once
+	if kinds(*got) != "wan_quality/internet" || (*got)[0].Severity != "warning" {
+		t.Fatalf("poor connection: %+v", *got)
+	}
+	e.St.DB.Exec(`DELETE FROM wan_quality`)
+	for i := 0; i < 20; i++ {
+		e.St.AddWANSample(now.Add(-time.Duration(i)*15*time.Second), "1.1.1.1:443", true, 20)
+	}
+	e.wanQualityChecks()
+	if kinds(*got) != "wan_quality/internet,wan_quality_ok/internet" {
+		t.Fatalf("recovery: %s", kinds(*got))
+	}
+	as, _ := e.St.Alerts(5)
+	for _, a := range as {
+		if a.Kind == "wan_quality" && !a.Acked {
+			t.Errorf("the poor-connection alert must be closed on recovery: %+v", a)
+		}
+	}
+}
+
+func TestWANQualityNeedsEnoughProbes(t *testing.T) {
+	e, got := newEngine(t)
+	for i := 0; i < 3; i++ {
+		e.St.AddWANSample(time.Now(), "1.1.1.1:443", false, 0)
+	}
+	e.wanQualityChecks()
+	if len(*got) != 0 {
+		t.Fatalf("3 probes are no evidence: %+v", *got)
+	}
+}
+
+// A short flap inside the reboot grace is one info line, and a repeated "up" is not reported twice.
+func TestShortFlapIsInfoAndUpNotDuplicated(t *testing.T) {
+	e, got := newEngine(t)
+	e.rebootGrace = time.Hour
+	e.InterfaceState("ap", "ether2", false)
+	e.InterfaceState("ap", "ether2", true)
+	e.InterfaceState("ap", "ether2", true)
+	if kinds(*got) != "iface_down/ap/ether2,iface_up/ap/ether2,iface_up/ap/ether2" && kinds(*got) != "iface_down/ap/ether2,iface_up/ap/ether2" {
+		t.Fatalf("flap: %+v", *got)
+	}
+	if (*got)[0].Severity != "info" || !strings.Contains((*got)[0].Msg, "short flap") {
+		t.Fatalf("flap must be info: %+v", (*got)[0])
+	}
+	if strings.Count(kinds(*got), "iface_up") != 1 {
+		t.Fatalf("duplicate iface_up: %+v", *got)
 	}
 }

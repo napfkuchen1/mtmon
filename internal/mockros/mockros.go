@@ -30,6 +30,7 @@ type Server struct {
 	nextID     int
 	Exports    int    // number of /export calls (tests)
 	FailExport bool   // make /export fail (tests)
+	ROExport   bool   // let a read-only user run /export (inline text with one secret-looking line)
 	FailMenu   string // make PUT on this menu fail (tests)
 	rx, tx     int64
 }

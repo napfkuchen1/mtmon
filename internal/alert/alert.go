@@ -52,14 +52,21 @@ type Engine struct {
 	lastDevDown time.Time
 	ifPending   map[string]bool // device/iface -> link-down alert is still held back
 	spikeRun    int
-	spikeDay    map[string]string // client -> day of its last traffic_spike alert
-	hc          *http.Client
-	Notify      func(store.Alert) // test hook
+	spikeDay    map[string]string      // client -> day of its last traffic_spike alert
+	watchDown   map[string]time.Time   // watched client -> when it was last seen (it is offline and was reported)
+	ifFolded    map[string]bool        // device/iface -> the link-down was folded into the alert of the device behind it
+	resolved    map[string]bool        // device -> its offline alert was closed on return (a reboot note may follow)
+	bursts      map[string][]time.Time // router log patterns: key -> recent occurrences
+
+	Suggest func(store.Client) string // group name suggested for a client without a group (set by main), "" = none
+	hc      *http.Client
+	Notify  func(store.Alert) // test hook
+	wanBad  bool              // the internet quality alert is open (a recovery follows)
 }
 
 func New(c *config.Config, s *store.Store, h *live.Hub, log *slog.Logger) *Engine {
 	return &Engine{Cfg: c, St: s, Hub: h, Log: log, start: time.Now(), last: map[string]time.Time{},
-		devUp: map[string]bool{}, pendingOff: map[string]string{}, offGroupDelay: 5 * time.Second, rebootGrace: 90 * time.Second, boot: map[string]bootInfo{}, downAt: map[string]time.Time{}, ifPending: map[string]bool{}, spikeDay: map[string]string{}, ifDown: map[string]time.Time{}, wan: map[string]*wanState{}, cpuHigh: map[string]int{}, hc: &http.Client{Timeout: 8 * time.Second}}
+		devUp: map[string]bool{}, pendingOff: map[string]string{}, offGroupDelay: 5 * time.Second, rebootGrace: 90 * time.Second, boot: map[string]bootInfo{}, downAt: map[string]time.Time{}, ifPending: map[string]bool{}, spikeDay: map[string]string{}, watchDown: map[string]time.Time{}, resolved: map[string]bool{}, ifFolded: map[string]bool{}, ifDown: map[string]time.Time{}, wan: map[string]*wanState{}, cpuHigh: map[string]int{}, hc: &http.Client{Timeout: 8 * time.Second}}
 }
 
 // SetDelays changes how long offline alerts wait for companions and for a reboot to finish (tests use short ones).
@@ -76,6 +83,10 @@ func (e *Engine) Raise(kind, subject, severity, msg string, cooldown time.Durati
 			severity = "info"
 			msg += " (maintenance window)"
 		}
+	}
+	if kind == "traffic_spike" && e.St.LearningUntil() > 0 { // the baseline is being re-learned: record, do not alarm
+		severity = "info"
+		msg += " – learning: normal traffic is being re-learned"
 	}
 	key := kind + "|" + subject
 	e.mu.Lock()
@@ -135,6 +146,16 @@ func (e *Engine) inMaintenance(kind, subject string) bool {
 	return false
 }
 
+// ResetBaseline forgets the learned traffic level and the spike-per-day memory (a learning period follows).
+func (e *Engine) ResetBaseline() {
+	e.mu.Lock()
+	e.baseline, e.spikeRun = 0, 0
+	for k := range e.spikeDay {
+		delete(e.spikeDay, k)
+	}
+	e.mu.Unlock()
+}
+
 // --- poller.Events ---
 
 func (e *Engine) DeviceState(name string, up bool, errMsg string, cpu, temp float64) {
@@ -165,6 +186,21 @@ func (e *Engine) DeviceState(name string, up bool, errMsg string, cpu, temp floa
 	case queued:
 		e.queueOffline()
 	case up && seen && !prev && !wasPending: // came back before the offline alert went out: nothing to undo
+		e.mu.Lock()
+		out := time.Duration(0)
+		if t, ok := e.downAt[name]; ok {
+			out = time.Since(t)
+		}
+		e.mu.Unlock()
+		note := " – resolved: the device is reachable again"
+		if out > 0 {
+			note = " – resolved: back after " + fmtDur(out)
+		}
+		if n := e.St.ResolveAlerts("device_offline", name, note); n > 0 {
+			e.mu.Lock()
+			e.resolved[name] = true
+			e.mu.Unlock()
+		}
 		e.Raise("device_online", name, "info", name+" is back online", time.Minute)
 	}
 	if up && high >= 3 {
@@ -183,8 +219,18 @@ func (e *Engine) DeviceBoot(name, ver string, uptime int64) {
 	e.boot[name] = bootInfo{ver, uptime}
 	down, wasDown := e.downAt[name]
 	delete(e.downAt, name)
+	reported := e.resolved[name] // an offline alert went out for this outage and was closed on return
+	delete(e.resolved, name)
 	e.mu.Unlock()
 	if !ok || p.up <= 0 || uptime >= p.up {
+		return
+	}
+	if reported && wasDown { // the offline alert says what happened; no second info line about the same reboot
+		note := fmt.Sprintf(" – the device rebooted (uptime now %s)", fmtDur(time.Duration(uptime)*time.Second))
+		if ver != "" && p.ver != "" && ver != p.ver {
+			note = fmt.Sprintf(" – the device updated %s → %s and rebooted", p.ver, ver)
+		}
+		e.St.AmendAlert("device_offline", name, note)
 		return
 	}
 	gone := ""
@@ -195,7 +241,7 @@ func (e *Engine) DeviceBoot(name, ver string, uptime int64) {
 		e.Raise("device_updated", name, "info", fmt.Sprintf("%s updated %s → %s (reboot%s)", name, p.ver, ver, gone), 0)
 		return
 	}
-	e.Raise("device_reboot", name, "info", fmt.Sprintf("%s rebooted (version %s%s)", name, ver, gone), time.Minute)
+	e.Raise("device_reboot", name, "info", fmt.Sprintf("%s rebooted %s ago (version %s%s)", name, fmtDur(time.Duration(uptime)*time.Second), ver, gone), time.Minute)
 }
 
 // reachReason names why a poll failed in one word: a timeout (nothing answers, usually the path or the device is
@@ -324,7 +370,12 @@ const recurMinDays = 3
 // recurringWAN counts the earlier days on which this device's WAN dropped within ±5 minutes of now's time of day
 // (from the stored alert history, so it survives restarts) and returns the clock time for the message.
 func (e *Engine) recurringWAN(device string, now time.Time) (int, string) {
-	as, err := e.St.Alerts(2000)
+	return e.recurring("wan_down", device, now, 5)
+}
+
+// recurring counts the earlier days with an alert of this kind and subject within ±tol minutes of now's time of day.
+func (e *Engine) recurring(kind, subject string, now time.Time, tol int) (int, string) {
+	as, err := e.St.BaselineAlerts(2000)
 	if err != nil {
 		return 0, ""
 	}
@@ -332,7 +383,7 @@ func (e *Engine) recurringWAN(device string, now time.Time) (int, string) {
 	today := now.Format("2006-01-02")
 	days := map[string]bool{}
 	for _, a := range as {
-		if a.Kind != "wan_down" || a.Subject != device {
+		if a.Kind != kind || a.Subject != subject {
 			continue
 		}
 		t := time.Unix(a.TS, 0).In(now.Location())
@@ -347,7 +398,7 @@ func (e *Engine) recurringWAN(device string, now time.Time) (int, string) {
 		if diff > 720 {
 			diff = 1440 - diff
 		}
-		if diff <= 5 {
+		if diff <= tol {
 			days[d] = true
 		}
 	}
@@ -437,22 +488,130 @@ func (e *Engine) InterfaceState(device, iface string, running bool) {
 		return
 	}
 	if wasDown && held { // not a reboot after all: report the flap late but complete
-		e.raiseIfaceDown(device, iface, key)
+		e.raiseIfaceFlap(device, iface, key, time.Since(since))
+	}
+	e.mu.Lock()
+	folded := e.ifFolded[key]
+	delete(e.ifFolded, key)
+	e.mu.Unlock()
+	if wasDown && folded { // its down was part of a device outage: that has its own alerts
+		return
 	}
 	if wasDown { // recovery after a down is always reported, with the outage length
-		e.Raise("iface_up", key, "info", fmt.Sprintf("Interface %s on %s is up again after %s", iface, device, fmtDur(time.Since(since))), 0)
+		// a second "up" with the same text within a minute is the same recovery seen twice (poll overlap)
+		e.Raise("iface_up", key, "info", fmt.Sprintf("Interface %s on %s is up again after %s", iface, device, fmtDur(time.Since(since))), time.Minute)
 		return
 	}
 	e.Raise("iface_up", key, "info", fmt.Sprintf("Interface %s on %s is up", iface, device), 5*time.Minute)
 }
 
+// downBehind names a managed device that hangs on this port and is unreachable right now: the link-down is then a
+// consequence (the device rebooted or lost power) and belongs to the device's own alert.
+func (e *Engine) downBehind(device, iface string) string {
+	ns, err := e.St.Neighbors()
+	if err != nil {
+		return ""
+	}
+	for _, n := range ns {
+		if n.Device != device {
+			continue
+		}
+		on := false
+		for _, p := range strings.Split(n.Iface, ",") {
+			p = strings.TrimSpace(p)
+			if i := strings.LastIndex(p, "/"); i >= 0 {
+				p = p[i+1:]
+			}
+			on = on || p == iface
+		}
+		if !on {
+			continue
+		}
+		name := n.Ident
+		if d, ok := e.Cfg.Device(name); !ok || d.Name == device {
+			name = ""
+			for _, d := range e.Cfg.AllDevices() {
+				if n.Addr != "" && d.Addr == n.Addr && d.Name != device {
+					name = d.Name
+				}
+			}
+		}
+		if name == "" {
+			continue
+		}
+		e.mu.Lock()
+		up, seen := e.devUp[name]
+		_, pending := e.pendingOff[name]
+		e.mu.Unlock()
+		if pending || (seen && !up) {
+			return name
+		}
+	}
+	return ""
+}
+
+// raiseIfaceFlap reports a link that went down and came back inside the reboot grace. That is most often the device
+// itself (or the one behind the port) restarting, so it is an info line with the length, not a warning.
+func (e *Engine) raiseIfaceFlap(device, iface, key string, d time.Duration) {
+	if dev := e.downBehind(device, iface); dev != "" {
+		e.mu.Lock()
+		e.ifFolded[key] = true
+		e.mu.Unlock()
+		return
+	}
+	if d < e.rebootGrace {
+		e.Raise("iface_down", key, "info", fmt.Sprintf("Interface %s on %s went down for %s (short flap, possibly a restart)", iface, device, fmtDur(d)), 5*time.Minute)
+		return
+	}
+	e.raiseIfaceDown(device, iface, key)
+}
+
 func (e *Engine) raiseIfaceDown(device, iface, key string) {
+	if dev := e.downBehind(device, iface); dev != "" {
+		e.mu.Lock()
+		e.ifFolded[key] = true
+		e.mu.Unlock()
+		return
+	}
 	e.Raise("iface_down", key, "warning", fmt.Sprintf("Interface %s on %s went down", iface, device), 5*time.Minute)
+}
+
+// NewClientMode says which new clients raise an alert: "all", "unknown" (default: no vendor known or a randomised
+// MAC – the ones worth a look) or "off". The Clients → New devices inbox lists every new client either way.
+func (e *Engine) NewClientMode() string {
+	switch m := e.St.GetMeta("alert_new_client"); m {
+	case "all", "off":
+		return m
+	}
+	return "unknown"
+}
+
+// randomisedMAC reports a locally administered address (private Wi-Fi address of phones and laptops).
+func randomisedMAC(mac string) bool {
+	if len(mac) < 2 {
+		return false
+	}
+	switch mac[1] {
+	case '2', '6', 'a', 'A', 'e', 'E':
+		return true
+	}
+	return false
 }
 
 func (e *Engine) NewClient(mac, name, ip string) {
 	if time.Since(e.start) < 3*time.Minute { // warm-up: initial inventory import
 		return
+	}
+	if e.groupSaysNoNewAlert(mac) {
+		return
+	}
+	switch e.NewClientMode() {
+	case "off":
+		return
+	case "unknown":
+		if c, err := e.St.Client(mac); err == nil && c.Vendor != "" && !randomisedMAC(mac) {
+			return // a known manufacturer on its real address: listed in the inbox, no alert
+		}
 	}
 	n := name
 	if n == "" {
@@ -538,6 +697,10 @@ func (e *Engine) spike(snap live.Snapshot, cur, base float64) {
 			sev = "info" // one long-known device (backup, update, stream) explains almost everything: worth a note, not a warning
 			msg += " – one known client causes the load, probably a download, backup or stream"
 		}
+		if g, ok := e.clientGroup(top.Key); ok && g.SpikeInfo {
+			sev = "info"
+			msg += " – group " + g.Name + " (spikes of this group are recorded as info)"
+		}
 		day := time.Now().Format("2006-01-02")
 		e.mu.Lock()
 		if e.spikeDay[top.Key] == day {
@@ -551,6 +714,11 @@ func (e *Engine) spike(snap live.Snapshot, cur, base float64) {
 				ip = host + " / " + ip
 			}
 			msg += " ↔ " + ip
+		}
+		// the same client at the same time of day on several days: a schedule (speed test, backup, update), not an incident
+		if n, at := e.recurring("traffic_spike", top.Key, time.Now(), 10); n >= recurMinDays {
+			sev = "info"
+			msg += fmt.Sprintf(" – recurring: the same client had a spike on %d earlier days around %s, probably scheduled (speed test, backup, update)", n, at)
 		}
 	}
 	e.Raise("traffic_spike", subject, sev, msg, time.Hour)
@@ -606,6 +774,7 @@ func (e *Engine) Checks() {
 			e.Raise("port_scan", s.MAC, "warning", e.scanMsg(s), time.Hour)
 		}
 	}
+	e.wanQualityChecks()
 	if len(e.Cfg.DNSResolvers) > 0 {
 		rows, err := e.St.DB.Query(`SELECT mac, rip FROM flows WHERE ts>=? AND dir='u' AND rport=53 GROUP BY mac, rip`, time.Now().Unix()-300)
 		if err == nil {
@@ -621,6 +790,58 @@ func (e *Engine) Checks() {
 				}
 			}
 			rows.Close()
+		}
+	}
+	e.watchChecks()
+}
+
+// WatchOfflineAfter is how long a watched client may be gone before it is reported.
+const WatchOfflineAfter = 10 * time.Minute
+
+// watchChecks reports watched clients ("must be online") that have been gone for WatchOfflineAfter, and their return
+// with the duration. Clients hanging on a device in a maintenance window are left alone until it is over.
+func (e *Engine) watchChecks() {
+	cs, err := e.St.WatchedClients()
+	if err != nil || len(cs) == 0 {
+		e.mu.Lock()
+		for k := range e.watchDown { // nothing watched any more: forget old outages
+			delete(e.watchDown, k)
+		}
+		e.mu.Unlock()
+		return
+	}
+	maint := e.St.Maintenance()
+	now := time.Now()
+	for _, c := range cs {
+		name := c.Label
+		if name == "" {
+			name = c.Hostname
+		}
+		if name == "" {
+			name = c.MAC
+		}
+		gone := !c.Online && now.Sub(time.Unix(c.LastSeen, 0)) >= WatchOfflineAfter
+		e.mu.Lock()
+		since, down := e.watchDown[c.MAC]
+		e.mu.Unlock()
+		switch {
+		case gone && !down:
+			if _, ok := maint[c.Device]; ok {
+				continue
+			}
+			e.mu.Lock()
+			e.watchDown[c.MAC] = time.Unix(c.LastSeen, 0)
+			e.mu.Unlock()
+			where := ""
+			if c.Device != "" {
+				where = ", last seen on " + c.Device
+			}
+			e.Raise("client_offline", c.MAC, "warning", fmt.Sprintf("Watched client %s (%s) has been offline for %s%s", name, c.MAC, fmtDur(now.Sub(time.Unix(c.LastSeen, 0))), where), time.Minute)
+		case !gone && c.Online && down:
+			e.mu.Lock()
+			delete(e.watchDown, c.MAC)
+			e.mu.Unlock()
+			e.Raise("client_online", c.MAC, "info", fmt.Sprintf("Watched client %s (%s) is back online after %s", name, c.MAC, fmtDur(now.Sub(since))), time.Minute)
 		}
 	}
 }
@@ -658,5 +879,89 @@ func (e *Engine) deliver(a store.Alert) {
 		if err := smtp.SendMail(fmt.Sprintf("%s:%d", s.Host, port), auth, s.From, strings.Split(s.To, ","), []byte(msg)); err != nil {
 			e.Log.Warn("smtp failed", "err", err)
 		}
+	}
+}
+
+// clientGroup returns the group the client was put into (manually).
+func (e *Engine) clientGroup(mac string) (store.Group, bool) {
+	gs, err := e.St.ClientGroups()
+	if err != nil {
+		return store.Group{}, false
+	}
+	g, ok := gs[store.NormMAC(mac)]
+	return g, ok
+}
+
+// groupSaysNoNewAlert: the client's group (assigned, or the one suggested for it) is set to not alert on new clients.
+func (e *Engine) groupSaysNoNewAlert(mac string) bool {
+	if g, ok := e.clientGroup(mac); ok {
+		return !g.NewAlert
+	}
+	if e.Suggest == nil {
+		return false
+	}
+	c, err := e.St.Client(mac)
+	if err != nil || c.Group != "" {
+		return false
+	}
+	name := e.Suggest(*c)
+	if name == "" {
+		return false
+	}
+	gs, err := e.St.Groups()
+	if err != nil {
+		return false
+	}
+	for _, g := range gs {
+		if g.Name == name {
+			return !g.NewAlert
+		}
+	}
+	return false
+}
+
+// WAN quality thresholds over the last WANWindow of probes.
+const (
+	WANWindow    = 5 * time.Minute
+	WANLossPct   = 20.0
+	WANLatencyMS = 150.0
+	wanMinProbes = 12 // fewer probes than this in the window say nothing (just started, probing off)
+)
+
+// wanQualityChecks raises one alert when the internet connection (probes from mtmon, see internal/probe) loses
+// packets or gets slow for a whole window, and one info when it is good again. A WAN link that is down has its own
+// alerts: a complete loss while one is open is not reported twice.
+func (e *Engine) wanQualityChecks() {
+	w := e.St.WANQualitySince(time.Now().Add(-WANWindow).Unix())
+	if w.Sent < wanMinProbes {
+		return
+	}
+	e.mu.Lock()
+	wanDown := len(e.wan) > 0
+	bad := e.wanBad
+	e.mu.Unlock()
+	lossy, slow := w.LossPct >= WANLossPct, w.AvgMS >= WANLatencyMS
+	switch {
+	case (lossy || slow) && !wanDown:
+		if !bad {
+			var why []string
+			if lossy {
+				why = append(why, fmt.Sprintf("%.0f %% of the probes were lost", w.LossPct))
+			}
+			if slow {
+				why = append(why, fmt.Sprintf("answers took %.0f ms on average", w.AvgMS))
+			}
+			if e.Raise("wan_quality", "internet", "warning", fmt.Sprintf("Internet connection is poor (last %d min, %d probes) – %s", int(WANWindow.Minutes()), w.Sent, strings.Join(why, " – ")), 30*time.Minute) {
+				e.mu.Lock()
+				e.wanBad = true
+				e.mu.Unlock()
+			}
+		}
+	case !lossy && !slow && bad:
+		e.mu.Lock()
+		e.wanBad = false
+		e.mu.Unlock()
+		e.St.ResolveAlerts("wan_quality", "internet", " – resolved")
+		e.Raise("wan_quality_ok", "internet", "info", fmt.Sprintf("Internet connection is good again: %.0f %% loss, %.0f ms (last %d min)", w.LossPct, w.AvgMS, int(WANWindow.Minutes())), time.Minute)
 	}
 }

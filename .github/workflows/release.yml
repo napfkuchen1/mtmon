@@ -27,11 +27,11 @@ jobs:
       - name: validate tag
         run: |
           echo "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$' || { echo "::error::tag '$TAG' is not SemVer (vMAJOR.MINOR.PATCH)"; exit 1; }
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { fetch-depth: 0 }
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with: { go-version-file: go.mod }
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
       - name: CI must be green for this commit
         env: { GH_TOKEN: "${{ github.token }}" }
@@ -68,7 +68,7 @@ jobs:
           pub=$(sed -n 2p minisign.pub)
           minisign -Vm dist/mtmon-linux-amd64.tar.gz -P "$pub"
       - name: build provenance attestation
-        uses: actions/attest-build-provenance@v4
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with: { subject-path: dist/mtmon-linux-amd64.tar.gz }
       - name: publish
         env: { GH_TOKEN: "${{ github.token }}" }

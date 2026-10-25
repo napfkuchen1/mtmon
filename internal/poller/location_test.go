@@ -184,3 +184,70 @@ func TestSelfByAddr(t *testing.T) {
 		}
 	}
 }
+
+// The WAN list is authoritative: a downstream router's default route runs over its LAN bridge, which must not
+// count as upstream. Without a list the default-route interface is the fallback.
+func TestWANInterfacesListWins(t *testing.T) {
+	members := []Row{{"list": "WAN", "interface": "ether1"}, {"list": "LAN", "interface": "ether2"}}
+	routes := []Row{{"dst-address": "0.0.0.0/0", "active": "true", "immediate-gw": "192.168.1.1%bridge1"}}
+	if w := wanInterfaces(members, routes); len(w) != 1 || !w["ether1"] {
+		t.Errorf("list must win over the route: %v", w)
+	}
+	if w := wanInterfaces(nil, routes); !w["bridge1"] {
+		t.Errorf("route fallback without a list: %v", w)
+	}
+}
+
+func TestRemoveWANClients(t *testing.T) {
+	st, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	st.DB.Exec(`INSERT INTO clients(mac,ip,device,iface,online,label,first_seen,last_seen) VALUES
+		('02:00:00:00:00:0A','192.168.100.1','gw','ether1',0,'',1,1),
+		('02:00:00:00:00:0B','10.0.0.7','gw','bridge',0,'',1,1),
+		('02:00:00:00:00:0C','192.168.100.2','gw','ether1',1,'',1,1),
+		('02:00:00:00:00:0D','192.168.100.3','gw','ether1',0,'keep me',1,1)`)
+	if n := st.RemoveWANClients("gw", []string{"ether1"}); n != 1 {
+		t.Fatalf("removed %d, want 1", n)
+	}
+	if _, err := st.Client("02:00:00:00:00:0A"); err == nil {
+		t.Error("offline modem record must go")
+	}
+	for _, m := range []string{"02:00:00:00:00:0B", "02:00:00:00:00:0C", "02:00:00:00:00:0D"} {
+		if _, err := st.Client(m); err != nil {
+			t.Errorf("%s must stay: %v", m, err)
+		}
+	}
+}
+
+// The same MAC is learned on the uplink ports of several managed devices (router port to the unmanaged switch, and
+// each AP's own uplink). The router's port, nearest to the gateway, is where the host hangs.
+func TestSharedPortPrefersGatewayNearestDevice(t *testing.T) {
+	for i := 0; i < 20; i++ { // map order is random: repeat
+		st, err := store.Open(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		st.SaveNeighbors("hex", []store.Neighbor{
+			{Device: "hex", Iface: "ether2", MAC: "AA:00:00:00:00:A1", Ident: "ap1"},
+			{Device: "hex", Iface: "ether5", MAC: "AA:00:00:00:00:A2", Ident: "ap2"}})
+		st.SaveNeighbors("ap1", []store.Neighbor{{Device: "ap1", Iface: "ether1", MAC: "AA:00:00:00:00:C1", Ident: "hex"}})
+		st.SaveNeighbors("ap2", []store.Neighbor{{Device: "ap2", Iface: "ether1", MAC: "AA:00:00:00:00:C1", Ident: "hex"}})
+		m := NewManager(&config.Config{Devices: []config.Device{{Name: "hex", Role: "router", Addr: "10.0.0.1"},
+			{Name: "ap1", Role: "ap", Addr: "10.0.0.2"}, {Name: "ap2", Role: "ap", Addr: "10.0.0.3"}}},
+			st, live.NewHub(), enrich.New("", "", "", false), nopEvents{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+		now := time.Now()
+		cam := Row{"mac-address": "02:00:00:00:00:05", "on-interface": "ether2"}
+		m.snaps["hex"] = &devSnap{role: "router", at: now, wan: map[string]bool{"ether1": true}, bridge: []Row{cam}}
+		m.snaps["ap1"] = &devSnap{role: "ap", at: now, bridge: []Row{{"mac-address": "02:00:00:00:00:05", "on-interface": "ether1"}}}
+		m.snaps["ap2"] = &devSnap{role: "ap", at: now, bridge: []Row{{"mac-address": "02:00:00:00:00:05", "on-interface": "ether1"}}}
+		m.merge()
+		c, err := st.Client("02:00:00:00:00:05")
+		if err != nil || c.Device != "hex" || c.Iface != "ether2" {
+			t.Fatalf("run %d: want hex/ether2, got %+v %v", i, c, err)
+		}
+		st.Close()
+	}
+}

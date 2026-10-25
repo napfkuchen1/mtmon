@@ -60,3 +60,28 @@ func TestDimRollupsMatchDestinationRollups(t *testing.T) {
 	defer st.Close()
 	check(st)
 }
+
+func TestDBGrowthForecast(t *testing.T) {
+	st, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if _, ok := st.DBGrowthPerDay(); ok {
+		t.Fatal("no samples yet")
+	}
+	now := time.Now().Unix()
+	st.DB.Exec(`INSERT INTO db_size_log VALUES(?,?),(?,?)`, now-2*86400, 1_000_000, now, 3_000_000)
+	if g, ok := st.DBGrowthPerDay(); !ok || g < 990_000 || g > 1_010_000 {
+		t.Errorf("growth/day: %d %v", g, ok)
+	}
+	st.DB.Exec(`DELETE FROM db_size_log`)
+	st.DB.Exec(`INSERT INTO db_size_log VALUES(?,?),(?,?)`, now-2*86400, 5_000_000, now, 3_000_000) // cleanup shrank it
+	if g, ok := st.DBGrowthPerDay(); !ok || g != 0 {
+		t.Errorf("shrinking db: %d %v", g, ok)
+	}
+	st.LogDBSize()
+	if st.DBBytes() <= 0 {
+		t.Error("db size")
+	}
+}
