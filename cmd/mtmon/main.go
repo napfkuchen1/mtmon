@@ -176,7 +176,12 @@ func run(args []string) error {
 	go st.Maintain(ctx, cfg.RawRetention, cfg.Retention, backup)
 	go en.RunReverseDNS(ctx)
 	go srv.Speed.Run(ctx)
-	go (&dnsbypass.Watcher{St: st, Name: func(mac string) string {
+	go (&dnsbypass.Watcher{St: st, Probe: func() []string {
+		if len(cfg.WANTargets) > 0 {
+			return cfg.WANTargets
+		}
+		return probe.DefaultTargets
+	}, Name: func(mac string) string {
 		if c, err := st.Client(mac); err == nil {
 			return api.ClientName(*c)
 		}

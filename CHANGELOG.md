@@ -8,6 +8,11 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.19.0] - 2026-10-25
+
+### Fixed
+- The WAN-quality probe of mtmon itself (connections to 1.1.1.1, 8.8.8.8, 9.9.9.9 on port 443) was listed as "DoH" in the DNS-bypass list; the probe targets are now ignored.
+
 ## [0.18.0] - 2026-10-25
 
 ### New

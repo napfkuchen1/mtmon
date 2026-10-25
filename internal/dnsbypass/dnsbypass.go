@@ -4,6 +4,7 @@
 package dnsbypass
 
 import (
+	"net"
 	"sort"
 
 	"github.com/napfkuchen1/mtmon/internal/advice"
@@ -62,15 +63,34 @@ func Classify(r store.DNSUseRow) string {
 }
 
 // Detect lists the clients bypassing the local DNS since the given time, busiest first.
-func Detect(st *store.Store, since int64) ([]Client, error) {
+//
+// ignore lists addresses that are not a resolver choice of the client even though they answer on 443: the WAN-quality
+// probe of mtmon itself connects to public resolvers (1.1.1.1:443, 8.8.8.8:443 ...) and must not show up as DoH.
+func Detect(st *store.Store, since int64, ignore ...string) ([]Client, error) {
 	rows, err := st.DNSUse(since, advice.DoHSuffixes())
 	if err != nil {
 		return nil, err
 	}
-	return fromRows(rows), nil
+	return fromRows(rows, ignore), nil
 }
 
-func fromRows(rows []store.DNSUseRow) []Client {
+// ProbeHosts returns the host part of probe targets ("1.1.1.1:443" -> "1.1.1.1"), for Detect's ignore list.
+func ProbeHosts(targets []string) []string {
+	out := make([]string, 0, len(targets))
+	for _, t := range targets {
+		if h, _, err := net.SplitHostPort(t); err == nil {
+			t = h
+		}
+		out = append(out, t)
+	}
+	return out
+}
+
+func fromRows(rows []store.DNSUseRow, ignore []string) []Client {
+	skip := make(map[string]bool, len(ignore))
+	for _, ip := range ignore {
+		skip[ip] = true
+	}
 	type agg struct {
 		c     *Client
 		flows map[string]int64 // per type, to apply the thresholds
@@ -78,7 +98,7 @@ func fromRows(rows []store.DNSUseRow) []Client {
 	by := map[string]*agg{}
 	for _, r := range rows {
 		typ := Classify(r)
-		if typ == "" {
+		if typ == "" || (r.RPort == 443 && skip[r.RIP]) {
 			continue
 		}
 		a := by[r.MAC]

@@ -22,7 +22,8 @@ func TestClassifyAndThresholds(t *testing.T) {
 		row("D", "1.1.1.1", "cloudflare-dns.com", 443, 6, 90), // DoH browser
 		row("E", "2606:4700:4700::1111", "", 853, 6, 5),       // IPv6 DoT
 	}
-	got := fromRows(rows)
+	rows = append(rows, row("F", "8.8.8.8", "dns.google", 443, 6, 568)) // mtmon's own WAN probe
+	got := fromRows(rows, []string{"8.8.8.8"})
 	by := map[string]Client{}
 	for _, c := range got {
 		by[c.MAC] = c
@@ -41,6 +42,9 @@ func TestClassifyAndThresholds(t *testing.T) {
 	}
 	if c := by["E"]; len(c.Types) != 1 || c.Types[0] != DoT {
 		t.Errorf("E: %+v", c)
+	}
+	if _, ok := by["F"]; ok {
+		t.Errorf("the WAN probe target is no DoH: %+v", by["F"])
 	}
 	if len(got) != 4 || got[0].MAC != "A" {
 		t.Errorf("busiest first, 4 clients: %+v", got)
