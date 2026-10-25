@@ -621,6 +621,67 @@ func (m *Manager) uplinkPorts() map[string]bool {
 	return out
 }
 
+// deviceDepths counts the hops of every managed device from the gateway (the device with WAN interfaces, else the
+// routers) along the neighbor links. Needs m.mu held for m.snaps. Unreachable devices are absent.
+func (m *Manager) deviceDepths() map[string]int {
+	out := map[string]int{}
+	ns, err := m.St.Neighbors()
+	if err != nil {
+		return out
+	}
+	adj := map[string][]string{}
+	managed := map[string]bool{}
+	for _, d := range m.Cfg.AllDevices() {
+		managed[d.Name] = true
+	}
+	for _, n := range ns {
+		if managed[n.Device] && managed[n.Ident] && n.Device != n.Ident {
+			adj[n.Device] = append(adj[n.Device], n.Ident)
+			adj[n.Ident] = append(adj[n.Ident], n.Device)
+		}
+	}
+	var queue []string
+	for _, d := range m.Cfg.AllDevices() {
+		if s := m.snaps[d.Name]; s != nil && len(s.wan) > 0 {
+			out[d.Name] = 0
+			queue = append(queue, d.Name)
+		}
+	}
+	if len(queue) == 0 { // no WAN info yet: routers are the best guess
+		for _, d := range m.Cfg.AllDevices() {
+			if d.Role == "router" {
+				out[d.Name] = 0
+				queue = append(queue, d.Name)
+			}
+		}
+	}
+	for len(queue) > 0 {
+		d := queue[0]
+		queue = queue[1:]
+		for _, n := range adj[d] {
+			if _, seen := out[n]; !seen {
+				out[n] = out[d] + 1
+				queue = append(queue, n)
+			}
+		}
+	}
+	return out
+}
+
+// nearer reports whether device a is closer to the gateway than b (unknown devices are farthest; ties by name so
+// the result does not depend on map order).
+func nearer(depth map[string]int, a, b string) bool {
+	da, oka := depth[a]
+	db, okb := depth[b]
+	switch {
+	case oka != okb:
+		return oka
+	case da != db:
+		return da < db
+	}
+	return a < b
+}
+
 // Diagnostics returns the raw tables the last poll cycle got from every device plus the derived uplink ports, so a
 // wrong location or presence can be explained from real data. No credentials are involved.
 func (m *Manager) Diagnostics() map[string]any {
@@ -724,6 +785,7 @@ func (m *Manager) merge() {
 	// hosts learned on an uplink port (an unmanaged switch may sit in between) and MACs of the managed devices
 	// themselves; see the shared-port pass below
 	shared := map[string]edgeLoc{}
+	depth := m.deviceDepths() // hops from the gateway; the shared port nearest to it wins
 	ownMAC := m.neighborIdents()
 	names := map[string]string{}
 	for _, d := range m.Cfg.AllDevices() {
@@ -753,7 +815,7 @@ func (m *Manager) merge() {
 			if uplinks[dev+"|"+iface] {
 				// learned via a trunk to another managed device: not where the host is attached, unless no
 				// device behind that trunk has it on a port of its own (then an unmanaged switch is in between)
-				if _, ok := shared[mac]; !ok {
+				if old, ok := shared[mac]; !ok || nearer(depth, dev, old.dev) {
 					shared[mac] = edgeLoc{dev, iface, false}
 				}
 				continue
