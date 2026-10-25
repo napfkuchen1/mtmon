@@ -11,6 +11,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 ## [0.20.0] - 2026-10-25
 
 ### Fixed
+- Speed tests: when Ookla is selected but its CLI is not installed, mtmon no longer stores a failed Ookla result with every round. The round skips Ookla, "Run now" says why if nothing else is selected, and the settings show a hint.
 - The suggested label for a client with a dot inside the hostname, like `TV-Room (Mr.Name)`, was cut at the first dot ("TV Room (Mr"). The domain is now only removed from plain host names (`nas.fritz.box` still gives "nas"). Suggestions are computed on the fly, so existing clients get the corrected suggestion at once; labels you set yourself are never touched.
 - Traffic from the router's own addresses (including a dynamic PPPoE address) is now attributed to the router itself instead of staying without a client, and the router is no longer reported as a DNS-bypass client.
 - The suggestion "Some clients use encrypted DNS (DNS over HTTPS)" listed the mtmon host itself because of its WAN-quality probe (TCP 443 to 1.1.1.1 / 8.8.8.8 / 9.9.9.9 or your own targets). The advice now skips the probe targets, like the DNS-bypass list already did.
