@@ -17,7 +17,7 @@ type Files struct {
 	ExportSize   int64 `json:"export_size,omitempty"`
 }
 
-var fileTimeLayouts = []string{"2006-01-02 15:04:05", "2006-01-02T15:04:05", "Jan/02/2006 15:04:05", "2006-01-02 15:04"}
+var fileTimeLayouts = []string{"2006-01-02 15:04:05", "2006-01-02T15:04:05", "2006-01-02T15:04:05Z07:00", "Jan/02/2006 15:04:05", "2006-01-02 15:04"}
 
 // parseFileTime reads RouterOS creation-time values ("2026-10-01 12:00:00", or "oct/01/2026 12:00:00" on older
 // builds). The router's time zone is unknown; UTC is used, which is plenty for an age counted in days.
@@ -34,12 +34,35 @@ func parseFileTime(s string) int64 {
 	return 0
 }
 
+// fileTime reads the file's timestamp. The field name differs between RouterOS builds (creation-time, last-modified),
+// so the known names are tried first, then any value of the row that looks like a timestamp. The newer of the
+// parsable values wins.
+func fileTime(r poller.Row) int64 {
+	var ts int64
+	for _, k := range []string{"creation-time", "last-modified", "modified"} {
+		if t := parseFileTime(r[k]); t > ts {
+			ts = t
+		}
+	}
+	if ts != 0 {
+		return ts
+	}
+	for k, v := range r {
+		if k != "name" && k != "contents" {
+			if t := parseFileTime(v); t > ts {
+				ts = t
+			}
+		}
+	}
+	return ts
+}
+
 // parseFiles summarises the /file listing.
 func parseFiles(rows []poller.Row) Files {
 	f := Files{Readable: true}
 	for _, r := range rows {
 		name := strings.ToLower(r["name"])
-		ts := parseFileTime(r["creation-time"])
+		ts := fileTime(r)
 		if ts == 0 {
 			continue
 		}
