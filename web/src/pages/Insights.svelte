@@ -6,6 +6,7 @@
   import { bytes, num, countryName } from '../lib/format.js'
   import { t, tr, i18n } from '../lib/i18n.svelte.js'
   import ClassifyDialog from '../lib/ClassifyDialog.svelte'
+  import { stableOrder } from '../lib/sortpref.js'
   let dlg = $state(null)
 
   // the Services page is the one place for services (rules, detail, clients); an old #/insights/services link goes there
@@ -16,7 +17,12 @@
   let grp = $state('')
   const gl = poll(() => api('/groups'), 60000)
   const d = poll(() => api(`/top/${what}?range=${rg()}&limit=100` + (grp && (what === 'clients' || what === 'internal') ? '&group=' + encodeURIComponent(grp) : '')), 8000)
-  const rows = $derived(d.data?.rows || [])
+  // the ranking is by bytes and would re-rank on every poll; keep the order for 30 s unless tab, range or group change
+  let ord = null
+  const rows = $derived.by(() => {
+    ord = stableOrder(ord, d.data?.rows || [], r => r.key + '|' + r.sub, { ctx: what + '|' + rg() + '|' + grp })
+    return ord.rows
+  })
   const max = $derived(rows.reduce((m, r) => Math.max(m, r.up + r.down + r.internal), 0) || 1)
   const pick = r => { if (r.device) go('device/' + encodeURIComponent(r.device)); else if (what === 'clients' || what === 'internal') go('client/' + encodeURIComponent(r.key)); else if (what === 'services') go('services/' + encodeURIComponent(r.key)) }
   const classify = (r, e) => {

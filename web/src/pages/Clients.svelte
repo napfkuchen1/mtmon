@@ -7,18 +7,28 @@
   import { t, tr } from '../lib/i18n.svelte.js'
   import { bps, bytes, ago, display, signalQuality } from '../lib/format.js'
   import CleanupDialog from '../lib/CleanupDialog.svelte'
+  import { untrack } from 'svelte'
+  import { loadSort, saveSort } from '../lib/sortpref.js'
   let cleanup = $state(false)
 
-  let q = $state(''), kind = $state(app.route.params.id === 'dns-bypass' ? 'dnsbypass' : 'all'), sortKey = $state('live'), desc = $state(true)
+  let q = $state(''), kind = $state(app.route.params.id === 'dns-bypass' ? 'dnsbypass' : 'all'), sortKey = $state(loadSort('clients', { key: 'name', desc: false }).key), desc = $state(loadSort('clients', { key: 'name', desc: false }).desc)
   let sel = $state({}) // mac -> true: selected for the bulk action
   let grp = $state('') // group filter: '' all, 'none', or a group name
   const gl = poll(() => api('/groups'), 30000)
   const groups = $derived((gl.data?.groups || []).map(g => g.name))
   const d = poll(() => api('/clients?range=' + (app.range === 'live' ? '1h' : app.range)), 5000)
 
-  const rows = $derived.by(() => {
+  // live values (rate, usage, signal) are sorted on a snapshot that is refreshed every 10 s, so the list does not
+  // re-order itself on every poll
+  let snap = $state({})
+  const take = () => untrack(() => { const o = {}; for (const x of all) o[x.c.mac] = { live: x.live, usage: x.bytes_up + x.bytes_down, signal: x.c.signal || -999 }; snap = o })
+  $effect(() => { sortKey; desc; take(); const id = setInterval(take, 10000); return () => clearInterval(id) })
+  const all = $derived.by(() => {
     const live = new Map(app.live.clients.map(c => [c.key, c]))
-    let r = (d.data || []).map(x => ({ ...x, c: x.client, live: (live.get(x.client.mac)?.up_bps || 0) + (live.get(x.client.mac)?.down_bps || 0) || x.up_bps + x.down_bps }))
+    return (d.data || []).map(x => ({ ...x, c: x.client, live: (live.get(x.client.mac)?.up_bps || 0) + (live.get(x.client.mac)?.down_bps || 0) || x.up_bps + x.down_bps }))
+  })
+  const rows = $derived.by(() => {
+    let r = all.slice()
     const s = q.trim().toLowerCase()
     if (s) r = r.filter(x => [x.c.mac, x.c.ip, x.c.hostname, x.c.label, x.c.vendor, x.c.device, x.c.ssid].join(' ').toLowerCase().includes(s))
     if (kind === 'online') r = r.filter(x => x.c.online)
@@ -29,11 +39,12 @@
     if (kind === 'dnsbypass') r = r.filter(x => x.dns_bypass?.length)
     if (grp === 'none') r = r.filter(x => !x.c.group)
     else if (grp) r = r.filter(x => x.c.group === grp)
-    const val = x => ({ name: display(x.c).toLowerCase(), ip: x.c.ip.split('.').map(n => n.padStart(3, '0')).join('.'), live: x.live, usage: x.bytes_up + x.bytes_down, signal: x.c.signal || -999, seen: x.c.last_seen, device: x.c.device }[sortKey])
+    const val = x => ({ name: display(x.c).toLowerCase(), ip: x.c.ip.split('.').map(n => n.padStart(3, '0')).join('.'), live: snap[x.c.mac]?.live ?? x.live, usage: snap[x.c.mac]?.usage ?? x.bytes_up + x.bytes_down, signal: snap[x.c.mac]?.signal ?? (x.c.signal || -999), seen: x.c.last_seen, device: x.c.device }[sortKey])
     r.sort((a, b) => { const A = val(a), B = val(b); return (A < B ? -1 : A > B ? 1 : 0) * (desc ? -1 : 1) })
     return r
   })
-  function sort(k) { if (sortKey === k) desc = !desc; else { sortKey = k; desc = k !== 'name' && k !== 'ip' } }
+  function sort(k) { if (sortKey === k) desc = !desc; else { sortKey = k; desc = k !== 'name' && k !== 'ip' && k !== 'device' }
+    saveSort('clients', sortKey, desc) }
   const arrow = k => sortKey === k ? (desc ? ' ↓' : ' ↑') : ''
   const kinds = $derived([['all', t('All')], ['online', t('Online')], ['wifi', t('Wi-Fi')], ['wired', t('Wired')], ['offline', t('Offline')], ['watched', '★ ' + t('Watched')], ['dnsbypass', t('DNS bypass')]])
   const picked = $derived(Object.keys(sel).filter(k => sel[k]))
