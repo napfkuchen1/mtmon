@@ -221,3 +221,33 @@ func TestRemoveWANClients(t *testing.T) {
 		}
 	}
 }
+
+// The same MAC is learned on the uplink ports of several managed devices (router port to the unmanaged switch, and
+// each AP's own uplink). The router's port, nearest to the gateway, is where the host hangs.
+func TestSharedPortPrefersGatewayNearestDevice(t *testing.T) {
+	for i := 0; i < 20; i++ { // map order is random: repeat
+		st, err := store.Open(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		st.SaveNeighbors("hex", []store.Neighbor{
+			{Device: "hex", Iface: "ether2", MAC: "AA:00:00:00:00:A1", Ident: "ap1"},
+			{Device: "hex", Iface: "ether5", MAC: "AA:00:00:00:00:A2", Ident: "ap2"}})
+		st.SaveNeighbors("ap1", []store.Neighbor{{Device: "ap1", Iface: "ether1", MAC: "AA:00:00:00:00:C1", Ident: "hex"}})
+		st.SaveNeighbors("ap2", []store.Neighbor{{Device: "ap2", Iface: "ether1", MAC: "AA:00:00:00:00:C1", Ident: "hex"}})
+		m := NewManager(&config.Config{Devices: []config.Device{{Name: "hex", Role: "router", Addr: "10.0.0.1"},
+			{Name: "ap1", Role: "ap", Addr: "10.0.0.2"}, {Name: "ap2", Role: "ap", Addr: "10.0.0.3"}}},
+			st, live.NewHub(), enrich.New("", "", "", false), nopEvents{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+		now := time.Now()
+		cam := Row{"mac-address": "02:00:00:00:00:05", "on-interface": "ether2"}
+		m.snaps["hex"] = &devSnap{role: "router", at: now, wan: map[string]bool{"ether1": true}, bridge: []Row{cam}}
+		m.snaps["ap1"] = &devSnap{role: "ap", at: now, bridge: []Row{{"mac-address": "02:00:00:00:00:05", "on-interface": "ether1"}}}
+		m.snaps["ap2"] = &devSnap{role: "ap", at: now, bridge: []Row{{"mac-address": "02:00:00:00:00:05", "on-interface": "ether1"}}}
+		m.merge()
+		c, err := st.Client("02:00:00:00:00:05")
+		if err != nil || c.Device != "hex" || c.Iface != "ether2" {
+			t.Fatalf("run %d: want hex/ether2, got %+v %v", i, c, err)
+		}
+		st.Close()
+	}
+}
