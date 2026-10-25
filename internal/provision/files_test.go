@@ -19,6 +19,14 @@ func TestParseFiles(t *testing.T) {
 		f.NewestExport != time.Date(2026, 10, 2, 12, 30, 0, 0, time.UTC).Unix() || f.ExportSize != 21000 {
 		t.Errorf("%+v", f)
 	}
+	// RouterOS 7.24 lists the time as last-modified
+	g := parseFiles([]poller.Row{
+		{"name": "gw.backup", "last-modified": "2026-10-24 15:47:11", "size": "200000"},
+		{"name": "gw.rsc", "weird-time": "2026-10-24 15:48:00", "size": "9000"},
+	})
+	if g.NewestBackup != time.Date(2026, 10, 24, 15, 47, 11, 0, time.UTC).Unix() || g.NewestExport == 0 {
+		t.Errorf("last-modified: %+v", g)
+	}
 	if g := parseFiles(nil); !g.Readable || g.NewestBackup != 0 {
 		t.Errorf("empty listing: %+v", g)
 	}
