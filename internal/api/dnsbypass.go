@@ -46,11 +46,20 @@ func (s *Server) dnsBypass() ([]dnsbypass.Client, map[string]dnsbypass.Client) {
 func (s *Server) detectBypass(window time.Duration) ([]dnsbypass.Client, error) {
 	now := time.Now()
 	return dnsbypass.DetectOpts(s.St, now.Add(-window).Unix(), dnsbypass.Options{
-		Ignore: dnsbypass.ProbeHosts(s.probeTargets()), Resets: dnsbypass.LoadResets(s.St), Now: now})
+		Ignore: dnsbypass.ProbeHosts(s.probeTargets()), Skip: s.isSelfMAC, Resets: dnsbypass.LoadResets(s.St), Now: now})
 }
 
 // bypassRanges are the periods the DNS-bypass view can look at.
 var bypassRanges = map[string]time.Duration{"1h": time.Hour, "24h": 24 * time.Hour, "7d": dnsbypass.Window, "30d": 30 * 24 * time.Hour}
+
+// isSelfMAC reports whether a MAC is an interface of a managed router/AP.
+func (s *Server) isSelfMAC(mac string) bool {
+	if s.Mgr == nil {
+		return false
+	}
+	_, ok := s.Mgr.SelfDevice(mac)
+	return ok
+}
 
 // probeTargets are the host:port pairs of mtmon's WAN-quality probe (configured or the default resolvers).
 func (s *Server) probeTargets() []string {

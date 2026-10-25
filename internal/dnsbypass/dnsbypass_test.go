@@ -76,6 +76,28 @@ func TestDetectFromRollup(t *testing.T) {
 	}
 }
 
+func TestDetectSkipsSelf(t *testing.T) {
+	st, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	now := time.Now().Unix()
+	for i := 0; i < 3; i++ {
+		st.Enqueue(store.FlowRow{TS: now, MAC: "04:F4:1C:29:A5:DC", CIP: "2001:db8:1::1", RIP: "9.9.9.9", RPort: 53, CPort: uint16Port(i), Proto: 17, Dir: "u", Bytes: 90})
+	}
+	if err := st.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := DetectOpts(st, now-3600, Options{}); len(got) != 1 {
+		t.Fatalf("without Skip the router would be listed: %+v", got)
+	}
+	got, err := DetectOpts(st, now-3600, Options{Skip: func(mac string) bool { return mac == "04:F4:1C:29:A5:DC" }})
+	if err != nil || len(got) != 0 {
+		t.Fatalf("router's own DNS must never be a bypass: %v %+v", err, got)
+	}
+}
+
 func TestWatcherAlertsOnlyForNewBypassAndStartsQuiet(t *testing.T) {
 	st, _ := store.Open(t.TempDir())
 	defer st.Close()

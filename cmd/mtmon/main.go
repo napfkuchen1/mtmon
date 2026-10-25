@@ -121,6 +121,7 @@ func run(args []string) error {
 	col := &flow.Collector{Addr: cfg.FlowListen, Allow: cfg.ExporterAllowed, Handler: pipe.Handle, Dec: flow.NewDecoder()}
 	al := alert.New(cfg, st, hub, log)
 	pm := poller.NewManager(cfg, st, hub, en, al, log)
+	pipe.SelfMAC = pm.SelfMACByAddr
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -178,7 +179,7 @@ func run(args []string) error {
 	go st.Maintain(ctx, cfg.RawRetention, cfg.Retention, backup)
 	go en.RunReverseDNS(ctx)
 	go srv.Speed.Run(ctx)
-	go (&dnsbypass.Watcher{St: st, Probe: func() []string {
+	go (&dnsbypass.Watcher{St: st, Self: func(mac string) bool { _, ok := pm.SelfDevice(mac); return ok }, Probe: func() []string {
 		if len(cfg.WANTargets) > 0 {
 			return cfg.WANTargets
 		}

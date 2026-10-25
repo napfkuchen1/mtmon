@@ -29,6 +29,7 @@ type Pipeline struct {
 	En                *enrich.Enricher
 	Hub               *Hub
 	Cls               *enrich.Classifier
+	SelfMAC           func(ip string) string // own interface MAC of the managed device that has this address, "" = none; optional
 	mu                sync.Mutex
 	seen              map[dkey]int64
 	dnsSeen           map[rkey]int64
@@ -130,7 +131,12 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 			p.diag.note(r, "x")
 			continue
 		}
-		row.MAC = p.Hub.MACFor(row.CIP)
+		if p.SelfMAC != nil {
+			row.MAC = p.SelfMAC(row.CIP) // the router's own address (WAN, PPPoE) is the device, not a client
+		}
+		if row.MAC == "" {
+			row.MAC = p.Hub.MACFor(row.CIP)
+		}
 		if row.MAC == "" {
 			row.MAC = p.St.MACForIPAt(row.CIP, row.TS)
 		}
