@@ -155,11 +155,19 @@ func (s *Server) authz(r *http.Request) (bool, bool) {
 func (s *Server) dynamic(w http.ResponseWriter, r *http.Request, canWrite bool) bool {
 	path := strings.TrimPrefix(r.URL.Path, "/rest")
 	if path == "/export" && r.Method == "POST" {
+		io.Copy(io.Discard, r.Body)
 		if !canWrite {
-			rosErr(w, 403, "forbidden")
+			s.mu.Lock()
+			ro := s.ROExport
+			s.mu.Unlock()
+			if !ro {
+				rosErr(w, 403, "forbidden")
+				return true
+			}
+			// a read-only user that may export: the text comes inline, one secret-looking line included
+			writeJSON(w, 200, []obj{{"ret": "# 2026-10-25 by RouterOS 7.24.4\n/ip service\nset www-ssl disabled=no\n/user\nadd name=ops password=hunter2\n/system identity\nset name=gw\n"}})
 			return true
 		}
-		io.Copy(io.Discard, r.Body)
 		s.mu.Lock()
 		s.Exports++
 		fail := s.FailExport
@@ -239,6 +247,10 @@ func (s *Server) dynamic(w http.ResponseWriter, r *http.Request, canWrite bool) 
 			rosErr(w, 400, "failure: action name can contain only letters and numbers")
 			return true
 		}
+		if menu == "/system/logging" && !validTopics(str(in["topics"])) {
+			rosErr(w, 400, "input does not match any value of topic")
+			return true
+		}
 		if menu == "/user" && !s.hasGroup(str(in["group"])) {
 			rosErr(w, 400, "failure: no such group")
 			return true
@@ -310,3 +322,19 @@ func (s *Server) dupName(menu, name string) bool {
 }
 
 func (s *Server) hasGroup(name string) bool { return s.dupName("/user/group", name) }
+
+// logTopics are the topics RouterOS 7.24 accepts that the tests use; unknown ones (e.g. "wifi") are rejected like on a real router.
+var logTopics = map[string]bool{"system": true, "account": true, "critical": true, "dhcp": true, "wireless": true,
+	"wireguard": true, "script": true, "firewall": true, "info": true, "error": true, "warning": true, "web-proxy": true}
+
+func validTopics(list string) bool {
+	if list == "" {
+		return true
+	}
+	for _, t := range strings.Split(list, ",") {
+		if !logTopics[strings.TrimPrefix(t, "!")] {
+			return false
+		}
+	}
+	return true
+}

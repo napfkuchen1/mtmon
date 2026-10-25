@@ -123,3 +123,34 @@ func (s *Store) CleanupClients(o CleanupOpts) (*CleanupResult, error) {
 	}
 	return res, nil
 }
+
+// RemoveWANClients deletes offline, unlabeled client records that were last seen on a WAN interface of device
+// (the upstream modem learned before WAN ports were excluded). Their flow history stays.
+func (s *Store) RemoveWANClients(device string, ifaces []string) int {
+	if device == "" || len(ifaces) == 0 {
+		return 0
+	}
+	ph := strings.TrimSuffix(strings.Repeat("?,", len(ifaces)), ",")
+	args := []any{device}
+	for _, i := range ifaces {
+		args = append(args, i)
+	}
+	where := ` online=0 AND device=? AND iface IN (` + ph + `) AND coalesce(label,'')='' AND mac NOT LIKE 'VPN:%'`
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return 0
+	}
+	defer tx.Rollback()
+	sub := `(SELECT mac FROM clients WHERE` + where + `)`
+	for _, t := range []string{"ip_history", "roam", "seen_dest"} {
+		if _, err := tx.Exec(`DELETE FROM `+t+` WHERE mac IN `+sub, args...); err != nil {
+			return 0
+		}
+	}
+	r, err := tx.Exec(`DELETE FROM clients WHERE`+where, args...)
+	if err != nil || tx.Commit() != nil {
+		return 0
+	}
+	n, _ := r.RowsAffected()
+	return int(n)
+}

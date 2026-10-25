@@ -19,6 +19,9 @@ type WifiIf struct {
 	Name string `json:"name"`
 	SSID string `json:"ssid,omitempty"`
 	Band string `json:"band,omitempty"`
+	// Channel is the configured frequency/channel as the router reports it (e.g. "5180" or "auto"); the field names
+	// differ between RouterOS builds, so it is taken from whichever of them is present.
+	Channel string `json:"channel,omitempty"`
 }
 
 type FilterRule struct {
@@ -82,9 +85,50 @@ type Caps struct {
 	Warnings    []string `json:"warnings"`
 	Managed     bool     `json:"already_managed"`     // carries mtmon-managed objects from an earlier setup
 	ProbedAt    int64    `json:"probed_at,omitempty"` // unix time the router was read
+	Files       Files    `json:"files"`               // newest backup / export file (read-only /file listing)
+	Certs       []Cert   `json:"certs"`               // certificates that services use (www-ssl, api-ssl) and when they expire
+	Update      Update   `json:"update"`              // RouterOS update state as the router last checked
+	// Export is what one POST /rest/export with the monitoring login looked like (#46): decides whether a
+	// config-drift view can work. Only counts and flags, never the text. Refreshed once a day.
+	Export ExportProbe `json:"export_probe"`
+	// IPv6: a DHCPv6 client asks the ISP for a prefix (dynamic prefix), and the lifetimes of the delegated prefix in the
+	// router advertisements (dynamic global rows of "/ipv6 nd prefix"). Seconds, 0 = not readable.
+	IPv6PD      bool  `json:"ipv6_pd"`
+	RAValid     int64 `json:"ra_valid_s,omitempty"`
+	RAPreferred int64 `json:"ra_preferred_s,omitempty"`
+}
+
+// ExportProbe is poller.ExportResult plus the time it was taken (unix, 0 = never probed).
+type ExportProbe struct {
+	poller.ExportResult
+	At int64 `json:"at,omitempty"`
+}
+
+// Cert is a certificate a router service uses; Expires is a unix time (0 = unknown).
+type Cert struct {
+	Name    string `json:"name"`
+	Service string `json:"service"`
+	Expires int64  `json:"expires"`
+}
+
+// Update is the result of the router's last "check for updates" (RouterOS only fills it after such a check).
+type Update struct {
+	Channel   string `json:"channel,omitempty"`
+	Installed string `json:"installed,omitempty"`
+	Latest    string `json:"latest,omitempty"`
 }
 
 const ManagedTag = "mtmon-managed"
+
+// firstOf returns the first non-empty value among the given field names.
+func firstOf(r poller.Row, keys ...string) string {
+	for _, k := range keys {
+		if v := r[k]; v != "" {
+			return v
+		}
+	}
+	return ""
+}
 
 func get(ctx context.Context, c *poller.Client, path string) []poller.Row {
 	rows, err := c.Get(ctx, path)
@@ -112,6 +156,28 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 		CPUCount: r.Int("cpu-count"), MemTotal: r.Int("total-memory"), IfaceTypes: map[string]int{}, ProbedAt: time.Now().Unix()}
 	k.Packages, k.WifiIfs, k.Bridges, k.Addresses, k.LogActions, k.Filter, k.Warnings = []string{}, []WifiIf{}, []string{}, []string{}, []string{}, []FilterRule{}, []string{}
 	k.Flow.Targets = []string{}
+	k.Certs = []Cert{}
+	if rows, err := c.Get(ctx, "/file"); err == nil { // a read-only user may be refused here: then nothing is claimed
+		k.Files = parseFiles(rows)
+	}
+	for _, r := range get(ctx, c, "/ipv6/dhcp-client") { // absent without the ipv6 package
+		if !r.Bool("disabled") && strings.Contains(r["request"], "prefix") {
+			k.IPv6PD = true
+		}
+	}
+	// the delegated prefix is announced with the (ticking) lifetimes of the ISP lease: read the dynamic global rows of
+	// /ipv6/nd/prefix, not "nd prefix default" (that only applies to prefixes without lifetimes of their own, e.g. ULA)
+	for _, r := range get(ctx, c, "/ipv6/nd/prefix") {
+		if !r.Bool("dynamic") || r.Bool("disabled") || isULAorLL(r["prefix"]) {
+			continue
+		}
+		if v := int64(poller.ParseDuration(r["valid-lifetime"]).Seconds()); v > k.RAValid {
+			k.RAValid = v
+		}
+		if p := int64(poller.ParseDuration(r["preferred-lifetime"]).Seconds()); p > k.RAPreferred {
+			k.RAPreferred = p
+		}
+	}
 	if id := get(ctx, c, "/system/identity"); len(id) > 0 {
 		k.Identity = id[0]["name"]
 	}
@@ -146,6 +212,13 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 			if wi.Band == "" {
 				wi.Band = x["band"]
 			}
+			wi.Channel = firstOf(x, "channel.frequency", "frequency")
+			if wi.Channel == "" {
+				wi.Channel = firstOf(cfg[x["configuration"]], "channel.frequency", "frequency")
+			}
+			if w := firstOf(x, "channel.width"); w != "" && wi.Channel != "" {
+				wi.Channel += " / " + w
+			}
 			k.WifiIfs = append(k.WifiIfs, wi)
 		}
 		k.WifiClient = len(get(ctx, c, "/interface/wifi/registration-table"))
@@ -158,7 +231,7 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 	} else if w := get(ctx, c, "/interface/wireless"); len(w) > 0 {
 		k.WifiStack = "wireless"
 		for _, x := range w {
-			k.WifiIfs = append(k.WifiIfs, WifiIf{Name: x["name"], SSID: x["ssid"], Band: x["band"]})
+			k.WifiIfs = append(k.WifiIfs, WifiIf{Name: x["name"], SSID: x["ssid"], Band: x["band"], Channel: firstOf(x, "frequency")})
 		}
 		k.Warnings = append(k.Warnings, "Legacy “wireless” package: mtmon only reads Wi-Fi clients from the new “wifi” package (wifi-qcom). Clients are still found via DHCP/ARP/bridge hosts, but signal, SSID and band are missing.")
 	} else {
@@ -226,11 +299,21 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 	for _, t := range get(ctx, c, "/ip/traffic-flow/target") {
 		k.Flow.Targets = append(k.Flow.Targets, t["dst-address"]+" ("+t["version"]+")")
 	}
+	svcCert := map[string]string{} // service -> certificate name
 	for _, s := range get(ctx, c, "/ip/service") {
 		if s["name"] == "www-ssl" {
 			k.WwwSSL = s["disabled"] != "true"
 			k.WwwSSLAddr = s["address"]
 		}
+		if (s["name"] == "www-ssl" || s["name"] == "api-ssl") && s["disabled"] != "true" && s["certificate"] != "" && s["certificate"] != "none" {
+			svcCert[s["name"]] = s["certificate"]
+		}
+	}
+	if len(svcCert) > 0 {
+		k.Certs = parseCerts(svcCert, get(ctx, c, "/certificate"))
+	}
+	if u := get(ctx, c, "/system/package/update"); len(u) > 0 {
+		k.Update = Update{Channel: u[0]["channel"], Installed: u[0]["installed-version"], Latest: u[0]["latest-version"]}
 	}
 	for _, a := range get(ctx, c, "/system/logging/action") {
 		if a["target"] == "remote" {
@@ -312,4 +395,11 @@ func (k *Caps) suggestRole() {
 	if k.Managed {
 		k.Warnings = append(k.Warnings, "This device already holds objects tagged “mtmon-managed” (earlier setup). Run offboarding or clean up first, otherwise duplicates will be created.")
 	}
+}
+
+// isULAorLL: fc00::/7 (unique local) and fe80::/10 (link local) prefixes are not the ISP's delegated prefix.
+func isULAorLL(p string) bool {
+	p = strings.ToLower(strings.TrimSpace(p))
+	return strings.HasPrefix(p, "fc") || strings.HasPrefix(p, "fd") || strings.HasPrefix(p, "fe8") || strings.HasPrefix(p, "fe9") ||
+		strings.HasPrefix(p, "fea") || strings.HasPrefix(p, "feb")
 }

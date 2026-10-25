@@ -2,7 +2,7 @@
   // Application list with share bars and an "active now" dot (client detail + Services page).
   import { bytes, num, ago } from './format.js'
   import { t, tr } from './i18n.svelte.js'
-  let { apps = [], unknown = 0, known = 0, truncated = false, empty = null, showActive = true } = $props()
+  let { apps = [], unknown = 0, known = 0, truncated = false, empty = null, showActive = true, onpick = null } = $props()
   const tot = a => a.up + a.down
   const max = $derived(apps.reduce((m, a) => Math.max(m, tot(a)), 0) || 1)
   const share = $derived(known + unknown > 0 ? Math.round((known / (known + unknown)) * 100) : 0)
@@ -13,7 +13,8 @@
 {:else}
   <div class="list">
     {#each apps as a (a.key)}
-      <div class="row">
+      <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+      <div class="row" class:click={!!onpick} onclick={() => onpick?.(a)}>
         <div class="top">
           <div class="name">
             {#if showActive}<span class="dot" class:ok={a.active} class:pulse={a.active} title={a.active ? t('Active now') : t('Not active in the last 2 minutes')} role="img" aria-label={a.active ? t('Active now') : t('Not active in the last 2 minutes')}></span>{/if}
@@ -40,6 +41,8 @@
 <style>
   .list { display: flex; flex-direction: column; }
   .row { padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .row.click { cursor: pointer; }
+  .row.click:hover { background: var(--card-2); }
   .top { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
   .name { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
   .val { font-weight: 600; white-space: nowrap; }

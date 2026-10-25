@@ -25,11 +25,14 @@ import (
 	"github.com/napfkuchen1/mtmon/internal/alert"
 	"github.com/napfkuchen1/mtmon/internal/api"
 	"github.com/napfkuchen1/mtmon/internal/config"
+	"github.com/napfkuchen1/mtmon/internal/dnsbypass"
 	"github.com/napfkuchen1/mtmon/internal/enrich"
 	"github.com/napfkuchen1/mtmon/internal/flow"
 	"github.com/napfkuchen1/mtmon/internal/live"
 	"github.com/napfkuchen1/mtmon/internal/poller"
+	"github.com/napfkuchen1/mtmon/internal/probe"
 	"github.com/napfkuchen1/mtmon/internal/secret"
+	"github.com/napfkuchen1/mtmon/internal/speedtest"
 	"github.com/napfkuchen1/mtmon/internal/store"
 	"github.com/napfkuchen1/mtmon/internal/syslog"
 	"github.com/napfkuchen1/mtmon/internal/update"
@@ -123,9 +126,26 @@ func run(args []string) error {
 	defer stop()
 
 	sys := &syslog.Server{Addr: cfg.SyslogListen, Handler: func(es []syslog.Event) { st.EnqueueFw(toFw(es)...) },
-		Allow: func(ip netip.Addr) string { return cfg.SourceDevice(ip) }}
+		Allow: func(ip netip.Addr) string { return cfg.SourceDevice(ip) },
+		LogHandler: func(le syslog.LogEvent) {
+			ev := store.LogEvent{TS: le.TS, Device: le.Device, Topics: le.Topics, Level: le.Level, Msg: le.Msg}
+			if st.AddLogEvent(ev) {
+				al.LogEvent(ev)
+			}
+		}}
+	al.Suggest = api.SuggestGroup
+	speedtest.UserAgent = "mtmon/" + version
 	srv := &api.Server{Cfg: cfg, St: st, Hub: hub, En: en, Col: col, Pipe: pipe, UI: web.FS(), Version: version, TLS: !cfg.NoTLS,
 		Box: box, Mgr: pm, Cls: cls, Sys: sys}
+	srv.ResetBaseline = al.ResetBaseline
+	srv.Speed = &speedtest.Runner{St: st, Log: log, DataDir: cfg.DataDir,
+		Busy:    func() (float64, float64) { s := hub.Snapshot(hub.LastSeq(), 0); return s.DownBps, s.UpBps },
+		WAN:     pm.WANSummary,
+		Raise:   func(kind, subject, sev, msg string) { al.Raise(kind, subject, sev, msg, 6*time.Hour) },
+		Resolve: func(kind, subject, note string) { st.ResolveAlerts(kind, subject, note) }}
+	if st.NoteStart(version) {
+		log.Info("update changed how traffic is judged: baselines are re-learned", "hours", int(store.LearningDefault.Hours()))
+	}
 	if err := srv.LoadDevices(); err != nil {
 		return fmt.Errorf("devices: %w", err)
 	}
@@ -156,8 +176,27 @@ func run(args []string) error {
 	go srv.Upd.Run(ctx)
 	go st.Maintain(ctx, cfg.RawRetention, cfg.Retention, backup)
 	go en.RunReverseDNS(ctx)
+	go srv.Speed.Run(ctx)
+	go (&dnsbypass.Watcher{St: st, Probe: func() []string {
+		if len(cfg.WANTargets) > 0 {
+			return cfg.WANTargets
+		}
+		return probe.DefaultTargets
+	}, Name: func(mac string) string {
+		if c, err := st.Client(mac); err == nil {
+			return api.ClientName(*c)
+		}
+		return ""
+	}, Raise: func(kind, subject, sev, msg string) {
+		if st.LearningUntil() > 0 { // baselines are being re-learned: record, do not alarm
+			sev, msg = "info", msg+" – learning: normal traffic is being re-learned"
+		}
+		al.Raise(kind, subject, sev, msg, 24*time.Hour)
+	}}).Run(ctx)
+	go srv.WarmCaches(ctx)
 	go pm.Run(ctx)
 	go al.Run(ctx.Done())
+	go (&probe.Prober{St: st, Log: log, Targets: func() []string { return cfg.WANTargets }, Enabled: func() bool { return st.GetMeta("wan_probe") != "off" }}).Run(ctx)
 	go func() {
 		if err := sys.Run(ctx); err != nil {
 			log.Warn("syslog receiver not running (firewall log view disabled)", "addr", cfg.SyslogListen, "err", err)

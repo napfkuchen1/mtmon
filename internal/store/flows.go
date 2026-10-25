@@ -130,7 +130,7 @@ func (s *Store) Flush() error {
 		agg(h1, aggKey{r.TS / 3600 * 3600, key, r.RIP, r.RPort, r.Proto}, r)
 		agg(hc, aggKey{ts: r.TS / 3600 * 3600, mac: key}, r)
 		agg(d1, aggKey{ts: r.TS / 86400 * 86400, rip: r.RIP, rport: r.RPort, proto: r.Proto}, r)
-		if r.Dir == "u" {
+		if r.Dir == "u" && r.Svc != SpeedtestSvc {
 			if _, ok := seen[sk{key, r.RIP}]; !ok {
 				seen[sk{key, r.RIP}] = r.TS
 			}

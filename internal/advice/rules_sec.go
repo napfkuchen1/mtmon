@@ -287,6 +287,7 @@ func ruleBlockOrigin(s Snapshot) ([]Suggestion, string) {
 	contacted := s.ContactedByLAN(cand)
 	var out []Suggestion
 	var scans []BlockedSrc
+	var replies, replyIPs []string // blocked sources our own clients talked to: grouped into one suggestion
 	for _, b := range bs {
 		if own[b.IP] {
 			if b.Hits < OriginMinHits {
@@ -318,15 +319,20 @@ func ruleBlockOrigin(s Snapshot) ([]Suggestion, string) {
 		if b.ASN != 0 {
 			who = fmt.Sprintf("%s (AS%d %s)", b.IP, b.ASN, b.ASOrg)
 		}
+		replies = append(replies, fmt.Sprintf("%d blocked inbound events from %s in the last 24 h", b.Hits, who))
+		replyIPs = append(replyIPs, b.IP)
+	}
+	if len(replies) > 0 { // one suggestion for all of them: they are the same harmless thing
+		title := fmt.Sprintf("Blocked packets from %s look like late replies, not a scan", replyIPs[0])
+		if len(replies) > 1 {
+			title = fmt.Sprintf("Blocked packets from %d addresses look like late replies, not a scan", len(replies))
+		}
 		out = append(out, Suggestion{
-			Subject: "replies-" + b.IP, Severity: SevInfo, Category: CatSecurity, Link: "firewall", Confidence: "medium",
-			Title: fmt.Sprintf("Blocked packets from %s look like late replies, not a scan", b.IP),
-			Why:   "Devices in your network talked to this address, and the firewall now blocks packets coming back from it. That usually happens after a connection was lost (WAN reconnect, modem resync, router restart): the replies arrive, the router no longer knows the connection and drops them. This is normal. A raw drop rule for this address would only break the connection.",
-			Evidence: []string{
-				fmt.Sprintf("%d blocked inbound events from %s in the last 24 h", b.Hits, who),
-				"A LAN client exchanged traffic with this address in the last 24 h",
-			},
-			Limits: "mtmon cannot see the packets themselves, only that this address talked to your network and was blocked at the same time. If you do not recognise the connection, look it up under Clients.",
+			Subject: "replies", Severity: SevInfo, Category: CatSecurity, Link: "firewall", Confidence: "medium",
+			Title:    title,
+			Why:      "Devices in your network talked to these addresses, and the firewall now blocks packets coming back from them. That usually happens after a connection was lost (WAN reconnect, modem resync, router restart): the replies arrive, the router no longer knows the connection and drops them. This is normal. A raw drop rule for these addresses would only break the connection.",
+			Evidence: append(list3(replies, 8), "A LAN client exchanged traffic with each of these addresses in the last 24 h"),
+			Limits:   "mtmon cannot see the packets themselves, only that these addresses talked to your network and were blocked at the same time. If you do not recognise a connection, look it up under Clients.",
 		})
 	}
 	bs = scans
@@ -598,6 +604,7 @@ func ruleDropNoLog(s Snapshot) ([]Suggestion, string) {
 		}
 		seen = true
 		var nolog []string
+		var nologPk []int64 // packets of nolog[i] (0 = none or unknown), to list the busy rules first
 		var iso []string
 		var zero, fired, isoFired int
 		drops := 0
@@ -633,11 +640,22 @@ func ruleDropNoLog(s Snapshot) ([]Suggestion, string) {
 					}
 				}
 				nolog = append(nolog, txt)
+				nologPk = append(nologPk, f.Packets)
 			}
 		}
 		if len(nolog) == 0 {
 			continue
 		}
+		order := make([]int, len(nolog))
+		for i := range order {
+			order[i] = i
+		}
+		sort.SliceStable(order, func(a, b int) bool { return nologPk[order[a]] > nologPk[order[b]] })
+		sorted := make([]string, len(nolog))
+		for i, o := range order {
+			sorted[i] = nolog[o]
+		}
+		nolog = sorted
 		ev := []string{
 			fmt.Sprintf("%d of %d active drop/reject rules on %s have logging switched off", len(nolog), drops, d.Name),
 			fmt.Sprintf("Rules: %s", list(nolog, 4)),
@@ -989,4 +1007,12 @@ func ruleRegression(s Snapshot) ([]Suggestion, string) {
 		}
 	}
 	return out, ""
+}
+
+// list3 returns at most n lines and, when more exist, a final "… and N more" line.
+func list3(lines []string, n int) []string {
+	if len(lines) <= n {
+		return append([]string(nil), lines...)
+	}
+	return append(append([]string(nil), lines[:n]...), fmt.Sprintf("… and %d more", len(lines)-n))
 }

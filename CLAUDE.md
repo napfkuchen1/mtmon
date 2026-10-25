@@ -9,7 +9,7 @@ Go-Backend (single static binary, SQLite via modernc, kein CGO) + Svelte-5-UI (`
 `cmd/{mtmon,flowgen,mockros}` · `internal/{flow,poller,enrich,store,live,alert,api,config,mockros,integration,provision,syslog,secret}` · `web/` · `deploy/` (Proxmox-Skripte + Stubs-Tests) · `docs/`
 
 ## Regeln
-- **Read-only gegenüber Routern** – einzige Ausnahme: `internal/provision` (Wizard Auto-Setup/Offboarding, nur nach expliziter Nutzeraktion). Jede Änderung braucht Manifest-Eintrag + Undo + Backup (/export); Admin-Zugangsdaten nie speichern/loggen. Poller bleibt read-only (`poller.Client.Do` nur für provision).
+- **Read-only gegenüber Routern** – einzige Ausnahme: `internal/provision` (Wizard Auto-Setup/Offboarding, nur nach expliziter Nutzeraktion). Jede Änderung braucht Manifest-Eintrag + Undo + Backup (/export); Admin-Zugangsdaten nie speichern/loggen. Poller bleibt read-only (`poller.Client.Do` nur für provision). Einzige Ausnahme außerhalb: `poller.Client.ExportProbe` (festes `POST /rest/export {terse}` ohne `file`, zählt nur Zeilen, einmal täglich pro Gerät, Ergebnis in `caps.export_probe`; Entscheidungsgrundlage für #46).
 - Keine Secrets committen (config.json, *.db, *.mmdb stehen in .gitignore).
 - Neue Abfragen an `rollup_*`-Tabellen: Tier-Logik in `store/queries.go` beachten; `make scale` muss grün bleiben (alle Queries < 500 ms).
 - Listen aus der API nie `null` liefern (`[]`), sonst crasht die UI.

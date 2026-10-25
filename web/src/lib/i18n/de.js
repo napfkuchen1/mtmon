@@ -10,4 +10,6 @@ import v08ui from './v08_ui.js'
 import v09ui from './v09_ui.js'
 import v014ui from './v014_ui.js'
 // key = English source string, value = German. Keys with {name} placeholders also match backend text via tr().
-export const de = { ...shell, ...pagesA, ...pagesB, ...server, ...v07updates, ...v07clients, ...v07advice, ...v07server, ...v08ui, ...v09ui, ...v014ui }
+// files x_ui_*.js (one per feature) are picked up automatically
+const extra = Object.assign({}, ...Object.values(import.meta.glob('./x_ui_*.js', { eager: true, import: 'default' })))
+export const de = { ...shell, ...pagesA, ...pagesB, ...server, ...v07updates, ...v07clients, ...v07advice, ...v07server, ...v08ui, ...v09ui, ...v014ui, ...extra }

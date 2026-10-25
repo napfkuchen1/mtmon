@@ -44,6 +44,7 @@ func (s *Server) adviceResult(force bool) advice.Result {
 		return s.adv.res
 	}
 	l := advice.NewLive(s.St, s.Cfg, s.Hub, s.En, s.Started)
+	l.Disk = s.DiskFn
 	if s.Mgr != nil {
 		l.IsSelf = func(mac string) bool { _, ok := s.Mgr.SelfDevice(mac); return ok }
 	}
@@ -57,6 +58,15 @@ func (s *Server) adviceResult(force bool) advice.Result {
 		}
 	}
 	s.adv.res = advice.Evaluate(l)
+	if s.St.LearningUntil() > 0 { // judged against baselines that are still filling up: record, do not alarm
+		for i := range s.adv.res.Items {
+			switch s.adv.res.Items[i].Rule {
+			case "chatty", "dominant-client", "upload-heavy":
+				s.adv.res.Items[i].Learning = true
+				s.adv.res.Items[i].Severity = advice.SevInfo
+			}
+		}
+	}
 	s.adv.at = time.Now()
 	return s.adv.res
 }
@@ -100,15 +110,30 @@ func (s *Server) refreshCaps() {
 			continue
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		c, err := provision.Probe(ctx, poller.NewGuardedClient(d, s.addrAllowed))
-		cancel()
+		cl := poller.NewGuardedClient(d, s.addrAllowed)
+		c, err := provision.Probe(ctx, cl)
 		if err != nil {
+			cancel()
 			continue
 		}
+		c.Export = s.exportProbe(ctx, cl, row.Caps)
+		cancel()
 		if raw, err := json.Marshal(c); err == nil {
 			s.St.SetDeviceCaps(row.Name, raw)
 		}
 	}
+}
+
+// exportProbeEvery: the export is a heavier command on small routers, so the monitoring login asks for it once a day.
+const exportProbeEvery = 24 * time.Hour
+
+// exportProbe returns the stored export probe when it is recent, else asks the router again.
+func (s *Server) exportProbe(ctx context.Context, cl *poller.Client, prevCaps []byte) provision.ExportProbe {
+	var prev provision.Caps
+	if json.Unmarshal(prevCaps, &prev) == nil && prev.Export.At > 0 && time.Since(time.Unix(prev.Export.At, 0)) < exportProbeEvery {
+		return prev.Export
+	}
+	return provision.ExportProbe{ExportResult: cl.ExportProbe(ctx), At: time.Now().Unix()}
 }
 
 type suggestionOut struct {

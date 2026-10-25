@@ -8,6 +8,79 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.19.0] - 2026-10-25
+
+### New
+- **Who uses it?** A click on a row in Insights (destinations, ports, ASNs, countries, protocols) or on an application on the Services page opens a list of the clients behind it, busiest first, with a link to each client. It reads the per-client rollups, so it works for every range.
+- **Speed tests: start time.** Besides the interval you can set a start time, for example "every 3 hours from 01:30"; tests then land on fixed, known times (plus the random delay).
+
+- **DNS bypass: period, "mark as fixed", ended state.** The DNS-bypass card in Settings has a period (1 hour, 24 hours, 7 days, 30 days). "Mark as fixed" (per client or for all) ignores older traffic; the client shows as "under observation" and is flagged again, with a new alert, only if it bypasses the local DNS again (this can take up to an hour). A bypass without traffic for 24 hours counts as ended and no longer shows as a badge or in the overview count.
+
+- **Topology: the modem / router in front of the gateway** is drawn as its own node above the gateway (vendor, IP, a link to the WAN port labelled with PPPoE / DS-Lite / transfer net), not only as the banner.
+
+### Changed
+- **Tables stay put:** the Clients list is sorted by name by default, and the sort you pick is remembered in the browser. A sort by a live value (Now, Usage, Signal) uses a snapshot refreshed every 10 seconds, the Insights rankings keep their order for 30 seconds, and the interfaces of a device are listed by name, so rows no longer jump while you read.
+- Speed tests: the latency is now the TCP connect time (median of several), not the time of a full HTTPS request, so it matches the Ookla and ping values much better.
+- Speed tests: "auto" history from MySpeed is shown as "MySpeed (Ookla)"; the latency chart has one line per provider; the latency card compares with the average of the same provider. Failed tests show their error text in the table, and the counter reads "142 failed (139 imported)". Raw JSON in imported error texts is reduced to the message.
+
+### Fixed
+- Client traffic on a global IPv6 address was invisible: the flows between a LAN client and the internet carry the prefix delegated by the ISP, which is not in `local_nets`, so they were dropped as transit. mtmon now reads the routers' own IPv6 prefixes (`/ipv6/address`, `/ipv6/dhcp-client`, `/ipv6/pool`) and treats them as internal for a week after they were last seen. They are listed under `local_nets` in `/api/diagnostics`. VPN peers (back-to-home) behind masquerade are still attributed incompletely.
+- The IPv6 suggestion "old prefixes stay in use" read the wrong lifetimes (`nd prefix default`, which does not apply to the delegated prefix) and recommended changing them. It now reads the lifetimes of the delegated prefix and suggests a static prefix from the provider, a prefix hint, and avoiding reconnects instead.
+- The upstream banner flipped between "Modem / router (AVM)" and "ONT / modem (no IP)": an ARP entry that had aged to `stale` was ignored. The modem is now found as long as the entry exists, and the banner and topology share one source.
+- Restarting a device no longer raises a warning for its own port: a short link flap inside the reboot grace is one info line ("went down for 6s"), a repeated "up again" message within a minute is dropped, and "rebooted" now says how long ago ("rebooted 31s ago").
+- Speed tests against Hetzner failed with `EOF`: their servers reset connections with the default Go user agent. All speed-test requests now send `mtmon/<version>`.
+- The WAN-quality probe of mtmon itself (connections to 1.1.1.1, 8.8.8.8, 9.9.9.9 on port 443) was listed as "DoH" in the DNS-bypass list; the probe targets are now ignored.
+
+## [0.18.0] - 2026-10-25
+
+### New
+- **Speed tests:** mtmon measures your line from its own host (not from a router). Cloudflare (download, upload, latency) and Hetzner (download) are built in; the official Ookla command-line tool can be used if you install it yourself. Choose the interval, a time window, a random delay, the size of a test and a daily or monthly data budget; tests are skipped while the line is busy. The new **Internet** page shows the history, charts and a table (failed tests are marked as failed, never as 0 Mbit/s), with CSV/JSON export, a "Run now" button and an import of the MySpeed export. Enter your contracted speed to get a warning when several tests in a row stay far below it. The Overview shows the latest result. Switched **off** by default.
+- **Modem in front of the router:** the ISP modem (for example a FRITZ!Box) is shown above the topology and on the Internet page with the way the line comes in: PPPoE, DS-Lite, transfer network, double NAT, or "ONT without IP". It is not counted as a client.
+- **Clients that bypass your DNS:** mtmon flags clients that use DNS-over-TLS, DNS-over-QUIC, DNS-over-HTTPS or a public DNS server directly. Badge and filter on the Clients page, details and hints (Android, Home Assistant, browser) on the client page, a notice on the Overview. An optional alert (off by default) tells you when a client starts doing it.
+- **IPv6 prefix hint:** when your provider changes the IPv6 prefix and the router keeps announcing old ones for weeks, a suggestion explains it, and the client page shows "addresses from old prefixes". No router command is offered yet.
+- **Learning period explained:** the Overview banner says why mtmon is learning (update, data reset or reset of the baselines), and `/api/system` reports it.
+- **Diagnostics:** `/api/diagnostics` shows how many flows each router interface delivered per direction and the last flows that were dropped (to find missing upload/download of VPN peers), the modem data, and whether the read-only router user may export the configuration (counts only, no text).
+
+### Changed
+- The speed test of mtmon itself is labelled "Speed test" in the traffic lists and no longer counts as new destinations or as the host's own traffic spike.
+- Overview, Services and the long-range charts are kept warm in the background, so the first page load after a pause is fast.
+- The release workflow pins its actions by commit.
+
+### Fixed
+- The router event log set-up failed on RouterOS 7.24 because of an unknown log topic; unknown topics are now skipped instead of undoing everything.
+- The age of the newest backup was missing on RouterOS 7.24 (the file time comes under a different name).
+- Wired devices behind an unmanaged switch were sometimes placed on the uplink of an access point instead of the router.
+- The WAN port list is now taken from the interface list "WAN" only (a downstream router's LAN bridge was counted as WAN), access points have no WAN, and old records of the modem are removed.
+
+## [0.17.0] - 2026-10-24
+
+### New
+- **Router event log:** with the new feature "Router event log" the router sends system, account, DHCP, Wi-Fi, WireGuard and script lines to mtmon. The device page shows them (kept 7 days) with a level filter and a search. Repeating patterns (login failures, link flaps) raise one alert instead of many.
+- **Wi-Fi history:** signal and rate per client are kept per hour. The client page shows roaming and band changes, the AP page shows the clients per band, and the "weak signal" suggestion now looks at the last 24 hours instead of a single reading.
+- **Client groups:** put clients into groups (for example *IoT* or *Guests*). A group can switch off new-device alerts, raise the limit for "many connections", show traffic spikes as info, ignore a weak Wi-Fi signal and watch its members by default. Ungrouped clients get a group suggested. The Clients page can be filtered by group.
+- **Watched clients:** mark an important client (for example the intercom) and get an alert when it stays offline, and an info when it is back.
+- **Internet quality:** mtmon measures loss and latency to a few internet targets from its own host. One warning when the connection is poor for a whole window, one info when it is good again. The Overview shows the current values. Probing can be switched off.
+- **More suggestions:** age of the newest backup or export per router, pending RouterOS update, CAPsMAN and AP running different versions, expiring service certificate, idle VPN peers.
+- **mtmon looks after itself:** memory, CPU, free disk space and database growth are shown under System. A suggestion warns before the disk is full.
+- **Learning period:** after a data reset or an update that changes detection, mtmon marks its suggestions as provisional for 24 hours and rebuilds its learned levels from scratch. A button in Settings starts the period by hand.
+
+### Changed
+- **Alerts:** one story per device reboot. The link-down of the port behind it is folded into the device's alert, which is closed as info when the device is back. Spikes that repeat at the same time of day (a speed test) are info, not warning.
+- **Suggestions:** fewer repeats. Late replies from blocked origins are one suggestion, recurring spikes are not repeated.
+- **New-client alerts:** choose whether unknown devices, all devices or none raise an alert.
+- **Setup wizard:** the traffic-flow snippet can be run twice, and the `www-ssl` allow list is no longer replaced.
+- Fewer duplicated views in the UI; README and screenshots are current (`make screenshots`).
+
+### Fixed
+- Wired clients behind an unmanaged switch on an uplink port were missing or placed on the wrong device.
+- The upstream modem on the WAN port was shown as a LAN client.
+- The rate limit now counts the real client behind a reverse proxy instead of locking everyone out together.
+- The client page crashed on duplicate rows in the connections table.
+- IPv6 and bare-address tunnel traffic is attributed to the VPN client.
+- Top lists and suggestions no longer lead to an "unknown client".
+- The device API never returns `null` lists, zero times or a stale "managed" warning.
+- Services, Overview and the firewall summary are much faster on large databases.
+
 ## [0.16.0] - 2026-10-24
 
 ### New

@@ -2,12 +2,16 @@
   import { api } from '../lib/api.js'
   import { app, go } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
-  import { bytes, bps, num } from '../lib/format.js'
+  import { bytes, bps, num, datetime } from '../lib/format.js'
   import { t, tr, i18n } from '../lib/i18n.svelte.js'
   import Chart from '../lib/Chart.svelte'
   import TopList from '../lib/TopList.svelte'
   import Spark from '../lib/Spark.svelte'
+  import InternetCard from '../lib/InternetCard.svelte'
+  import SpeedCard from '../lib/SpeedCard.svelte'
+  const byp = poll(() => api('/dns-bypass'), 120000)
   import WorldMap from '../lib/WorldMap.svelte'
+  import GroupsSummary from '../lib/GroupsSummary.svelte'
 
   const bucket = { live: 60, '1h': 60, '24h': 900, '7d': 3600, '30d': 14400 }
   const d = poll(() => api('/overview?range=' + app.range), 5000)
@@ -44,10 +48,11 @@
 
 <div class="head"><h1>{t('Overview')}</h1><span class="muted">{app.range === 'live' ? t('Last 5 minutes') : t('Last {range}', { range: app.range })}</span></div>
 
+{#if o?.learning_until}<div class="infobox" style="margin-bottom:12px">{t('mtmon is re-learning normal traffic until {time}. Spikes and recurring-traffic findings are recorded as info until then, so there are no false alarms.', { time: datetime(o.learning_until) })}{#if o.learning_reason} <b>{o.learning_reason.startsWith('update ') ? t('Reason: update to {v}', { v: o.learning_reason.slice(7) }) : o.learning_reason === 'data reset' ? t('Reason: data reset') : t('Reason: baselines reset')}</b>{/if}</div>{/if}
 {#if d.error}<div class="warnbox">{t('Could not load data: {err}', { err: tr(d.error) })}</div>{/if}
 
 <div class="grid g6 kpis">
-  <div class="card card-b kpi"><div class="l">{t('Clients online')}</div><div class="v num">{o ? num(o.clients_online) : '—'}</div><div class="l">{t('of {n} known', { n: o ? num(o.clients_total) : '—' })}</div></div>
+  <div class="card card-b kpi"><div class="l">{t('Clients online')}</div><div class="v num">{o ? num(o.clients_online) : '—'}</div><div class="l">{t('of {n} known', { n: o ? num(o.clients_total) : '—' })}</div>{#if o?.watched_total}<div class="l"><a href="#/clients" style="color:inherit" title={t('Watched clients that must be online')}>★ {t('{on}/{all} watched online', { on: o.watched_online, all: o.watched_total })}</a></div>{/if}</div>
   <div class="card card-b kpi"><div class="l">{t('Devices up')}</div><div class="v num">{o ? o.devices_up : '—'}<span class="muted" style="font-size:16px"> / {o ? o.devices_total : '—'}</span></div><div class="l">{o && o.devices_up < o.devices_total ? t('check Devices') : t('all reachable')}</div></div>
   <div class="card card-b kpi"><div class="l">{t('Download')}</div><div class="v num" style="color:var(--down)">{o ? bytes(o.bytes_down) : '—'}</div><div class="l">{t('now {rate}', { rate: bps(app.live.down_bps) })}{#if dDown} <span class="dl {dDown.cls}" title={t('vs. the previous period')}>{dDown.txt}</span>{/if}</div><Spark points={sparkDown} color="var(--down)" /></div>
   <div class="card card-b kpi"><div class="l">{t('Upload')}</div><div class="v num" style="color:var(--up)">{o ? bytes(o.bytes_up) : '—'}</div><div class="l">{t('now {rate}', { rate: bps(app.live.up_bps) })}{#if dUp} <span class="dl {dUp.cls}" title={t('vs. the previous period')}>{dUp.txt}</span>{/if}</div><Spark points={sparkUp} color="var(--up)" /></div>
@@ -62,10 +67,15 @@
   <div class="card-b"><Chart {series} fmt={bps} {xfmt} height={220} empty={app.range === 'live' ? t('Waiting for live data…') : t('No traffic recorded in this range yet')} /></div>
 </div>
 
+<GroupsSummary />
+{#if byp.data?.total}<div class="infobox" style="margin-top:16px">{byp.data.total === 1 ? t('1 client does not use your router’s DNS (DNS-over-TLS/HTTPS or a public DNS server).') : t('{n} clients do not use your router’s DNS (DNS-over-TLS/HTTPS or a public DNS server).', { n: byp.data.total })} <a href="#/clients/dns-bypass">{t('Show clients')}</a></div>{/if}
+<InternetCard />
+<SpeedCard />
+
 <div class="grid g2" style="margin-top:16px">
   <div class="card"><div class="card-h"><h2>{t('Top clients')}</h2><a href="#/insights">{t('All →')}</a></div><TopList rows={o?.top_clients || []} onpick={pickClient} /></div>
   <div class="card"><div class="card-h"><h2>{t('Top destinations')}</h2><a href="#/insights/hosts">{t('All →')}</a></div><TopList rows={o?.top_hosts || []} /></div>
-  <div class="card"><div class="card-h"><h2>{t('Top services')}</h2><a href="#/insights/services">{t('All →')}</a></div><TopList rows={o?.top_services || []} /></div>
+  <div class="card"><div class="card-h"><h2>{t('Top services')}</h2><a href="#/services">{t('All →')}</a></div><TopList rows={o?.top_services || []} /></div>
   <div class="card"><div class="card-h"><h2>{t('Top countries')}</h2><a href="#/insights/country">{t('All →')}</a></div>{#if o?.top_countries?.length}<WorldMap rows={o.top_countries} />{/if}<TopList rows={o?.top_countries || []} mode="country" empty={t('No GeoIP database configured (see Settings)')} emptyIcon="generic" emptyHref="#/settings" emptyAction={t('Set up in Settings')} /></div>
 </div>
 

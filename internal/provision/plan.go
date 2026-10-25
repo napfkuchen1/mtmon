@@ -27,7 +27,8 @@ type Options struct {
 	MonUser          string   `json:"mon_user"`
 	DeviceAddr       string   `json:"device_addr"` // management address of the device; used as export source address
 	MonPass          string   `json:"-"`
-	SyslogReady      bool     `json:"-"` // the syslog target already exists (set up earlier), so only the rules are added
+	SyslogReady      bool     `json:"-"`          // the syslog target already exists (set up earlier), so only the rules are added
+	EventLogs        bool     `json:"event_logs"` // also send the system/account/dhcp/wifi/wireguard/script log topics (router event log)
 }
 
 // Step is the human-readable description shown in the wizard before anything is changed.
@@ -121,6 +122,16 @@ func buildActions(k *Caps, o Options) []action {
 			a = append(a, action{Step: logRulesStep(k, "allowlog", o.AllowRules, fmt.Sprintf("Enable logging on %d allow rules", len(o.AllowRules)),
 				"Only 'log' and 'log-prefix' of these accept rules are set (conditions, action and order stay unchanged). mtmon then shows which rule let a connection through. Every matching packet is logged, so pick rules for new connections or rare traffic, not a broad 'established' rule: that costs router CPU and log volume."),
 				run: func(ctx context.Context, r *runner) error { return r.fwLog(ctx, k, o.AllowRules, true) }})
+		}
+		if o.EventLogs {
+			var cmds []string
+			for _, t := range EventTopics {
+				cmds = append(cmds, "/system logging add topics="+t+" action="+syslogAction)
+			}
+			a = append(a, action{Step: Step{Key: "evlog", Title: "Send the router's event log to mtmon",
+				Why:      "Login failures, critical system events, DHCP and Wi-Fi trouble, WireGuard handshakes and failing scripts reach mtmon, which shows them per device and raises alerts for the ones that matter. One logging rule per topic is added (a rule with several topics only matches lines that carry all of them). Local logging stays as it is.",
+				Commands: cmds, Undo: "The logging rules are deleted", Risk: "low"},
+				run: func(ctx context.Context, r *runner) error { return r.eventLogs(ctx) }})
 		}
 		if o.LogNew {
 			a = append(a, action{Step: Step{Key: "lognew", Title: "Rule at the end of the forward chain: log new connections",

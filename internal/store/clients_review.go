@@ -38,6 +38,16 @@ func migrateClients(db *sql.DB) error {
 			return err
 		}
 	}
+	if !has["watch"] { // "must be online": an alert fires when a watched client stays offline
+		if _, err := db.Exec(`ALTER TABLE clients ADD COLUMN watch INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return err
+		}
+	}
+	if !has["grp"] { // group (IoT, Family, …) with its own alert settings
+		if _, err := db.Exec(`ALTER TABLE clients ADD COLUMN grp TEXT NOT NULL DEFAULT ''`); err != nil {
+			return err
+		}
+	}
 	if !has["via"] {
 		if _, err := db.Exec(`ALTER TABLE clients ADD COLUMN via TEXT NOT NULL DEFAULT ''`); err != nil {
 			return err
