@@ -11,7 +11,7 @@
   const name = $derived(app.route.params.id)
   const d = poll(() => api('/devices/' + encodeURIComponent(app.route.params.id) + '?range=' + (app.range === 'live' ? '1h' : app.range)), 5000)
   const x = $derived(d.data)
-  const ifaces = $derived((x?.ifaces || []).slice().sort((a, b) => (b.rx_bps + b.tx_bps) - (a.rx_bps + a.tx_bps)))
+  const ifaces = $derived((x?.ifaces || []).slice().sort((a, b) => a.iface.localeCompare(b.iface, undefined, { numeric: true })))
   const cpu = $derived([{ name: 'CPU %', color: 'var(--accent)', points: (x?.metrics || []).map(m => ({ x: m.ts, y: m.cpu })) }])
   const mem = $derived([{ name: 'RAM %', color: 'var(--down)', points: (x?.metrics || []).map(m => ({ x: m.ts, y: m.mem_total ? (m.mem_used * 100) / m.mem_total : 0 })) }])
   let showAll = $state(false)

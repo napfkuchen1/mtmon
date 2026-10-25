@@ -14,6 +14,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - **Speed tests: start time.** Besides the interval you can set a start time, for example "every 3 hours from 01:30"; tests then land on fixed, known times (plus the random delay).
 
 ### Changed
+- **Tables stay put:** the Clients list is sorted by name by default, and the sort you pick is remembered in the browser. A sort by a live value (Now, Usage, Signal) uses a snapshot refreshed every 10 seconds, the Insights rankings keep their order for 30 seconds, and the interfaces of a device are listed by name, so rows no longer jump while you read.
 - Speed tests: the latency is now the TCP connect time (median of several), not the time of a full HTTPS request, so it matches the Ookla and ping values much better.
 - Speed tests: "auto" history from MySpeed is shown as "MySpeed (Ookla)"; the latency chart has one line per provider; the latency card compares with the average of the same provider. Failed tests show their error text in the table, and the counter reads "142 failed (139 imported)". Raw JSON in imported error texts is reduced to the message.
 
