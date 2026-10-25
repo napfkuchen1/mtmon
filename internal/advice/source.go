@@ -123,6 +123,7 @@ func convCaps(k provision.Caps) *Caps {
 	c.FilesReadable, c.NewestBackup, c.NewestExport = k.Files.Readable, k.Files.NewestBackup, k.Files.NewestExport
 	c.UpdateInstalled, c.UpdateLatest, c.UpdateChannel = k.Update.Installed, k.Update.Latest, k.Update.Channel
 	c.CAP, c.CAPsMAN = k.CAP, k.CAPsMAN
+	c.IPv6PD, c.RAValid, c.RAPreferred = k.IPv6PD, k.RAValid, k.RAPreferred
 	for _, x := range k.Certs {
 		c.Certs = append(c.Certs, Cert{Name: x.Name, Service: x.Service, Expires: x.Expires})
 	}
@@ -222,6 +223,17 @@ func (l *Live) Roams24h() []RoamStat {
 func (l *Live) IPChurn30d() map[string]int {
 	m, _ := l.St.IPChurn(l.now.Add(-30*24*time.Hour).Unix(), 3)
 	return m
+}
+
+func (l *Live) IPv6Prefixes14d() map[string][]V6Prefix {
+	m, _ := l.St.IPv6Prefixes("", l.now.Add(-14*24*time.Hour).Unix())
+	out := make(map[string][]V6Prefix, len(m))
+	for mac, ps := range m {
+		for _, p := range ps {
+			out[mac] = append(out[mac], V6Prefix{Prefix: p.Prefix, Addrs: p.Addrs, First: p.First, Last: p.Last})
+		}
+	}
+	return out
 }
 
 func (l *Live) BlockedSources24h() []BlockedSrc {

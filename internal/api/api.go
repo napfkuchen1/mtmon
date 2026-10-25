@@ -405,6 +405,7 @@ func (s *Server) clientDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonOut(w, map[string]any{
 		"client": c, "range": rn, "address_only": addrOnly, "suggested_group": suggestedGroup(*c), "dns_bypass": bypass,
+		"ipv6_prefixes":    v6prefixes(s.St, mac),
 		"ip_history":       must(s.St.IPHistory(mac)),
 		"roams":            must(s.St.Roams(mac)),
 		"series":           must(s.St.Series(since, bucket, mac)),

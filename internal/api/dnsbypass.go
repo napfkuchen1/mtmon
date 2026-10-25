@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/napfkuchen1/mtmon/internal/dnsbypass"
+	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
 // bypassCache keeps the DNS-bypass detection for a few minutes: it reads the hourly rollup for a week and is shown on
@@ -82,4 +83,13 @@ func (s *Server) dnsBypassSave(w http.ResponseWriter, r *http.Request) {
 		s.St.SetMeta("dns_bypass_seen", "")
 	}
 	jsonOut(w, map[string]bool{"alert": in.Alert})
+}
+
+// v6prefixes: the /64 prefixes a client had global IPv6 addresses in during the last 14 days, newest first (never nil).
+func v6prefixes(st *store.Store, mac string) []store.V6Prefix {
+	m, err := st.IPv6Prefixes(mac, time.Now().AddDate(0, 0, -14).Unix())
+	if err != nil || len(m[mac]) == 0 {
+		return []store.V6Prefix{}
+	}
+	return m[mac]
 }
