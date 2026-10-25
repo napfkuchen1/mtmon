@@ -63,6 +63,7 @@ func (s *Server) adviceResult(force bool) advice.Result {
 			switch s.adv.res.Items[i].Rule {
 			case "chatty", "dominant-client", "upload-heavy":
 				s.adv.res.Items[i].Learning = true
+				s.adv.res.Items[i].Provisional = true
 				s.adv.res.Items[i].Severity = advice.SevInfo
 			}
 		}
