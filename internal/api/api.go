@@ -296,7 +296,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonOut(w, map[string]any{
 		"range": rn, "bytes_up": up, "bytes_down": down, "flows": flows, "prev": prev,
-		"learning_until": s.St.LearningUntil(),
+		"learning_until": s.St.LearningUntil(), "learning_reason": s.St.LearningReason(),
 		"clients_online": on, "clients_total": total, "watched_total": watched, "watched_online": watchedOn,
 		"devices_up": du, "devices_total": len(s.Cfg.AllDevices()), "alerts_open": s.St.OpenAlerts(),
 		"series":        series,
@@ -726,6 +726,7 @@ func (s *Server) system(w http.ResponseWriter, r *http.Request) {
 		"flows_ps":                      s.Hub.FlowsPS, "queue": s.St.QueueLen(), "db_dropped": s.St.Dropped,
 		"ignored_transit": s.Pipe.IgnoredCount(), "db_bytes": dbSize, "enrich": s.En.Status(),
 		"retention_days": s.Cfg.Retention, "raw_retention_days": s.Cfg.RawRetention,
+		"learning_until": s.St.LearningUntil(), "learning_reason": s.St.LearningReason(),
 		"rss_bytes": sysinfo.RSS(), "cpu_pct": s.cpu.Percent(),
 		"data_dir_free_bytes": free, "data_dir_total_bytes": total, "db_growth_bytes_per_day": growth, "disk_days_left": daysLeft,
 	})

@@ -12,8 +12,9 @@ func TestLearningEndpoints(t *testing.T) {
 	ts, s := newTestServer(t)
 	_, c := login(t, ts, "test-password-1")
 	var m struct {
-		Active bool  `json:"active"`
-		Until  int64 `json:"until"`
+		Active bool   `json:"active"`
+		Until  int64  `json:"until"`
+		Reason string `json:"reason"`
 	}
 	get := func() {
 		m.Active, m.Until = false, 0
@@ -31,6 +32,17 @@ func TestLearningEndpoints(t *testing.T) {
 		t.Fatalf("reset: %d %v", r.StatusCode, called)
 	}
 	get()
+	if m.Reason != "baselines reset" {
+		t.Errorf("reason: %q", m.Reason)
+	}
+	r, _ = c.Get(ts.URL + "/api/system")
+	var sy struct {
+		Until int64 `json:"learning_until"`
+	}
+	json.NewDecoder(r.Body).Decode(&sy)
+	if sy.Until != m.Until {
+		t.Errorf("system learning_until: %d, want %d", sy.Until, m.Until)
+	}
 	if !m.Active || m.Until < time.Now().Add(5*time.Hour).Unix() || m.Until > time.Now().Add(7*time.Hour).Unix() {
 		t.Errorf("until: %+v", m)
 	}

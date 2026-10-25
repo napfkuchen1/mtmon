@@ -8,7 +8,7 @@ import (
 
 // Learning period: after a reset, or after an update that changes how traffic is judged, mtmon records
 // baseline-based alerts and suggestions as info ("learning") instead of raising false alarms, while the baselines
-// (spike level, recurring patterns) fill up again. meta keys: learning_until, baseline_since (unix).
+// (spike level, recurring patterns) fill up again. meta keys: learning_until, baseline_since (unix), learning_reason.
 
 const LearningDefault = 24 * time.Hour
 
@@ -21,6 +21,15 @@ func (s *Store) LearningUntil() int64 {
 	return n
 }
 
+// LearningReason says why the running period was started: "update <version>", "data reset" or "baselines reset".
+// Empty when none is running.
+func (s *Store) LearningReason() string {
+	if s.LearningUntil() == 0 {
+		return ""
+	}
+	return s.GetMeta("learning_reason")
+}
+
 // BaselineSince: alerts older than this no longer count as history for recurring-pattern detection (0 = all).
 func (s *Store) BaselineSince() int64 {
 	n, _ := strconv.ParseInt(s.GetMeta("baseline_since"), 10, 64)
@@ -28,10 +37,11 @@ func (s *Store) BaselineSince() int64 {
 }
 
 // StartLearning begins a learning period of d; resetBaselines also makes the alert history forgotten for
-// recurring-pattern detection (the alerts themselves stay).
-func (s *Store) StartLearning(d time.Duration, resetBaselines bool) {
+// recurring-pattern detection (the alerts themselves stay). reason is shown next to the banner.
+func (s *Store) StartLearning(d time.Duration, resetBaselines bool, reason string) {
 	now := time.Now()
 	s.SetMeta("learning_until", strconv.FormatInt(now.Add(d).Unix(), 10))
+	s.SetMeta("learning_reason", reason)
 	if resetBaselines {
 		s.SetMeta("baseline_since", strconv.FormatInt(now.Unix(), 10))
 	}
@@ -111,7 +121,7 @@ func (s *Store) NoteStart(version string) (relearn bool) {
 	}
 	if prev != version {
 		if NeedsRelearn(prev, version) {
-			s.StartLearning(LearningDefault, false)
+			s.StartLearning(LearningDefault, false, "update "+version)
 			relearn = true
 		}
 		s.SetMeta("last_run_version", version)

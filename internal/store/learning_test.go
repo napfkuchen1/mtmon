@@ -29,7 +29,7 @@ func TestLearningPeriodAndBaselineReset(t *testing.T) {
 		t.Fatal("no learning on a fresh database")
 	}
 	st.SetMeta("last_run_version", "v0.16.0")
-	if !st.NoteStart("v0.17.0") || st.LearningUntil() == 0 {
+	if !st.NoteStart("v0.17.0") || st.LearningUntil() == 0 || st.LearningReason() != "update v0.17.0" {
 		t.Fatal("update across 0.17.0 must start a learning period")
 	}
 	if st.NoteStart("v0.17.0") {
@@ -45,7 +45,7 @@ func TestLearningPeriodAndBaselineReset(t *testing.T) {
 	if as, _ := st.BaselineAlerts(10); len(as) != 1 {
 		t.Fatal("history before any reset")
 	}
-	st.StartLearning(time.Hour, true)
+	st.StartLearning(time.Hour, true, "test")
 	if as, _ := st.BaselineAlerts(10); len(as) != 0 {
 		t.Fatalf("history must be forgotten for patterns after the reset: %d", len(as))
 	}
