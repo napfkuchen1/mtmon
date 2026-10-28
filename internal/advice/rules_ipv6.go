@@ -7,6 +7,10 @@ import (
 )
 
 // RA lifetimes above these keep an old prefix alive on clients for days after the ISP handed out a new one.
+// raActive: a prefix counts as "in use" on a client only if the client was seen with an address from it this recently.
+// Older sightings are history: once the prefix is stable the tip must go away by itself.
+const raActive = 24 * time.Hour
+
 const (
 	raLongValid     = 2 * 24 * 3600 // seconds
 	raLongPreferred = 24 * 3600
@@ -32,9 +36,19 @@ func ruleRALifetimes(s Snapshot) ([]Suggestion, string) {
 		prefixes []V6Prefix
 	}
 	var rows []row
+	cut := s.Now().Add(-raActive).Unix()
 	for mac, ps := range s.IPv6Prefixes14d() {
-		if len(ps) >= 2 && !isVPNKey(mac) {
-			rows = append(rows, row{mac, ps})
+		if isVPNKey(mac) {
+			continue
+		}
+		var live []V6Prefix
+		for _, p := range ps {
+			if p.Last >= cut {
+				live = append(live, p)
+			}
+		}
+		if len(live) >= 2 {
+			rows = append(rows, row{mac, live})
 		}
 	}
 	sort.Slice(rows, func(i, j int) bool {
@@ -49,10 +63,10 @@ func ruleRALifetimes(s Snapshot) ([]Suggestion, string) {
 			continue
 		}
 		if len(rows) == 0 {
-			continue // long lifetimes, but no client shows the effect (yet)
+			continue // long lifetimes, but no client shows the effect (any more): the prefix is stable
 		}
 		ev := []string{fmt.Sprintf("%s announces its delegated IPv6 prefix with valid lifetime %s and preferred lifetime %s (from the provider's lease)", d.Name, fmtSecs(d.Caps.RAValid), fmtSecs(d.Caps.RAPreferred)),
-			fmt.Sprintf("%d clients had global IPv6 addresses from more than one /64 prefix in the last 14 days", len(rows))}
+			fmt.Sprintf("%d clients had global IPv6 addresses from more than one /64 prefix in the last 24 hours", len(rows))}
 		for i, r := range rows {
 			if i == 5 {
 				ev = append(ev, fmt.Sprintf("…(+%d)", len(rows)-5))
