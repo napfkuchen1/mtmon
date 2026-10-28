@@ -11,6 +11,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 ## [0.20.0] - 2026-10-25
 
 ### Fixed
+- Config history no longer raises a daily "configuration changed" warning for values that change on their own: bridge/STP state, NTP drift and offset, DHCP pool usage, scheduler next-run and run count. Older stored snapshots are compared with the same filter, so the existing noise disappears at once.
 - The number of Wi-Fi clients shown for an access point (CAPsMAN) now counts only the clients currently connected through that device, instead of a stale value.
 - Suggestions judged against baselines that are still being re-learned now also carry `provisional: true` in the API (next to `learning`).
 - Speed tests: when Ookla is selected but its CLI is not installed, mtmon no longer stores a failed Ookla result with every round. The round skips Ookla, "Run now" says why if nothing else is selected, and the settings show a hint.

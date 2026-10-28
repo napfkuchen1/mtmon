@@ -54,7 +54,7 @@ func (s *Server) takeConfig(ctx context.Context, name string) (changes []store.C
 	if len(times) > 0 {
 		prev, err := s.St.ConfigSnapAt(name, times[0])
 		if err == nil {
-			if changes = store.DiffConfig(prev, cur); len(changes) == 0 {
+			if changes = store.DiffConfig(scrubStored(prev), cur); len(changes) == 0 {
 				return changes, nil
 			}
 		}
@@ -66,6 +66,22 @@ func (s *Server) takeConfig(ctx context.Context, name string) (changes []store.C
 		s.ConfigChanged(name, len(changes))
 	}
 	return changes, nil
+}
+
+// scrubStored applies the current volatile-field filter to an older stored snapshot, so fields that were
+// only later recognised as runtime values do not show up as a change.
+func scrubStored(old store.ConfigSnap) store.ConfigSnap {
+	out := store.ConfigSnap{}
+	for sec, rows := range old {
+		list := make([]map[string]string, 0, len(rows))
+		for _, r := range rows {
+			if s, ok := poller.ScrubRowIn(sec, poller.Row(r)); ok {
+				list = append(list, s)
+			}
+		}
+		out[sec] = list
+	}
+	return out
 }
 
 // checkConfigDue snapshots the device when the last check is older than a day. Called from the capability refresh.
