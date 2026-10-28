@@ -129,3 +129,31 @@ func TestWatcherAlertsOnlyForNewBypassAndStartsQuiet(t *testing.T) {
 }
 
 func uint16Port(i int) uint16 { return uint16(40000 + i) }
+
+// Plain DNS to a public server is harmless when the router redirects it (per protocol and address family);
+// DoT and unredirected families stay real bypasses.
+func TestRedirectedPlainDNSIsNoBypass(t *testing.T) {
+	rows := []store.DNSUseRow{
+		row("A", "8.8.8.8", "dns.google", 53, 17, 40),    // v4 udp, redirected
+		row("B", "8.8.8.8", "dns.google", 53, 6, 40),     // v4 tcp, not redirected
+		row("C", "2001:4860:4860::8888", "", 53, 17, 40), // v6 udp, only v4 redirected
+		row("D", "8.8.8.8", "dns.google", 53, 17, 40),    // v4 udp redirected ...
+		row("D", "1.1.1.1", "", 853, 6, 40),              // ... but DoT is not
+	}
+	redir := func(proto int, v6 bool) bool { return proto == 17 && !v6 }
+	by := map[string]Client{}
+	for _, c := range fromRowsRedirect(rows, nil, redir) {
+		by[c.MAC] = c
+	}
+	for mac, want := range map[string]bool{"A": true, "B": false, "C": false, "D": false} {
+		if got := by[mac].Redirected; got != want {
+			t.Errorf("%s redirected=%v, want %v", mac, got, want)
+		}
+	}
+	if !by["D"].Resolvers[0].Redirected && !by["D"].Resolvers[1].Redirected {
+		t.Error("D: plain DNS resolver should still be marked redirected")
+	}
+	if fromRows(rows, nil)[0].Redirected {
+		t.Error("nil RedirectFunc must mark nothing")
+	}
+}

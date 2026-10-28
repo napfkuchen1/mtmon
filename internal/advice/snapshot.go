@@ -82,6 +82,8 @@ type Caps struct {
 	Filter                     []FilterRule
 	DNSRedirectUDP             bool // active dst-nat rule sends UDP/53 to the router and has matched packets
 	DNSRedirectTCP             bool
+	DNSRedirectUDP6            bool // the same for IPv6 (/ipv6/firewall/nat)
+	DNSRedirectTCP6            bool
 	WifiIfs                    []WifiIf
 	ProbedAt                   int64 // unix time the router was read, 0 = unknown (older stored probe)
 	FilesReadable              bool  // the router lets mtmon list its files

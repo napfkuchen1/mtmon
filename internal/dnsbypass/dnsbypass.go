@@ -6,6 +6,7 @@ package dnsbypass
 import (
 	"net"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/napfkuchen1/mtmon/internal/advice"
@@ -33,6 +34,9 @@ type Resolver struct {
 	Host  string `json:"host,omitempty"`
 	Type  string `json:"type"`
 	Flows int64  `json:"flows"`
+	// Redirected: plain DNS whose queries the router redirects to itself (dst-nat with matched packets, for this
+	// address family). The client gets the router's answers, so this is no bypass.
+	Redirected bool `json:"redirected,omitempty"`
 }
 
 // Client is a client that bypasses the local DNS.
@@ -45,6 +49,30 @@ type Client struct {
 	Active    bool       `json:"active"`                  // seen within EndedAfter; false = ended, not a current problem
 	Since     int64      `json:"checked_since,omitempty"` // time of the last "mark as fixed" (only later flows count)
 	Resolvers []Resolver `json:"resolvers"`
+	// Redirected: every resolver of the client is plain DNS that the router redirects. Listed, but not counted and not alerted.
+	Redirected bool `json:"redirected,omitempty"`
+}
+
+// RedirectFunc says whether the router redirects plain DNS of a protocol (17 udp, 6 tcp) and address family.
+type RedirectFunc func(proto int, v6 bool) bool
+
+// RedirectsFrom builds a RedirectFunc from the routers' probed capabilities: some router has an active rule with
+// matched packets for that protocol and family.
+func RedirectsFrom(devs []advice.Device) RedirectFunc {
+	return func(proto int, v6 bool) bool {
+		for _, d := range devs {
+			c := d.Caps
+			if c == nil || (d.Role != "" && d.Role != "router") {
+				continue
+			}
+			switch {
+			case proto == 17 && !v6 && c.DNSRedirectUDP, proto == 6 && !v6 && c.DNSRedirectTCP,
+				proto == 17 && v6 && c.DNSRedirectUDP6, proto == 6 && v6 && c.DNSRedirectTCP6:
+				return true
+			}
+		}
+		return false
+	}
 }
 
 // Classify says which kind of DNS bypass a row is ("" = none).
@@ -78,8 +106,10 @@ func Detect(st *store.Store, since int64, ignore ...string) ([]Client, error) {
 type Options struct {
 	Ignore []string
 	Skip   func(mac string) bool // true for a managed router/AP itself: its own DNS is no client bypass; optional
-	Resets map[string]int64
-	Now    time.Time
+	// Redirected marks plain DNS that the router redirects to itself (not a real bypass); optional
+	Redirected RedirectFunc
+	Resets     map[string]int64
+	Now        time.Time
 }
 
 // DetectOpts is Detect with per-client resets.
@@ -134,7 +164,7 @@ func DetectOpts(st *store.Store, since int64, o Options) ([]Client, error) {
 		}
 		rows = kept
 	}
-	out := fromRows(rows, o.Ignore)
+	out := fromRowsRedirect(rows, o.Ignore, o.Redirected)
 	now := o.Now
 	if now.IsZero() {
 		now = time.Now()
@@ -159,6 +189,10 @@ func ProbeHosts(targets []string) []string {
 }
 
 func fromRows(rows []store.DNSUseRow, ignore []string) []Client {
+	return fromRowsRedirect(rows, ignore, nil)
+}
+
+func fromRowsRedirect(rows []store.DNSUseRow, ignore []string, redir RedirectFunc) []Client {
 	skip := make(map[string]bool, len(ignore))
 	for _, ip := range ignore {
 		skip[ip] = true
@@ -179,7 +213,9 @@ func fromRows(rows []store.DNSUseRow, ignore []string) []Client {
 			by[r.MAC] = a
 		}
 		a.flows[typ] += r.Flows
-		a.c.Resolvers = append(a.c.Resolvers, Resolver{IP: r.RIP, Host: r.Host, Type: typ, Flows: r.Flows})
+		res := Resolver{IP: r.RIP, Host: r.Host, Type: typ, Flows: r.Flows}
+		res.Redirected = typ == DNS && redir != nil && redir(r.Proto, strings.Contains(r.RIP, ":"))
+		a.c.Resolvers = append(a.c.Resolvers, res)
 		if a.c.First == 0 || r.First < a.c.First {
 			a.c.First = r.First
 		}
@@ -217,9 +253,16 @@ func fromRows(rows []store.DNSUseRow, ignore []string) []Client {
 			keep = keep[:8]
 		}
 		a.c.Resolvers = keep
+		a.c.Redirected = len(keep) > 0
+		for _, r := range keep {
+			a.c.Redirected = a.c.Redirected && r.Redirected
+		}
 		out = append(out, *a.c)
 	}
 	sort.Slice(out, func(i, j int) bool {
+		if out[i].Redirected != out[j].Redirected {
+			return !out[i].Redirected // real bypasses first
+		}
 		if out[i].Flows != out[j].Flows {
 			return out[i].Flows > out[j].Flows
 		}

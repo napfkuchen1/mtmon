@@ -27,7 +27,7 @@
       <div class="card-b">
         <table><tbody>
           {#each d.data.clients as c (c.mac)}
-            <tr><td><a href={'#/clients/' + c.mac}>{c.name}</a></td><td>{c.types.map(tr).join(' · ')}</td>
+            <tr><td><a href={'#/clients/' + c.mac}>{c.name}</a></td><td>{c.types.map(tr).join(' · ')}{#if c.redirected} <span class="badge" title={t('The router redirects these DNS queries to itself, so the client gets the router’s answers.')}>{t('redirected – harmless')}</span>{/if}</td>
               <td class="muted">{#if c.active}{t('active')}{:else}{t('ended (last {when})', { when: ago(c.last) })}{/if}</td>
               <td class="r"><button class="btn sm" onclick={() => fixed({ mac: c.mac })}>{t('Mark as fixed')}</button></td></tr>
           {/each}

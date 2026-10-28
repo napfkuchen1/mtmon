@@ -22,6 +22,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/napfkuchen1/mtmon/internal/advice"
 	"github.com/napfkuchen1/mtmon/internal/alert"
 	"github.com/napfkuchen1/mtmon/internal/api"
 	"github.com/napfkuchen1/mtmon/internal/config"
@@ -179,7 +180,9 @@ func run(args []string) error {
 	go st.Maintain(ctx, cfg.RawRetention, cfg.Retention, backup)
 	go en.RunReverseDNS(ctx)
 	go srv.Speed.Run(ctx)
-	go (&dnsbypass.Watcher{St: st, Self: func(mac string) bool { _, ok := pm.SelfDevice(mac); return ok }, Probe: func() []string {
+	go (&dnsbypass.Watcher{St: st, Self: func(mac string) bool { _, ok := pm.SelfDevice(mac); return ok }, Redirects: func() dnsbypass.RedirectFunc {
+		return dnsbypass.RedirectsFrom(advice.NewLive(st, cfg, nil, nil, time.Now()).Devices())
+	}, Probe: func() []string {
 		if len(cfg.WANTargets) > 0 {
 			return cfg.WANTargets
 		}

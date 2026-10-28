@@ -22,5 +22,8 @@ export default {
   "Marked as fixed": "Als behoben markiert", "Mark as fixed": "Als behoben markieren", "Mark all as fixed": "Alle als behoben markieren",
   "under observation: no bypass since {when}": "unter Beobachtung: keine Umgehung seit {when}",
   "“Mark as fixed” ignores older traffic. If the client bypasses the local DNS again it is flagged again (and alerted, if the alert is on) – this can take up to an hour. A bypass counts as ended after {h} h without traffic.": "„Als behoben markieren“ ignoriert älteren Verkehr. Umgeht der Client den lokalen DNS erneut, wird er wieder markiert (und gemeldet, wenn die Meldung an ist) – das kann bis zu einer Stunde dauern. Eine Umgehung gilt nach {h} h ohne Verkehr als beendet.",
-  "DoT": "DoT", "DoQ": "DoQ", "DoH": "DoH", "external DNS": "externer DNS"
+  "DoT": "DoT", "DoQ": "DoQ", "DoH": "DoH", "external DNS": "externer DNS",
+  "redirected – harmless": "umgeleitet – harmlos",
+  "The router redirects these DNS queries to itself, so the client gets the router’s answers.": "Der Router leitet diese DNS-Anfragen auf sich um, der Client bekommt die Antworten des Routers.",
+  "Uses a public DNS server, but the router redirects those queries to itself – harmless.": "Nutzt einen öffentlichen DNS-Server, der Router leitet die Anfragen aber auf sich um – harmlos.",
 }
