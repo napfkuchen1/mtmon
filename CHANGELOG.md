@@ -8,7 +8,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
-## [0.20.0] - 2026-10-25
+## [0.20.1] - 2026-10-29
 
 ### New
 - Suggestion "<client> uses a DNS server that does not exist": a device with a stale static DNS entry (for example an old IPv6 address) only works because the router redirects DNS and answers for the missing server. mtmon names the client, the missing address and the fix (set DNS to automatic).
@@ -22,6 +22,10 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Unique-local IPv6 addresses (`fd..`) of a client are remembered like other addresses, so DNS-bypass and usage lists show the client instead of the bare address after the router has forgotten the neighbour entry.
 - Tunnel traffic is no longer counted as usage. With DS-Lite (IPv4 in IPv6, very common in Germany) the outer packets between the router and the provider's AFTR repeat every byte of the real client traffic, so totals were doubled and `traffic_spike` blamed the router. IPIP/DS-Lite (protocol 4), 6in4 (41) and the router's own GRE tunnels are now skipped like other transit traffic.
 - Config history no longer raises a daily "configuration changed" warning for values that change on their own: bridge/STP state, NTP drift and offset, DHCP pool usage, scheduler next-run and run count. Older stored snapshots are compared with the same filter, so the existing noise disappears at once.
+
+## [0.20.0] - 2026-10-25
+
+### Fixed
 - The number of Wi-Fi clients shown for an access point (CAPsMAN) now counts only the clients currently connected through that device, instead of a stale value.
 - Suggestions judged against baselines that are still being re-learned now also carry `provisional: true` in the API (next to `learning`).
 - Speed tests: when Ookla is selected but its CLI is not installed, mtmon no longer stores a failed Ookla result with every round. The round skips Ookla, "Run now" says why if nothing else is selected, and the settings show a hint.
