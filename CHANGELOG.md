@@ -14,6 +14,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Suggestion "<client> uses a DNS server that does not exist": a device with a stale static DNS entry (for example an old IPv6 address) only works because the router redirects DNS and answers for the missing server. mtmon names the client, the missing address and the fix (set DNS to automatic).
 
 ### Fixed
+- Phones: button rows and the Topology toolbar wrap, wide tables scroll sideways instead of running off the page, small links and buttons get a bigger tap area. On very wide screens (1900 px and up) the content is centred and wider.
 - DNS bypass: clients that ask a public DNS server on port 53 while the router redirects those queries (dst-nat with matched packets, IPv4 and IPv6 checked separately) are marked "redirected – harmless", listed below the real bypasses and no longer counted or alerted. DoT, DoQ, DoH and plain DNS without a redirect still count. The API gets `redirected` per client and resolver and a `redirected` count; the router probe now also reads `/ipv6/firewall/nat`.
 - The tip "Old IPv6 prefixes stay in use" counts only prefixes a client was seen with in the last 24 hours (was 14 days), so it disappears on its own once the prefix has been stable for a day.
 - A WAN drop right after a router scheduler run that switches the WAN interface (nightly PPPoE reconnect) is an info "planned reconnect (scheduler <name>)" instead of a warning. mtmon reads the scheduler list from the stored configuration snapshot; a drop at any other time stays a warning.

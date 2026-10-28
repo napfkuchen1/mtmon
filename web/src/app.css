@@ -139,3 +139,14 @@ html[data-density="compact"] .row { padding-top: 6px; padding-bottom: 6px; }
 table.fixed { table-layout: fixed; min-width: 820px; }
 table.fixed td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .num, td.num { font-variant-numeric: tabular-nums; }
+
+/* responsive (#145): rows of buttons wrap, wide tables scroll on phones, tap targets stay hittable */
+.head { flex-wrap: wrap; row-gap: 8px; }
+@media (max-width: 720px) {
+  table:not(.fixed) { display: block; max-width: 100%; overflow-x: auto; }
+}
+@media (max-width: 720px), (pointer: coarse) {
+  .btn, .tabs button { min-height: 36px; }
+  .btn.sm { min-height: 32px; }
+  td a:not(.btn), td button:not(.btn):not(.sw) { display: inline-block; min-height: 24px; min-width: 24px; padding: 4px 2px; }
+}
