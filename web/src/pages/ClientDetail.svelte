@@ -127,7 +127,9 @@
     <div class="infobox" style="margin-bottom:16px">{t('{n} IPv6 addresses from old prefixes: this client had addresses in {p} different /64 prefixes in the last 14 days (the provider changes the prefix).', { n: x.ipv6_prefixes.slice(1).reduce((a, p) => a + p.addrs, 0), p: x.ipv6_prefixes.length })}
       <span class="mono"> {x.ipv6_prefixes.slice(0, 4).map(p => p.prefix).join(', ')}{x.ipv6_prefixes.length > 4 ? ' …' : ''}</span></div>
   {/if}
-  {#if x.dns_bypass}
+  {#if x.dns_bypass?.redirected}
+    <div class="muted" style="margin-bottom:16px;font-size:13px">{t('Uses a public DNS server, but the router redirects those queries to itself – harmless.')}</div>
+  {:else if x.dns_bypass}
     <div class="card" style="margin-bottom:16px"><div class="card-h"><h2>{t('Does not use the router’s DNS')}</h2><span class="muted" style="font-size:12.5px">{x.dns_bypass.types.map(tr).join(' · ')} · {t('last 7 days')}{#if !x.dns_bypass.active} · {t('ended')}{/if}</span>
       <button class="btn sm" onclick={async () => { try { await api('/dns-bypass/reset', { method: 'POST', body: { mac: x.client.mac } }); toast(t('Marked as fixed')); location.reload() } catch (e) { toast(tr(e.message)) } }}>{t('Mark as fixed')}</button></div>
       <div class="card-b">

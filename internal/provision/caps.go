@@ -73,21 +73,17 @@ type Caps struct {
 	LogActions []string     `json:"log_actions"`
 	Filter     []FilterRule `json:"filter_rules"`
 	// DNSRedirect: active dst-nat/redirect rules that send port-53 traffic to the router (hit counters from the probe).
-	DNSRedirect struct {
-		UDP        bool  `json:"udp"`
-		TCP        bool  `json:"tcp"`
-		UDPPackets int64 `json:"udp_packets"`
-		TCPPackets int64 `json:"tcp_packets"`
-	} `json:"dns_redirect"`
-	Role        string   `json:"role"` // suggested: router | ap | switch
-	RoleWhy     string   `json:"role_why"`
-	ExportsFlow bool     `json:"suggest_flow"` // this device should export Traffic Flow
-	Warnings    []string `json:"warnings"`
-	Managed     bool     `json:"already_managed"`     // carries mtmon-managed objects from an earlier setup
-	ProbedAt    int64    `json:"probed_at,omitempty"` // unix time the router was read
-	Files       Files    `json:"files"`               // newest backup / export file (read-only /file listing)
-	Certs       []Cert   `json:"certs"`               // certificates that services use (www-ssl, api-ssl) and when they expire
-	Update      Update   `json:"update"`              // RouterOS update state as the router last checked
+	DNSRedirect  DNSRedirectInfo `json:"dns_redirect"`
+	DNSRedirect6 DNSRedirectInfo `json:"dns_redirect6"` // the same for IPv6 (/ipv6/firewall/nat): a v4 redirect does not cover v6
+	Role         string          `json:"role"`          // suggested: router | ap | switch
+	RoleWhy      string          `json:"role_why"`
+	ExportsFlow  bool            `json:"suggest_flow"` // this device should export Traffic Flow
+	Warnings     []string        `json:"warnings"`
+	Managed      bool            `json:"already_managed"`     // carries mtmon-managed objects from an earlier setup
+	ProbedAt     int64           `json:"probed_at,omitempty"` // unix time the router was read
+	Files        Files           `json:"files"`               // newest backup / export file (read-only /file listing)
+	Certs        []Cert          `json:"certs"`               // certificates that services use (www-ssl, api-ssl) and when they expire
+	Update       Update          `json:"update"`              // RouterOS update state as the router last checked
 	// Export is what one POST /rest/export with the monitoring login looked like (#46): decides whether a
 	// config-drift view can work. Only counts and flags, never the text. Refreshed once a day.
 	Export ExportProbe `json:"export_probe"`
@@ -136,6 +132,28 @@ func get(ctx context.Context, c *poller.Client, path string) []poller.Row {
 		return nil
 	}
 	return rows
+}
+
+// DNSRedirectInfo: active dst-nat/redirect rules for port 53 of one address family and their packet counters.
+type DNSRedirectInfo struct {
+	UDP        bool  `json:"udp"`
+	TCP        bool  `json:"tcp"`
+	UDPPackets int64 `json:"udp_packets"`
+	TCPPackets int64 `json:"tcp_packets"`
+}
+
+// note adds one nat rule if it is an active port-53 redirect.
+func (d *DNSRedirectInfo) note(n poller.Row) {
+	if n["chain"] != "dstnat" || n["disabled"] == "true" || (n["action"] != "dst-nat" && n["action"] != "redirect") || !portListHas(n["dst-port"], "53") {
+		return
+	}
+	pk, _ := strconv.ParseInt(n["packets"], 10, 64)
+	switch n["protocol"] {
+	case "udp":
+		d.UDP, d.UDPPackets = true, d.UDPPackets+pk
+	case "tcp":
+		d.TCP, d.TCPPackets = true, d.TCPPackets+pk
+	}
 }
 
 // Probe reads everything needed for the capability summary. Only /system/resource is mandatory; every
@@ -260,15 +278,10 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 		if n["chain"] == "srcnat" && n["disabled"] != "true" && (n["action"] == "masquerade" || n["action"] == "src-nat") {
 			k.NAT = true
 		}
-		if n["chain"] == "dstnat" && n["disabled"] != "true" && (n["action"] == "dst-nat" || n["action"] == "redirect") && portListHas(n["dst-port"], "53") {
-			pk, _ := strconv.ParseInt(n["packets"], 10, 64)
-			switch n["protocol"] {
-			case "udp":
-				k.DNSRedirect.UDP, k.DNSRedirect.UDPPackets = true, k.DNSRedirect.UDPPackets+pk
-			case "tcp":
-				k.DNSRedirect.TCP, k.DNSRedirect.TCPPackets = true, k.DNSRedirect.TCPPackets+pk
-			}
-		}
+		k.DNSRedirect.note(n)
+	}
+	for _, n := range get(ctx, c, "/ipv6/firewall/nat") {
+		k.DNSRedirect6.note(n)
 	}
 	for _, f := range get(ctx, c, "/ip/firewall/filter") {
 		if f["dynamic"] == "true" || f["dynamic"] == "yes" { // RouterOS: "can't edit dynamic object"

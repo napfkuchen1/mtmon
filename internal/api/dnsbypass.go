@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/napfkuchen1/mtmon/internal/advice"
 	"github.com/napfkuchen1/mtmon/internal/dnsbypass"
 	"github.com/napfkuchen1/mtmon/internal/probe"
 	"github.com/napfkuchen1/mtmon/internal/store"
@@ -46,7 +47,8 @@ func (s *Server) dnsBypass() ([]dnsbypass.Client, map[string]dnsbypass.Client) {
 func (s *Server) detectBypass(window time.Duration) ([]dnsbypass.Client, error) {
 	now := time.Now()
 	return dnsbypass.DetectOpts(s.St, now.Add(-window).Unix(), dnsbypass.Options{
-		Ignore: dnsbypass.ProbeHosts(s.probeTargets()), Skip: s.isSelfMAC, Resets: dnsbypass.LoadResets(s.St), Now: now})
+		Ignore: dnsbypass.ProbeHosts(s.probeTargets()), Skip: s.isSelfMAC, Resets: dnsbypass.LoadResets(s.St), Now: now,
+		Redirected: dnsbypass.RedirectsFrom(advice.NewLive(s.St, s.Cfg, nil, nil, now).Devices())})
 }
 
 // bypassRanges are the periods the DNS-bypass view can look at.
@@ -99,12 +101,14 @@ func (s *Server) dnsBypassList(w http.ResponseWriter, r *http.Request) {
 		return mac
 	}
 	out := make([]row, 0, len(list))
-	active := 0
+	active, redirected := 0, 0
 	listed := map[string]bool{}
 	for _, c := range list {
 		out = append(out, row{c, nameOf(c.MAC)})
 		listed[c.MAC] = true
-		if c.Active {
+		if c.Redirected {
+			redirected++ // listed below the real ones, never counted
+		} else if c.Active {
 			active++
 		}
 	}
@@ -121,7 +125,7 @@ func (s *Server) dnsBypassList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	sort.Slice(obs, func(i, j int) bool { return obs[i].Since > obs[j].Since })
-	jsonOut(w, map[string]any{"clients": out, "total": active, "ended": len(out) - active, "observing": obs, "range": rn,
+	jsonOut(w, map[string]any{"clients": out, "total": active, "ended": len(out) - active - redirected, "redirected": redirected, "observing": obs, "range": rn,
 		"window_days": int(win.Hours() / 24), "ended_after_h": int(dnsbypass.EndedAfter.Hours()),
 		"alert": s.St.GetMeta(dnsbypass.MetaAlert) == "on"})
 }
@@ -148,7 +152,9 @@ func (s *Server) dnsBypassReset(w http.ResponseWriter, r *http.Request) {
 	if in.All {
 		list, _ := s.dnsBypass()
 		for _, c := range list {
-			macs[c.MAC] = true
+			if !c.Redirected {
+				macs[c.MAC] = true
+			}
 		}
 	} else {
 		macs[in.MAC] = true

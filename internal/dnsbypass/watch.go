@@ -26,7 +26,9 @@ type Watcher struct {
 	Name  func(mac string) string // display name of a client; optional
 	Probe func() []string         // WAN-probe targets (host:port), never a DoH finding; optional
 	Self  func(mac string) bool   // true for a managed router/AP itself, never a bypass; optional
-	Every time.Duration           // 0 = 15 minutes
+	// Redirects returns the current view of the router's DNS redirect rules; optional (nil = nothing is redirected)
+	Redirects func() RedirectFunc
+	Every     time.Duration // 0 = 15 minutes
 }
 
 // Run checks periodically until ctx ends.
@@ -59,7 +61,11 @@ func (w *Watcher) Check(now time.Time) {
 		ignore = ProbeHosts(w.Probe())
 	}
 	resets := LoadResets(w.St)
-	cs, err := DetectOpts(w.St, now.Add(-Window).Unix(), Options{Ignore: ignore, Skip: w.Self, Resets: resets, Now: now})
+	var redir RedirectFunc
+	if w.Redirects != nil {
+		redir = w.Redirects()
+	}
+	cs, err := DetectOpts(w.St, now.Add(-Window).Unix(), Options{Ignore: ignore, Skip: w.Self, Resets: resets, Now: now, Redirected: redir})
 	if err != nil {
 		return
 	}
@@ -74,6 +80,9 @@ func (w *Watcher) Check(now time.Time) {
 		seen[k] = true
 	}
 	for _, c := range cs {
+		if c.Redirected {
+			continue // the router answers these queries: no bypass, no alert (it comes back if the redirect goes away)
+		}
 		for _, typ := range c.Types {
 			k := c.MAC + "|" + typ
 			if seen[k] {
