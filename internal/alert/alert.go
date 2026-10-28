@@ -423,7 +423,10 @@ func (e *Engine) wanEvent(device, iface string, running bool) {
 		e.mu.Unlock()
 		if first {
 			sev, msg := "warning", fmt.Sprintf("WAN link on %s went down (%s)", device, iface)
-			if n, at := e.recurringWAN(device, now); n >= recurMinDays {
+			if name := e.plannedReconnect(device, iface, now); name != "" {
+				sev = "info"
+				msg += fmt.Sprintf(" – planned reconnect (scheduler %s)", name)
+			} else if n, at := e.recurringWAN(device, now); n >= recurMinDays {
 				sev = "info"
 				msg += fmt.Sprintf(" – recurring: the same drop happened on %d earlier days around %s, probably scheduled (provider reconnect, router scheduler)", n, at)
 			}
