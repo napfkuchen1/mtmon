@@ -63,7 +63,7 @@
   <span style="flex:1"></span><a class="btn" href="#/inbox">{t('New devices')}</a> <button class="btn" onclick={() => (cleanup = true)}>{t('Clean up…')}</button></div>
 <div class="card">
   <div class="card-h">
-    <input class="input" style="min-width:260px" placeholder={t('Search name, IP, MAC, vendor, SSID…')} bind:value={q} aria-label={t('Search clients')} />
+    <input class="input" style="min-width:min(260px, 100%)" placeholder={t('Search name, IP, MAC, vendor, SSID…')} bind:value={q} aria-label={t('Search clients')} />
     {#if groups.length}<select class="input" style="width:auto" bind:value={grp} aria-label={t('Group')}><option value="">{t('All groups')}</option><option value="none">{t('No group')}</option>{#each groups as g}<option value={g}>{g}</option>{/each}</select>{/if}
     <div class="tabs" role="tablist">
       {#each kinds as [id, l]}

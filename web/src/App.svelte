@@ -227,6 +227,7 @@
   .spacer { flex: 1; }
   .mob { display: none; }
   .page { padding: 24px 28px 48px; max-width: 1500px; }
+  @media (min-width: 1900px) { .page { max-width: 2000px; margin-inline: auto; } }
   @media (max-width: 860px) {
     .shell, .shell.rail { grid-template-columns: 1fr; }
     aside { position: fixed; z-index: 30; left: 0; top: 0; bottom: 0; width: min(280px, 84vw); transform: translateX(-100%); transition: transform .2s; box-shadow: none; overflow-y: auto; }
