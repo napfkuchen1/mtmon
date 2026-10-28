@@ -27,6 +27,24 @@ var volatileKeys = map[string]bool{
 	"tx-queue-drop": true, "rx-bits-per-second": true, "tx-bits-per-second": true, "uptime": true, "expires-after": true,
 	"active": true, "inactive": true, "ecmp": true, "hw-offloaded": true, "gateway-status": true, "distance-active": true,
 	"cache-used": true, "last-handshake": true, "current-endpoint-address": true, "current-endpoint-port": true,
+	// bridge port / STP runtime state
+	"debug-info": true, "tx-bpdu": true, "rx-bpdu": true, "last-topology-change": true, "topology-change-count": true,
+	"role": true, "port-number": true, "root-path-cost": true, "designated-bridge": true,
+	"designated-port-number": true, "designated-cost": true, "sent-tc": true, "received-tc": true, "forwarding": true,
+	"external-fdb-status": true, "inactive-port-cost": true, "fast-leave-active": true,
+	// NTP client runtime state
+	"freq-drift": true, "system-offset": true, "synced-server": true, "synced-stratum": true,
+	// scheduler runtime state
+	"next-run": true, "run-count": true,
+}
+
+// volatileBySection are runtime fields whose names are only live values inside one section (elsewhere the same
+// name can be a setting, e.g. "status", "used" or "available").
+var volatileBySection = map[string]map[string]bool{
+	"/ip/pool":           {"used": true, "available": true},
+	"/system/ntp/client": {"status": true},
+	"/interface/bridge/port": {"status": true, "edge-port": true, "point-to-point-port": true,
+		"edge-port-discovery-active": true},
 }
 
 // secretKey: such fields never reach a snapshot, whatever the router's policy lets the login read.
@@ -37,13 +55,17 @@ func secretKey(k string) bool {
 
 // ScrubRow drops secrets and volatile fields. ok=false for rows the router creates by itself (dynamic ones),
 // because they come and go without a configuration change.
-func ScrubRow(r Row) (Row, bool) {
+func ScrubRow(r Row) (Row, bool) { return ScrubRowIn("", r) }
+
+// ScrubRowIn is ScrubRow with the section-specific runtime fields of that section removed as well.
+func ScrubRowIn(section string, r Row) (Row, bool) {
 	if r["dynamic"] == "true" {
 		return nil, false
 	}
 	out := make(Row, len(r))
+	vs := volatileBySection[section]
 	for k, v := range r {
-		if volatileKeys[k] || secretKey(k) || k == "dynamic" || k == "invalid" {
+		if volatileKeys[k] || vs[k] || secretKey(k) || k == "dynamic" || k == "invalid" {
 			continue
 		}
 		out[k] = v
@@ -63,7 +85,7 @@ func (c *Client) ConfigSnapshot(ctx context.Context) (ConfigSnap, error) {
 		}
 		list := []Row{}
 		for _, r := range rows {
-			if s, ok := ScrubRow(r); ok {
+			if s, ok := ScrubRowIn(p, r); ok {
 				list = append(list, s)
 			}
 		}
