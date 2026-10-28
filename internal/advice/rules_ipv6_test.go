@@ -17,7 +17,7 @@ func TestRALifetimes(t *testing.T) {
 	// the symptom from a real network: one server with five prefixes
 	var ps []V6Prefix
 	for i := 0; i < 5; i++ {
-		ps = append(ps, V6Prefix{Prefix: "2001:db8:" + string(rune('a'+i)) + "::/64", Addrs: 1, First: t0.Add(-time.Duration(5-i) * 24 * time.Hour).Unix(), Last: t0.Add(-time.Duration(4-i) * 24 * time.Hour).Unix()})
+		ps = append(ps, V6Prefix{Prefix: "2001:db8:" + string(rune('a'+i)) + "::/64", Addrs: 1, First: t0.Add(-time.Duration(5-i) * 4 * time.Hour).Unix(), Last: t0.Add(-time.Duration(4-i) * 4 * time.Hour).Unix()})
 	}
 	d.V6["AA:00:00:00:00:01"] = []V6Prefix{ps[4], ps[3], ps[2], ps[1], ps[0]} // newest first
 	out := expect(t, d, "ra-lifetimes", 1)
@@ -29,6 +29,18 @@ func TestRALifetimes(t *testing.T) {
 	if !strings.Contains(s.Limits, "not verified") || strings.Contains(strings.Join(s.Steps, " "), "Shorten") {
 		t.Errorf("no unverified RouterOS syntax may be given as fact, and no advice to change the ND defaults: %+v", s)
 	}
+	// the prefix has been stable for days: the old ones are history, the tip goes away on its own
+	old := d.V6["AA:00:00:00:00:01"]
+	var aged []V6Prefix
+	for i, p := range old {
+		if i > 0 {
+			p.Last = t0.Add(-3 * 24 * time.Hour).Unix()
+		}
+		aged = append(aged, p)
+	}
+	d.V6["AA:00:00:00:00:01"] = aged
+	expect(t, d, "ra-lifetimes", 0)
+	d.V6["AA:00:00:00:00:01"] = old
 	// short lifetimes: fine
 	d.Devs[0].Caps.RAValid, d.Devs[0].Caps.RAPreferred = 7200, 3600
 	expect(t, d, "ra-lifetimes", 0)
