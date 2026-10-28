@@ -197,6 +197,15 @@ func (l *Live) PortUse24h() []PortUse {
 	}
 	l.portsOK = true
 	rows, _ := l.St.PortUse(l.now.Add(-24*time.Hour).Unix(), PortsOut)
+	if l.IsSelf != nil { // a router's own upstream DNS / NTP is no client behaviour (same rule as Traffic24h)
+		kept := rows[:0]
+		for _, r := range rows {
+			if !l.IsSelf(r.MAC) {
+				kept = append(kept, r)
+			}
+		}
+		rows = kept
+	}
 	l.ports = conv(rows)
 	return l.ports
 }

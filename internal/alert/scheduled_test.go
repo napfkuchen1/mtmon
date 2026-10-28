@@ -57,3 +57,15 @@ func TestSchedulerNotTouchingWANDoesNotExplain(t *testing.T) {
 		t.Fatalf("unrelated scheduler must not downgrade: %+v", *got)
 	}
 }
+
+// A traffic spike caused by the router itself names the router, not its WAN-port MAC (#122).
+func TestWhoNamesManagedDevice(t *testing.T) {
+	e, _ := newEngine(t)
+	e.SelfName = func(mac string) (string, bool) { return "gw", mac == "04:F4:1C:29:A5:DC" }
+	if got := e.who("04:F4:1C:29:A5:DC"); got != "gw" {
+		t.Fatalf("who = %q", got)
+	}
+	if got := e.who("AA:BB:CC:00:00:01"); got != "AA:BB:CC:00:00:01" {
+		t.Fatalf("unknown MAC stays the MAC: %q", got)
+	}
+}

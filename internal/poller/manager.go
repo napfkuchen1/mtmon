@@ -58,6 +58,7 @@ type devSnap struct {
 	peers  []Row           // /interface/wireguard/peers (absent without the wireguard package)
 	wan    map[string]bool // interfaces that face the upstream: members of the WAN interface list, default-route interface
 	addrs  []Row           // /ip/address (transfer net towards a modem)
+	addrs6 []Row           // /ipv6/address (dynamic PPPoE / DHCPv6 addresses change between capability probes)
 	pppoe  []Row           // /interface/pppoe-client
 	ifs    []Row           // /interface (name, type) to tell ports, PPPoE and tunnels apart
 	routes []Row           // /ip/route (default route: double NAT)
@@ -431,7 +432,7 @@ func (w *worker) l3Poll(ctx context.Context) {
 	if ps := ownV6Prefixes(a6, d6, p6); len(ps) > 0 {
 		w.m.Cfg.LearnNets(ps, time.Now())
 	}
-	w.m.setSnap(w.d.Name, func(s *devSnap) { s.addrs, s.pppoe, s.ifs, s.routes = addrs, pppoe, ifs, routes })
+	w.m.setSnap(w.d.Name, func(s *devSnap) { s.addrs, s.addrs6, s.pppoe, s.ifs, s.routes = addrs, a6, pppoe, ifs, routes })
 	if merr == nil || rerr == nil {
 		wan := wanInterfaces(members, routes)
 		if w.d.Role == "ap" { // an access point has no upstream side; its only bridge is its LAN
@@ -545,18 +546,71 @@ func (m *Manager) noteSelfMACs(device string, rows []Row) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, r := range rows {
-		if mac := store.NormMAC(r["mac-address"]); mac != "" {
+		if mac := store.NormMAC(r["mac-address"]); mac != "" && !zeroMAC(mac) {
 			m.self[mac] = device
 		}
 	}
 }
 
+// zeroMAC: tunnel and PPPoE interfaces report 00:00:00:00:00:00 – no real hardware address, so never a key.
+func zeroMAC(mac string) bool {
+	return strings.Trim(mac, "0:-") == ""
+}
+
+// liveAddrs returns the addresses the managed devices have right now: the ones read from the router on each poll
+// (/ip/address, /ipv6/address, so a PPPoE address that changed after the nightly reconnect is known at once), plus
+// the stored capability list as a fallback. device -> addresses.
+func (m *Manager) liveAddrs() map[string][]netip.Addr {
+	out := map[string][]netip.Addr{}
+	add := func(dev, s string) {
+		if ad, ok := addrOf(s); ok {
+			out[dev] = append(out[dev], ad)
+		}
+	}
+	m.mu.Lock()
+	for dev, s := range m.snaps {
+		for _, r := range s.addrs {
+			if r["disabled"] != "true" {
+				add(dev, r["address"])
+			}
+		}
+		for _, r := range s.addrs6 {
+			if r["disabled"] != "true" {
+				add(dev, r["address"])
+			}
+		}
+	}
+	m.mu.Unlock()
+	if rows, err := m.St.DeviceRows(); err == nil {
+		for _, r := range rows {
+			var c struct {
+				Addresses []string `json:"addresses"`
+			}
+			if json.Unmarshal(r.Caps, &c) != nil {
+				continue
+			}
+			for _, x := range c.Addresses {
+				add(r.Name, x)
+			}
+		}
+	}
+	return out
+}
+
 // SelfDevice returns the managed device that owns this MAC address on one of its own interfaces.
 func (m *Manager) SelfDevice(mac string) (string, bool) {
+	mac = store.NormMAC(mac)
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	d, ok := m.self[store.NormMAC(mac)]
-	return d, ok
+	if d, ok := m.self[mac]; ok {
+		return d, true
+	}
+	if mac != "" && zeroMAC(mac) { // older data booked a router's PPPoE/tunnel traffic on the zero MAC: that is a router, too
+		if ds := m.Cfg.AllDevices(); len(ds) > 0 {
+			return ds[0].Name, true
+		}
+	}
+	return "", false
 }
 
 // SelfByAddr returns the managed device that owns this IP address: its management address, an address configured on
@@ -571,18 +625,10 @@ func (m *Manager) SelfByAddr(ip string) (string, bool) {
 			return d.Name, true
 		}
 	}
-	if rows, err := m.St.DeviceRows(); err == nil {
-		for _, r := range rows {
-			var c struct {
-				Addresses []string `json:"addresses"`
-			}
-			if json.Unmarshal(r.Caps, &c) != nil {
-				continue
-			}
-			for _, x := range c.Addresses {
-				if ad, ok := addrOf(x); ok && ad == a {
-					return r.Name, true
-				}
+	for dev, list := range m.liveAddrs() {
+		for _, ad := range list {
+			if ad == a {
+				return dev, true
 			}
 		}
 	}
@@ -614,7 +660,7 @@ func addrOf(s string) (netip.Addr, bool) {
 func (m *Manager) SelfMACByAddr(ip string) string {
 	m.addrMu.Lock()
 	defer m.addrMu.Unlock()
-	if m.addrMAC == nil || time.Since(m.addrAt) > 30*time.Second {
+	if m.addrMAC == nil || time.Since(m.addrAt) > 10*time.Second {
 		macs := map[string]string{} // device -> smallest own MAC
 		m.mu.Lock()
 		for mac, dev := range m.self {
@@ -624,19 +670,14 @@ func (m *Manager) SelfMACByAddr(ip string) string {
 		}
 		m.mu.Unlock()
 		out := map[string]string{}
-		if rows, err := m.St.DeviceRows(); err == nil {
-			for _, r := range rows {
-				mac := macs[r.Name]
-				var c struct {
-					Addresses []string `json:"addresses"`
-				}
-				if mac == "" || json.Unmarshal(r.Caps, &c) != nil {
-					continue
-				}
-				for _, x := range c.Addresses {
-					if ad, ok := addrOf(x); ok && !ad.IsLinkLocalUnicast() {
-						out[ad.String()] = mac
-					}
+		for dev, list := range m.liveAddrs() {
+			mac := macs[dev]
+			if mac == "" {
+				continue
+			}
+			for _, ad := range list {
+				if !ad.IsLinkLocalUnicast() {
+					out[ad.String()] = mac
 				}
 			}
 		}
