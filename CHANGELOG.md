@@ -14,6 +14,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Suggestion "<client> uses a DNS server that does not exist": a device with a stale static DNS entry (for example an old IPv6 address) only works because the router redirects DNS and answers for the missing server. mtmon names the client, the missing address and the fix (set DNS to automatic).
 
 ### Fixed
+- A WAN drop right after a router scheduler run that switches the WAN interface (nightly PPPoE reconnect) is an info "planned reconnect (scheduler <name>)" instead of a warning. mtmon reads the scheduler list from the stored configuration snapshot; a drop at any other time stays a warning.
 - The imaginary DNS server address of such a redirect is no longer listed as a client (it showed up in "chatty" with tens of thousands of flows). The answers are skipped, the traffic stays with the client that asked.
 - Unique-local IPv6 addresses (`fd..`) of a client are remembered like other addresses, so DNS-bypass and usage lists show the client instead of the bare address after the router has forgotten the neighbour entry.
 - Tunnel traffic is no longer counted as usage. With DS-Lite (IPv4 in IPv6, very common in Germany) the outer packets between the router and the provider's AFTR repeat every byte of the real client traffic, so totals were doubled and `traffic_spike` blamed the router. IPIP/DS-Lite (protocol 4), 6in4 (41) and the router's own GRE tunnels are now skipped like other transit traffic.
