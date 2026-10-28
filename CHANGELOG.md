@@ -11,6 +11,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 ## [0.20.0] - 2026-10-25
 
 ### Fixed
+- Tunnel traffic is no longer counted as usage. With DS-Lite (IPv4 in IPv6, very common in Germany) the outer packets between the router and the provider's AFTR repeat every byte of the real client traffic, so totals were doubled and `traffic_spike` blamed the router. IPIP/DS-Lite (protocol 4), 6in4 (41) and the router's own GRE tunnels are now skipped like other transit traffic.
 - Config history no longer raises a daily "configuration changed" warning for values that change on their own: bridge/STP state, NTP drift and offset, DHCP pool usage, scheduler next-run and run count. Older stored snapshots are compared with the same filter, so the existing noise disappears at once.
 - The number of Wi-Fi clients shown for an access point (CAPsMAN) now counts only the clients currently connected through that device, instead of a stale value.
 - Suggestions judged against baselines that are still being re-learned now also carry `provisional: true` in the API (next to `learning`).

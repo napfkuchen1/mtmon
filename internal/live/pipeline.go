@@ -20,6 +20,8 @@ import (
 //   - both local             → internal (client = src); deduped because a routed flow is exported
 //     once per interface it crosses
 //   - both remote            → ignored (NAT'd WAN-side copy or transit)
+//   - tunnel outer packets   → ignored (IPIP/DS-Lite, 6in4, and GRE from the router itself): the inner flows
+//     are exported on their own, so counting the outer packet would count every byte twice
 //
 // Because only the local-IP side is counted, the post-NAT copy on the WAN interface is ignored
 // automatically, so exporting with interfaces=all does not double-count internet traffic.
@@ -103,6 +105,13 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 			continue
 		}
 		sl, dl := p.Cfg.IsLocal(src), p.Cfg.IsLocal(dst)
+		if p.tunnelOuter(r, src, dst, sl, dl) {
+			p.mu.Lock()
+			p.Ignored++
+			p.mu.Unlock()
+			p.diag.note(r, "x")
+			continue
+		}
 		var row store.FlowRow
 		row.Exporter = r.Exporter.String()
 		row.Proto, row.Bytes, row.Pkts, row.Flags = r.Proto, r.Bytes, r.Packets, r.TCPFlags
@@ -162,6 +171,22 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 	if len(rows) > 0 {
 		p.St.Enqueue(rows...)
 	}
+}
+
+// tunnelOuter reports whether r is the outer packet of a tunnel (IP protocol 4 IPIP / DS-Lite, 41 6in4, 47 GRE).
+// Protocol 4 and 41 are never client behaviour here; GRE only counts as outer when a router's own address sends or
+// receives it (a client's own GRE tunnel stays visible).
+func (p *Pipeline) tunnelOuter(r flow.Record, src, dst netip.Addr, sl, dl bool) bool {
+	switch r.Proto {
+	case 4, 41:
+		return true
+	case 47:
+		if p.SelfMAC == nil {
+			return false
+		}
+		return (sl && p.SelfMAC(src.String()) != "") || (dl && p.SelfMAC(dst.String()) != "")
+	}
+	return false
 }
 
 func (p *Pipeline) dupInternal(r flow.Record, ts int64) bool {
