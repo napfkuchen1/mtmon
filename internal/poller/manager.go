@@ -1049,6 +1049,7 @@ func (m *Manager) merge() {
 		}
 	}
 	m.St.NoteIPv6(v6, time.Now().Unix()) // evidence for addresses from old (dynamic) prefixes
+	m.St.NoteULA(ipmac, time.Now().Unix())
 	var newOnes []store.Observation
 	idents := m.neighborIdents()
 	for mac, o := range byMAC {

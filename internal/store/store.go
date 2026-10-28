@@ -73,6 +73,9 @@ CREATE TABLE IF NOT EXISTS wan_quality(
 -- global IPv6 addresses seen per client (router neighbour table): evidence for addresses from old, dynamic prefixes
 CREATE TABLE IF NOT EXISTS ipv6_hist(
   mac TEXT NOT NULL, ip TEXT NOT NULL, first INTEGER NOT NULL, last INTEGER NOT NULL, PRIMARY KEY(mac, ip)) WITHOUT ROWID;
+-- clients that send DNS to an address nobody owns (the router DNS redirect answers instead)
+CREATE TABLE IF NOT EXISTS ghost_dns(
+  mac TEXT NOT NULL, ip TEXT NOT NULL, first INTEGER NOT NULL, last INTEGER NOT NULL, flows INTEGER NOT NULL, PRIMARY KEY(mac, ip)) WITHOUT ROWID;
 -- scheduled speed tests (internal/speedtest): one row per test and provider; up/down 0 = not measured
 CREATE TABLE IF NOT EXISTS speedtests(
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, provider TEXT NOT NULL, server TEXT, family TEXT,
@@ -233,6 +236,7 @@ func (s *Store) Cleanup(rawDays, days int) {
 	s.DB.Exec(`DELETE FROM wan_quality WHERE ts < ?`, cut)
 	s.pruneSpeedtests(now)
 	s.DB.Exec(`DELETE FROM ipv6_hist WHERE last < ?`, now.AddDate(0, 0, -IPv6HistDays).Unix())
+	s.DB.Exec(`DELETE FROM ghost_dns WHERE last < ?`, now.AddDate(0, 0, -GhostDNSDays).Unix())
 	s.DB.Exec(`DELETE FROM if_metrics WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM alerts WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM roam WHERE ts < ?`, cut)

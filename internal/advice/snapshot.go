@@ -36,6 +36,14 @@ type Snapshot interface {
 	FwHistory() time.Duration
 	// SelfHealth: free space of mtmon's own data directory and database growth.
 	SelfHealth() SelfHealth
+	// GhostDNS7d: clients that sent DNS to a local address no device owns (answered only by the redirect of the router).
+	GhostDNS7d() []GhostDNS
+}
+
+// GhostDNS is one client that uses a DNS server that does not exist.
+type GhostDNS struct {
+	MAC, IP     string
+	Flows, Last int64
 }
 
 // SelfHealth is mtmon's own resource situation. Known is false where the file system cannot be asked.

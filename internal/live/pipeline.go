@@ -20,6 +20,8 @@ import (
 //   - both local             → internal (client = src); deduped because a routed flow is exported
 //     once per interface it crosses
 //   - both remote            → ignored (NAT'd WAN-side copy or transit)
+//   - DNS answer from a local address nobody owns → ignored (client uses a DNS server that does not exist and the
+//     redirect of the router answers; see ghostDNSReply)
 //   - tunnel outer packets   → ignored (IPIP/DS-Lite, 6in4, and GRE from the router itself): the inner flows
 //     are exported on their own, so counting the outer packet would count every byte twice
 //
@@ -94,6 +96,7 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 	now := time.Now()
 	rows := make([]store.FlowRow, 0, len(recs))
 	local := map[rkey]bool{}
+	var ghosts map[[2]string]int64
 	for _, r := range recs {
 		if r.DstPort == 53 && p.Cfg.IsLocal(r.Src.Unmap()) && p.Cfg.IsLocal(r.Dst.Unmap()) {
 			local[rkey{r.Src.Unmap(), r.SrcPort, r.Proto}] = true
@@ -128,6 +131,20 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 			p.diag.note(r, "d")
 			row.Dir, row.CIP, row.RIP, row.CPort, row.RPort = "d", dst.String(), src.String(), r.DstPort, r.SrcPort
 		case sl && dl:
+			if ghost, mac := p.ghostDNSReply(r, src, dst, row.TS); ghost {
+				// the reply of a DNS server that does not exist, produced by the DNS redirect of the router
+				p.mu.Lock()
+				p.Ignored++
+				p.mu.Unlock()
+				p.diag.note(r, "x")
+				if mac != "" {
+					if ghosts == nil {
+						ghosts = map[[2]string]int64{}
+					}
+					ghosts[[2]string{mac, src.String()}]++
+				}
+				continue
+			}
 			if p.dupInternal(r, row.TS) {
 				continue
 			}
@@ -171,6 +188,34 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 	if len(rows) > 0 {
 		p.St.Enqueue(rows...)
 	}
+	p.St.NoteGhostDNS(ghosts, now.Unix())
+}
+
+// macOf resolves a local address to a client or router MAC the same way flow rows are attributed ("" = nobody).
+func (p *Pipeline) macOf(ip string, ts int64) string {
+	if p.SelfMAC != nil {
+		if m := p.SelfMAC(ip); m != "" {
+			return m
+		}
+	}
+	if m := p.Hub.MACFor(ip); m != "" {
+		return m
+	}
+	return p.St.MACForIPAt(ip, ts)
+}
+
+// ghostDNSReply reports whether r is a DNS answer coming from a local address that no router, client or lease knows.
+// That happens when a client has a DNS server configured that does not exist and the DNS redirect (dst-nat) of the
+// router answers for it: the reply is exported with the original, imaginary address as source. It is not a client.
+// mac is the client that asked (the destination), "" if it is not known either.
+func (p *Pipeline) ghostDNSReply(r flow.Record, src, dst netip.Addr, ts int64) (ghost bool, mac string) {
+	if r.SrcPort != 53 || (r.Proto != 17 && r.Proto != 6) || src.IsMulticast() || src.IsUnspecified() {
+		return false, ""
+	}
+	if p.macOf(src.String(), ts) != "" {
+		return false, ""
+	}
+	return true, p.macOf(dst.String(), ts)
 }
 
 // tunnelOuter reports whether r is the outer packet of a tunnel (IP protocol 4 IPIP / DS-Lite, 41 6in4, 47 GRE).
