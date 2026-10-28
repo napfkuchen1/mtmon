@@ -315,3 +315,15 @@ func (l *Live) FwHistory() time.Duration {
 	}
 	return l.now.Sub(time.Unix(oldest, 0))
 }
+
+func (l *Live) GhostDNS7d() []GhostDNS {
+	rows, err := l.St.GhostDNSSince(l.now.Add(-7 * 24 * time.Hour).Unix())
+	if err != nil {
+		return nil
+	}
+	out := make([]GhostDNS, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, GhostDNS{MAC: r.MAC, IP: r.IP, Flows: r.Flows, Last: r.Last})
+	}
+	return out
+}

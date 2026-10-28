@@ -88,3 +88,23 @@ func TestTunnelOuterNotCounted(t *testing.T) {
 		t.Fatalf("client GRE dropped: %d rows", n)
 	}
 }
+
+// A client with a DNS server that does not exist: the redirect answers with the imaginary address as source.
+// That address is no client; the sighting is remembered for the suggestion.
+func TestGhostDNSReplyIsNoClient(t *testing.T) {
+	p := dnsPipe(t)
+	p.Hub.SetIPMap(map[string]string{"192.168.0.50": "AA:BB:CC:00:00:50", "192.168.0.1": "AA:BB:CC:00:00:01"}, nil)
+	now := time.Now()
+	reply := func(src string) flow.Record {
+		return flow.Record{Src: netip.MustParseAddr(src), Dst: netip.MustParseAddr("192.168.0.50"), SrcPort: 53, DstPort: 40000,
+			Proto: 17, Bytes: 120, Packets: 1, Start: now, End: now}
+	}
+	p.Handle([]flow.Record{reply("192.168.77.77"), reply("192.168.77.77"), reply("192.168.77.77"), reply("192.168.0.1")})
+	if n := p.St.QueueLen(); n != 1 {
+		t.Fatalf("rows %d, want only the reply of the real router", n)
+	}
+	g, err := p.St.GhostDNSSince(now.Unix() - 60)
+	if err != nil || len(g) != 1 || g[0].IP != "192.168.77.77" || g[0].MAC != "AA:BB:CC:00:00:50" || g[0].Flows != 3 {
+		t.Fatalf("ghost sightings: %v %v", g, err)
+	}
+}

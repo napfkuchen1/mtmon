@@ -21,6 +21,7 @@ type Data struct {
 	Rules   []FwRule
 	FwHist  time.Duration
 	Self    SelfHealth
+	Ghosts  []GhostDNS
 }
 
 func (d *Data) Now() time.Time {
@@ -53,3 +54,4 @@ func (d *Data) BlockedSources24h() []BlockedSrc        { return d.Blocked }
 func (d *Data) FwRules() []FwRule                      { return d.Rules }
 func (d *Data) SelfHealth() SelfHealth                 { return d.Self }
 func (d *Data) FwHistory() time.Duration               { return d.FwHist }
+func (d *Data) GhostDNS7d() []GhostDNS                 { return d.Ghosts }

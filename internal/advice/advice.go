@@ -78,7 +78,7 @@ var Rules = []Rule{
 	{"proto-cleartext", ruleCleartext}, {"proto-smb", ruleSMB}, {"proto-rdp", ruleRDPOut}, {"proto-http-iot", ruleHTTPIoT},
 	{"exposed-inbound", ruleInbound},
 	{"fw-origin", ruleBlockOrigin}, {"mgmt-open", ruleMgmtOpen}, {"fw-unused", ruleUnusedRules}, {"fw-regression", ruleRegression}, {"fw-nolog", ruleDropNoLog},
-	{"dns-bypass", ruleDNSBypass}, {"dns-doh", ruleDoH},
+	{"dns-bypass", ruleDNSBypass}, {"dns-doh", ruleDoH}, {"dns-ghost", ruleDNSGhost},
 	{"dominant-client", ruleDominant}, {"upload-heavy", ruleUploadHeavy}, {"chatty", ruleChatty},
 	{"flow-disabled", ruleFlowDisabled}, {"flow-silent", ruleFlowSilent}, {"no-syslog", ruleNoSyslog},
 	{"static-lease", ruleStaticLease}, {"stale-clients", ruleStaleClients}, {"mtmon-disk", ruleMtmonDisk}, {"backup-age", ruleBackupAge}, {"ra-lifetimes", ruleRALifetimes}, {"routeros-update", ruleRouterOSUpdate}, {"capsman-version", ruleCapsmanVersion}, {"cert-expiry", ruleCertExpiry},
