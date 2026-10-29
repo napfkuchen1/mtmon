@@ -8,6 +8,11 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.20.5] - 2026-10-30
+
+### Fixed
+- No more `config_changed` warning after a CAP reconnect: references that RouterOS re-resolves (`*1A` to `*2B` or to a `cap-…` interface name) are not counted as a configuration change (#187).
+
 ## [0.20.4] - 2026-10-29
 
 ### New
