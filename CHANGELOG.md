@@ -11,6 +11,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 ## [0.20.2] - 2026-10-29
 
 ### Fixed
+- Configuration history: the change list also hides runtime fields (STP, NTP, pool, scheduler) for snapshots stored before the filter existed, so the old entries disappear at once instead of only for new snapshots.
 - DNS bypass and usage lists: any address with the interface id of an interface without MAC (the PPPoE address of the router, also old ones) counts as the router itself, so stored rows from before the update disappear at once.
 
 ## [0.20.1] - 2026-10-29
