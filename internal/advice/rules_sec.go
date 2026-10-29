@@ -275,6 +275,13 @@ func ruleBlockOrigin(s Snapshot) ([]Suggestion, string) {
 	if len(bs) == 0 {
 		return nil, "no blocked inbound events with a logging drop rule in the last 24 h"
 	}
+	out, scans := splitBlockedSources(s, bs)
+	return originSuggestions(out, scans)
+}
+
+// splitBlockedSources sorts the blocked sources: packets with our own public address as sender and late replies from
+// hosts our clients talked to become suggestions of their own; the rest are scans and are returned for grouping.
+func splitBlockedSources(s Snapshot, bs []BlockedSrc) (out []Suggestion, scans []BlockedSrc) {
 	own := ownPublicIPs(s)
 	// Sources our own devices talked to are not scanners: their packets are blocked when they arrive after the
 	// connection was lost (WAN reconnect, router restart), because the firewall no longer knows the connection.
@@ -285,8 +292,6 @@ func ruleBlockOrigin(s Snapshot) ([]Suggestion, string) {
 		}
 	}
 	contacted := s.ContactedByLAN(cand)
-	var out []Suggestion
-	var scans []BlockedSrc
 	var replies, replyIPs []string // blocked sources our own clients talked to: grouped into one suggestion
 	for _, b := range bs {
 		if own[b.IP] {
@@ -335,7 +340,11 @@ func ruleBlockOrigin(s Snapshot) ([]Suggestion, string) {
 			Limits:   "mtmon cannot see the packets themselves, only that these addresses talked to your network and were blocked at the same time. If you do not recognise a connection, look it up under Clients.",
 		})
 	}
-	bs = scans
+	return out, scans
+}
+
+// originSuggestions groups the scan sources by country and provider and suggests dropping the dominant ones early.
+func originSuggestions(out []Suggestion, bs []BlockedSrc) ([]Suggestion, string) {
 	var total int64
 	known := false
 	for _, b := range bs {

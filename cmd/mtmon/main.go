@@ -163,16 +163,11 @@ func run(args []string) error {
 	h := api.New(srv)
 	hs := &http.Server{Addr: cfg.Listen, Handler: h, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
 	if !cfg.NoTLS {
-		var cert tls.Certificate
-		if cfg.TLSCert != "" {
-			cert, err = tls.LoadX509KeyPair(cfg.TLSCert, cfg.TLSKey)
-		} else {
-			cert, err = api.SelfSigned(cfg.DataDir)
-		}
+		tc, err := tlsConfig(cfg)
 		if err != nil {
-			return fmt.Errorf("tls: %w", err)
+			return err
 		}
-		hs.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}
+		hs.TLSConfig = tc
 	}
 
 	backup := filepath.Join(cfg.DataDir, "backups")
@@ -182,7 +177,61 @@ func run(args []string) error {
 	go st.Maintain(ctx, cfg.RawRetention, cfg.Retention, backup)
 	go en.RunReverseDNS(ctx)
 	go srv.Speed.Run(ctx)
-	go (&dnsbypass.Watcher{St: st, Self: func(mac string) bool {
+	go newDNSBypassWatcher(cfg, st, pm, al).Run(ctx)
+	go srv.WarmCaches(ctx)
+	go pm.Run(ctx)
+	go al.Run(ctx.Done())
+	go (&probe.Prober{St: st, Log: log, Targets: func() []string { return cfg.WANTargets }, Enabled: func() bool { return st.GetMeta("wan_probe") != "off" }}).Run(ctx)
+	go func() {
+		if err := sys.Run(ctx); err != nil {
+			log.Warn("syslog receiver not running (firewall log view disabled)", "addr", cfg.SyslogListen, "err", err)
+		}
+	}()
+	go func() {
+		if err := col.Run(ctx); err != nil {
+			errc <- fmt.Errorf("flow collector on %s: %w", cfg.FlowListen, err)
+		}
+	}()
+	go serveHTTP(hs, cfg.NoTLS, errc)
+	if cfg.AdminHash == "" {
+		log.Warn("no admin password set – run `mtmon passwd` (UI login is disabled until then)")
+	}
+	log.Info("mtmon started", "version", version, "ui", cfg.Listen, "flows", cfg.FlowListen, "devices", len(cfg.AllDevices()))
+	select {
+	case <-ctx.Done():
+	case err := <-errc:
+		stop()
+		if errors.Is(err, errUpdateRestart) {
+			log.Info("update staged: exiting so systemd restarts mtmon", "code", update.ExitCode)
+		} else {
+			log.Error("fatal", "err", err)
+		}
+		shutdown(hs, st)
+		return err
+	}
+	log.Info("shutting down")
+	shutdown(hs, st)
+	return nil
+}
+
+// tlsConfig loads the configured certificate or the self-signed one in the data directory.
+func tlsConfig(cfg *config.Config) (*tls.Config, error) {
+	var cert tls.Certificate
+	var err error
+	if cfg.TLSCert != "" {
+		cert, err = tls.LoadX509KeyPair(cfg.TLSCert, cfg.TLSKey)
+	} else {
+		cert, err = api.SelfSigned(cfg.DataDir)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("tls: %w", err)
+	}
+	return &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}, nil
+}
+
+// newDNSBypassWatcher wires the watcher for clients that bypass the router's DNS.
+func newDNSBypassWatcher(cfg *config.Config, st *store.Store, pm *poller.Manager, al *alert.Engine) *dnsbypass.Watcher {
+	return &dnsbypass.Watcher{St: st, Self: func(mac string) bool {
 		if _, ok := pm.SelfDevice(mac); ok {
 			return true
 		}
@@ -205,51 +254,20 @@ func run(args []string) error {
 			sev, msg = "info", msg+" – learning: normal traffic is being re-learned"
 		}
 		al.Raise(kind, subject, sev, msg, 24*time.Hour)
-	}}).Run(ctx)
-	go srv.WarmCaches(ctx)
-	go pm.Run(ctx)
-	go al.Run(ctx.Done())
-	go (&probe.Prober{St: st, Log: log, Targets: func() []string { return cfg.WANTargets }, Enabled: func() bool { return st.GetMeta("wan_probe") != "off" }}).Run(ctx)
-	go func() {
-		if err := sys.Run(ctx); err != nil {
-			log.Warn("syslog receiver not running (firewall log view disabled)", "addr", cfg.SyslogListen, "err", err)
-		}
-	}()
-	go func() {
-		if err := col.Run(ctx); err != nil {
-			errc <- fmt.Errorf("flow collector on %s: %w", cfg.FlowListen, err)
-		}
-	}()
-	go func() {
-		var err error
-		if cfg.NoTLS {
-			err = hs.ListenAndServe()
-		} else {
-			err = hs.ListenAndServeTLS("", "")
-		}
-		if !errors.Is(err, http.ErrServerClosed) {
-			errc <- fmt.Errorf("http: %w", err)
-		}
-	}()
-	if cfg.AdminHash == "" {
-		log.Warn("no admin password set – run `mtmon passwd` (UI login is disabled until then)")
+	}}
+}
+
+// serveHTTP runs the web server until it stops; anything but a clean close is reported on errc.
+func serveHTTP(hs *http.Server, noTLS bool, errc chan<- error) {
+	var err error
+	if noTLS {
+		err = hs.ListenAndServe()
+	} else {
+		err = hs.ListenAndServeTLS("", "")
 	}
-	log.Info("mtmon started", "version", version, "ui", cfg.Listen, "flows", cfg.FlowListen, "devices", len(cfg.AllDevices()))
-	select {
-	case <-ctx.Done():
-	case err := <-errc:
-		stop()
-		if errors.Is(err, errUpdateRestart) {
-			log.Info("update staged: exiting so systemd restarts mtmon", "code", update.ExitCode)
-		} else {
-			log.Error("fatal", "err", err)
-		}
-		shutdown(hs, st)
-		return err
+	if !errors.Is(err, http.ErrServerClosed) {
+		errc <- fmt.Errorf("http: %w", err)
 	}
-	log.Info("shutting down")
-	shutdown(hs, st)
-	return nil
 }
 
 func toFw(es []syslog.Event) []store.FwEvent {

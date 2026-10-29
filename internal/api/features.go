@@ -148,7 +148,132 @@ func validFeature(k string) bool {
 	return false
 }
 
-// deviceFeaturesApply: POST /api/devices/{name}/features – preview (dry_run) or apply.
+// featureSelection turns the request into the sets of features to switch on and off. Features already in the wanted
+// state are dropped. Logging on accept rules / new connections needs the syslog target of firewall_logs: it is pulled
+// in (depOnly: target only, no drop-rule logging) when it is not there; switching firewall_logs off takes its
+// dependents with it.
+func featureSelection(in featuresReq, state map[string]bool) (enable, disable map[string]bool, depOnly bool) {
+	enable, disable = map[string]bool{}, map[string]bool{}
+	for _, k := range in.Enable {
+		if !state[k] {
+			enable[k] = true // already on: nothing to do
+		}
+	}
+	for _, k := range in.Disable {
+		if state[k] {
+			disable[k] = true
+		}
+	}
+	if in.LogNew && enable[provision.FeatFwLog] {
+		enable[provision.FeatLogNew] = true
+	}
+	for _, d := range provision.LogDependents {
+		if enable[d] && !state[provision.FeatFwLog] && !enable[provision.FeatFwLog] {
+			enable[provision.FeatFwLog], depOnly = true, true
+		}
+		if disable[provision.FeatFwLog] && state[d] {
+			disable[d] = true
+		}
+	}
+	return enable, disable, depOnly
+}
+
+// featureOptions: the options the wizard would use, for the features that are requested.
+func (s *Server) featureOptions(row *store.DeviceRow, caps *provision.Caps, in featuresReq, depOnly bool) provision.Options {
+	opt := provision.DefaultOptions(caps, srcIPFor(row.Addr, row.Port))
+	opt.DeviceAddr = row.Addr
+	opt.MonUser = row.User
+	if _, fp, _ := net.SplitHostPort(s.Cfg.FlowListen); fp != "" {
+		if n, _ := strconv.Atoi(fp); n > 0 {
+			opt.FlowPort = n
+		}
+	}
+	if _, sp, _ := net.SplitHostPort(s.Cfg.SyslogListen); sp != "" {
+		if n, _ := strconv.Atoi(sp); n > 0 {
+			opt.SyslogPort = n
+		}
+	}
+	if len(in.FwRules) > 0 {
+		opt.FwRules = in.FwRules
+	}
+	if depOnly {
+		opt.FwRules = nil
+	}
+	opt.AllowRules = in.AllowRules
+	if len(opt.AllowRules) == 0 {
+		opt.AllowRules = defaultAllowRules(caps)
+	}
+	return opt
+}
+
+// featureUndo: the applied manifest entries that belong to the features being switched off.
+func featureUndo(entries []store.ManifestEntry, disable map[string]bool) []store.ManifestEntry {
+	var undo []store.ManifestEntry
+	for _, e := range entries {
+		if e.State == "applied" && disable[provision.FeatureOf(e)] {
+			undo = append(undo, e)
+		}
+	}
+	return undo
+}
+
+// featureRevert reverts exactly what mtmon recorded for the switched-off features. It returns false (and fills out)
+// when a step failed: new changes must not be stacked on a half-reverted state.
+func (s *Server) featureRevert(ctx context.Context, admin *poller.Client, name string, undo []store.ManifestEntry, out map[string]any) bool {
+	res := provision.Rollback(ctx, admin, undo, func(id int64, st string) { s.St.SetManifestState(id, st) })
+	out["undone"] = res
+	for _, x := range res {
+		if !x.OK {
+			out["ok"] = false
+			all, _ := s.St.Manifest(name)
+			out["manual_script"] = provision.ManualScript(all)
+			return false
+		}
+	}
+	for _, e := range undo { // forget the labels of exactly the rules that were switched back
+		switch {
+		case provision.FeatureOf(e) == provision.FeatLogNew:
+			s.St.DB.Exec(`DELETE FROM fw_rules WHERE device=? AND prefix=?`, name, "MTM-NEW")
+		case e.Path == "/ip/firewall/filter" && e.RID != "":
+			s.St.DB.Exec(`DELETE FROM fw_rules WHERE device=? AND prefix=?`, name, "MTM-"+strings.TrimPrefix(e.RID, "*"))
+		}
+	}
+	return true
+}
+
+// featureEnable applies the switched-on features. It returns false (and fills out) when the apply failed.
+func (s *Server) featureEnable(ctx context.Context, admin *poller.Client, name string, caps *provision.Caps, opt provision.Options, enable map[string]bool, entries []store.ManifestEntry, out map[string]any) bool {
+	maxSeq := 0
+	for _, e := range entries {
+		if e.Seq > maxSeq {
+			maxSeq = e.Seq
+		}
+	}
+	res := provision.ApplyFeatures(ctx, admin, caps, opt, enable, maxSeq, func(e store.ManifestEntry) { s.St.AddManifest(name, e) })
+	out["result"] = res
+	if !res.OK {
+		failed := false
+		for _, rb := range res.Rollback {
+			failed = failed || !rb.OK
+		}
+		if failed {
+			all, _ := s.St.Manifest(name)
+			out["manual_script"] = provision.ManualScript(all)
+		} else {
+			s.St.DB.Exec(`DELETE FROM manifest WHERE device=? AND seq>?`, name, maxSeq) // everything of this attempt was undone
+		}
+		out["ok"] = false
+		return false
+	}
+	var metas []store.FwRule
+	for _, m := range res.FwMeta {
+		metas = append(metas, store.FwRule{Device: name, Prefix: m.Prefix, Chain: m.Chain, Action: m.Action, Descr: m.Descr, Managed: m.Managed})
+	}
+	s.St.SaveFwRules(metas)
+	return true
+}
+
+// deviceFeaturesApply: POST /api/devices/{name}/features â€“ preview (dry_run) or apply.
 func (s *Server) deviceFeaturesApply(w http.ResponseWriter, r *http.Request) {
 	if s.Box == nil {
 		jerr(w, 503, "device management not available")
@@ -198,67 +323,13 @@ func (s *Server) deviceFeaturesApply(w http.ResponseWriter, r *http.Request) {
 	for _, f := range deviceFeatures(entries, caps) {
 		state[f.Key] = f.On
 	}
-	enable, disable := map[string]bool{}, map[string]bool{}
-	for _, k := range in.Enable {
-		if !state[k] {
-			enable[k] = true // already on: nothing to do
-		}
+	enable, disable, depOnly := featureSelection(in, state)
+	opt := s.featureOptions(row, caps, in, depOnly)
+	if (enable[provision.FeatFwLog] || enable[provision.FeatFlow]) && opt.MtmonIP == "" {
+		jerr(w, 502, "could not determine mtmon's address as seen from the router")
+		return
 	}
-	for _, k := range in.Disable {
-		if state[k] {
-			disable[k] = true
-		}
-	}
-	// logging on accept rules / new connections needs the syslog target of firewall_logs: pull it in (target only, no
-	// drop-rule logging) when it is not there; switching firewall_logs off takes its dependents with it.
-	if in.LogNew && enable[provision.FeatFwLog] {
-		enable[provision.FeatLogNew] = true
-	}
-	depOnly := false
-	for _, d := range provision.LogDependents {
-		if enable[d] && !state[provision.FeatFwLog] && !enable[provision.FeatFwLog] {
-			enable[provision.FeatFwLog], depOnly = true, true
-		}
-		if disable[provision.FeatFwLog] && state[d] {
-			disable[d] = true
-		}
-	}
-	// the options the wizard would use, for the features that are requested
-	opt := provision.DefaultOptions(caps, srcIPFor(row.Addr, row.Port))
-	opt.DeviceAddr = row.Addr
-	opt.MonUser = row.User
-	if _, fp, _ := net.SplitHostPort(s.Cfg.FlowListen); fp != "" {
-		if n, _ := strconv.Atoi(fp); n > 0 {
-			opt.FlowPort = n
-		}
-	}
-	if _, sp, _ := net.SplitHostPort(s.Cfg.SyslogListen); sp != "" {
-		if n, _ := strconv.Atoi(sp); n > 0 {
-			opt.SyslogPort = n
-		}
-	}
-	if len(in.FwRules) > 0 {
-		opt.FwRules = in.FwRules
-	}
-	if depOnly {
-		opt.FwRules = nil
-	}
-	opt.AllowRules = in.AllowRules
-	if len(opt.AllowRules) == 0 {
-		opt.AllowRules = defaultAllowRules(caps)
-	}
-	if enable[provision.FeatFwLog] || enable[provision.FeatFlow] {
-		if opt.MtmonIP == "" {
-			jerr(w, 502, "could not determine mtmon's address as seen from the router")
-			return
-		}
-	}
-	var undo []store.ManifestEntry
-	for _, e := range entries {
-		if e.State == "applied" && disable[provision.FeatureOf(e)] {
-			undo = append(undo, e)
-		}
-	}
+	undo := featureUndo(entries, disable)
 	if in.DryRun {
 		descrs := []string{}
 		for _, e := range undo {
@@ -273,59 +344,16 @@ func (s *Server) deviceFeaturesApply(w http.ResponseWriter, r *http.Request) {
 	}
 
 	out := map[string]any{"name": name}
-	// 1. switch off: revert exactly what mtmon recorded for those features
-	if len(undo) > 0 {
-		res := provision.Rollback(ctx, admin, undo, func(id int64, st string) { s.St.SetManifestState(id, st) })
-		out["undone"] = res
-		for _, x := range res {
-			if !x.OK {
-				out["ok"] = false
-				all, _ := s.St.Manifest(name)
-				out["manual_script"] = provision.ManualScript(all)
-				jsonOut(w, out)
-				return // do not stack new changes on a half-reverted state
-			}
-		}
-		for _, e := range undo { // forget the labels of exactly the rules that were switched back
-			switch {
-			case provision.FeatureOf(e) == provision.FeatLogNew:
-				s.St.DB.Exec(`DELETE FROM fw_rules WHERE device=? AND prefix=?`, name, "MTM-NEW")
-			case e.Path == "/ip/firewall/filter" && e.RID != "":
-				s.St.DB.Exec(`DELETE FROM fw_rules WHERE device=? AND prefix=?`, name, "MTM-"+strings.TrimPrefix(e.RID, "*"))
-			}
-		}
-	}
-	// 2. switch on
 	changed := len(undo) > 0
+	if changed && !s.featureRevert(ctx, admin, name, undo, out) {
+		jsonOut(w, out)
+		return
+	}
 	if len(enable) > 0 {
-		maxSeq := 0
-		for _, e := range entries {
-			if e.Seq > maxSeq {
-				maxSeq = e.Seq
-			}
-		}
-		res := provision.ApplyFeatures(ctx, admin, caps, opt, enable, maxSeq, func(e store.ManifestEntry) { s.St.AddManifest(name, e) })
-		out["result"] = res
-		if !res.OK {
-			failed := false
-			for _, rb := range res.Rollback {
-				failed = failed || !rb.OK
-			}
-			if failed {
-				all, _ := s.St.Manifest(name)
-				out["manual_script"] = provision.ManualScript(all)
-			} else {
-				s.St.DB.Exec(`DELETE FROM manifest WHERE device=? AND seq>?`, name, maxSeq) // everything of this attempt was undone
-			}
-			out["ok"] = false
+		if !s.featureEnable(ctx, admin, name, caps, opt, enable, entries, out) {
 			jsonOut(w, out)
 			return
 		}
-		var metas []store.FwRule
-		for _, m := range res.FwMeta {
-			metas = append(metas, store.FwRule{Device: name, Prefix: m.Prefix, Chain: m.Chain, Action: m.Action, Descr: m.Descr, Managed: m.Managed})
-		}
-		s.St.SaveFwRules(metas)
 		changed = true
 	}
 	if changed {
