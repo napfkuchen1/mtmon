@@ -13,6 +13,9 @@ The first section below lists everything mtmon already covers. Later releases ad
 ### New
 - New suggestion "Rules point to deleted interfaces": firewall, NAT, mangle, Wi-Fi/CAPsMAN access-list, interface-list members, bridge ports, DHCP servers and routes that name an interface by its internal ID (`*61`) because the interface was removed or re-created (typical after CAP re-provisioning). Such rules never match. Tip, or warning when a drop/reject rule is affected; evidence lists menu, field, comment and action (#176).
 
+### Changed
+- Roaming tip (#177) is concrete: shows the mean signal per access point and the last roam; a fixed client on two APs with one ≥ 15 dB stronger gets "pin to the strong AP" with an access-list command, a client seen on 3+ APs is classed as mobile (info only).
+
 ### Fixed
 - A command typed in an SSH/Winbox session that fails (log line tagged `(ssh-cmd:user@ip)`) is no longer reported as a failing script: it raises its own `cli_error` alert, severity info, "Command from user@ip failed". `script_error` stays a warning for scripts, scheduler and netwatch (#175).
 - DHCP offers that fail within seconds after a Wi-Fi connect of the same client (a roam to a weak access point) no longer raise the `dhcp_problem` warning. They become one info note per client, "<MAC> roamed to <AP> and got no DHCP address for N s", with the signal when the log has it. Real DHCP trouble (no roam in front) is unchanged (#174).

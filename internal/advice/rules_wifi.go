@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 )
 
 const (
@@ -176,28 +177,66 @@ func ruleRoaming(s Snapshot) ([]Suggestion, string) {
 		return nil, ""
 	}
 	idx := clientIndex(s)
+	var macs []string
+	for _, r := range rs {
+		if r.N >= RoamsPerDay {
+			macs = append(macs, r.MAC)
+		}
+	}
+	if len(macs) == 0 {
+		return nil, ""
+	}
+	sig := s.RoamAPSignals24h(macs)
 	var out []Suggestion
 	for _, r := range rs {
 		if r.N < RoamsPerDay {
 			continue
 		}
 		name := nameOf(idx, r.MAC)
-		out = append(out, Suggestion{
+		ev := []string{fmt.Sprintf("%s roamed %d times in the last 24 h between %d access points", name, r.N, max(r.APs, 2))}
+		if r.Last > 0 {
+			ev = append(ev, "Last roam: "+time.Unix(r.Last, 0).UTC().Format("2006-01-02 15:04 UTC"))
+		}
+		aps := sig[r.MAC]
+		for _, a := range aps {
+			ev = append(ev, fmt.Sprintf("Mean signal on %s: %.0f dBm", a.Device, a.Avg))
+		}
+		sg := Suggestion{
 			Subject: r.MAC, Severity: SevTip, Category: CatWifi, Link: "client/" + r.MAC, Confidence: "medium",
-			Title: fmt.Sprintf("%s switches between access points very often", name),
-			Why:   "A client that hops between access points many times a day is usually sitting between two cells with similar signal strength. Every hop interrupts the connection for a moment, which shows up as stutter in calls and video.",
-			Evidence: []string{
-				fmt.Sprintf("%s roamed %d times in the last 24 h between %d access points", name, r.N, max(r.APs, 2)),
-			},
+			Title:    fmt.Sprintf("%s switches between access points very often", name),
+			Why:      "A client that hops between access points many times a day is usually sitting between two cells with similar signal strength. Every hop interrupts the connection for a moment, which shows up as stutter in calls and video.",
+			Evidence: ev,
 			Steps: []string{
 				"Lower the transmit power of the access points near that spot so the cells overlap less.",
 				"Enable fast roaming (802.11r) and neighbour reports/BSS transition (802.11k/v) in the Wi-Fi configuration if all clients support them.",
 				"Alternatively move the device or an access point so one of them clearly wins.",
 			},
-		})
+		}
+		if len(aps) >= 2 && r.APs <= 2 && aps[0].Avg-aps[len(aps)-1].Avg >= roamPinGapDB {
+			// two access points, one clearly stronger: a fixed device that should stay on it
+			best, weak := aps[0], aps[len(aps)-1]
+			sg.Title = fmt.Sprintf("%s keeps hopping although %s is clearly stronger", name, best.Device)
+			sg.Why = fmt.Sprintf("%s stays on two access points and %s is %.0f dB stronger on average, yet it keeps switching. A fixed device like this is best pinned to %s.", name, best.Device, best.Avg-weak.Avg, best.Device)
+			sg.Steps = []string{
+				fmt.Sprintf("Pin the device to %s: add an access-list rule that rejects it on the %s Wi-Fi interface (or set a minimum signal strength there).", best.Device, weak.Device),
+				"Access-list rules on CAP interfaces refer to an interface ID that changes when CAPsMAN re-creates the interface; the check \"rules point to deleted interfaces\" lists such rules.",
+				"If the device is mobile after all, skip the pin and lower the transmit power or enable 802.11r/k/v instead.",
+			}
+			sg.Commands = fmt.Sprintf("# run on %s (use the name of its Wi-Fi interface)\n/interface/wifi/access-list add mac-address=%s action=reject interface=<wifi interface of %s> comment=\"pin to %s\"", weak.Device, r.MAC, weak.Device, best.Device)
+			sg.Confidence = "high"
+		} else if len(aps) >= 3 {
+			sg.Severity = SevInfo
+			sg.Title = fmt.Sprintf("%s roams a lot, but it moves between %d access points", name, len(aps))
+			sg.Why = "The device was seen on several access points with similar signal levels. That looks like a mobile device that is carried around, so frequent roaming is expected."
+			sg.Steps = []string{"No action needed unless calls or video stutter while it is carried; then 802.11r/k/v fast roaming helps."}
+		}
+		out = append(out, sg)
 	}
 	return out, ""
 }
+
+// roamPinGapDB: signal difference from which a two-AP client counts as "belongs to the stronger one".
+const roamPinGapDB = 15
 
 func ruleAPLoad(s Snapshot) ([]Suggestion, string) {
 	cls := wifiOnline(s)

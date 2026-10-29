@@ -26,6 +26,8 @@ type Snapshot interface {
 	// InboundRecent: remote hosts opening connections to LAN services on the Inbound ports.
 	InboundRecent() []Inbound
 	Roams24h() []RoamStat
+	// RoamAPSignals24h: per client the mean signal on each access point it used (strongest first).
+	RoamAPSignals24h(macs []string) map[string][]APSignal
 	IPChurn30d() map[string]int
 	// IPv6Prefixes14d: per client the /64 prefixes its global IPv6 addresses were seen in (newest first).
 	IPv6Prefixes14d() map[string][]V6Prefix
@@ -203,6 +205,12 @@ type Inbound struct {
 	MAC, IP      string
 	Port, Proto  int
 	Flows, Hosts int64
+}
+
+// APSignal is the mean signal of a client on one access point.
+type APSignal struct {
+	Device string
+	Avg    float64
 }
 
 type RoamStat struct {
