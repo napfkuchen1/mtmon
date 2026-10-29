@@ -8,6 +8,10 @@ import (
 	"time"
 )
 
+// BTHDefaultPeer is the name of the Back to Home default peer RouterOS creates itself (the one behind the QR code in
+// /ip cloud). It has no Back to Home user; "never connected" is its normal state.
+const BTHDefaultPeer = "BTH default peer (router config / QR code)"
+
 type Client struct {
 	MAC       string `json:"mac"`
 	Hostname  string `json:"hostname"`

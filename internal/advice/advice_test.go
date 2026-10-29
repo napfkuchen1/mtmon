@@ -750,3 +750,16 @@ func TestDanglingInterfaceRefs(t *testing.T) {
 	d.Devs[0].Caps = &Caps{}
 	skipped(t, d, "dangling-ifaces")
 }
+
+func TestBTHDefaultPeer(t *testing.T) {
+	d := base()
+	old := t0.Add(-100 * 24 * time.Hour).Unix()
+	d.Cls = []Client{{MAC: "VPN:192.168.216.2", Hostname: "BTH default peer (router config / QR code)", IP: "192.168.216.2", Device: "gw", FirstSeen: old, LastSeen: old}}
+	expect(t, d, "vpn-peer-idle", 0) // never connected is its normal state
+	d.Cls[0].LastSeen = t0.Unix()
+	d.Cls[0].Online = true
+	out := expect(t, d, "vpn-peer-idle", 1)
+	if out[0].Severity != SevWarning || !strings.Contains(out[0].Title, "default configuration") {
+		t.Errorf("%+v", out[0])
+	}
+}
