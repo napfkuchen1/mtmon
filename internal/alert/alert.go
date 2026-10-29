@@ -35,7 +35,8 @@ type Engine struct {
 	// Depths gives the hops of every managed device from the gateway; with the stored neighbours it names the
 	// upstream device of an outage that took several devices down together
 	Depths func() map[string]int
-	start    time.Time
+
+	start time.Time
 
 	mu       sync.Mutex
 	last     map[string]time.Time
