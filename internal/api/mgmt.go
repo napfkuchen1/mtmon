@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/napfkuchen1/mtmon/internal/addr"
 	"github.com/napfkuchen1/mtmon/internal/config"
 	"github.com/napfkuchen1/mtmon/internal/enrich"
 	"github.com/napfkuchen1/mtmon/internal/live"
@@ -90,7 +91,7 @@ func (s *Server) addrAllowed(a netip.Addr) error {
 			return errors.New("address not allowed")
 		}
 	}
-	if !(a.IsPrivate() || a.IsLoopback() || a.IsLinkLocalUnicast() || cgnat.Contains(a) || s.Cfg.IsLocal(a)) {
+	if !(a.IsPrivate() || a.IsLoopback() || a.IsLinkLocalUnicast() || addr.IsCGNAT(a) || s.Cfg.IsLocal(a)) {
 		return fmt.Errorf("%s is a public address - mtmon only sets up devices in private networks", a)
 	}
 	return nil

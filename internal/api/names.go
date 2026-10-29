@@ -4,6 +4,7 @@ import (
 	"net/netip"
 	"strings"
 
+	"github.com/napfkuchen1/mtmon/internal/addr"
 	"github.com/napfkuchen1/mtmon/internal/enrich"
 	"github.com/napfkuchen1/mtmon/internal/store"
 )
@@ -26,12 +27,7 @@ type nameSources struct {
 	geo         func(netip.Addr) enrich.Geo
 }
 
-var cgnat = netip.MustParsePrefix("100.64.0.0/10")
-
-func isLocalAddr(a netip.Addr) bool {
-	a = a.Unmap()
-	return a.IsPrivate() || a.IsLoopback() || a.IsLinkLocalUnicast() || a.IsLinkLocalMulticast() || a.IsMulticast() || cgnat.Contains(a)
-}
+func isLocalAddr(a netip.Addr) bool { return addr.IsLocal(a) }
 
 // macSuffix returns the last two octets, e.g. "3F:A2".
 func macSuffix(mac string) string {

@@ -4,6 +4,8 @@ import (
 	"net/netip"
 	"sort"
 	"strings"
+
+	"github.com/napfkuchen1/mtmon/internal/addr"
 )
 
 // Upstream is the ISP modem / router (or ONT) in front of a gateway, derived from data mtmon already reads: the
@@ -148,7 +150,7 @@ func firstNonEmpty(v ...string) string {
 	return ""
 }
 
-func isCGNAT(a netip.Addr) bool { return netip.MustParsePrefix("100.64.0.0/10").Contains(a) }
+func isCGNAT(a netip.Addr) bool { return addr.IsCGNAT(a) }
 
 // shortVendor trims an OUI vendor name to its first words ("AVM Audiovisuelles Marketing und Computersysteme GmbH" -> "AVM").
 func shortVendor(v string) string {

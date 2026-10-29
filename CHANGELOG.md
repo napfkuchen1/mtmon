@@ -11,6 +11,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 ## [0.20.3] - 2026-10-29
 
 ### Changed
+- Internal: one address classifier (`internal/addr`: private, CGNAT, link-local, multicast, public, ULA, global IPv6) replaces seven private copies in advice, API, poller, provision and store; behaviour is unchanged (#146).
 - Internal: the 280-line client merge in the poller is split into small, tested steps (`internal/poller/merge.go`); behaviour is unchanged.
 - CI: a non-blocking `health` job lists very complex functions (gocyclo) and copy-pasted blocks (dupl).
 - Internet page: new Quick test card with its own provider choice (runs once, never changes the schedule); the long settings form is now a collapsible Scheduled tests card with a one-line summary and sections for Schedule, Test size and limits, Contract and alerts, Providers and licences and Import, each with its own Save and Discard. Open/closed state is remembered, phone friendly.
