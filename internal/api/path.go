@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/netip"
+	"strconv"
 	"strings"
 	"time"
 
@@ -118,6 +119,50 @@ func wanHealth(w store.WANWindow) (string, string) {
 	return hOK, ""
 }
 
+// rateText turns a raw bit rate ("576500000") into "576.5 Mbit/s"; router-formatted strings stay as they are.
+func rateText(s string) string {
+	bps, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	if err != nil || bps <= 0 {
+		return s
+	}
+	for _, u := range []string{"bit/s", "kbit/s", "Mbit/s", "Gbit/s"} {
+		if bps < 1000 || u == "Gbit/s" {
+			if u == "bit/s" {
+				return fmt.Sprintf("%.0f %s", bps, u)
+			}
+			return fmt.Sprintf("%.1f %s", bps, u)
+		}
+		bps /= 1000
+	}
+	return s
+}
+
+func bytesText(b int64) string {
+	f := float64(b)
+	for _, u := range []string{"B", "kB", "MB", "GB", "TB"} {
+		if f < 1000 || u == "TB" {
+			if u == "B" {
+				return fmt.Sprintf("%d B", b)
+			}
+			return fmt.Sprintf("%.1f %s", f, u)
+		}
+		f /= 1000
+	}
+	return ""
+}
+
+func protoName(p int) string {
+	switch p {
+	case 6:
+		return "TCP"
+	case 17:
+		return "UDP"
+	case 1:
+		return "ICMP"
+	}
+	return strconv.Itoa(p)
+}
+
 func fact(k, v string) pathFact { return pathFact{K: k, V: v} }
 
 func clientTitle(c store.Client) string {
@@ -160,10 +205,10 @@ func buildPath(in pathIn) (hops []pathHop, weakest int) {
 			l.Facts = append(l.Facts, fact("Signal", fmt.Sprintf("%d dBm", c.Signal)))
 		}
 		if c.TxRate != "" {
-			l.Facts = append(l.Facts, fact("TX rate", c.TxRate))
+			l.Facts = append(l.Facts, fact("TX rate", rateText(c.TxRate)))
 		}
 		if c.RxRate != "" {
-			l.Facts = append(l.Facts, fact("RX rate", c.RxRate))
+			l.Facts = append(l.Facts, fact("RX rate", rateText(c.RxRate)))
 		}
 		hops = append(hops, l)
 	default:
@@ -232,14 +277,17 @@ func buildPath(in pathIn) (hops []pathHop, weakest int) {
 	if ep.Title == "" {
 		ep.Title = d.IP
 	}
+	if d.Conns == 0 && ep.Title != "" {
+		ep.Facts = append(ep.Facts, fact("Traffic", "none to this target in the selected range"))
+	}
 	if d.Svc != "" {
 		ep.Facts = append(ep.Facts, fact("Service", d.Svc))
 	}
 	if d.Port != 0 {
-		ep.Facts = append(ep.Facts, fact("Port", fmt.Sprintf("%d/%d", d.Proto, d.Port)))
+		ep.Facts = append(ep.Facts, fact("Port", protoName(d.Proto)+"/"+strconv.Itoa(d.Port)))
 	}
 	if d.Conns > 0 {
-		ep.Facts = append(ep.Facts, fact("Connections", fmt.Sprintf("%d", d.Conns)), fact("Bytes", fmt.Sprintf("%d", d.Bytes)))
+		ep.Facts = append(ep.Facts, fact("Connections", fmt.Sprintf("%d", d.Conns)), fact("Bytes", bytesText(d.Bytes)))
 	}
 	hops = append(hops, ep)
 
