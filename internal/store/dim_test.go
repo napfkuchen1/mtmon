@@ -85,3 +85,23 @@ func TestDBGrowthForecast(t *testing.T) {
 		t.Error("db size")
 	}
 }
+
+func TestDBGrowthSurvivesRestartDip(t *testing.T) {
+	st, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	now := time.Now().Unix()
+	// steady growth with a checkpoint dip right before the last sample
+	for i := int64(0); i < 24; i++ {
+		b := 10_000_000 + i*1_000_000
+		if i == 23 {
+			b = 10_000_000
+		}
+		st.DB.Exec(`INSERT INTO db_size_log VALUES(?,?)`, now-(24-i)*3600, b)
+	}
+	if g, ok, h := st.DBGrowthInfo(); !ok || g <= 0 || h < 20 {
+		t.Errorf("growth %d ok=%v span=%dh", g, ok, h)
+	}
+}
