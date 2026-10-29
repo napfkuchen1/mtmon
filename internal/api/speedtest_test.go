@@ -149,8 +149,6 @@ func TestUpstreamListIsNeverNull(t *testing.T) {
 func TestTimeZoneAPI(t *testing.T) {
 	ts, s := newTestServer(t)
 	_, c := login(t, ts, "test-password-1")
-	orig := time.Local
-	t.Cleanup(func() { time.Local = orig })
 	put := func(body string) (int, string) {
 		req, _ := http.NewRequest("PUT", ts.URL+"/api/timezone", strings.NewReader(body))
 		r, err := c.Do(req)
@@ -165,22 +163,24 @@ func TestTimeZoneAPI(t *testing.T) {
 		t.Fatalf("unknown zone: %d", code)
 	}
 	code, b := put(`{"zone":"Europe/Berlin"}`)
-	if code != 200 || !strings.Contains(b, `"zone":"Europe/Berlin"`) || !strings.Contains(b, `"set":true`) || s.St.GetMeta("timezone") != "Europe/Berlin" {
+	if code != 200 || !strings.Contains(b, `"configured":"Europe/Berlin"`) || !strings.Contains(b, `"set":true`) || s.St.GetMeta("timezone") != "Europe/Berlin" {
 		t.Fatalf("%d %s", code, b)
 	}
-	if time.Local.String() != "Europe/Berlin" {
-		t.Fatal(time.Local)
+	if !strings.Contains(b, `"restart_required":true`) {
+		t.Fatalf("a changed zone applies after a restart: %s", b)
 	}
-	// an anchor read through time.Local follows the setting, including across the DST switch of 2026-10-25 (03:00 -> 02:00)
-	before := time.Date(2026, 10, 24, 18, 21, 0, 0, time.Local)
-	after := time.Date(2026, 10, 26, 18, 21, 0, 0, time.Local)
+	// start-up applies the stored zone to time.Local, so an 18:21 anchor means 18:21 there, including across the
+	// DST switch of 2026-10-25 (03:00 -> 02:00)
+	berlin, _ := time.LoadLocation(s.St.GetMeta("timezone"))
+	before := time.Date(2026, 10, 24, 18, 21, 0, 0, berlin)
+	after := time.Date(2026, 10, 26, 18, 21, 0, 0, berlin)
 	if _, o := before.Zone(); o != 7200 {
 		t.Fatalf("summer offset %d", o)
 	}
 	if _, o := after.Zone(); o != 3600 || before.UTC().Hour() != 16 || after.UTC().Hour() != 17 {
 		t.Fatalf("winter offset %d, %v %v", o, before.UTC(), after.UTC())
 	}
-	if code, _ := put(`{"zone":""}`); code != 200 || time.Local != orig {
-		t.Fatalf("reset: %d %v", code, time.Local)
+	if code, _ := put(`{"zone":""}`); code != 200 || s.St.GetMeta("timezone") != "" {
+		t.Fatalf("reset: %d", code)
 	}
 }

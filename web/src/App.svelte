@@ -110,7 +110,7 @@
       try {
         const z = await api('/timezone')
         const b = Intl.DateTimeFormat().resolvedOptions().timeZone
-        if (!z.set && b && b !== z.zone) await api('/timezone', { method: 'PUT', body: { zone: b } })
+        if (!z.set && b && -new Date().getTimezoneOffset() !== z.offset_min) await api('/timezone', { method: 'PUT', body: { zone: b } })
       } catch {}
     })()
   })
