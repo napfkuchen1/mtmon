@@ -1,0 +1,1 @@
+[{".id":"*1","interface":"wifi2","mac-address":"AA:BB:CC:00:11:22","action":"accept","comment":"media box","disabled":"false"},{".id":"*2","interface":"*61","mac-address":"AA:BB:CC:00:11:22","action":"reject","comment":"keep media box off 2.4 GHz","disabled":"false"}]

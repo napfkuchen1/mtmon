@@ -63,6 +63,9 @@ func TestProbeFixtureCAPsMAN(t *testing.T) {
 	if k.Update.Latest != "7.16.1" || len(k.Addresses) != 2 || len(k.Packages) != 2 {
 		t.Errorf("update %+v addresses %v packages %v", k.Update, k.Addresses, k.Packages)
 	}
+	if len(k.Dangling) != 1 || k.Dangling[0].Menu != "/interface/wifi/access-list" || k.Dangling[0].Value != "*61" || k.Dangling[0].Action != "reject" || k.Dangling[0].Comment == "" {
+		t.Errorf("dangling refs: %+v", k.Dangling)
+	}
 	if k.Flow.Supported || k.Flow.Targets == nil || k.Certs == nil {
 		t.Errorf("lists must be empty, not nil: %+v", k.Flow)
 	}
