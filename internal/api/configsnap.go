@@ -118,7 +118,7 @@ func (s *Server) configHistory(w http.ResponseWriter, r *http.Request) {
 			jerr(w, 404, "unknown snapshot")
 			return
 		}
-		out["changes"], out["from"], out["to"] = store.DiffConfig(a, b), from, to
+		out["changes"], out["from"], out["to"] = store.DiffConfig(scrubStored(a), scrubStored(b)), from, to
 	}
 	jsonOut(w, out)
 }
