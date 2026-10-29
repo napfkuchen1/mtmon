@@ -1,6 +1,7 @@
 <script>
   import { app, checkSession, parseHash, go, openLive, closeLive, applyTheme, setTheme, setRange, setPref, toast } from './lib/state.svelte.js'
   import { api } from './lib/api.js'
+  import { collapsible, foldable, foldAll } from './lib/collapse.js'
   import { t, tr, i18n } from './lib/i18n.svelte.js'
   import Login from './pages/Login.svelte'
   import Overview from './pages/Overview.svelte'
@@ -172,6 +173,9 @@
         <div class="spacer"></div>
         <button class="btn sm" title={t('Density: compact / comfortable')} aria-label={t('Density')} onclick={() => setPref('density', app.density === 'compact' ? 'comfortable' : 'compact')}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{#if app.density === 'compact'}<path d="M12 3v5m0 0l-3-3m3 3l3-3M12 21v-5m0 0l-3 3m3-3l3 3M4 12h16"/>{:else}<path d="M12 8V3m0 0L9 6m3-3l3 3M12 16v5m0 0l-3-3m3 3l3-3M4 12h16"/>{/if}</svg></button>
+        {#if foldable(app.route.name)}
+          <span class="foldbtns"><button class="btn sm" title={t('Collapse all cards')} aria-label={t('Collapse all cards')} onclick={() => foldAll(true)}>▴</button><button class="btn sm" title={t('Expand all cards')} aria-label={t('Expand all cards')} onclick={() => foldAll(false)}>▾</button></span>
+        {/if}
         <button class="btn sm srch" onclick={() => (palette = true)} aria-label={t('Search')}>🔍 {t('Search')} <kbd>Ctrl K</kbd></button>
         {#if upd?.available}<a class="vbadge mobv" href="#/settings/updates">{t('Update {v}', { v: vlabel(upd.latest) })}</a>{/if}
         {#if showRange}
@@ -182,7 +186,7 @@
           </div>
         {/if}
       </header>
-      <div class="page">
+      <div class="page" use:collapsible={app.route.name}>
         {#if app.route.name === 'overview'}<Overview />
         {:else if Page}<Page />
         {:else if !pages[app.route.name]}<div class="empty">{t('Page not found.')} <a href="#/overview">{t('Go to Overview')}</a></div>{/if}
@@ -228,6 +232,7 @@
   main { min-width: 0; }
   header { display: flex; align-items: center; gap: 12px; padding: 12px 28px; border-bottom: 1px solid var(--border); background: var(--card); position: sticky; top: 0; z-index: 5; min-height: 57px; }
   .spacer { flex: 1; }
+  .foldbtns { display: inline-flex; gap: 4px; }
   .mob { display: none; }
   .page { padding: 24px 28px 48px; max-width: 1500px; }
   @media (min-width: 1900px) { .page { max-width: 2000px; margin-inline: auto; } }

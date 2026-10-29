@@ -150,3 +150,11 @@ table.fixed td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   .btn.sm { min-height: 32px; }
   td a:not(.btn), td button:not(.btn):not(.sw) { display: inline-block; min-height: 24px; min-width: 24px; padding: 4px 2px; }
 }
+
+/* collapsible cards (lib/collapse.js) */
+.card-h h2.foldable { cursor: pointer; user-select: none; }
+.card-h h2.foldable::before { content: "▾"; display: inline-block; width: 1.1em; color: var(--muted, #888); transition: transform .12s; }
+.card.folded > .card-h h2.foldable::before { transform: rotate(-90deg); }
+.card.folded > :not(.card-h) { display: none; }
+.card.folded > .card-h { border-bottom-color: transparent; }
+.card-h h2.foldable:focus-visible { outline: 2px solid var(--accent, currentColor); outline-offset: 2px; border-radius: 4px; }
