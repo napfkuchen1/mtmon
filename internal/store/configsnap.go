@@ -8,6 +8,7 @@ import (
 	"io"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 // Configuration snapshots (#46): the device's scrubbed REST lists as gzip JSON, newest configSnapKeep per device.
@@ -152,6 +153,26 @@ func DiffConfig(old, cur ConfigSnap) []ConfigChange {
 	return out
 }
 
+// idRenumbering: a reference like interface=*1A that RouterOS resolves differently after a CAP reconnect
+// (dynamic interfaces are re-created with new internal ids). Nobody edited the rule, so it is no change.
+func idRenumbering(a, b string) bool {
+	return a != "" && b != "" && (isRouterID(a) || isRouterID(b)) && (isRouterID(a) && isRouterID(b) || isCapIface(a) || isCapIface(b))
+}
+
+func isRouterID(s string) bool {
+	if len(s) < 2 || s[0] != '*' {
+		return false
+	}
+	for _, c := range s[1:] {
+		if !(c >= '0' && c <= '9' || c >= 'A' && c <= 'F') {
+			return false
+		}
+	}
+	return true
+}
+
+func isCapIface(s string) bool { return strings.HasPrefix(s, "cap-") }
+
 func fieldsOf(o, n map[string]string) []ConfigField {
 	keys := map[string]bool{}
 	for k := range o {
@@ -169,7 +190,7 @@ func fieldsOf(o, n map[string]string) []ConfigField {
 	sort.Strings(ks)
 	f := []ConfigField{}
 	for _, k := range ks {
-		if o[k] != n[k] {
+		if o[k] != n[k] && !idRenumbering(o[k], n[k]) {
 			f = append(f, ConfigField{Key: k, Old: o[k], New: n[k]})
 		}
 	}

@@ -44,3 +44,19 @@ func TestConfigSnapRoundTripDiffAndKeep(t *testing.T) {
 		t.Errorf("kept %d, want %d", n, configSnapKeep)
 	}
 }
+
+func TestDiffConfigIgnoresIDRenumbering(t *testing.T) {
+	a := ConfigSnap{"/interface/wifi/access-list": {{".id": "*1", "interface": "*1A", "action": "reject"}}}
+	b := ConfigSnap{"/interface/wifi/access-list": {{".id": "*1", "interface": "*2B", "action": "reject"}}}
+	if ch := DiffConfig(a, b); len(ch) != 0 {
+		t.Fatalf("id renumbering is no change: %+v", ch)
+	}
+	c := ConfigSnap{"/interface/wifi/access-list": {{".id": "*1", "interface": "cap-wifi1", "action": "reject"}}}
+	if ch := DiffConfig(a, c); len(ch) != 0 {
+		t.Fatalf("*ID resolved to cap name is no change: %+v", ch)
+	}
+	d := ConfigSnap{"/interface/wifi/access-list": {{".id": "*1", "interface": "*1A", "action": "accept"}}}
+	if ch := DiffConfig(a, d); len(ch) != 1 {
+		t.Fatalf("real edit must stay: %+v", ch)
+	}
+}
