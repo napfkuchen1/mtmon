@@ -756,7 +756,7 @@ func (m *Manager) deviceDepths() map[string]int {
 	}
 	var queue []string
 	for _, d := range m.Cfg.AllDevices() {
-		if s := m.snaps[d.Name]; s != nil && len(s.wan) > 0 {
+		if s := m.snaps[d.Name]; s != nil && len(s.wan) > 0 && !m.cascaded(d.Name) {
 			out[d.Name] = 0
 			queue = append(queue, d.Name)
 		}
@@ -815,7 +815,9 @@ func (m *Manager) Diagnostics() map[string]any {
 	}
 	ups := []Upstream{}
 	for name, s := range m.snaps {
-		ups = append(ups, upstreamsFor(name, s, m.En.Vendor)...)
+		if !m.cascaded(name) {
+			ups = append(ups, upstreamsFor(name, s, m.En.Vendor)...)
+		}
 	}
 	return map[string]any{"devices": devs, "uplink_ports": up, "upstream": ups}
 }
@@ -1206,12 +1208,42 @@ func (m *Manager) WANSummary() string {
 	defer m.mu.Unlock()
 	var parts []string
 	for name, s := range m.snaps {
+		if m.cascaded(name) { // its "WAN" is an uplink to another managed router, not the internet
+			continue
+		}
 		if l := wanList(s.wan); len(l) > 0 {
 			parts = append(parts, name+": "+strings.Join(l, ", "))
 		}
 	}
 	sort.Strings(parts)
 	return strings.Join(parts, "; ")
+}
+
+// cascaded reports whether a router's active default route points at an address of another managed device: it sits
+// behind that device (lab router, double NAT), so its WAN list is an internal uplink and no internet edge. Needs
+// m.mu held for m.snaps.
+func (m *Manager) cascaded(name string) bool {
+	s := m.snaps[name]
+	if s == nil {
+		return false
+	}
+	for _, r := range s.routes {
+		if r["dst-address"] != "0.0.0.0/0" || r.Bool("disabled") || (r["active"] != "" && !r.Bool("active")) {
+			continue
+		}
+		gw, _, _ := strings.Cut(r["gateway"], "%")
+		for other, o := range m.snaps {
+			if other == name || o == nil {
+				continue
+			}
+			for _, a := range o.addrs {
+				if ip, _, _ := strings.Cut(a["address"], "/"); ip == gw && gw != "" {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func wanList(m map[string]bool) []string {

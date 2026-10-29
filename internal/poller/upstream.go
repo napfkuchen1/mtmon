@@ -172,7 +172,9 @@ func (m *Manager) Upstreams() []Upstream {
 	sort.Strings(names)
 	out := []Upstream{}
 	for _, n := range names {
-		out = append(out, upstreamsFor(n, m.snaps[n], m.En.Vendor)...)
+		if !m.cascaded(n) {
+			out = append(out, upstreamsFor(n, m.snaps[n], m.En.Vendor)...)
+		}
 	}
 	return out
 }
