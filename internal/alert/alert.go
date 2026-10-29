@@ -32,6 +32,9 @@ type Engine struct {
 	Log *slog.Logger
 	// SelfName names the managed router/AP that owns a MAC; its traffic is reported under the device name
 	SelfName func(mac string) (string, bool)
+	// Depths gives the hops of every managed device from the gateway; with the stored neighbours it names the
+	// upstream device of an outage that took several devices down together
+	Depths func() map[string]int
 	start    time.Time
 
 	mu       sync.Mutex
@@ -311,11 +314,68 @@ func (e *Engine) flushOffline() {
 		reasons[reachReason(msg)]++
 	}
 	sort.Strings(names)
+	if root, deps, ok := e.outageRoot(pend); ok {
+		e.Raise("devices_unreachable", root, "warning", fmt.Sprintf("%s is unreachable (%s); %s unreachable too because their uplink runs through %s", root, pend[root], strings.Join(deps, ", "), root), 5*time.Minute)
+		return
+	}
 	hint := "several devices failing together point to a shared cause (the link between mtmon and the network, a switch or power), not to each device"
 	if reasons["refused"] == len(pend) {
 		hint = "all answer but refuse the API connection: check the API service / firewall on the devices"
 	}
 	e.Raise("devices_unreachable", "group", "warning", fmt.Sprintf("mtmon cannot reach %d devices: %s – %s", len(pend), strings.Join(names, ", "), hint), 5*time.Minute)
+}
+
+// outageRoot finds the one failed device the others hang below: the failing devices must form one connected
+// group in the topology, and the member nearest to the gateway is the cause. Without topology or depths (or when
+// the failures are separate islands) it reports nothing and the generic shared-cause text applies.
+func (e *Engine) outageRoot(pend map[string]string) (string, []string, bool) {
+	if e.Depths == nil || e.St == nil {
+		return "", nil, false
+	}
+	ns, err := e.St.Neighbors()
+	if err != nil {
+		return "", nil, false
+	}
+	adj := map[string][]string{}
+	for _, n := range ns {
+		_, a := pend[n.Device]
+		_, b := pend[n.Ident]
+		if a && b && n.Device != n.Ident {
+			adj[n.Device] = append(adj[n.Device], n.Ident)
+			adj[n.Ident] = append(adj[n.Ident], n.Device)
+		}
+	}
+	depth := e.Depths()
+	root, best := "", -1
+	for n := range pend {
+		d, ok := depth[n]
+		if !ok {
+			return "", nil, false
+		}
+		if best < 0 || d < best || (d == best && n < root) {
+			root, best = n, d
+		}
+	}
+	seen := map[string]bool{root: true}
+	for q := []string{root}; len(q) > 0; q = q[1:] {
+		for _, x := range adj[q[0]] {
+			if !seen[x] {
+				seen[x] = true
+				q = append(q, x)
+			}
+		}
+	}
+	if len(seen) != len(pend) {
+		return "", nil, false
+	}
+	var deps []string
+	for n := range pend {
+		if n != root {
+			deps = append(deps, n)
+		}
+	}
+	sort.Strings(deps)
+	return root, deps, true
 }
 
 // dynamicPrefixes name interfaces that RouterOS creates and removes by itself (tunnels, CAP/CAPsMAN, virtual

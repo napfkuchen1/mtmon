@@ -124,6 +124,7 @@ func run(args []string) error {
 	pm := poller.NewManager(cfg, st, hub, en, al, log)
 	pipe.SelfMAC = pm.SelfMACByAddr
 	al.SelfName = pm.SelfDevice
+	al.Depths = pm.Depths
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
