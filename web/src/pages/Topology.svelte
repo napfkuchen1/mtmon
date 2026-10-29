@@ -6,7 +6,6 @@
   import { bps, deviceKind } from '../lib/format.js'
   import { ICONS } from '../lib/icons.js'
   import Empty from '../lib/Empty.svelte'
-  import Upstream from '../lib/Upstream.svelte'
   import { modeText, labelText } from '../lib/upstream.js'
 
   const d = poll(() => api('/topology'), 5000)
@@ -87,7 +86,7 @@
     const top = upSrc.length ? 84 : 0
     const upNodes = upSrc.map((u, i) => {
       const x = W / 2 + (i - (upSrc.length - 1) / 2) * 200
-      return { u, x, y: 34, text: u.modes.map(modeText).join(' · '), a: { x, y: 58 }, b: { x: W / 2, y: 44 + top - 24 } }
+      return { u, x, y: 34, text: u.modes.map(modeText).join(' · '), tag: short(u.port + (u.modes.length ? ' · ' + u.modes.map(modeText).join(' / ') : ''), 40), a: { x, y: 58 }, b: { x: W / 2, y: 44 + top - 24 } }
     })
     pos.set(root.id, { x: W / 2, y: 44 + top })
     // pack groups into bands (rows of groups) that fit the width, then centre every band
@@ -159,7 +158,6 @@
   <div class="legend"><span><i style="background:var(--ok)"></i>{t('Wired')}</span>
     {#each ssids as sid}<span><i style="background:{palette[ssids.indexOf(sid) % palette.length]};border-radius:50%"></i>{sid}</span>{/each}</div></div>
 {#if d.error}<div class="warnbox">{tr(d.error)}</div>{/if}
-<Upstream items={d.data?.upstream || []} />
 <div class="card wrap" bind:clientWidth={W}>
   {#if d.data && d.data.nodes.length}
     <svg width={W} height={layout.height} role="img" aria-label={t('Network topology')}>
@@ -171,13 +169,13 @@
 
       {#each layout.upNodes as n (n.u.port + n.u.mac + n.u.ip)}
         <path d="M{n.a.x} {n.a.y} C{n.a.x} {(n.a.y + n.b.y) / 2}, {n.b.x} {(n.a.y + n.b.y) / 2}, {n.b.x} {n.b.y}" fill="none" stroke={portCol(n.u.port)} stroke-width="2.6" stroke-dasharray="2 4" opacity="0.85" />
-        <g transform="translate({(n.a.x + n.b.x) / 2},{(n.a.y + n.b.y) / 2})"><rect x={-(n.u.port.length * 3.4 + 12)} y="-9" width={n.u.port.length * 6.8 + 24} height="18" rx="9" fill="var(--card)" stroke={portCol(n.u.port)} stroke-width="1.6" /><text text-anchor="middle" y="4" font-size="10.5" font-weight="600" fill={portCol(n.u.port)}>{n.u.port}</text></g>
+        <g transform="translate({(n.a.x + n.b.x) / 2},{(n.a.y + n.b.y) / 2})"><rect x={-(n.tag.length * 3 + 12)} y="-9" width={n.tag.length * 6 + 24} height="18" rx="9" fill="var(--card)" stroke={portCol(n.u.port)} stroke-width="1.6" /><text text-anchor="middle" y="4" font-size="10.5" font-weight="600" fill={portCol(n.u.port)}>{n.tag}</text></g>
         <g transform="translate({n.x},{n.y})" class="node">
           <title>{labelText(n.u)}{n.u.ip ? ' · ' + n.u.ip : ''}{n.text ? ' · ' + n.text : ''}</title>
           <rect x="-96" y="-24" width="192" height="48" rx="11" fill="var(--card)" stroke="var(--border-2)" stroke-width="2" stroke-dasharray="5 3" />
           <g transform="translate(-86,-9) scale(.75)" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d={ICONS.network} /></g>
           <text x="-62" y="-4" font-size="12.5" font-weight="700" fill="var(--text)">{short(labelText(n.u), 24)}</text>
-          <text x="-62" y="13" font-size="10.5" fill="var(--muted)">{short((n.u.ip ? n.u.ip + ' · ' : '') + n.text, 30)}</text>
+          <text x="-62" y="13" font-size="10.5" fill="var(--muted)">{n.u.ip || ''}</text>
         </g>
       {/each}
 
