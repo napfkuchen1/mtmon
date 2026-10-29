@@ -93,6 +93,8 @@ type Caps struct {
 	IPv6PD      bool  `json:"ipv6_pd"`
 	RAValid     int64 `json:"ra_valid_s,omitempty"`
 	RAPreferred int64 `json:"ra_preferred_s,omitempty"`
+	// Dangling: rows that reference an interface that is gone (see DanglingRef); empty when none or not readable.
+	Dangling []DanglingRef `json:"dangling_refs,omitempty"`
 }
 
 // ExportProbe is poller.ExportResult plus the time it was taken (unix, 0 = never probed).
@@ -241,6 +243,7 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 		}
 	}
 	k.probeFirewall(ctx, c)
+	k.probeDanglingRefs(ctx, c)
 	k.probeServices(ctx, c)
 	if k.Flow.Targets == nil {
 		k.Flow.Targets = []string{}

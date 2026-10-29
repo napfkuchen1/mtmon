@@ -100,6 +100,13 @@ type Caps struct {
 	CAP, CAPsMAN               bool  // device is a CAP / runs the CAPsMAN controller
 	IPv6PD                     bool  // a DHCPv6 client requests a prefix: the IPv6 prefix is dynamic
 	RAValid, RAPreferred       int64 // lifetimes of the router advertisements ("nd prefix default"), seconds, 0 = unknown
+	Dangling                   []DanglingRef
+}
+
+// DanglingRef is a row (access-list, firewall rule, list member ...) that names a removed interface by its ID.
+type DanglingRef struct {
+	Menu, ID, Field, Value, Comment, Action string
+	Disabled                                bool
 }
 
 // Cert is a certificate used by a router service (www-ssl, api-ssl).
