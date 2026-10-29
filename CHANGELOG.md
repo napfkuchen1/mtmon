@@ -11,6 +11,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 ## [0.20.2] - 2026-10-29
 
 ### Fixed
+- A router cascaded behind another managed router (default route via that router's address, #155) is no longer treated as an internet WAN: not in the speed-test `wan` field, not an upstream/modem hop, not a depth-0 gateway.
 - DNS redirect detection (#140): `redirected` no longer flips when the router's rule counters reset (an active dst-nat/redirect rule is enough). Rules limited to a tunnel interface (back-to-home, WireGuard) now cover VPN clients (`VPN:<ip>`), not LAN clients.
 - Suggestion "uses a DNS server that does not exist": the router's own link-local address (announced as DNS server in router advertisements) is no longer reported, also for sightings stored before.
 - Configuration history: the change list also hides runtime fields (STP, NTP, pool, scheduler) for snapshots stored before the filter existed, so the old entries disappear at once instead of only for new snapshots.
