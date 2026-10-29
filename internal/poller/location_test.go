@@ -178,7 +178,7 @@ func TestSelfByAddr(t *testing.T) {
 	}
 	st.SetDeviceCaps("gw", []byte(`{"addresses":["192.168.88.1/24","fd00::1/64"]}`))
 	m.self["AA:BB:CC:11:22:33"] = "gw"
-	for ip, want := range map[string]bool{"10.0.0.1": true, "192.168.88.1": true, "fd00::1": true, "fe80::a8bb:ccff:fe11:2233": true, "192.168.88.50": false, "fe80::1": false} {
+	for ip, want := range map[string]bool{"10.0.0.1": true, "192.168.88.1": true, "fd00::1": true, "fe80::a8bb:ccff:fe11:2233": true, "2001:db8:1:2:200:ff:fe00:0": true, "2001:db8:1:2:a8bb:ccff:fe99:9999": false, "192.168.88.50": false, "fe80::1": false} {
 		if dev, ok := m.SelfByAddr(ip); ok != want || (ok && dev != "gw") {
 			t.Errorf("%s: %q %v", ip, dev, ok)
 		}

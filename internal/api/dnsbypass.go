@@ -59,7 +59,10 @@ func (s *Server) isSelfMAC(mac string) bool {
 	if s.Mgr == nil {
 		return false
 	}
-	_, ok := s.Mgr.SelfDevice(mac)
+	if _, ok := s.Mgr.SelfDevice(mac); ok {
+		return true
+	}
+	_, ok := s.Mgr.SelfByAddr(mac) // pseudo-clients keyed by an address (old PPPoE addresses of the router)
 	return ok
 }
 
