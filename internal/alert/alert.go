@@ -58,6 +58,8 @@ type Engine struct {
 	ifFolded    map[string]bool        // device/iface -> the link-down was folded into the alert of the device behind it
 	resolved    map[string]bool        // device -> its offline alert was closed on return (a reboot note may follow)
 	bursts      map[string][]time.Time // router log patterns: key -> recent occurrences
+	roams       map[string]roamConn    // client MAC -> its last Wi-Fi connect (see events_roam.go)
+	roamDHCP    map[string]*roamDHCP   // client MAC -> failed DHCP offers right after such a connect
 
 	Suggest func(store.Client) string // group name suggested for a client without a group (set by main), "" = none
 	hc      *http.Client

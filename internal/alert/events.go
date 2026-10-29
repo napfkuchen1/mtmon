@@ -81,12 +81,13 @@ func (e *Engine) LogEvent(ev store.LogEvent) {
 				fmt.Sprintf("Repeated failed logins on %s from %s (last user %q via %s, 5 or more in 10 min)", dev, m[2], m[1], m[3]), 30*time.Minute)
 		}
 	}
-	if hasTopic(ev.Topics, "dhcp") && reDHCPFail.MatchString(msg) {
+	if hasTopic(ev.Topics, "dhcp") && reDHCPFail.MatchString(msg) && !e.dhcpAfterRoam(ev.TS, msg) {
 		if e.burst("dhcp|"+dev, 10*time.Minute, 3) {
 			e.Raise("dhcp_problem", dev, "warning", fmt.Sprintf("DHCP on %s has trouble handing out addresses: %s", dev, msg), time.Hour)
 		}
 	}
 	if (hasTopic(ev.Topics, "wireless") || hasTopic(ev.Topics, "wifi")) && !hasTopic(ev.Topics, "debug") {
+		e.noteWiFiConnect(ev.TS, dev, msg)
 		if m := reWiFiDisc.FindStringSubmatch(msg); m != nil {
 			mac := strings.ToUpper(m[1])
 			if e.burst("wifi|"+dev+"|"+mac, 5*time.Minute, 6) {

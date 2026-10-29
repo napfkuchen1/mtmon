@@ -71,3 +71,48 @@ func TestCLICommandErrorIsNotAScriptError(t *testing.T) {
 		t.Errorf("script error stays a warning: %+v", (*got)[1])
 	}
 }
+
+func TestDHCPFailAfterRoamIsAWiFiNote(t *testing.T) {
+	const mac = "AA:BB:CC:00:11:22"
+	e, got := newEngine(t)
+	at := func(ts int64, topics, msg string) {
+		ev := logEv("gw", topics, "info", msg)
+		ev.TS = ts
+		e.LogEvent(ev)
+	}
+	at(1000, "wireless,info", mac+"@wlan1: connected, signal strength -76")
+	for i := int64(0); i < 5; i++ {
+		at(1001+i*10, "dhcp,info", "dhcp1 offering lease 192.168.88.200 for "+mac+" without success")
+	}
+	if kinds(*got) != "wifi_roam_dhcp/"+mac {
+		t.Fatalf("roam: %s", kinds(*got))
+	}
+	a := (*got)[0]
+	if a.Severity != "info" || !strings.Contains(a.Msg, "roamed to gw") || !strings.Contains(a.Msg, "-76 dBm") || !strings.Contains(a.Msg, "not the DHCP server") {
+		t.Errorf("note: %+v", a)
+	}
+	// the same failures without a roam in front stay a DHCP problem
+	e2, got2 := newEngine(t)
+	for i := int64(0); i < 3; i++ {
+		ev := logEv("gw", "dhcp,info", "info", "dhcp1 offering lease 192.168.88.200 for "+mac+" without success")
+		ev.TS = 5000 + i
+		e2.LogEvent(ev)
+	}
+	if kinds(*got2) != "dhcp_problem/gw" {
+		t.Fatalf("no roam: %s", kinds(*got2))
+	}
+	// a connect long before the failures is no roam either
+	e3, got3 := newEngine(t)
+	for _, ev := range []struct {
+		ts     int64
+		topics string
+		msg    string
+	}{{1000, "wireless,info", mac + "@wlan1: connected"}, {1100, "dhcp,info", "x offering lease 1.2.3.4 for " + mac + " without success"}, {1101, "dhcp,info", "x offering lease 1.2.3.4 for " + mac + " without success"}, {1102, "dhcp,info", "x offering lease 1.2.3.4 for " + mac + " without success"}} {
+		l := logEv("gw", ev.topics, "info", ev.msg)
+		l.TS = ev.ts
+		e3.LogEvent(l)
+	}
+	if kinds(*got3) != "dhcp_problem/gw" {
+		t.Fatalf("old connect: %s", kinds(*got3))
+	}
+}
