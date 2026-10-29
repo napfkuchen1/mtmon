@@ -1,9 +1,12 @@
 // German translations of backend text – router event log
 export default {
-  "system_critical": "Wichtiges System-Ereignis", "script_error": "Skriptfehler", "cli_error": "Fehler im Befehl", "login_failures": "Fehlgeschlagene Logins",
+  "system_critical": "Wichtiges System-Ereignis", "script_error": "Skriptfehler", "cli_error": "Fehler im Befehl", "wifi_roam_dhcp": "WLAN: Adresse nach Roaming", "login_failures": "Fehlgeschlagene Logins",
   "dhcp_problem": "DHCP-Problem", "wifi_disconnects": "WLAN-Verbindungsabbrüche", "wireguard_handshake": "WireGuard-Handshake",
   "{dev} logged an important event ({topics}): {msg}": "{dev} hat ein wichtiges Ereignis protokolliert ({topics}): {msg}",
   "Command from {user}@{src} failed on {dev}: {why}": "Befehl von {user}@{src} auf {dev} fehlgeschlagen: {why}",
+  "{mac} roamed to {ap} and got no DHCP address for {sec} s ({n} offers without success)": "{mac} ist zu {ap} gewechselt und hat {sec} s lang keine DHCP-Adresse bekommen ({n} Angebote ohne Erfolg)",
+  "the Wi-Fi link after the roam is the problem, not the DHCP server": "das Problem ist die WLAN-Verbindung nach dem Roaming, nicht der DHCP-Server",
+  "signal on the new AP: {sig} dBm": "Signal am neuen AP: {sig} dBm",
   "A script on {dev} failed: {msg}": "Ein Skript auf {dev} ist fehlgeschlagen: {msg}",
   "Repeated failed logins on {dev} from {src} (last user {user} via {via}, 5 or more in 10 min)": "Wiederholte fehlgeschlagene Logins auf {dev} von {src} (zuletzt Benutzer {user} über {via}, 5 oder mehr in 10 Min.)",
   "DHCP on {dev} has trouble handing out addresses: {msg}": "DHCP auf {dev} hat Probleme beim Vergeben von Adressen: {msg}",
