@@ -7,4 +7,6 @@ export default {
   "{size} per day": "{size} pro Tag",
   "full in about {n} days": "voll in etwa {n} Tagen",
   "not enough samples yet": "noch zu wenig Messwerte",
+  "not enough data yet ({n} h of samples)": "noch zu wenig Daten ({n} h Messwerte)",
+  "no growth measured": "kein Wachstum gemessen",
 }

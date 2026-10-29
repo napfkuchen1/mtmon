@@ -737,7 +737,7 @@ func (s *Server) system(w http.ResponseWriter, r *http.Request) {
 		disk = sysinfo.Disk
 	}
 	free, total, _ := disk(s.Cfg.DataDir)
-	growth, _ := s.St.DBGrowthPerDay()
+	growth, growthKnown, growthH := s.St.DBGrowthInfo()
 	daysLeft := -1 // -1: no growth or not enough samples yet
 	if growth > 0 {
 		daysLeft = int(free / growth)
@@ -752,6 +752,7 @@ func (s *Server) system(w http.ResponseWriter, r *http.Request) {
 		"learning_until": s.St.LearningUntil(), "learning_reason": s.St.LearningReason(),
 		"rss_bytes": sysinfo.RSS(), "cpu_pct": s.cpu.Percent(),
 		"data_dir_free_bytes": free, "data_dir_total_bytes": total, "db_growth_bytes_per_day": growth, "disk_days_left": daysLeft,
+		"db_growth_known": growthKnown, "db_sample_hours": growthH,
 	})
 }
 
