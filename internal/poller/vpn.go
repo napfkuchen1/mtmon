@@ -52,6 +52,9 @@ func vpnObservations(device string, peers []Row) []store.Observation {
 		} else if name == "" {
 			name = comment
 		}
+		if strings.HasPrefix(p["interface"], bthPrefix) && strings.TrimSpace(strings.TrimPrefix(comment, bthPrefix)) == "" && p["dynamic"] == "true" {
+			name = store.BTHDefaultPeer // dynamic peer without a user: the router's own default configuration
+		}
 		if name == "" {
 			name = host.String()
 		}

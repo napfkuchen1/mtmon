@@ -3,6 +3,8 @@ package advice
 import (
 	"fmt"
 	"strings"
+
+	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
 func init() { Rules = append(Rules, Rule{"vpn-peer-idle", ruleVPNPeerIdle}) }
@@ -21,6 +23,12 @@ func ruleVPNPeerIdle(s Snapshot) ([]Suggestion, string) {
 			continue
 		}
 		peers++
+		if c.Hostname == store.BTHDefaultPeer {
+			if c.Online || c.LastSeen-c.FirstSeen >= 300 {
+				out = append(out, bthDefaultUsed(c))
+			}
+			continue // never connected is normal for it, not an unused peer
+		}
 		if c.Online || c.LastSeen == 0 || c.LastSeen >= cut || c.FirstSeen >= cut {
 			continue // connected, or watched for less than the idle time
 		}
@@ -45,4 +53,19 @@ func ruleVPNPeerIdle(s Snapshot) ([]Suggestion, string) {
 		return nil, "no WireGuard peers known"
 	}
 	return out, ""
+}
+
+// bthDefaultUsed: the default Back to Home peer got a handshake, so somebody holds its config or QR code.
+func bthDefaultUsed(c Client) Suggestion {
+	return Suggestion{
+		Subject: c.MAC, Severity: SevWarning, Category: CatHygiene, Link: "client/" + c.MAC, Confidence: "medium",
+		Title:    "The Back to Home default configuration is in use",
+		Why:      "RouterOS creates one Back to Home peer itself; its config or QR code is in /ip cloud. Normally nobody uses it. A handshake means somebody has that config.",
+		Evidence: []string{fmt.Sprintf("Default peer %s (tunnel address %s) on %s has connected", c.MAC, c.IP, c.Device)},
+		Steps: []string{
+			"Find out who uses it. A person who should have access gets their own Back to Home user in the MikroTik app (Back to Home, Users).",
+			"To invalidate the default key, Back to Home has to be reset on the router. All Back to Home users then get new keys.",
+		},
+		Limits: "mtmon recognises the default peer as the dynamic Back to Home peer without a user name.",
+	}
 }

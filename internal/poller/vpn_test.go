@@ -68,3 +68,13 @@ func TestVPNAliases(t *testing.T) {
 		t.Errorf("IPv6-only peer: %+v", obs[1])
 	}
 }
+
+func TestVPNBTHDefaultPeer(t *testing.T) {
+	obs := vpnObservations("gw", []Row{
+		{"interface": "back-to-home-vpn", "comment": "back-to-home-vpn", "dynamic": "true", "allowed-address": "192.168.216.2/32"},
+		{"interface": "back-to-home-vpn", "comment": "back-to-home-vpn alice", "dynamic": "true", "allowed-address": "192.168.216.3/32"},
+	})
+	if len(obs) != 2 || obs[0].Hostname != store.BTHDefaultPeer || obs[1].Hostname != "alice" {
+		t.Fatalf("%+v", obs)
+	}
+}
