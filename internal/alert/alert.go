@@ -26,11 +26,13 @@ type bootInfo struct {
 }
 
 type Engine struct {
-	Cfg   *config.Config
-	St    *store.Store
-	Hub   *live.Hub
-	Log   *slog.Logger
-	start time.Time
+	Cfg *config.Config
+	St  *store.Store
+	Hub *live.Hub
+	Log *slog.Logger
+	// SelfName names the managed router/AP that owns a MAC; its traffic is reported under the device name
+	SelfName func(mac string) (string, bool)
+	start    time.Time
 
 	mu       sync.Mutex
 	last     map[string]time.Time
@@ -653,6 +655,11 @@ func (e *Engine) ignored(mac string) bool {
 
 // who is the best human name for a client MAC, with the MAC itself in brackets.
 func (e *Engine) who(mac string) string {
+	if e.SelfName != nil {
+		if n, ok := e.SelfName(mac); ok && n != "" {
+			return n
+		}
+	}
 	if c, err := e.St.Client(mac); err == nil && c != nil {
 		n := c.Label
 		if n == "" {
