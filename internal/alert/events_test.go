@@ -55,3 +55,19 @@ func TestRouterLogAlerts(t *testing.T) {
 		t.Fatalf("dhcp/wg: %s", kinds(*got4))
 	}
 }
+
+func TestCLICommandErrorIsNotAScriptError(t *testing.T) {
+	e, got := newEngine(t)
+	e.LogEvent(logEv("gw", "script,error,debug", "error", "(ssh-cmd:daniel@192.168.88.2) bad command name foo (line 1 column 1)"))
+	e.LogEvent(logEv("gw", "script,error", "error", "script error: failing script"))
+	if kinds(*got) != "cli_error/gw/daniel,script_error/gw" {
+		t.Fatalf("kinds: %s", kinds(*got))
+	}
+	a := (*got)[0]
+	if a.Severity != "info" || a.Msg != "Command from daniel@192.168.88.2 failed on gw: bad command name foo (line 1 column 1)" {
+		t.Errorf("cli alert: %+v", a)
+	}
+	if (*got)[1].Severity != "warning" {
+		t.Errorf("script error stays a warning: %+v", (*got)[1])
+	}
+}
