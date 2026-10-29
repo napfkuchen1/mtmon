@@ -103,6 +103,17 @@
     run()
     return () => { stop = true; clearTimeout(timer); window.removeEventListener('mtmon-suggestions-changed', again) }
   })
+  // first login: take over the browser's time zone unless one was chosen (the container usually runs in UTC)
+  $effect(() => {
+    if (!app.user) return
+    ;(async () => {
+      try {
+        const z = await api('/timezone')
+        const b = Intl.DateTimeFormat().resolvedOptions().timeZone
+        if (!z.set && b && -new Date().getTimezoneOffset() !== z.offset_min) await api('/timezone', { method: 'PUT', body: { zone: b } })
+      } catch {}
+    })()
+  })
   let upd = $state(null)
   $effect(() => {
     if (!app.user) return

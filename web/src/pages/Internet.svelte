@@ -6,6 +6,8 @@
   import { bps, bytes, ago } from '../lib/format.js'
   import { t, tr, i18n } from '../lib/i18n.svelte.js'
   import Chart from '../lib/Chart.svelte'
+  let tzName = $state('')
+  api('/timezone').then(x => (tzName = x.zone)).catch(() => {})
   import Empty from '../lib/Empty.svelte'
   import Upstream from '../lib/Upstream.svelte'
   const inet = poll(() => api('/internet?range=24h'), 60000)
@@ -187,8 +189,8 @@
               <span class="inl">{#each [['', 'auto'], ['4', 'IPv4'], ['6', 'IPv6']] as [v, label]}<label class="chk"><input type="checkbox" checked={form.families.includes(v)} onchange={() => (form.families = toggle(form.families, v))} /> {label}</label>{/each}</span></div>
             <label class="fld"><span>{t('Interval')}</span><select class="input" bind:value={form.interval_min}>{#each intervals as [v, label]}<option value={v}>{t(label)}</option>{/each}</select></label>
             <div class="fld"><span>{t('Only between (local time, empty = any time)')}</span>
-              <span class="inl"><input class="input sm" type="time" bind:value={form.window_from} /> – <input class="input sm" type="time" bind:value={form.window_to} /></span></div>
-            <label class="fld"><span>{t('Start time (runs land on this time + n × interval, empty = interval after the last test)')}</span><input class="input sm" type="time" bind:value={form.start_at} /></label>
+              <span class="inl"><input class="input sm" type="time" bind:value={form.window_from} /> – <input class="input sm" type="time" bind:value={form.window_to} /> <span class="muted">{tzName}</span></span></div>
+            <label class="fld"><span>{t('Start time (runs land on this time + n × interval, empty = interval after the last test)')}</span><input class="input sm" type="time" bind:value={form.start_at} /> <span class="muted">{tzName}</span></label>
             <label class="fld"><span>{t('Random delay up to (minutes)')}</span><input class="input sm" type="number" min="0" max="240" bind:value={form.jitter_min} /></label>
             {@render actions(SECTIONS[0][2])}
           </div>
