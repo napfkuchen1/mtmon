@@ -2,6 +2,7 @@ package advice
 
 import (
 	"fmt"
+	"net/netip"
 	"time"
 )
 
@@ -16,6 +17,9 @@ func ruleDNSGhost(s Snapshot) ([]Suggestion, string) {
 	for _, g := range s.GhostDNS7d() {
 		if g.Flows < 3 {
 			continue // a one-off is no pattern
+		}
+		if a, err := netip.ParseAddr(g.IP); err == nil && a.IsLinkLocalUnicast() {
+			continue // the router's own link-local address (RDNSS), also in sightings stored before this was excluded
 		}
 		name := nameOf(idx, g.MAC)
 		out = append(out, Suggestion{

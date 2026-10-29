@@ -9,7 +9,7 @@ import (
 func TestRuleDNSGhost(t *testing.T) {
 	d := &Data{NowT: time.Now(), Traffic: []ClientTraffic{{MAC: "AA:BB:CC:00:00:50", Up: 1}},
 		Cls:    []Client{{MAC: "AA:BB:CC:00:00:50", Hostname: "pc-office"}},
-		Ghosts: []GhostDNS{{MAC: "AA:BB:CC:00:00:50", IP: "fd00:1a2b::1", Flows: 120, Last: time.Now().Unix()}, {MAC: "AA:BB:CC:00:00:51", IP: "10.9.9.9", Flows: 1}}}
+		Ghosts: []GhostDNS{{MAC: "AA:BB:CC:00:00:50", IP: "fd00:1a2b::1", Flows: 120, Last: time.Now().Unix()}, {MAC: "AA:BB:CC:00:00:51", IP: "10.9.9.9", Flows: 1}, {MAC: "AA:BB:CC:00:00:50", IP: "fe80::1", Flows: 500, Last: time.Now().Unix()}}}
 	out, skip := ruleDNSGhost(d)
 	if skip != "" || len(out) != 1 {
 		t.Fatalf("got %d suggestions, skip %q", len(out), skip)

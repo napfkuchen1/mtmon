@@ -212,6 +212,9 @@ func (p *Pipeline) ghostDNSReply(r flow.Record, src, dst netip.Addr, ts int64) (
 	if r.SrcPort != 53 || (r.Proto != 17 && r.Proto != 6) || src.IsMulticast() || src.IsUnspecified() {
 		return false, ""
 	}
+	if src.IsLinkLocalUnicast() { // the router announces its own link-local address as RDNSS; clients learn it from the RA, it is no imaginary server
+		return false, ""
+	}
 	if p.macOf(src.String(), ts) != "" {
 		return false, ""
 	}
