@@ -73,6 +73,8 @@ func (r *Runner) providers(s Settings) []Provider {
 			out = append(out, Cloudflare{})
 		case "hetzner":
 			out = append(out, Hetzner{Location: s.Hetzner})
+		case "ndt7":
+			out = append(out, NDT7{})
 		case "ookla":
 			// without the CLI every round would only store a failed row; Status.OoklaMissing tells the UI
 			if o := (Ookla{DataDir: r.DataDir, ServerID: s.OoklaID}); o.Installed() {

@@ -11,7 +11,11 @@ The first section below lists everything mtmon already covers. Later releases ad
 ## [0.20.1] - 2026-10-29
 
 ### New
+- Speed test provider "M-Lab NDT7": open protocol, the nearest server comes from the M-Lab locate API, download, upload and latency, no extra binary. It is opt-in because M-Lab publishes every result including your public IP address; the settings say so. Cloudflare stays the default.
 - Suggestion "<client> uses a DNS server that does not exist": a device with a stale static DNS entry (for example an old IPv6 address) only works because the router redirects DNS and answers for the missing server. mtmon names the client, the missing address and the fix (set DNS to automatic).
+
+### Changed
+- Ookla stays an opt-in you install yourself: mtmon does not ship the Ookla CLI (its licence allows only personal, non-commercial use on a single personal computer and forbids redistribution). The settings now show this in short next to the checkbox and the README explains why.
 
 ### Fixed
 - The router's own traffic is no longer booked on a client: a PPPoE or DHCPv6 address that changes (nightly reconnect) is picked up on the next poll instead of the next daily probe, `00:00:00:00:00:00` (PPPoE and tunnel interfaces have no MAC) is never used as a router key, and the DNS-bypass suggestion, the other port-based suggestions and the traffic-spike alert skip or name the router itself instead of listing its WAN-port MAC.
