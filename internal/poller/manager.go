@@ -735,6 +735,13 @@ func (m *Manager) uplinkPorts() map[string]bool {
 	return out
 }
 
+// Depths is deviceDepths for callers outside the manager's lock.
+func (m *Manager) Depths() map[string]int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.deviceDepths()
+}
+
 // deviceDepths counts the hops of every managed device from the gateway (the device with WAN interfaces, else the
 // routers) along the neighbor links. Needs m.mu held for m.snaps. Unreachable devices are absent.
 func (m *Manager) deviceDepths() map[string]int {

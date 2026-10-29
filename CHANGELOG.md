@@ -17,6 +17,9 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Configuration history: the change list also hides runtime fields (STP, NTP, pool, scheduler) for snapshots stored before the filter existed, so the old entries disappear at once instead of only for new snapshots.
 - DNS bypass and usage lists: any address with the interface id of an interface without MAC (the PPPoE address of the router, also old ones) counts as the router itself, so stored rows from before the update disappear at once.
 
+### Changed
+- Outage alert (#157): when several devices fail together and they form one connected group in the topology, the single `devices_unreachable` alert names the device nearest the gateway as cause and lists the others as dependents (their uplink runs through it). The generic shared-cause text stays for unconnected failures.
+
 ## [0.20.1] - 2026-10-29
 
 ### New
