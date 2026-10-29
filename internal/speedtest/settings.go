@@ -20,7 +20,7 @@ const metaKey = "speedtest_settings"
 type Settings struct {
 	Enabled      bool     `json:"enabled"`
 	Paused       bool     `json:"paused"`    // keeps the schedule configured but runs nothing
-	Providers    []string `json:"providers"` // "cloudflare", "hetzner"
+	Providers    []string `json:"providers"` // "cloudflare", "hetzner", "ndt7", "ookla"
 	Families     []string `json:"families"`  // "4", "6" or "" (system choice); one test per family and provider
 	Hetzner      string   `json:"hetzner_server"`
 	OoklaID      int      `json:"ookla_server_id"` // 0 = automatic
@@ -48,7 +48,7 @@ var HetznerServers = map[string]string{
 	"ash": "ash-speed.hetzner.com", "hil": "hil-speed.hetzner.com", "sin": "sin-speed.hetzner.com",
 }
 
-var validProviders = map[string]bool{"cloudflare": true, "hetzner": true, "ookla": true}
+var validProviders = map[string]bool{"cloudflare": true, "hetzner": true, "ndt7": true, "ookla": true}
 
 // DefaultSettings is conservative on purpose: off, hourly when switched on, small tests, 50 % busy guard.
 func DefaultSettings() Settings {

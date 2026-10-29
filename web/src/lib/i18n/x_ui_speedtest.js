@@ -89,5 +89,7 @@ export default {
   "on {port} of {dev}": "an {port} von {dev}",
   "transfer net {net}": "Übergabenetz {net}",
   "double NAT": "doppeltes NAT",
-  "tunnel": "Tunnel"
+  "tunnel": "Tunnel",
+  "M-Lab publishes every test result, including your public IP address, as open data.": "M-Lab veröffentlicht jedes Testergebnis samt deiner öffentlichen IP-Adresse als offene Daten.",
+  "Ookla licence in short: personal, non-commercial use on a single personal computer; not on a router or server. Check that this fits before you enable it.": "Ookla-Lizenz kurz: private, nicht kommerzielle Nutzung auf einem einzelnen privaten Computer, nicht auf Router oder Server. Vor dem Aktivieren prüfen, ob das passt."
 }

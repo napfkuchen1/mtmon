@@ -145,9 +145,11 @@
         <div class="fld"><span>{t('Providers')}</span>
           <label class="chk"><input type="checkbox" checked={form.providers.includes('cloudflare')} onchange={() => (form.providers = toggle(form.providers, 'cloudflare'))} /> Cloudflare ({t('download, upload, latency')})</label>
           <label class="chk"><input type="checkbox" checked={form.providers.includes('hetzner')} onchange={() => (form.providers = toggle(form.providers, 'hetzner'))} /> Hetzner ({t('download only')})
-            <select class="input sm" bind:value={form.hetzner_server}>{#each x.hetzner_servers as s}<option value={s}>{s}</option>{/each}</select></label></div>
+            <select class="input sm" bind:value={form.hetzner_server}>{#each x.hetzner_servers as s}<option value={s}>{s}</option>{/each}</select></label>
+          <label class="chk"><input type="checkbox" checked={form.providers.includes('ndt7')} onchange={() => (form.providers = toggle(form.providers, 'ndt7'))} /> M-Lab NDT7 ({t('download, upload, latency')})</label>
+          {#if form.providers.includes('ndt7')}<span class="muted" style="font-weight:400">{t('M-Lab publishes every test result, including your public IP address, as open data.')}</span>{/if}</div>
         <div class="fld"><label class="chk"><input type="checkbox" checked={form.providers.includes('ookla')} onchange={() => (form.providers = toggle(form.providers, 'ookla'))} /> Ookla ({t('official CLI, download, upload, latency')})</label>
-          <span class="muted" style="font-weight:400">{t('mtmon does not ship the Ookla speedtest CLI: install it yourself (into the data directory under ookla/speedtest, or into PATH).')}</span>
+          <span class="muted" style="font-weight:400">{t('mtmon does not ship the Ookla speedtest CLI: install it yourself (into the data directory under ookla/speedtest, or into PATH).')} {t('Ookla licence in short: personal, non-commercial use on a single personal computer; not on a router or server. Check that this fits before you enable it.')}</span>
           {#if form.providers.includes('ookla') && status.ookla_missing}<span class="badge warn">{t('Ookla CLI not found: Ookla is skipped until it is installed.')}</span>{/if}
           {#if form.providers.includes('ookla')}
             <label class="chk"><input type="checkbox" bind:checked={form.ookla_accepted} /> {t('I accept the Ookla licence and privacy terms (needed to run it)')}</label>
