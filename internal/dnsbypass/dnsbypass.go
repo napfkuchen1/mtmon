@@ -54,18 +54,21 @@ type Client struct {
 }
 
 // RedirectFunc says whether the router redirects plain DNS of a protocol (17 udp, 6 tcp) and address family.
-type RedirectFunc func(proto int, v6 bool) bool
+type RedirectFunc func(proto int, v6, vpn bool) bool
 
 // RedirectsFrom builds a RedirectFunc from the routers' probed capabilities: some router has an active rule with
 // matched packets for that protocol and family.
 func RedirectsFrom(devs []advice.Device) RedirectFunc {
-	return func(proto int, v6 bool) bool {
+	return func(proto int, v6, vpn bool) bool {
 		for _, d := range devs {
 			c := d.Caps
 			if c == nil || (d.Role != "" && d.Role != "router") {
 				continue
 			}
 			switch {
+			case vpn && (proto == 17 && !v6 && c.DNSRedirectVPNUDP || proto == 6 && !v6 && c.DNSRedirectVPNTCP ||
+				proto == 17 && v6 && c.DNSRedirectVPNUDP6 || proto == 6 && v6 && c.DNSRedirectVPNTCP6):
+				return true
 			case proto == 17 && !v6 && c.DNSRedirectUDP, proto == 6 && !v6 && c.DNSRedirectTCP,
 				proto == 17 && v6 && c.DNSRedirectUDP6, proto == 6 && v6 && c.DNSRedirectTCP6:
 				return true
@@ -214,7 +217,7 @@ func fromRowsRedirect(rows []store.DNSUseRow, ignore []string, redir RedirectFun
 		}
 		a.flows[typ] += r.Flows
 		res := Resolver{IP: r.RIP, Host: r.Host, Type: typ, Flows: r.Flows}
-		res.Redirected = typ == DNS && redir != nil && redir(r.Proto, strings.Contains(r.RIP, ":"))
+		res.Redirected = typ == DNS && redir != nil && redir(r.Proto, strings.Contains(r.RIP, ":"), strings.HasPrefix(r.MAC, "VPN:"))
 		a.c.Resolvers = append(a.c.Resolvers, res)
 		if a.c.First == 0 || r.First < a.c.First {
 			a.c.First = r.First

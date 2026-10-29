@@ -129,10 +129,12 @@ func convCaps(k provision.Caps) *Caps {
 	for _, x := range k.Certs {
 		c.Certs = append(c.Certs, Cert{Name: x.Name, Service: x.Service, Expires: x.Expires})
 	}
-	c.DNSRedirectUDP = k.DNSRedirect.UDP && k.DNSRedirect.UDPPackets > 0
-	c.DNSRedirectTCP = k.DNSRedirect.TCP && k.DNSRedirect.TCPPackets > 0
-	c.DNSRedirectUDP6 = k.DNSRedirect6.UDP && k.DNSRedirect6.UDPPackets > 0
-	c.DNSRedirectTCP6 = k.DNSRedirect6.TCP && k.DNSRedirect6.TCPPackets > 0
+	c.DNSRedirectUDP = k.DNSRedirect.UDP
+	c.DNSRedirectTCP = k.DNSRedirect.TCP
+	c.DNSRedirectUDP6 = k.DNSRedirect6.UDP
+	c.DNSRedirectTCP6 = k.DNSRedirect6.TCP
+	c.DNSRedirectVPNUDP, c.DNSRedirectVPNTCP = k.DNSRedirect.VPNUDP, k.DNSRedirect.VPNTCP
+	c.DNSRedirectVPNUDP6, c.DNSRedirectVPNTCP6 = k.DNSRedirect6.VPNUDP, k.DNSRedirect6.VPNTCP
 	for _, f := range k.Filter {
 		c.Filter = append(c.Filter, FilterRule{Chain: f.Chain, Action: f.Action, Comment: f.Comment, Summary: f.Summary,
 			Log: f.Log, Disabled: f.Disabled, Managed: f.Managed, LogPrefix: f.LogPrefix, Proto: f.Proto, DPort: f.DPort,
