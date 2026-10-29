@@ -10,7 +10,11 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ## [0.20.3] - 2026-10-29
 
+### New
+- `GET /api/path?client=&dst=` (#147): the hops from a client to a destination (access link, devices, WAN, network, endpoint) with the facts mtmon already has and a health colour per hop; the weakest hop is flagged. Read-only, no new router queries.
+
 ### Changed
+- Internal: the topology map and the path view share one device-tree helper (`deviceTree`), `api.topology` is shorter (#146).
 - Internal: one address classifier (`internal/addr`: private, CGNAT, link-local, multicast, public, ULA, global IPv6) replaces seven private copies in advice, API, poller, provision and store; behaviour is unchanged (#146).
 - Internal: the 280-line client merge in the poller is split into small, tested steps (`internal/poller/merge.go`); behaviour is unchanged.
 - CI: a non-blocking `health` job lists very complex functions (gocyclo) and copy-pasted blocks (dupl).

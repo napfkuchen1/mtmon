@@ -96,6 +96,7 @@ func New(s *Server) http.Handler {
 	m.HandleFunc("GET /api/usage/{what}", a(s.usage))
 	m.HandleFunc("GET /api/series", a(s.series))
 	m.HandleFunc("GET /api/topology", a(s.topology))
+	m.HandleFunc("GET /api/path", a(s.path))
 	m.HandleFunc("GET /api/alerts", a(s.alerts))
 	m.HandleFunc("POST /api/alerts/{id}/ack", a(s.ack))
 	m.HandleFunc("POST /api/alerts/ack-all", a(s.ackAll))
@@ -596,28 +597,9 @@ func (s *Server) topology(w http.ResponseWriter, r *http.Request) {
 	for _, d := range s.Hub.Devices() {
 		devByName[d.Name] = d
 	}
-	roleOf := map[string]string{}
-	onlineBy := map[string]int{}
 	cl, _ := s.St.Clients()
-	for _, c := range cl {
-		if c.Online && c.Device != "" {
-			onlineBy[c.Device]++
-		}
-	}
-	var cands []rootCand
+	root, override, links, _ := s.deviceTree(cl)
 	for _, d := range s.Cfg.AllDevices() {
-		rc := rootCand{Name: d.Name, Role: d.Role, Clients: onlineBy[d.Name]}
-		if row, _ := s.St.DeviceRow(d.Name); row != nil {
-			if k := storedCaps(row); k != nil {
-				rc.NAT, rc.DHCP, rc.CAPsMAN = k.NAT, k.DHCPServer, k.CAPsMAN
-			}
-		}
-		cands = append(cands, rc)
-	}
-	override := s.St.GetMeta(rootMetaKey)
-	root := pickRoot(cands, override)
-	for _, d := range s.Cfg.AllDevices() {
-		roleOf[d.Name] = d.Role
 		st := "down"
 		if devByName[d.Name].Up {
 			st = "up"
@@ -630,15 +612,7 @@ func (s *Server) topology(w http.ResponseWriter, r *http.Request) {
 		}
 		nodes = append(nodes, node{ID: "d:" + d.Name, Type: d.Role, Label: d.Name, Status: st, Bps: bps, Sub: d.Addr})
 	}
-	// device↔device links from /ip/neighbor (identity match)
-	ns, _ := s.St.Neighbors()
-	// one edge per directly connected pair, parent → child (Label = port on the parent); neighbors that are
-	// only visible "through" another device are not links (see deviceLinks)
-	managed := map[string]bool{}
-	for name := range roleOf {
-		managed[name] = true
-	}
-	for _, l := range deviceLinks(ns, managed, root) {
+	for _, l := range links {
 		edges = append(edges, edge{From: "d:" + l.From, To: "d:" + l.To, Kind: "uplink", Label: l.Port})
 	}
 	// APs without a discovered uplink hang off the first router
@@ -676,6 +650,39 @@ func (s *Server) topology(w http.ResponseWriter, r *http.Request) {
 		edges = []edge{}
 	}
 	jsonOut(w, map[string]any{"nodes": nodes, "edges": edges, "root": root, "root_override": override, "upstream": s.upstreams()})
+}
+
+// deviceTree is the managed-device tree shared by the topology map and the path view: the root (user override or
+// best candidate), the direct links oriented from it (parent → child, Port = port on the parent) and every device's role.
+func (s *Server) deviceTree(cl []store.Client) (root, override string, links []deviceLink, roleOf map[string]string) {
+	onlineBy := map[string]int{}
+	for _, c := range cl {
+		if c.Online && c.Device != "" {
+			onlineBy[c.Device]++
+		}
+	}
+	roleOf = map[string]string{}
+	var cands []rootCand
+	for _, d := range s.Cfg.AllDevices() {
+		roleOf[d.Name] = d.Role
+		rc := rootCand{Name: d.Name, Role: d.Role, Clients: onlineBy[d.Name]}
+		if row, _ := s.St.DeviceRow(d.Name); row != nil {
+			if k := storedCaps(row); k != nil {
+				rc.NAT, rc.DHCP, rc.CAPsMAN = k.NAT, k.DHCPServer, k.CAPsMAN
+			}
+		}
+		cands = append(cands, rc)
+	}
+	override = s.St.GetMeta(rootMetaKey)
+	root = pickRoot(cands, override)
+	// one edge per directly connected pair, parent → child (Label = port on the parent); neighbors that are
+	// only visible "through" another device are not links (see deviceLinks)
+	ns, _ := s.St.Neighbors()
+	managed := map[string]bool{}
+	for name := range roleOf {
+		managed[name] = true
+	}
+	return root, override, deviceLinks(ns, managed, root), roleOf
 }
 
 func localIP(r *http.Request) string {
