@@ -82,6 +82,15 @@ func TestAdviceQueries(t *testing.T) {
 	if err != nil || len(rs) != 1 || rs[0].MAC != "AA" || rs[0].N != 5 || rs[0].APs != 1 {
 		t.Fatalf("%+v %v", rs, err)
 	}
+	for _, v := range []struct {
+		dev string
+		sig int
+	}{{"ap1", -50}, {"ap1", -54}, {"ap2", -70}} {
+		st.DB.Exec(`INSERT INTO wifi_hist(ts,mac,device,band,n,sig_sum,sig_min,sig_max,weak,tx_sum,rx_sum) VALUES(?,?,?,?,1,?,?,?,0,0,0)`, now/300*300-int64(v.sig), "AA", v.dev, "5g", v.sig, v.sig, v.sig)
+	}
+	if ap, err := st.WifiAPSignals(now-86400, []string{"AA"}); err != nil || len(ap["AA"]) != 2 || ap["AA"][0].Device != "ap1" || ap["AA"][0].Avg != -52 || ap["AA"][1].Avg != -70 {
+		t.Fatalf("%+v %v", ap, err)
+	}
 	for _, ip := range []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"} {
 		st.DB.Exec(`INSERT INTO ip_history(ip,mac,first,last) VALUES(?,?,?,?)`, ip, "AA", now-100, now)
 	}

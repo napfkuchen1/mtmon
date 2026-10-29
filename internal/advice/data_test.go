@@ -14,6 +14,7 @@ type Data struct {
 	DoH     []PortUse
 	In      []Inbound
 	RoamV   []RoamStat
+	RoamSig map[string][]APSignal
 	Churn   map[string]int
 	V6      map[string][]V6Prefix
 	Blocked []BlockedSrc
@@ -39,19 +40,20 @@ func (d *Data) ContactedByLAN(ips []string) map[string]bool {
 	}
 	return m
 }
-func (d *Data) ProcessUptime() time.Duration           { return d.Uptime }
-func (d *Data) Devices() []Device                      { return d.Devs }
-func (d *Data) Clients() []Client                      { return d.Cls }
-func (d *Data) Traffic24h() []ClientTraffic            { return d.Traffic }
-func (d *Data) TopService(mac string) string           { return d.TopSvc[mac] }
-func (d *Data) PortUse24h() []PortUse                  { return d.Ports }
-func (d *Data) DoH24h() []PortUse                      { return d.DoH }
-func (d *Data) InboundRecent() []Inbound               { return d.In }
-func (d *Data) Roams24h() []RoamStat                   { return d.RoamV }
-func (d *Data) IPChurn30d() map[string]int             { return d.Churn }
-func (d *Data) IPv6Prefixes14d() map[string][]V6Prefix { return d.V6 }
-func (d *Data) BlockedSources24h() []BlockedSrc        { return d.Blocked }
-func (d *Data) FwRules() []FwRule                      { return d.Rules }
-func (d *Data) SelfHealth() SelfHealth                 { return d.Self }
-func (d *Data) FwHistory() time.Duration               { return d.FwHist }
-func (d *Data) GhostDNS7d() []GhostDNS                 { return d.Ghosts }
+func (d *Data) ProcessUptime() time.Duration                         { return d.Uptime }
+func (d *Data) Devices() []Device                                    { return d.Devs }
+func (d *Data) Clients() []Client                                    { return d.Cls }
+func (d *Data) Traffic24h() []ClientTraffic                          { return d.Traffic }
+func (d *Data) TopService(mac string) string                         { return d.TopSvc[mac] }
+func (d *Data) PortUse24h() []PortUse                                { return d.Ports }
+func (d *Data) DoH24h() []PortUse                                    { return d.DoH }
+func (d *Data) InboundRecent() []Inbound                             { return d.In }
+func (d *Data) Roams24h() []RoamStat                                 { return d.RoamV }
+func (d *Data) RoamAPSignals24h(macs []string) map[string][]APSignal { return d.RoamSig }
+func (d *Data) IPChurn30d() map[string]int                           { return d.Churn }
+func (d *Data) IPv6Prefixes14d() map[string][]V6Prefix               { return d.V6 }
+func (d *Data) BlockedSources24h() []BlockedSrc                      { return d.Blocked }
+func (d *Data) FwRules() []FwRule                                    { return d.Rules }
+func (d *Data) SelfHealth() SelfHealth                               { return d.Self }
+func (d *Data) FwHistory() time.Duration                             { return d.FwHist }
+func (d *Data) GhostDNS7d() []GhostDNS                               { return d.Ghosts }

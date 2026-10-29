@@ -144,6 +144,37 @@ func (s *Store) WifiSignalStats(since int64) (map[string]WifiSignalStat, error) 
 	return out, rows.Err()
 }
 
+// APSignal is the mean signal of one client on one access point over a window.
+type APSignal struct {
+	Device string
+	Avg    float64
+	N      int64
+}
+
+// WifiAPSignals returns per client the mean signal on each access point since `since` (strongest first).
+func (s *Store) WifiAPSignals(since int64, macs []string) (map[string][]APSignal, error) {
+	out := map[string][]APSignal{}
+	for _, mac := range macs {
+		rows, err := s.DB.Query(`SELECT device, sum(n), sum(sig_sum) FROM wifi_hist WHERE mac=? AND ts>=? GROUP BY device ORDER BY sum(sig_sum)*1.0/sum(n) DESC`, mac, since/wifiBucket*wifiBucket)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			var d string
+			var n, sum int64
+			if err := rows.Scan(&d, &n, &sum); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			if n > 0 {
+				out[mac] = append(out[mac], APSignal{Device: d, Avg: float64(sum) / float64(n), N: n})
+			}
+		}
+		rows.Close()
+	}
+	return out, nil
+}
+
 // BandPoint counts the clients of one AP on one band in one bucket.
 type BandPoint struct {
 	TS      int64  `json:"ts"`

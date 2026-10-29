@@ -196,6 +196,19 @@ func TestRoamingAndAPLoad(t *testing.T) {
 	if !strings.Contains(s[0].Title, "laptop") {
 		t.Fatal(s[0].Title)
 	}
+	// two APs, one 20 dB stronger: pin to the strong one
+	d.RoamSig = map[string][]APSignal{"AA:AA:AA:AA:AA:01": {{Device: "ap1", Avg: -52}, {Device: "ap2", Avg: -72}}}
+	s = expect(t, d, "roaming", 1)
+	if !strings.Contains(s[0].Title, "ap1") || !strings.Contains(s[0].Commands, "reject") || !strings.Contains(s[0].Commands, "ap2") {
+		t.Fatalf("%+v", s[0])
+	}
+	// three APs: mobile device, info only
+	d.RoamV[0].APs = 3
+	d.RoamSig = map[string][]APSignal{"AA:AA:AA:AA:AA:01": {{Device: "ap1", Avg: -60}, {Device: "ap2", Avg: -62}, {Device: "ap3", Avg: -65}}}
+	s = expect(t, d, "roaming", 1)
+	if s[0].Severity != SevInfo || s[0].Commands != "" {
+		t.Fatalf("%+v", s[0])
+	}
 	d.RoamV[0].N = 5
 	expect(t, d, "roaming", 0)
 

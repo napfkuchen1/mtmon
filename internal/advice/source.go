@@ -261,6 +261,17 @@ func (l *Live) Roams24h() []RoamStat {
 	return out
 }
 
+func (l *Live) RoamAPSignals24h(macs []string) map[string][]APSignal {
+	m, _ := l.St.WifiAPSignals(l.now.Add(-24*time.Hour).Unix(), macs)
+	out := map[string][]APSignal{}
+	for mac, v := range m {
+		for _, a := range v {
+			out[mac] = append(out[mac], APSignal{Device: a.Device, Avg: a.Avg})
+		}
+	}
+	return out
+}
+
 func (l *Live) IPChurn30d() map[string]int {
 	m, _ := l.St.IPChurn(l.now.Add(-30*24*time.Hour).Unix(), 3)
 	return m
