@@ -148,3 +148,39 @@ func TestPathEndpoint(t *testing.T) {
 		t.Fatalf("hops = %+v", out.Hops)
 	}
 }
+
+func TestPathFactFormatting(t *testing.T) {
+	for in, want := range map[string]string{"576500000": "576.5 Mbit/s", "1200000000": "1.2 Gbit/s", "866.7Mbps": "866.7Mbps", "": ""} {
+		if got := rateText(in); got != want {
+			t.Errorf("rateText(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if got := bytesText(2365757836); got != "2.4 GB" {
+		t.Errorf("bytesText = %q", got)
+	}
+	if protoName(6) != "TCP" || protoName(17) != "UDP" || protoName(99) != "99" {
+		t.Error("protoName")
+	}
+	hops, _ := buildPath(pathIn{Client: store.Client{MAC: "AA:BB:CC:00:00:09"}, Dst: pathDst{Host: "example.org"}})
+	ep := hops[len(hops)-1]
+	found := false
+	for _, f := range ep.Facts {
+		found = found || f.K == "Traffic"
+	}
+	if !found {
+		t.Fatalf("endpoint without traffic must say so: %+v", ep)
+	}
+	hops, _ = buildPath(pathIn{Client: store.Client{MAC: "AA:BB:CC:00:00:09"}, Dst: pathDst{Host: "example.org", Port: 443, Proto: 6, Conns: 2, Bytes: 2365757836}})
+	var port, by string
+	for _, f := range hops[len(hops)-1].Facts {
+		switch f.K {
+		case "Port":
+			port = f.V
+		case "Bytes":
+			by = f.V
+		}
+	}
+	if port != "TCP/443" || by != "2.4 GB" {
+		t.Fatalf("port=%q bytes=%q", port, by)
+	}
+}
