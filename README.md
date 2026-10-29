@@ -243,6 +243,7 @@ Your routers are **not** touched by this. Use *Offboarding* on each device **bef
 * **Signed releases.** Release archives are signed with minisign (public key in `minisign.pub`). The web updater refuses unsigned or mismatching releases; the installer verifies the signature when `minisign` is installed.
 * **Certificate pinning.** The router's TLS fingerprint is shown and must be confirmed (trust on first use); there is no silent "insecure" mode.
 * **The wizard only talks to private addresses** (RFC 1918, loopback, link-local, CGNAT or networks you configured), so it cannot be abused to probe the internet.
+* **Speed tests** run natively in mtmon against Cloudflare, Hetzner or M-Lab NDT7 (open protocol, nearest server via the M-Lab locate API; M-Lab publishes results including your IP, so it is opt-in). mtmon does not bundle Ookla's Speedtest CLI: its licence allows only personal, non-commercial use on a single personal computer and forbids redistribution, so it stays an opt-in that you install yourself.
 * Web UI: argon2id passwords, 12-hour sessions, login rate limiting, origin checks on changes, strict security headers, CSV export protected against formula injection.
 * Flows and syslog are accepted only from known devices.
 * **Privacy:** connection data per client is personal data. In a company or shared household, inform the people concerned and set retention (`raw_retention_days`, `retention_days`) accordingly. Nothing leaves your network; GeoIP and vendor lookups use local files.
