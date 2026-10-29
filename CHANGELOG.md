@@ -12,6 +12,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ### New
 - `GET /api/path?client=&dst=` (#147): the hops from a client to a destination (access link, devices, WAN, network, endpoint) with the facts mtmon already has and a health colour per hop; the weakest hop is flagged. Read-only, no new router queries.
+- Client page: a "Path" card shows that route as a chain of hops (horizontal on desktop, vertical on phones) with a health colour per hop, a destination picker and the weakest hop called out (#147).
 
 ### Changed
 - Internal: the topology map and the path view share one device-tree helper (`deviceTree`), `api.topology` is shorter (#146).

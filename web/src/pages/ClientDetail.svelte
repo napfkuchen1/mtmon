@@ -12,6 +12,7 @@
   import ClassifyDialog from '../lib/ClassifyDialog.svelte'
   import AppList from '../lib/AppList.svelte'
   import IPName from '../lib/IPName.svelte'
+  import PathCard from '../lib/PathCard.svelte'
   import { go } from '../lib/state.svelte.js'
   let dlg = $state(null)
   const blocked = poll(() => api('/clients/' + encodeURIComponent(app.route.params.id) + '/firewall?verdict=blocked&range=' + (app.range === 'live' ? '1h' : app.range)), 8000)
@@ -149,6 +150,8 @@
 
   <div class="card"><div class="card-h"><h2>{t('Traffic')}</h2><div class="legend"><span><i style="background:var(--down)"></i>{t('Download')}</span><span><i style="background:var(--up)"></i>{t('Upload')}</span></div></div>
     <div class="card-b"><Chart series={chart} fmt={bps} height={180} /></div></div>
+
+  {#if !x.address_only}<PathCard id={mac} range={rg()} hosts={x.top_hosts || []} />{/if}
 
   <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Apps')}</h2><span class="muted" style="font-size:12.5px">{t('Detected from DNS names of the destinations')}</span></div>
     {#if apps.error}<div class="warnbox" style="margin:12px">{tr(apps.error)}</div>{/if}
