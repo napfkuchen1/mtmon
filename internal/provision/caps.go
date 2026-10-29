@@ -201,24 +201,7 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 	if rows, err := c.Get(ctx, "/file"); err == nil { // a read-only user may be refused here: then nothing is claimed
 		k.Files = parseFiles(rows)
 	}
-	for _, r := range get(ctx, c, "/ipv6/dhcp-client") { // absent without the ipv6 package
-		if !r.Bool("disabled") && strings.Contains(r["request"], "prefix") {
-			k.IPv6PD = true
-		}
-	}
-	// the delegated prefix is announced with the (ticking) lifetimes of the ISP lease: read the dynamic global rows of
-	// /ipv6/nd/prefix, not "nd prefix default" (that only applies to prefixes without lifetimes of their own, e.g. ULA)
-	for _, r := range get(ctx, c, "/ipv6/nd/prefix") {
-		if !r.Bool("dynamic") || r.Bool("disabled") || isULAorLL(r["prefix"]) {
-			continue
-		}
-		if v := int64(poller.ParseDuration(r["valid-lifetime"]).Seconds()); v > k.RAValid {
-			k.RAValid = v
-		}
-		if p := int64(poller.ParseDuration(r["preferred-lifetime"]).Seconds()); p > k.RAPreferred {
-			k.RAPreferred = p
-		}
-	}
+	k.probeIPv6(ctx, c)
 	if id := get(ctx, c, "/system/identity"); len(id) > 0 {
 		k.Identity = id[0]["name"]
 	}
@@ -237,6 +220,62 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 	for _, i := range get(ctx, c, "/interface") {
 		k.IfaceTypes[i["type"]]++
 	}
+	k.probeWifi(ctx, c)
+	for _, b := range get(ctx, c, "/interface/bridge") {
+		k.Bridges = append(k.Bridges, b["name"])
+	}
+	for _, p := range get(ctx, c, "/interface/bridge/port") {
+		if p["hw"] == "true" {
+			k.HWOffload = true
+		}
+	}
+	k.DHCPServer = len(get(ctx, c, "/ip/dhcp-server")) > 0
+	for _, a := range get(ctx, c, "/ip/address") {
+		if a["disabled"] != "true" {
+			k.Addresses = append(k.Addresses, a["address"]+" on "+a["interface"])
+		}
+	}
+	for _, a := range get(ctx, c, "/ipv6/address") {
+		if a["disabled"] != "true" && a["address"] != "" {
+			k.Addresses = append(k.Addresses, a["address"]+" on "+a["interface"])
+		}
+	}
+	k.probeFirewall(ctx, c)
+	k.probeServices(ctx, c)
+	if k.Flow.Targets == nil {
+		k.Flow.Targets = []string{}
+	}
+	if k.Filter == nil {
+		k.Filter = []FilterRule{}
+	}
+	k.suggestRole()
+	return k, nil
+}
+
+// probeIPv6 reads the IPv6 prefix delegation and the router advertisement lifetimes (best effort).
+func (k *Caps) probeIPv6(ctx context.Context, c *poller.Client) {
+	for _, r := range get(ctx, c, "/ipv6/dhcp-client") { // absent without the ipv6 package
+		if !r.Bool("disabled") && strings.Contains(r["request"], "prefix") {
+			k.IPv6PD = true
+		}
+	}
+	// the delegated prefix is announced with the (ticking) lifetimes of the ISP lease: read the dynamic global rows of
+	// /ipv6/nd/prefix, not "nd prefix default" (that only applies to prefixes without lifetimes of their own, e.g. ULA)
+	for _, r := range get(ctx, c, "/ipv6/nd/prefix") {
+		if !r.Bool("dynamic") || r.Bool("disabled") || isULAorLL(r["prefix"]) {
+			continue
+		}
+		if v := int64(poller.ParseDuration(r["valid-lifetime"]).Seconds()); v > k.RAValid {
+			k.RAValid = v
+		}
+		if p := int64(poller.ParseDuration(r["preferred-lifetime"]).Seconds()); p > k.RAPreferred {
+			k.RAPreferred = p
+		}
+	}
+}
+
+// probeWifi reads the Wi-Fi stack (RouterOS 7.13+ "wifi" or the legacy "wireless" package), CAP and CAPsMAN (best effort).
+func (k *Caps) probeWifi(ctx context.Context, c *poller.Client) {
 	// Wi-Fi: RouterOS 7.13+ "wifi" package, or the legacy "wireless" package
 	if w := get(ctx, c, "/interface/wifi"); len(w) > 0 {
 		k.WifiStack = "wifi"
@@ -278,25 +317,10 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 	} else {
 		k.WifiStack = "none"
 	}
-	for _, b := range get(ctx, c, "/interface/bridge") {
-		k.Bridges = append(k.Bridges, b["name"])
-	}
-	for _, p := range get(ctx, c, "/interface/bridge/port") {
-		if p["hw"] == "true" {
-			k.HWOffload = true
-		}
-	}
-	k.DHCPServer = len(get(ctx, c, "/ip/dhcp-server")) > 0
-	for _, a := range get(ctx, c, "/ip/address") {
-		if a["disabled"] != "true" {
-			k.Addresses = append(k.Addresses, a["address"]+" on "+a["interface"])
-		}
-	}
-	for _, a := range get(ctx, c, "/ipv6/address") {
-		if a["disabled"] != "true" && a["address"] != "" {
-			k.Addresses = append(k.Addresses, a["address"]+" on "+a["interface"])
-		}
-	}
+}
+
+// probeFirewall reads NAT, the DNS redirects and the filter rules (best effort).
+func (k *Caps) probeFirewall(ctx context.Context, c *poller.Client) {
 	for _, n := range get(ctx, c, "/ip/firewall/nat") {
 		if n["chain"] == "srcnat" && n["disabled"] != "true" && (n["action"] == "masquerade" || n["action"] == "src-nat") {
 			k.NAT = true
@@ -326,6 +350,10 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 		}
 		k.Filter = append(k.Filter, fr)
 	}
+}
+
+// probeServices reads Traffic Flow, the API/web services and their certificates, updates, remote logging and managed users (best effort).
+func (k *Caps) probeServices(ctx context.Context, c *poller.Client) {
 	// Traffic Flow
 	if tf := get(ctx, c, "/ip/traffic-flow"); len(tf) > 0 {
 		k.Flow.Supported = true
@@ -361,14 +389,6 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 			k.Managed = true
 		}
 	}
-	if k.Flow.Targets == nil {
-		k.Flow.Targets = []string{}
-	}
-	if k.Filter == nil {
-		k.Filter = []FilterRule{}
-	}
-	k.suggestRole()
-	return k, nil
 }
 
 // portListHas reports whether a RouterOS port list ("53", "53,5353", "50-60") contains the port.

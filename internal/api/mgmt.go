@@ -91,7 +91,7 @@ func (s *Server) addrAllowed(a netip.Addr) error {
 			return errors.New("address not allowed")
 		}
 	}
-	if !(a.IsPrivate() || a.IsLoopback() || a.IsLinkLocalUnicast() || addr.IsCGNAT(a) || s.Cfg.IsLocal(a)) {
+	if !(addr.IsLocal(a) || s.Cfg.IsLocal(a)) {
 		return fmt.Errorf("%s is a public address - mtmon only sets up devices in private networks", a)
 	}
 	return nil

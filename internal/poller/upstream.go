@@ -106,7 +106,7 @@ func upstreamsFor(dev string, s *devSnap, vendor func(mac string) string) []Upst
 					continue
 				}
 				gw, ifc, _ := strings.Cut(firstNonEmpty(r["immediate-gw"], r["gateway"]), "%")
-				if ip, err := netip.ParseAddr(gw); err == nil && (ifc == p || ifc == "") && (ip.IsPrivate() || ip.Is4() && isCGNAT(ip)) {
+				if ip, err := netip.ParseAddr(gw); err == nil && (ifc == p || ifc == "") && (addr.Classify(ip) == addr.Private || ip.Is4() && addr.IsCGNAT(ip)) {
 					modes = addAfter(modes, "double NAT")
 				}
 			}
@@ -149,8 +149,6 @@ func firstNonEmpty(v ...string) string {
 	}
 	return ""
 }
-
-func isCGNAT(a netip.Addr) bool { return addr.IsCGNAT(a) }
 
 // shortVendor trims an OUI vendor name to its first words ("AVM Audiovisuelles Marketing und Computersysteme GmbH" -> "AVM").
 func shortVendor(v string) string {

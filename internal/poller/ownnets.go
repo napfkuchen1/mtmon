@@ -3,6 +3,8 @@ package poller
 import (
 	"net/netip"
 	"strings"
+
+	"github.com/napfkuchen1/mtmon/internal/addr"
 )
 
 // ownV6Prefixes returns the global IPv6 prefixes a router uses itself: the prefixes of its global addresses, the
@@ -18,8 +20,8 @@ func ownV6Prefixes(addrs, dhcp, pools []Row) []netip.Prefix {
 				continue
 			}
 			a := p.Addr()
-			if a.IsLinkLocalUnicast() || a.IsLoopback() || a.IsMulticast() || a.IsUnspecified() || a.IsPrivate() {
-				continue // IsPrivate covers fc00::/7
+			if addr.Classify(a) != addr.Public {
+				continue // not the ISP prefix: link-local, loopback, multicast, unspecified, ULA
 			}
 			if p.Bits() < 16 { // never a whole range because of a bad row
 				continue

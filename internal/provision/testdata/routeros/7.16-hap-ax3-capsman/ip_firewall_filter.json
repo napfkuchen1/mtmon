@@ -1,0 +1,1 @@
+[{".id":"*1","chain":"forward","action":"fasttrack-connection","connection-state":"established,related","disabled":"false","packets":"1200"},{".id":"*2","chain":"input","action":"drop","in-interface-list":"WAN","disabled":"false","log":"true","log-prefix":"MTM-2","packets":"37"}]

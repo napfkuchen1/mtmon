@@ -16,6 +16,8 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ### Changed
 - Internal: the topology map and the path view share one device-tree helper (`deviceTree`), `api.topology` is shorter (#146).
+- Internal: more address checks use the shared `addr` package (own IPv6 prefixes, device address check, upstream gateway); the biggest functions are split into steps (`deviceFeaturesApply`, `provision.Probe`, `ruleBlockOrigin`, `mtmon run`) without changing behaviour (#146).
+- Tests: synthetic RouterOS 7.16 / 6.49 REST answers under `internal/provision/testdata/routeros/` and a probe test that reads them (#146).
 - Internal: one address classifier (`internal/addr`: private, CGNAT, link-local, multicast, public, ULA, global IPv6) replaces seven private copies in advice, API, poller, provision and store; behaviour is unchanged (#146).
 - Internal: the 280-line client merge in the poller is split into small, tested steps (`internal/poller/merge.go`); behaviour is unchanged.
 - CI: a non-blocking `health` job lists very complex functions (gocyclo) and copy-pasted blocks (dupl).
