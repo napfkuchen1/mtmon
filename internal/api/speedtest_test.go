@@ -145,3 +145,42 @@ func TestUpstreamListIsNeverNull(t *testing.T) {
 		}
 	}
 }
+
+func TestTimeZoneAPI(t *testing.T) {
+	ts, s := newTestServer(t)
+	_, c := login(t, ts, "test-password-1")
+	orig := time.Local
+	t.Cleanup(func() { time.Local = orig })
+	put := func(body string) (int, string) {
+		req, _ := http.NewRequest("PUT", ts.URL+"/api/timezone", strings.NewReader(body))
+		r, err := c.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer r.Body.Close()
+		b, _ := io.ReadAll(r.Body)
+		return r.StatusCode, string(b)
+	}
+	if code, _ := put(`{"zone":"Mars/Base"}`); code != 400 {
+		t.Fatalf("unknown zone: %d", code)
+	}
+	code, b := put(`{"zone":"Europe/Berlin"}`)
+	if code != 200 || !strings.Contains(b, `"zone":"Europe/Berlin"`) || !strings.Contains(b, `"set":true`) || s.St.GetMeta("timezone") != "Europe/Berlin" {
+		t.Fatalf("%d %s", code, b)
+	}
+	if time.Local.String() != "Europe/Berlin" {
+		t.Fatal(time.Local)
+	}
+	// an anchor read through time.Local follows the setting, including across the DST switch of 2026-10-25 (03:00 -> 02:00)
+	before := time.Date(2026, 10, 24, 18, 21, 0, 0, time.Local)
+	after := time.Date(2026, 10, 26, 18, 21, 0, 0, time.Local)
+	if _, o := before.Zone(); o != 7200 {
+		t.Fatalf("summer offset %d", o)
+	}
+	if _, o := after.Zone(); o != 3600 || before.UTC().Hour() != 16 || after.UTC().Hour() != 17 {
+		t.Fatalf("winter offset %d, %v %v", o, before.UTC(), after.UTC())
+	}
+	if code, _ := put(`{"zone":""}`); code != 200 || time.Local != orig {
+		t.Fatalf("reset: %d %v", code, time.Local)
+	}
+}

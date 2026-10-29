@@ -478,6 +478,11 @@ func initCfg(args []string) error {
 // write /etc/mtmon/config.json) win over the config file: reverse DNS and the UI port. A port that cannot be bound
 // is ignored, so a wrong value can never lock the operator out.
 func applyStoredSettings(cfg *config.Config, st *store.Store, log *slog.Logger) {
+	if z := st.GetMeta("timezone"); z != "" {
+		if err := api.ApplyTimeZone(z); err != nil {
+			log.Warn("stored time zone cannot be used, keeping the process zone", "zone", z, "err", err)
+		}
+	}
 	if v := st.GetMeta("reverse_dns"); v != "" {
 		cfg.ReverseDNS = v == "1"
 	}
