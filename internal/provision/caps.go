@@ -134,17 +134,39 @@ func get(ctx context.Context, c *poller.Client, path string) []poller.Row {
 	return rows
 }
 
+// isBridge reports whether name is one of the device's bridges (the LAN side of a redirect rule).
+func (k *Caps) isBridge(name string) bool {
+	for _, b := range k.Bridges {
+		if b == name {
+			return true
+		}
+	}
+	return false
+}
+
 // DNSRedirectInfo: active dst-nat/redirect rules for port 53 of one address family and their packet counters.
 type DNSRedirectInfo struct {
 	UDP        bool  `json:"udp"`
 	TCP        bool  `json:"tcp"`
 	UDPPackets int64 `json:"udp_packets"`
 	TCPPackets int64 `json:"tcp_packets"`
+	// VPNUDP/VPNTCP: a rule limited to one interface that is no LAN bridge (back-to-home / WireGuard redirect).
+	VPNUDP bool `json:"vpn_udp,omitempty"`
+	VPNTCP bool `json:"vpn_tcp,omitempty"`
 }
 
 // note adds one nat rule if it is an active port-53 redirect.
-func (d *DNSRedirectInfo) note(n poller.Row) {
+func (d *DNSRedirectInfo) note(n poller.Row, lan func(string) bool) {
 	if n["chain"] != "dstnat" || n["disabled"] == "true" || (n["action"] != "dst-nat" && n["action"] != "redirect") || !portListHas(n["dst-port"], "53") {
+		return
+	}
+	if in := n["in-interface"]; in != "" && !lan(in) { // limited to a tunnel interface: covers VPN clients, not the LAN
+		switch n["protocol"] {
+		case "udp":
+			d.VPNUDP = true
+		case "tcp":
+			d.VPNTCP = true
+		}
 		return
 	}
 	pk, _ := strconv.ParseInt(n["packets"], 10, 64)
@@ -278,10 +300,10 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 		if n["chain"] == "srcnat" && n["disabled"] != "true" && (n["action"] == "masquerade" || n["action"] == "src-nat") {
 			k.NAT = true
 		}
-		k.DNSRedirect.note(n)
+		k.DNSRedirect.note(n, k.isBridge)
 	}
 	for _, n := range get(ctx, c, "/ipv6/firewall/nat") {
-		k.DNSRedirect6.note(n)
+		k.DNSRedirect6.note(n, k.isBridge)
 	}
 	for _, f := range get(ctx, c, "/ip/firewall/filter") {
 		if f["dynamic"] == "true" || f["dynamic"] == "yes" { // RouterOS: "can't edit dynamic object"

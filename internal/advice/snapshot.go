@@ -80,10 +80,14 @@ type Caps struct {
 	WwwSSL                     bool
 	WwwSSLAddr                 string
 	Filter                     []FilterRule
-	DNSRedirectUDP             bool // active dst-nat rule sends UDP/53 to the router and has matched packets
+	DNSRedirectUDP             bool // active dst-nat rule sends UDP/53 to the router (rule existence counts, not its packet counter)
 	DNSRedirectTCP             bool
 	DNSRedirectUDP6            bool // the same for IPv6 (/ipv6/firewall/nat)
 	DNSRedirectTCP6            bool
+	DNSRedirectVPNUDP          bool // rule limited to a tunnel interface (UDP v4 / v6 below)
+	DNSRedirectVPNTCP          bool
+	DNSRedirectVPNUDP6         bool
+	DNSRedirectVPNTCP6         bool
 	WifiIfs                    []WifiIf
 	ProbedAt                   int64 // unix time the router was read, 0 = unknown (older stored probe)
 	FilesReadable              bool  // the router lets mtmon list its files

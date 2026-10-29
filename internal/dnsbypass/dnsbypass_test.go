@@ -140,7 +140,7 @@ func TestRedirectedPlainDNSIsNoBypass(t *testing.T) {
 		row("D", "8.8.8.8", "dns.google", 53, 17, 40),    // v4 udp redirected ...
 		row("D", "1.1.1.1", "", 853, 6, 40),              // ... but DoT is not
 	}
-	redir := func(proto int, v6 bool) bool { return proto == 17 && !v6 }
+	redir := func(proto int, v6, vpn bool) bool { return proto == 17 && !v6 }
 	by := map[string]Client{}
 	for _, c := range fromRowsRedirect(rows, nil, redir) {
 		by[c.MAC] = c
@@ -155,5 +155,21 @@ func TestRedirectedPlainDNSIsNoBypass(t *testing.T) {
 	}
 	if fromRows(rows, nil)[0].Redirected {
 		t.Error("nil RedirectFunc must mark nothing")
+	}
+}
+
+func TestRedirectVPNPeersNeedVPNRule(t *testing.T) {
+	rows := []store.DNSUseRow{
+		row("VPN:10.0.9.2", "8.8.8.8", "dns.google", 53, 17, 40),
+		row("A", "8.8.8.8", "dns.google", 53, 17, 40),
+	}
+	// only a tunnel-scoped rule exists: VPN peer is covered, LAN client is not
+	redir := func(proto int, v6, vpn bool) bool { return vpn && proto == 17 && !v6 }
+	by := map[string]Client{}
+	for _, c := range fromRowsRedirect(rows, nil, redir) {
+		by[c.MAC] = c
+	}
+	if !by["VPN:10.0.9.2"].Redirected || by["A"].Redirected {
+		t.Errorf("vpn=%v lan=%v, want true/false", by["VPN:10.0.9.2"].Redirected, by["A"].Redirected)
 	}
 }
