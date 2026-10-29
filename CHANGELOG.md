@@ -15,6 +15,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Suggestion "<client> uses a DNS server that does not exist": a device with a stale static DNS entry (for example an old IPv6 address) only works because the router redirects DNS and answers for the missing server. mtmon names the client, the missing address and the fix (set DNS to automatic).
 
 ### Changed
+- Faster first load: only Login and Overview are in the first download, every other page loads when you open it (the main script shrank from 555 kB to 82 kB).
 - Ookla stays an opt-in you install yourself: mtmon does not ship the Ookla CLI (its licence allows only personal, non-commercial use on a single personal computer and forbids redistribution). The settings now show this in short next to the checkbox and the README explains why.
 
 ### Fixed

@@ -43,7 +43,6 @@ func New(name, role, user, pass string, clients []Client) *Server {
 }
 
 func (s *Server) SetFail(f bool) { s.mu.Lock(); s.Fail = f; s.mu.Unlock() }
-func (s *Server) SetCPU(c int)   { s.mu.Lock(); s.CPU = c; s.mu.Unlock() }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()

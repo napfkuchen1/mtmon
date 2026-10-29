@@ -1,23 +1,9 @@
 <script>
-  import { app, checkSession, parseHash, go, openLive, closeLive, applyTheme, setTheme, setRange, setPref } from './lib/state.svelte.js'
+  import { app, checkSession, parseHash, go, openLive, closeLive, applyTheme, setTheme, setRange, setPref, toast } from './lib/state.svelte.js'
   import { api } from './lib/api.js'
   import { t, tr, i18n } from './lib/i18n.svelte.js'
   import Login from './pages/Login.svelte'
   import Overview from './pages/Overview.svelte'
-  import Live from './pages/Live.svelte'
-  import Devices from './pages/Devices.svelte'
-  import DeviceDetail from './pages/DeviceDetail.svelte'
-  import Clients from './pages/Clients.svelte'
-  import ClientDetail from './pages/ClientDetail.svelte'
-  import Insights from './pages/Insights.svelte'
-  import Suggestions from './pages/Suggestions.svelte'
-  import Services from './pages/Services.svelte'
-  import Internet from './pages/Internet.svelte'
-  import Firewall from './pages/Firewall.svelte'
-  import Topology from './pages/Topology.svelte'
-  import Alerts from './pages/Alerts.svelte'
-  import Settings from './pages/Settings.svelte'
-  import Inbox from './pages/Inbox.svelte'
   import Palette from './lib/Palette.svelte'
 
   applyTheme()
@@ -26,6 +12,36 @@
   checkSession()
 
   $effect(() => { if (app.user) openLive(); else if (app.user === false) closeLive() })
+
+  // Login and Overview are in the first chunk; every other page loads on first visit (smaller first load on phones)
+  const pages = {
+    live: () => import('./pages/Live.svelte'),
+    devices: () => import('./pages/Devices.svelte'),
+    device: () => import('./pages/DeviceDetail.svelte'),
+    clients: () => import('./pages/Clients.svelte'),
+    client: () => import('./pages/ClientDetail.svelte'),
+    insights: () => import('./pages/Insights.svelte'),
+    suggestions: () => import('./pages/Suggestions.svelte'),
+    inbox: () => import('./pages/Inbox.svelte'),
+    services: () => import('./pages/Services.svelte'),
+    internet: () => import('./pages/Internet.svelte'),
+    firewall: () => import('./pages/Firewall.svelte'),
+    topology: () => import('./pages/Topology.svelte'),
+    alerts: () => import('./pages/Alerts.svelte'),
+    settings: () => import('./pages/Settings.svelte'),
+  }
+  const loaded = {}
+  let Page = $state.raw(null)
+  $effect(() => {
+    const name = app.route.name
+    const load = pages[name]
+    if (!load) { Page = null; return }
+    if (loaded[name]) { Page = loaded[name]; return }
+    Page = null
+    let stale = false
+    load().then(m => { loaded[name] = m.default; if (!stale) Page = m.default }).catch(() => { if (!stale) toast('Could not load this page. Reload and try again.') })
+    return () => { stale = true }
+  })
 
   const nav = [
     ['overview', 'Overview', 'M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10'],
@@ -168,21 +184,8 @@
       </header>
       <div class="page">
         {#if app.route.name === 'overview'}<Overview />
-        {:else if app.route.name === 'live'}<Live />
-        {:else if app.route.name === 'devices'}<Devices />
-        {:else if app.route.name === 'device'}<DeviceDetail />
-        {:else if app.route.name === 'clients'}<Clients />
-        {:else if app.route.name === 'client'}<ClientDetail />
-        {:else if app.route.name === 'insights'}<Insights />
-        {:else if app.route.name === 'suggestions'}<Suggestions />
-        {:else if app.route.name === 'inbox'}<Inbox />
-        {:else if app.route.name === 'services'}<Services />
-        {:else if app.route.name === 'internet'}<Internet />
-        {:else if app.route.name === 'firewall'}<Firewall />
-        {:else if app.route.name === 'topology'}<Topology />
-        {:else if app.route.name === 'alerts'}<Alerts />
-        {:else if app.route.name === 'settings'}<Settings />
-        {:else}<div class="empty">{t('Page not found.')} <a href="#/overview">{t('Go to Overview')}</a></div>{/if}
+        {:else if Page}<Page />
+        {:else if !pages[app.route.name]}<div class="empty">{t('Page not found.')} <a href="#/overview">{t('Go to Overview')}</a></div>{/if}
       </div>
     </main>
   </div>
