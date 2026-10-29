@@ -632,7 +632,7 @@ func (m *Manager) SelfByAddr(ip string) (string, bool) {
 			}
 		}
 	}
-	if a.Is6() && a.IsLinkLocalUnicast() {
+	if a.Is6() { // EUI-64 interface id: link-local, SLAAC or an old PPPoE address (zero MAC = 0200:00ff:fe00:0000) of a router
 		b := a.As16()
 		if b[11] == 0xff && b[12] == 0xfe {
 			mac := fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X", b[8]^0x02, b[9], b[10], b[13], b[14], b[15])
