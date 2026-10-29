@@ -8,6 +8,11 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.20.4] - 2026-10-29
+
+### Fixed
+- A command typed in an SSH/Winbox session that fails (log line tagged `(ssh-cmd:user@ip)`) is no longer reported as a failing script: it raises its own `cli_error` alert, severity info, "Command from user@ip failed". `script_error` stays a warning for scripts, scheduler and netwatch (#175).
+
 ## [0.20.3] - 2026-10-29
 
 ### New

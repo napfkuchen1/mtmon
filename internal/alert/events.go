@@ -16,6 +16,7 @@ var (
 	reDHCPFail  = regexp.MustCompile(`(?i)without success|no free address|pool is empty|address pool.*(exhaust|empty)`)
 	reWiFiDisc  = regexp.MustCompile(`(?i)([0-9a-f]{2}(?::[0-9a-f]{2}){5})\S*\s+.*?disconnected(?:,?\s*(?:reason:?\s*)?(.*))?$`)
 	reWGFail    = regexp.MustCompile(`(?i)handshake.*(fail|did not complete|timeout|timed out)`)
+	reCLICmd    = regexp.MustCompile(`\(\w+-cmd:([^@\s)]+)@([^)\s]+)\)`)
 )
 
 // burst records one occurrence of key and reports whether n or more happened within window.
@@ -67,6 +68,11 @@ func (e *Engine) LogEvent(ev store.LogEvent) {
 		}
 		e.Raise("system_critical", dev, sev, fmt.Sprintf("%s logged an important event (%s): %s", dev, ev.Topics, msg), 10*time.Minute)
 	case hasTopic(ev.Topics, "script") && (ev.Level == "error" || hasTopic(ev.Topics, "error")):
+		if m := reCLICmd.FindStringSubmatch(msg); m != nil { // a command typed in a session, not a failing script
+			why := strings.TrimSpace(strings.Replace(msg, m[0], "", 1))
+			e.Raise("cli_error", dev+"/"+m[1], "info", fmt.Sprintf("Command from %s@%s failed on %s: %s", m[1], m[2], dev, why), time.Hour)
+			break
+		}
 		e.Raise("script_error", dev, "warning", fmt.Sprintf("A script on %s failed: %s", dev, msg), time.Hour)
 	}
 	if m := reLoginFail.FindStringSubmatch(msg); m != nil && hasTopic(ev.Topics, "account") {
