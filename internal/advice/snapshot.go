@@ -1,9 +1,10 @@
 package advice
 
 import (
-	"net/netip"
 	"strings"
 	"time"
+
+	"github.com/napfkuchen1/mtmon/internal/addr"
 )
 
 // Snapshot is the read-only view of mtmon's data that rules evaluate. Every method must be cheap to call
@@ -219,23 +220,7 @@ type FwRule struct {
 }
 
 // IsPublic: a routable internet address (not LAN, loopback, link-local, multicast or CGNAT).
-func IsPublic(s string) bool {
-	a, err := netip.ParseAddr(strings.TrimSpace(s))
-	if err != nil {
-		return false
-	}
-	a = a.Unmap()
-	if a.IsPrivate() || a.IsLoopback() || a.IsLinkLocalUnicast() || a.IsMulticast() || a.IsUnspecified() {
-		return false
-	}
-	if a.Is4() {
-		b := a.As4()
-		if b[0] == 100 && b[1]&0xC0 == 64 { // 100.64.0.0/10
-			return false
-		}
-	}
-	return true
-}
+func IsPublic(s string) bool { return addr.IsPublic(s) }
 
 // ownPublicIPs: public addresses that belong to the managed routers themselves (WAN / PPPoE interface).
 func ownPublicIPs(s Snapshot) map[string]bool {

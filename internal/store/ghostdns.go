@@ -1,9 +1,6 @@
 package store
 
-import (
-	"net/netip"
-	"strings"
-)
+import "github.com/napfkuchen1/mtmon/internal/addr"
 
 // GhostDNSDays is how long a "client uses a DNS server that does not exist" sighting is remembered.
 const GhostDNSDays = 7
@@ -52,10 +49,7 @@ func (s *Store) GhostDNSSince(since int64) ([]GhostDNS, error) {
 
 // IsULA reports whether s is a unique-local IPv6 address (fc00::/7): stable inside the network, so worth remembering
 // for a client although it is not part of the ISP prefix.
-func IsULA(s string) bool {
-	a, err := netip.ParseAddr(strings.TrimSpace(s))
-	return err == nil && a.Is6() && !a.Is4In6() && a.As16()[0]&0xFE == 0xFC
-}
+func IsULA(s string) bool { return addr.IsULA(s) }
 
 // NoteULA remembers unique-local addresses of known clients (address -> client MAC) in ip_history, so traffic from
 // such an address is still attributed to the client when the router neighbour entry is gone. Never creates clients.

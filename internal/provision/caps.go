@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/napfkuchen1/mtmon/internal/addr"
 	"github.com/napfkuchen1/mtmon/internal/poller"
 )
 
@@ -433,8 +434,4 @@ func (k *Caps) suggestRole() {
 }
 
 // isULAorLL: fc00::/7 (unique local) and fe80::/10 (link local) prefixes are not the ISP's delegated prefix.
-func isULAorLL(p string) bool {
-	p = strings.ToLower(strings.TrimSpace(p))
-	return strings.HasPrefix(p, "fc") || strings.HasPrefix(p, "fd") || strings.HasPrefix(p, "fe8") || strings.HasPrefix(p, "fe9") ||
-		strings.HasPrefix(p, "fea") || strings.HasPrefix(p, "feb")
-}
+func isULAorLL(p string) bool { return addr.IsULAOrLinkLocalPrefix(p) }

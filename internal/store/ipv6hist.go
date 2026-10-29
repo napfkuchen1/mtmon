@@ -3,7 +3,8 @@ package store
 import (
 	"net/netip"
 	"sort"
-	"strings"
+
+	"github.com/napfkuchen1/mtmon/internal/addr"
 )
 
 // IPv6HistDays is how long a seen IPv6 address is remembered.
@@ -11,10 +12,7 @@ const IPv6HistDays = 30
 
 // IsGlobalIPv6 reports whether s is a global unicast IPv6 address (2000::/3): link-local and ULA addresses do not come
 // from the ISP prefix and are ignored.
-func IsGlobalIPv6(s string) bool {
-	a, err := netip.ParseAddr(strings.TrimSpace(s))
-	return err == nil && a.Is6() && !a.Is4In6() && a.IsGlobalUnicast() && a.As16()[0]&0xE0 == 0x20
-}
+func IsGlobalIPv6(s string) bool { return addr.IsGlobalIPv6(s) }
 
 // NoteIPv6 records global IPv6 addresses (address -> client MAC) seen now. Never creates clients.
 func (s *Store) NoteIPv6(addrs map[string]string, now int64) {
