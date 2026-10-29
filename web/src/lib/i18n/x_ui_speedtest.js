@@ -91,5 +91,18 @@ export default {
   "double NAT": "doppeltes NAT",
   "tunnel": "Tunnel",
   "M-Lab publishes every test result, including your public IP address, as open data.": "M-Lab veröffentlicht jedes Testergebnis samt deiner öffentlichen IP-Adresse als offene Daten.",
-  "Ookla licence in short: personal, non-commercial use on a single personal computer; not on a router or server. Check that this fits before you enable it.": "Ookla-Lizenz kurz: private, nicht kommerzielle Nutzung auf einem einzelnen privaten Computer, nicht auf Router oder Server. Vor dem Aktivieren prüfen, ob das passt."
+  "Ookla licence in short: personal, non-commercial use on a single personal computer; not on a router or server. Check that this fits before you enable it.": "Ookla-Lizenz kurz: private, nicht kommerzielle Nutzung auf einem einzelnen privaten Computer, nicht auf Router oder Server. Vor dem Aktivieren prüfen, ob das passt.",
+  "Quick test": "Schnelltest",
+  "One test now with the providers chosen here. The schedule is not changed.": "Ein Test jetzt mit den hier gewählten Anbietern. Der Zeitplan bleibt unverändert.",
+  "Scheduled tests": "Geplante Tests",
+  "unsaved": "ungespeichert",
+  "Schedule": "Zeitplan",
+  "Test size and limits": "Testgröße und Limits",
+  "Contract and alerts": "Vertrag und Warnungen",
+  "Providers and licences": "Anbieter und Lizenzen",
+  "Providers for scheduled runs": "Anbieter für geplante Läufe",
+  "Cloudflare, NDT7 and Ookla measure download, upload and latency; Hetzner download only. Licences and server choice: see Providers and licences.": "Cloudflare, NDT7 und Ookla messen Download, Upload und Latenz; Hetzner nur Download. Lizenzen und Serverwahl: siehe Anbieter und Lizenzen.",
+  "Import": "Import",
+  "from {s}": "ab {s}",
+  "alert below {p} % of {d}/{u}": "Warnung unter {p} % von {d}/{u}"
 }

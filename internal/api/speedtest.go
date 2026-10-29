@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -91,7 +92,16 @@ func (s *Server) speedtestRun(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 503, "speed tests are not available")
 		return
 	}
-	if err := s.Speed.RunNow(); err != nil {
+	var body struct {
+		Providers []string `json:"providers"` // quick test: only these, not saved (empty = the scheduled set)
+	}
+	if r.ContentLength != 0 {
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<12)).Decode(&body); err != nil && err != io.EOF {
+			jerr(w, 400, "invalid JSON")
+			return
+		}
+	}
+	if err := s.Speed.RunNow(body.Providers...); err != nil {
 		var ref speedtest.ErrRefused
 		if errors.As(err, &ref) {
 			jerr(w, 409, string(ref))

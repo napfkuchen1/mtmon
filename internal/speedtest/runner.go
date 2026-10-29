@@ -245,9 +245,20 @@ type ErrRefused string
 func (e ErrRefused) Error() string { return string(e) }
 
 // RunNow starts a round in the background (manual run, admin only). It refuses while a round is running or when
-// the data budget is used up.
-func (r *Runner) RunNow() error {
+// the data budget is used up. A non-empty only limits this one round to those providers; the saved settings and
+// the schedule stay untouched.
+func (r *Runner) RunNow(only ...string) error {
 	s := LoadSettings(r.St)
+	if len(only) > 0 {
+		known := map[string]bool{"cloudflare": true, "hetzner": true, "ndt7": true, "ookla": true}
+		s.Providers = nil
+		for _, n := range only {
+			if !known[n] {
+				return ErrRefused("unknown speed-test provider: " + n)
+			}
+			s.Providers = append(s.Providers, n)
+		}
+	}
 	r.mu.Lock()
 	if r.running {
 		r.mu.Unlock()
