@@ -48,6 +48,7 @@
   }
   const cfg = poll(() => api('/devices/' + encodeURIComponent(app.route.params.id) + '/config'), 60000)
   let cBusy = $state(false)
+  let chMore = $state(false)
   async function snapshotNow() {
     cBusy = true
     try {
@@ -160,12 +161,13 @@
       <div class="card-b muted" style="padding-bottom:0">{t('Changes between {a} and {b}', { a: datetime(cfg.data.from), b: datetime(cfg.data.to) })}</div>
       {#if cfg.data.changes.length}
         <div class="scroll"><table><tbody>
-          {#each cfg.data.changes as c (c.section + c.id + c.kind)}
+          {#each (chMore ? cfg.data.changes : cfg.data.changes.slice(0, 12)) as c (c.section + c.id + c.kind)}
             <tr><td><span class="badge {kindCls[c.kind]}">{kindLbl[c.kind]}</span></td>
               <td><b>{c.label}</b><div class="muted mono">{c.section}</div></td>
               <td class="mono" style="font-size:12px">{#each c.fields as f}<div>{f.key}: {#if c.kind === 'changed'}<s class="muted">{f.old || '–'}</s> → {f.new || '–'}{:else}{c.kind === 'removed' ? f.old : f.new}{/if}</div>{/each}</td></tr>
           {/each}
         </tbody></table></div>
+        {#if cfg.data.changes.length > 12}<button class="btn sm" style="margin:8px 16px 12px" onclick={() => (chMore = !chMore)}>{chMore ? t('Show fewer') : t('Show {n} more', { n: cfg.data.changes.length - 12 })}</button>{/if}
       {:else}<div class="empty">{t('No difference')}</div>{/if}
     {/if}
     <div class="card-b muted" style="font-size:12px">{t('Passwords and keys are never stored. Only the {n} newest snapshots are kept.', { n: 30 })}</div>
