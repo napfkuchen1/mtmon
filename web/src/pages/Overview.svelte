@@ -49,8 +49,8 @@
     if (!o) return []
     const l = []
     if (o.alerts_open) l.push({ txt: tn('{n} open warning', '{n} open warnings', o.alerts_open), href: '#/alerts' })
-    if (o.devices_up < o.devices_total) l.push({ txt: t('{n} devices down', { n: o.devices_total - o.devices_up }), href: '#/devices' })
-    if (wh.data?.poor) l.push({ txt: t('{n} clients with a poor Wi-Fi connection', { n: wh.data.poor }), href: '#/clients' })
+    if (o.devices_up < o.devices_total) l.push({ txt: tn('{n} device down', '{n} devices down', o.devices_total - o.devices_up), href: '#/devices' })
+    if (wh.data?.poor) l.push({ txt: tn('{n} client with a poor Wi-Fi connection', '{n} clients with a poor Wi-Fi connection', wh.data.poor), href: '#/clients' })
     return l
   })
   const pickClient = r => go(r.device ? 'device/' + encodeURIComponent(r.device) : 'client/' + encodeURIComponent(r.key))

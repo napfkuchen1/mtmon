@@ -5,7 +5,7 @@
   import { go, toast } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
   import { ago, display } from '../lib/format.js'
-  import { t, tr } from '../lib/i18n.svelte.js'
+  import { t, tn, tr } from '../lib/i18n.svelte.js'
 
   let mode = $state('new'), sel = $state({}), edits = $state({}), pattern = $state(''), busy = $state(false)
   const d = poll(() => api('/clients/inbox?mode=' + mode), 10000)
@@ -25,7 +25,7 @@
     busy = true
     try {
       const r = await api('/clients/review', { method: 'POST', body: { items } })
-      toast(msg || t('{n} devices saved', { n: r.updated }))
+      toast(msg || tn('{n} device saved', '{n} devices saved', r.updated))
       for (const i of items) { delete sel[i.mac]; delete edits[i.mac] }
       await reload()
     } catch (e) { toast(tr(e.message)) } finally { busy = false }
