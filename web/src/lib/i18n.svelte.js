@@ -42,8 +42,12 @@ function templates() {
   return tpl
 }
 const MAINT = ' (maintenance window)'
+const SELF = ' (made through mtmon)'
+const BYLIST = 'changed by: ' // config_changed alert: sources of the change, separated by "; "
 export function tr(s) {
   if (lang !== 'de' || !s) return s
+  if (s.endsWith(SELF)) return tr(s.slice(0, -SELF.length)) + ' (über mtmon vorgenommen)'
+  if (s.startsWith(BYLIST)) return 'geändert durch: ' + s.slice(BYLIST.length).split('; ').map(tr).join('; ')
   if (s.endsWith(MAINT)) return tr(s.slice(0, -MAINT.length)) + ' (Wartungsfenster)' // appended by the alert engine
   if (de[s]) return de[s]
   if (srv[s]) return srv[s]

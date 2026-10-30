@@ -4,6 +4,7 @@ export default {
   "Snapshot now": "Jetzt sichern",
   "Reading …": "Lese …",
   "{n} changes found": "{n} Änderungen gefunden",
+  "1 change found": "1 Änderung gefunden",
   "No change since the last snapshot": "Keine Änderung seit dem letzten Snapshot",
   "added": "neu",
   "removed": "entfernt",

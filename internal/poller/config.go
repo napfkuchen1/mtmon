@@ -50,6 +50,16 @@ var volatileBySection = map[string]map[string]bool{
 	"/system/ntp/client": {"status": true},
 	"/interface/bridge/port": {"status": true, "edge-port": true, "point-to-point-port": true,
 		"edge-port-discovery-active": true},
+	// #222: fields /export verbose does not print for these menus
+	"/interface":      {".about": true, "about": true, "mac-address": true, "max-l2mtu": true, "l2mtu": true},
+	"/interface/wifi": {".about": true, "about": true, "bound": true, "cap": true, "master": true},
+}
+
+// volatileKey: counters and live state recognised by name pattern, in every section.
+func volatileKey(k string) bool {
+	return strings.HasSuffix(k, "-bytes") || strings.HasSuffix(k, "-packets") || strings.HasSuffix(k, "-tc") ||
+		strings.HasSuffix(k, "-transitions") || strings.HasPrefix(k, "fp-") || strings.HasPrefix(k, "last-link-") ||
+		k == "match-count"
 }
 
 // secretKey: such fields never reach a snapshot, whatever the router's policy lets the login read.
@@ -69,8 +79,13 @@ func ScrubRowIn(section string, r Row) (Row, bool) {
 	}
 	out := make(Row, len(r))
 	vs := volatileBySection[section]
+	// channel.* of a CAP-operated interface is what the controller derived, not a setting of this row
+	derived := section == "/interface/wifi" && r["bound"] == "true" && strings.Contains(r["about"]+r[".about"], "CAP")
 	for k, v := range r {
-		if volatileKeys[k] || vs[k] || secretKey(k) || k == "dynamic" || k == "invalid" {
+		if derived && strings.HasPrefix(k, "channel.") {
+			continue
+		}
+		if volatileKeys[k] || vs[k] || volatileKey(k) || secretKey(k) || k == "dynamic" || k == "invalid" {
 			continue
 		}
 		out[k] = v
@@ -96,27 +111,86 @@ func historyMark(rows []Row) string {
 	return strconv.Itoa(len(rows)) + "|" + l[".id"] + "|" + l["time"] + "|" + l["action"] + "|" + l["by"]
 }
 
-// ChangedBy names who made the newest changes according to /system/history (the "by" of the last few entries,
-// newest first, without repeats). Empty when the router lists nobody or the call fails.
-func (c *Client) ChangedBy(ctx context.Context) []string {
-	rows, err := c.Get(ctx, "/system/history")
-	if err != nil {
-		return nil
+// SourceUnknown is reported for a change that no /system/history entry explains (RouterOS keeps only ~100 entries).
+const SourceUnknown = "source unknown"
+
+// ChangeSource names who or what made one /system/history entry. "by" is only the owner of the action (a scheduler
+// run shows the script owner), so the source comes from "trace": ssh-cmd:<user>@<ip>/…, api:<user>@<ip>/…,
+// winbox:/web:<user>@<ip>/…, scheduler:<name>/…. A script without owner has by="". planned is true for scheduler runs.
+func ChangeSource(r Row) (label string, planned bool) {
+	kind, rest, _ := strings.Cut(r["trace"], ":")
+	rest, _, _ = strings.Cut(rest, "/")
+	user, ip, _ := strings.Cut(rest, "@")
+	if user == "" {
+		user = r["by"]
 	}
-	return changedBy(rows, 5)
+	from := ""
+	if ip != "" {
+		from = " from " + ip
+	}
+	switch kind {
+	case "ssh-cmd", "ssh":
+		return user + " via SSH" + from, false
+	case "api", "api-ssl", "rest":
+		return user + " via API/REST" + from, false
+	case "winbox", "web", "webfig":
+		return user + " via WinBox/WebFig" + from, false
+	case "scheduler":
+		return "scheduler " + rest, true
+	}
+	if r["by"] == "" {
+		return "script", false
+	}
+	return r["by"], false
 }
 
-func changedBy(rows []Row, n int) []string {
-	var out []string
+// historyID reads the numeric part of a RouterOS id ("*229" is hex).
+func historyID(r Row) int64 {
+	n, err := strconv.ParseInt(strings.TrimPrefix(r[".id"], "*"), 16, 64)
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+// ChangedBy names the sources of the /system/history entries newer than id `after` (0 = no reference: the newest few),
+// newest first, without repeats, plus the newest id seen. planned: every one of them was a scheduler run.
+func (c *Client) ChangedBy(ctx context.Context, after int64) (sources []string, newest int64, planned bool) {
+	rows, err := c.Get(ctx, "/system/history")
+	if err != nil {
+		return nil, after, false
+	}
+	return changedBy(rows, 5, after)
+}
+
+func changedBy(rows []Row, n int, after int64) (out []string, newest int64, planned bool) {
+	newest = after
 	seen := map[string]bool{}
-	for i := len(rows) - 1; i >= 0 && i >= len(rows)-n; i-- { // RouterOS lists oldest first
-		by := rows[i]["by"]
-		if by != "" && !seen[by] {
-			seen[by] = true
-			out = append(out, by)
+	planned = true
+	for i := len(rows) - 1; i >= 0; i-- { // RouterOS lists oldest first
+		id := historyID(rows[i])
+		if id > newest {
+			newest = id
+		}
+		if after > 0 && id != 0 && id <= after {
+			continue
+		}
+		if after == 0 && len(seen) >= n {
+			continue
+		}
+		label, plan := ChangeSource(rows[i])
+		if !plan {
+			planned = false
+		}
+		if !seen[label] && len(out) < n {
+			seen[label] = true
+			out = append(out, label)
 		}
 	}
-	return out
+	if len(out) == 0 {
+		return nil, newest, false
+	}
+	return out, newest, planned
 }
 
 // ConfigSnapshot reads every section. Sections that fail are skipped; err is set only when none could be read.

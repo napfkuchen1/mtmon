@@ -52,14 +52,79 @@ func TestScrubRowInDropsRuntimeFieldsOfRealSections(t *testing.T) {
 	}
 }
 
-func TestChangedByNewestFirstNoRepeats(t *testing.T) {
-	rows := []Row{{"by": "old"}, {"by": "admin"}, {"by": ""}, {"by": "admin"}, {"by": "bob"}}
-	got := changedBy(rows, 5)
-	if len(got) != 3 || got[0] != "bob" || got[1] != "admin" || got[2] != "old" {
-		t.Fatalf("got %v", got)
+// the four real /system/history entries of #237 (oldest first)
+var realHistory = []Row{
+	{".id": "*215", "action": "device changed", "by": "admin", "time": "2026-10-30 03:10:05", "trace": "scheduler:PPPoE_Reconnect/action:895"},
+	{".id": "*217", "action": "changed script settings", "by": "", "time": "2026-10-30 07:27:23", "trace": "netwatch:type: icmp, host: 203.0.113.2/script:dns-heal/action:899"},
+	{".id": "*228", "action": "address list entry removed", "by": "claude", "time": "2026-10-30 17:49:34", "trace": "ssh-cmd:claude@192.168.0.200/action:916"},
+	{".id": "*229", "action": "address list entry removed", "by": "claude", "time": "2026-10-30 17:49:34", "trace": "ssh-cmd:claude@192.168.0.200/action:916"},
+}
+
+func TestChangeSourceFromTraceNotBy(t *testing.T) {
+	want := []string{"scheduler PPPoE_Reconnect", "script", "claude via SSH from 192.168.0.200", "claude via SSH from 192.168.0.200"}
+	for i, r := range realHistory {
+		if got, _ := ChangeSource(r); got != want[i] {
+			t.Errorf("entry %s: %q, want %q", r[".id"], got, want[i])
+		}
 	}
-	if got := changedBy(rows, 2); len(got) != 2 || got[1] != "admin" {
+	if l, _ := ChangeSource(Row{"by": "bob", "trace": "api:bob@10.0.0.5/x"}); l != "bob via API/REST from 10.0.0.5" {
+		t.Errorf("api: %q", l)
+	}
+	if l, _ := ChangeSource(Row{"by": "bob", "trace": "winbox:bob@10.0.0.5/x"}); l != "bob via WinBox/WebFig from 10.0.0.5" {
+		t.Errorf("winbox: %q", l)
+	}
+	if l, _ := ChangeSource(Row{"by": "bob"}); l != "bob" {
+		t.Errorf("no trace: %q", l)
+	}
+}
+
+func TestChangedByNewerThanLastSnapshotDedupNewestFirst(t *testing.T) {
+	got, newest, planned := changedBy(realHistory, 5, 0x216)
+	if len(got) != 2 || got[0] != "claude via SSH from 192.168.0.200" || got[1] != "script" || newest != 0x229 || planned {
+		t.Fatalf("got %v %x %v", got, newest, planned)
+	}
+	if got, newest, _ := changedBy(realHistory, 5, 0x229); got != nil || newest != 0x229 {
+		t.Fatalf("nothing newer: %v %x", got, newest)
+	}
+	if got, _, _ := changedBy(realHistory, 1, 0); len(got) != 1 {
 		t.Fatalf("limit: %v", got)
+	}
+}
+
+func TestChangedByPlannedWhenOnlySchedulerRan(t *testing.T) {
+	got, _, planned := changedBy(realHistory[:1], 5, 0)
+	if len(got) != 1 || !planned {
+		t.Fatalf("scheduler-only change must be planned: %v %v", got, planned)
+	}
+	if _, _, planned := changedBy(realHistory[:2], 5, 0); planned {
+		t.Fatal("a script run is not a planned scheduler run")
+	}
+}
+
+func TestScrubDropsRuntimeFieldsOfStaticCapRows(t *testing.T) {
+	w, _ := ScrubRowIn("/interface/wifi", Row{".id": "*6E", "about": "operated by CAP F4:1E:57:A0:00:02%bridge", "bound": "true",
+		"channel.frequency": "2462.0", "channel.width": "20mhz", "comment": "2.4ghz", "configuration.ssid": "HomeSSID",
+		"inactive": "false", "master": "true", "name": "cap-wifi1", "running": "false", "disabled": "false"})
+	for _, k := range []string{"about", "bound", "channel.frequency", "channel.width", "inactive", "master", "running"} {
+		if _, has := w[k]; has {
+			t.Errorf("wifi runtime field %s survived", k)
+		}
+	}
+	if w["configuration.ssid"] != "HomeSSID" || w["name"] != "cap-wifi1" || w["comment"] != "2.4ghz" || w["disabled"] != "false" {
+		t.Errorf("settings lost: %v", w)
+	}
+	// a channel set by hand on a standalone interface is a setting
+	if h, _ := ScrubRowIn("/interface/wifi", Row{"name": "wifi1", "channel.frequency": "2412"}); h["channel.frequency"] != "2412" {
+		t.Errorf("manual channel dropped: %v", h)
+	}
+	e, _ := ScrubRowIn("/interface", Row{"name": "ether1", "mac-address": "AA:BB:CC:00:00:01", "running": "true", "l2mtu": "1592", "max-l2mtu": "4074",
+		"fp-rx-byte": "5", "rx-byte": "1", "link-downs": "0", "last-link-up-time": "x", "mtu": "1500", "disabled": "false"})
+	if len(e) != 3 || e["mtu"] != "1500" {
+		t.Errorf("interface row: %v", e)
+	}
+	b, _ := ScrubRowIn("/ip/firewall/filter", Row{".id": "*1", "chain": "input", "bytes": "9", "match-count": "3", "x-packets": "1"})
+	if len(b) != 2 {
+		t.Errorf("counters: %v", b)
 	}
 }
 

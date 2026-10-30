@@ -14,6 +14,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - No more false "imaginary DNS server" warnings for addresses a managed router owns itself (LAN, link-local, bridge addresses), and old sightings of them disappear at the next advice run.
 - The "management service open to everyone" hint now reads the RouterOS 7 "available-from" list correctly, ignores active-session rows, lists each service once, and treats private-only ranges as restricted.
 - The "move clients to 5 GHz" hint only lists devices seen on 5 GHz before (or of a typical dual-band class) and skips clients pinned by a Wi-Fi access-list rule.
+- Config change alerts now name the real source from the router history ("claude via SSH from 192.168.0.200", "scheduler PPPoE_Reconnect", "script") instead of the script owner, list only changes since the last check, skip scheduler-only runs, no longer count Wi-Fi/interface runtime fields (bound, running, counters, derived channel) as changes, and say "1 entry" correctly (#222).
 
 ## [0.20.7] - 2026-10-30
 

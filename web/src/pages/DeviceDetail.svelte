@@ -53,7 +53,7 @@
     cBusy = true
     try {
       const r = await api('/devices/' + encodeURIComponent(name) + '/config/snapshot', { method: 'POST' })
-      toast(r.changed ? t('{n} changes found', { n: r.changed }) : t('No change since the last snapshot'))
+      toast(r.changed ? t(r.changed === 1 ? '1 change found' : '{n} changes found', { n: r.changed }) : t('No change since the last snapshot'))
       cfg.data = await api('/devices/' + encodeURIComponent(name) + '/config')
     } catch (e) { toast(tr(e.message)) } finally { cBusy = false }
   }

@@ -13,7 +13,7 @@ func TestConfigChangedAfterOwnChangeIsInfo(t *testing.T) {
 	if len(*got) != 1 || (*got)[0].Severity != "warning" {
 		t.Fatalf("foreign change must warn: %+v", *got)
 	}
-	if m := (*got)[0].Msg; !strings.Contains(m, "by admin, bob") {
+	if m := (*got)[0].Msg; !strings.Contains(m, "changed by: admin; bob") {
 		t.Fatalf("author missing: %s", m)
 	}
 	if err := e.St.AddManifest("r2", store.ManifestEntry{Seq: 1, Kind: "create", Descr: "x"}); err != nil {
