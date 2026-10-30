@@ -202,6 +202,7 @@ func (s *Server) auth(h http.HandlerFunc) http.HandlerFunc {
 		c, err := r.Cookie("mtmon_session")
 		if err != nil || !s.sess.valid(c.Value) {
 			if s.bearerOK(r) { // read-only API token (Settings → API tokens), e.g. for Home Assistant or scripts
+				s.auditTokenUse(r)
 				h(w, r)
 				return
 			}
@@ -214,6 +215,8 @@ func (s *Server) auth(h http.HandlerFunc) http.HandlerFunc {
 				jerr(w, 403, "cross-origin request blocked")
 				return
 			}
+			s.audited(w, r, h)
+			return
 		}
 		h(w, r)
 	}
@@ -234,9 +237,11 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.Cfg.AdminHash == "" || in.User != s.Cfg.AdminUser || !CheckPassword(in.Password, s.Cfg.AdminHash) {
 		s.sess.fail(ip)
+		s.audit(auditUser(in.User), sourceIP(r), "login.fail", "")
 		jerr(w, 401, "invalid credentials")
 		return
 	}
+	s.audit(in.User, sourceIP(r), "login.ok", "")
 	http.SetCookie(w, &http.Cookie{Name: "mtmon_session", Value: s.sess.create(), Path: "/", HttpOnly: true,
 		Secure: s.secureRequest(r), SameSite: http.SameSiteStrictMode, MaxAge: 12 * 3600})
 	jsonOut(w, map[string]string{"user": in.User})
@@ -244,6 +249,9 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie("mtmon_session"); err == nil {
+		if s.sess.valid(c.Value) {
+			s.audit(s.Cfg.AdminUser, sourceIP(r), "logout", "")
+		}
 		s.sess.drop(c.Value)
 	}
 	http.SetCookie(w, &http.Cookie{Name: "mtmon_session", Value: "", Path: "/", HttpOnly: true, Secure: s.secureRequest(r), SameSite: http.SameSiteStrictMode, MaxAge: -1})
