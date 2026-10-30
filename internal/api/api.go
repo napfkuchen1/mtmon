@@ -308,7 +308,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 		"range": rn, "bytes_up": up, "bytes_down": down, "flows": flows, "prev": prev,
 		"learning_until": s.St.LearningUntil(), "learning_reason": s.St.LearningReason(),
 		"clients_online": on, "clients_total": total, "watched_total": watched, "watched_online": watchedOn,
-		"devices_up": du, "devices_total": len(s.Cfg.AllDevices()), "alerts_open": s.St.OpenAlerts(),
+		"devices_up": du, "devices_total": len(s.Cfg.AllDevices()), "alerts_open": s.St.OpenProblems(), "alerts_info": s.St.OpenInfo(),
 		"series":        series,
 		"top_clients":   topClients,
 		"top_hosts":     topHosts,

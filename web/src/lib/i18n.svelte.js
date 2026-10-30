@@ -30,6 +30,11 @@ export function t(key, vars) {
   return fill(lang === 'de' ? (de[key] ?? key) : key, vars)
 }
 
+// Plural: two separate keys (one / many), each with its own German text; {n} is filled in automatically.
+export function tn(one, many, n, vars) {
+  return t(n === 1 ? one : many, { n, ...vars })
+}
+
 // Backend strings: exact match first, then templates such as "Enabled logging on {n} firewall rules".
 let tpl = null
 function templates() {

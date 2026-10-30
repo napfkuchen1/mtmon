@@ -10,11 +10,15 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ## [0.20.8] - 2026-10-31
 
+### Changed
+- The overview status line and the "Open warnings" card count only warnings and critical alerts; info notes show as a small "n notes" link, so one warning no longer reads as "9 open alerts". /metrics gets `mtmon_alerts_open_info`.
+
 ### Fixed
 - No more false "imaginary DNS server" warnings for addresses a managed router owns itself (LAN, link-local, bridge addresses), and old sightings of them disappear at the next advice run.
 - The "management service open to everyone" hint now reads the RouterOS 7 "available-from" list correctly, ignores active-session rows, lists each service once, and treats private-only ranges as restricted.
 - The "move clients to 5 GHz" hint only lists devices seen on 5 GHz before (or of a typical dual-band class) and skips clients pinned by a Wi-Fi access-list rule.
 - Config change alerts now name the real source from the router history ("claude via SSH from 192.168.0.200", "scheduler PPPoE_Reconnect", "script") instead of the script owner, list only changes since the last check, skip scheduler-only runs, no longer count Wi-Fi/interface runtime fields (bound, running, counters, derived channel) as changes, and say "1 entry" correctly (#222).
+- German UI: singular/plural counts ("1 offene Warnung"), all alert types in the Type column, the traffic-spike texts (group and "↔ host" parts), always-open "What to do" in suggestions, and a correct time-zone hint (browser zone is taken over at every login while no zone is set).
 
 ## [0.20.7] - 2026-10-30
 

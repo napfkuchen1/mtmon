@@ -240,6 +240,20 @@ func (s *Store) OpenCritical() int {
 	return n
 }
 
+// OpenProblems counts the unacknowledged warnings and criticals: what the status line and the overview card call open.
+func (s *Store) OpenProblems() int {
+	var n int
+	s.DB.QueryRow(`SELECT count(*) FROM alerts WHERE acked=0 AND severity IN ('warning','critical')`).Scan(&n)
+	return n
+}
+
+// OpenInfo counts the unacknowledged notes (severity info); they do not count as problems.
+func (s *Store) OpenInfo() int {
+	var n int
+	s.DB.QueryRow(`SELECT count(*) FROM alerts WHERE acked=0 AND severity NOT IN ('warning','critical')`).Scan(&n)
+	return n
+}
+
 func (s *Store) OpenAlerts() int {
 	var n int
 	s.DB.QueryRow(`SELECT count(*) FROM alerts WHERE acked=0`).Scan(&n)

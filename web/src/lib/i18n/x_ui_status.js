@@ -1,7 +1,13 @@
 // German translations – status line on the overview
 export default {
   "Everything OK": "Alles in Ordnung",
+  "{n} problem": "{n} Problem",
   "{n} problems": "{n} Probleme",
+  "{n} open warning": "{n} offene Warnung",
+  "{n} open warnings": "{n} offene Warnungen",
+  "{n} note": "{n} Hinweis",
+  "{n} notes": "{n} Hinweise",
+  "Open warnings": "Offene Warnungen",
   "{n} open alerts": "{n} offene Alarme",
   "{n} devices down": "{n} Geräte nicht erreichbar",
   "{n} clients with a poor Wi-Fi connection": "{n} Clients mit schlechter WLAN-Verbindung",
