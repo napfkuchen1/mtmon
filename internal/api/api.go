@@ -71,6 +71,7 @@ type Server struct {
 
 func New(s *Server) http.Handler {
 	s.sess = newSessions()
+	s.sess.st = s.St
 	s.Started = time.Now()
 	s.up = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
 		return s.originOK(r)

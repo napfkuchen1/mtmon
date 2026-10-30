@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/napfkuchen1/mtmon/internal/store"
 	"golang.org/x/crypto/argon2"
 )
 
@@ -57,7 +58,8 @@ func CheckPassword(pw, enc string) bool {
 	return subtle.ConstantTimeCompare(got, want) == 1
 }
 
-// Sessions live in memory (a restart logs everybody out). A session expires after sessionIdle without use and in any
+// Sessions live in memory and, when st is set, also in the database (hash only), so a restart or update keeps
+// everybody logged in. A session expires after sessionIdle without use and in any
 // case sessionMax after login, even if it is used continuously.
 const (
 	sessionIdle = 12 * time.Hour
@@ -73,6 +75,7 @@ type sessions struct {
 	tokens map[string]session
 	fails  map[string][]time.Time
 	now    func() time.Time
+	st     *store.Store // nil: memory only
 }
 
 func newSessions() *sessions {
@@ -129,6 +132,10 @@ func (s *sessions) create() string {
 	}
 	s.tokens[tok] = session{idleUntil: now.Add(sessionIdle), born: now}
 	s.mu.Unlock()
+	if s.st != nil {
+		s.st.PruneSessions(now.Add(-time.Hour).Unix(), now.Add(-sessionMax).Unix())
+		s.st.SaveSession(hashToken(tok), now.Add(sessionIdle).Unix(), now.Unix())
+	}
 	return tok
 }
 
@@ -140,20 +147,38 @@ func (s *sessions) valid(tok string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	v, ok := s.tokens[tok]
+	if !ok && s.st != nil { // not known in memory: a session from before the restart
+		if idle, born, found := s.st.LoadSession(hashToken(tok)); found {
+			v, ok = session{idleUntil: time.Unix(idle, 0), born: time.Unix(born, 0)}, true
+		}
+	}
 	if !ok {
 		return false
 	}
 	now := s.now()
 	if s.expired(v, now) {
 		delete(s.tokens, tok)
+		if s.st != nil {
+			s.st.DropSession(hashToken(tok))
+		}
 		return false
+	}
+	if s.st != nil && now.Add(sessionIdle).Sub(v.idleUntil) > time.Minute { // persist the slide, but not on every request
+		s.st.SaveSession(hashToken(tok), now.Add(sessionIdle).Unix(), v.born.Unix())
 	}
 	v.idleUntil = now.Add(sessionIdle) // sliding, but never beyond born+sessionMax
 	s.tokens[tok] = v
 	return true
 }
 
-func (s *sessions) drop(tok string) { s.mu.Lock(); delete(s.tokens, tok); s.mu.Unlock() }
+func (s *sessions) drop(tok string) {
+	s.mu.Lock()
+	delete(s.tokens, tok)
+	s.mu.Unlock()
+	if s.st != nil {
+		s.st.DropSession(hashToken(tok))
+	}
+}
 
 // sameOrigin reports whether the Origin header of a browser request names exactly this server (scheme is not
 // compared: the listener decides http/https). An empty Origin (non-browser client) is the caller's decision.

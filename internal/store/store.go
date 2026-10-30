@@ -14,6 +14,7 @@ import (
 
 const schema = `
 CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT);
+CREATE TABLE IF NOT EXISTS sessions(hash TEXT PRIMARY KEY, idle_until INTEGER NOT NULL, born INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS clients(
   mac TEXT PRIMARY KEY, hostname TEXT, vendor TEXT, ip TEXT, label TEXT,
   first_seen INTEGER, last_seen INTEGER,
