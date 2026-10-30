@@ -1,0 +1,22 @@
+// German translations – two-factor login
+export default {
+  "Two-factor login": "Zwei-Faktor-Anmeldung",
+  "On": "An",
+  "Sign-in then needs a code from an authenticator app as well as the password. Actions that use a router admin login (adding or removing devices, applying fixes) ask for a fresh code too.": "Die Anmeldung braucht dann zusätzlich zum Passwort einen Code aus einer Authenticator-App. Aktionen mit Router-Admin-Login (Geräte hinzufügen oder entfernen, Korrekturen anwenden) fragen ebenfalls nach einem frischen Code.",
+  "Recovery codes": "Wiederherstellungscodes",
+  "Each code works once. Keep them somewhere safe – they are not shown again.": "Jeder Code gilt nur einmal. Sicher aufbewahren – sie werden nicht noch einmal angezeigt.",
+  "I saved them": "Habe ich gespeichert",
+  "Scan the code with an authenticator app, or enter this key by hand:": "Code mit einer Authenticator-App scannen oder diesen Schlüssel von Hand eingeben:",
+  "6-digit code": "6-stelliger Code",
+  "Turn on": "Einschalten",
+  "Turn off": "Ausschalten",
+  "Set up": "Einrichten",
+  "{n} recovery codes left.": "Noch {n} Wiederherstellungscodes.",
+  "Two-factor code": "Zwei-Faktor-Code",
+  "Code from your authenticator app (or a recovery code)": "Code aus der Authenticator-App (oder ein Wiederherstellungscode)",
+  "Enter your two-factor code for this action:": "Zwei-Faktor-Code für diese Aktion eingeben:",
+  "two-factor code required": "Zwei-Faktor-Code erforderlich",
+  "wrong code – check the time on your phone and try again": "Falscher Code – Uhrzeit am Handy prüfen und erneut versuchen",
+  "two-factor login is already on": "Zwei-Faktor-Anmeldung ist bereits an",
+  "password or code wrong": "Passwort oder Code falsch",
+}

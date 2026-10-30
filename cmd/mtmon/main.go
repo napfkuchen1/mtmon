@@ -83,7 +83,7 @@ func usage() {
   check       [-c ...]                      validate config and test router API access
   init        [-c ...] [-devices file.json] [-ui-port N] [-flow-port N]   create a default config (never overwrites)
   selftest    [-c ...]                      verify the running service (UI, /healthz, flow port)
-  passwd      [-c ...] [-u admin]           set the UI password (reads MTMON_PASSWORD env or stdin)
+  passwd      [-c ...] [-u admin] [--reset-2fa]  set the UI password / switch 2FA off (reads MTMON_PASSWORD env or stdin)
   fingerprint <host:port>                   print TLS cert SHA-256 of a router (for pinning)
   version
 `)
@@ -300,10 +300,25 @@ func passwd(args []string) error {
 	cp := fs.String("c", "/etc/mtmon/config.json", "config file")
 	user := fs.String("u", "", "admin user name (default: keep)")
 	gen := fs.Bool("generate", false, "generate a random password and print it")
+	reset2fa := fs.Bool("reset-2fa", false, "switch two-factor login off (lost phone and recovery codes); the password stays")
 	fs.Parse(args)
 	cfg, err := config.Load(*cp)
 	if err != nil {
 		return err
+	}
+	if *reset2fa {
+		st, err := store.Open(cfg.DataDir)
+		if err != nil {
+			return err
+		}
+		defer st.Close()
+		for _, k := range []string{"totp_secret", "totp_pending", "totp_recovery", "totp_last"} {
+			if err := st.SetMeta(k, ""); err != nil {
+				return err
+			}
+		}
+		fmt.Println("two-factor login is off; set it up again in Settings → Security")
+		return nil
 	}
 	pw := os.Getenv("MTMON_PASSWORD")
 	if *gen {

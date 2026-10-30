@@ -215,6 +215,9 @@ func (s *Server) auth(h http.HandlerFunc) http.HandlerFunc {
 				jerr(w, 403, "cross-origin request blocked")
 				return
 			}
+			if !s.totpGate(w, r) {
+				return
+			}
 			s.audited(w, r, h)
 			return
 		}
@@ -230,7 +233,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 429, "too many attempts, wait a minute")
 		return
 	}
-	var in struct{ User, Password string }
+	var in struct{ User, Password, Code string }
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in); err != nil {
 		jerr(w, 400, "bad request")
 		return
@@ -240,6 +243,20 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		s.audit(auditUser(in.User), sourceIP(r), "login.fail", "")
 		jerr(w, 401, "invalid credentials")
 		return
+	}
+	if s.totpEnabled() {
+		if strings.TrimSpace(in.Code) == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(401)
+			json.NewEncoder(w).Encode(map[string]any{"error": "two-factor code required", "totp_required": true})
+			return
+		}
+		if !s.totpCheck(in.Code, time.Now()) {
+			s.sess.fail(ip)
+			s.audit(in.User, sourceIP(r), "login.fail", "two-factor code wrong")
+			jerr(w, 401, "invalid credentials")
+			return
+		}
 	}
 	s.audit(in.User, sourceIP(r), "login.ok", "")
 	http.SetCookie(w, &http.Cookie{Name: "mtmon_session", Value: s.sess.create(), Path: "/", HttpOnly: true,

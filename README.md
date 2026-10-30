@@ -218,6 +218,12 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/napfkuchen1/mtmon/main/i
 
 The update takes a Proxmox snapshot and a copy of the database first, swaps the binary, runs a health check and **rolls back automatically** if it fails. Your devices, rules and history are kept.
 
+## Config history and downloads
+
+mtmon reads a fixed set of read-only REST lists from each device once a day (and when `/system/history` shows a change) and stores a snapshot when something differs. Passwords, keys, tokens and runtime values are never stored. **Download** on the device page gives one snapshot as a readable text file (`<device>_<date>-<time>.txt`, RouterOS-like syntax).
+
+This is a **change log, not a restorable backup**: it covers only the sections mtmon reads and leaves out secrets. To restore a router use `/export` or a binary backup on the router itself. Snapshots are kept for 90 days by default (changeable on the device page, 7 days minimum); the newest snapshot of each device is never deleted.
+
 ## Uninstall
 
 Run the command again and choose **uninstall**. You pick the container and must type its ID to confirm. A final `vzdump` backup is made first (restore later with `pct restore`), then the container is destroyed.
