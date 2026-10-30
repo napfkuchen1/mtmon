@@ -83,6 +83,25 @@ type pathIn struct {
 	Dst       pathDst
 }
 
+// vpnHop is the access link of a WireGuard peer: the tunnel interface and whether the peer shook hands recently
+// (the poller marks a peer online when the last handshake is at most 3 minutes old).
+func vpnHop(c store.Client) pathHop {
+	l := pathHop{Kind: "link", Title: "VPN tunnel", Sub: "via " + c.Device, Health: hOK, Facts: []pathFact{}}
+	if c.Iface != "" {
+		l.Facts = append(l.Facts, fact("Tunnel interface", c.Iface))
+	}
+	if c.Online {
+		l.Facts = append(l.Facts, fact("Handshake", "recent (under 3 minutes)"))
+	} else {
+		l.Health, l.Why = hWarn, "no recent WireGuard handshake"
+		l.Facts = append(l.Facts, fact("Handshake", "none in the last 3 minutes"))
+	}
+	if c.IP != "" {
+		l.Facts = append(l.Facts, fact("Tunnel address", c.IP))
+	}
+	return l
+}
+
 func wifiHealth(sig int) (string, string) {
 	switch {
 	case sig == 0:
@@ -197,7 +216,7 @@ func buildPath(in pathIn) (hops []pathHop, weakest int) {
 	case in.AddrOnly || c.Device == "":
 		hops = append(hops, pathHop{Kind: "link", Title: "Unknown access", Sub: "client is not placed on a device", Health: hUnknown, Facts: []pathFact{}})
 	case vpn:
-		hops = append(hops, pathHop{Kind: "link", Title: "VPN tunnel", Sub: "via " + c.Device, Health: hOK, Facts: []pathFact{}})
+		hops = append(hops, vpnHop(c))
 	case c.WiFi:
 		h, why := wifiHealth(c.Signal)
 		l := pathHop{Kind: "link", Title: "Wi-Fi " + strings.TrimSpace(c.SSID+" "+c.Band), Health: h, Why: why, Facts: []pathFact{}}

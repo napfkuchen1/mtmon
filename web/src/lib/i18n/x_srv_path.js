@@ -22,4 +22,10 @@ export default {
   "Group": "Gruppe",
   "Service": "Dienst",
   "Port": "Port",
+  "Tunnel interface": "Tunnel-Interface",
+  "Handshake": "Handshake",
+  "recent (under 3 minutes)": "aktuell (unter 3 Minuten)",
+  "none in the last 3 minutes": "keiner in den letzten 3 Minuten",
+  "no recent WireGuard handshake": "kein aktueller WireGuard-Handshake",
+  "Tunnel address": "Tunnel-Adresse",
 }

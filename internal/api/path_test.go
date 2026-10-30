@@ -48,7 +48,8 @@ func TestBuildPathVariants(t *testing.T) {
 		weakest  string // kind of the weakest hop, "" = none
 		accessOK string
 	}{
-		{"vpn", pathIn{Client: store.Client{MAC: "VPN:10.9.0.2", Device: "rtr"}, Chain: root}, "VPN tunnel", "device", hOK},
+		{"vpn", pathIn{Client: store.Client{MAC: "VPN:10.9.0.2", Device: "rtr", Iface: "wg0", Online: true}, Chain: root}, "VPN tunnel", "device", hOK},
+		{"vpn stale", pathIn{Client: store.Client{MAC: "VPN:10.9.0.2", Device: "rtr", Iface: "wg0"}, Chain: root}, "VPN tunnel", "device", hWarn},
 		{"cable down", pathIn{Client: store.Client{MAC: "AA:BB:CC:00:00:02", Device: "rtr", Iface: "ether3"}, Chain: root, AccessOK: true, Access: live.IfRate{Iface: "ether3"}}, "Cable ether3", "link", hBad},
 		{"cable up", pathIn{Client: store.Client{MAC: "AA:BB:CC:00:00:02", Device: "rtr", Iface: "ether3"}, Chain: []pathDev{{Name: "rtr", Up: true}}, AccessOK: true, Access: live.IfRate{Iface: "ether3", Running: true}}, "Cable ether3", "", hOK},
 		{"address only", pathIn{Client: store.Client{MAC: "9.9.9.9", IP: "9.9.9.9"}, AddrOnly: true}, "Unknown access", "", hUnknown},
