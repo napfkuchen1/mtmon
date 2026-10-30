@@ -23,6 +23,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Config history: download any snapshot as a readable text file (secrets and runtime values left out) and choose how long snapshots are kept (default 90 days, newest per device always stays). The README explains it is a change log, not a restorable backup.
 - Audit log (Settings): who logged in, changed settings, created or used API tokens, added devices, applied fixes or installed updates – with old and new values, kept 180 days. Passwords and request contents are never logged.
 - Two-factor login (Settings → Two-factor login): authenticator app (TOTP) with QR code and 10 single-use recovery codes. When on, sign-in asks for the code, and actions that use a router admin login (adding or removing devices, applying fixes) ask for a fresh one. Lost your phone: run `mtmon passwd --reset-2fa` on the server.
+- Read-only account (#192): a second login that sees everything operational but cannot change anything and does not see settings, audit log, tokens or 2FA. Managed under Settings.
 
 ### Changed
 - The overview status line and the "Open warnings" card count only warnings and critical alerts; info notes show as a small "n notes" link, so one warning no longer reads as "9 open alerts". /metrics gets `mtmon_alerts_open_info`.

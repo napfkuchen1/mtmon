@@ -155,9 +155,9 @@
         {/each}
       </nav>
       <div class="foot">
-        <a class="sl" href="#/settings" class:on={active === 'settings'} title={t('Settings')}>
+        {#if app.role !== 'viewer'}<a class="sl" href="#/settings" class:on={active === 'settings'} title={t('Settings')}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={settingsIcon} /></svg><span class="lbl">{t('Settings')}</span>
-        </a>
+        </a>{/if}
         <div class="conn" title={app.live.connected ? t('Live connected') : t('Reconnecting…')}><span class="dot" class:ok={app.live.connected} class:bad={!app.live.connected}></span><span class="lbl">{app.live.connected ? t('Live connected') : t('Reconnecting…')}</span></div>
         <div class="row2 full">
           <select class="input sm" aria-label={t('Theme')} value={app.theme} onchange={e => setTheme(e.target.value)}>
@@ -199,6 +199,7 @@
       </header>
       <div class="page" use:collapsible={app.route.name}>
         {#if app.route.name === 'overview'}<Overview />
+        {:else if app.role === 'viewer' && app.route.name === 'settings'}<div class="empty">{t('Not available for the read-only account.')} <a href="#/overview">{t('Go to Overview')}</a></div>
         {:else if Page}<Page />
         {:else if !pages[app.route.name]}<div class="empty">{t('Page not found.')} <a href="#/overview">{t('Go to Overview')}</a></div>{/if}
       </div>

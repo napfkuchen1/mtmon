@@ -2,6 +2,7 @@ import { api, AuthError } from './api.js'
 
 export const app = $state({
   user: null,          // null = unknown, false = logged out
+  role: 'admin',       // 'viewer' = read-only account: no settings, no changes
   range: localStorage.getItem('mtmon.range') || '1h',
   theme: localStorage.getItem('mtmon.theme') || 'auto',
   density: localStorage.getItem('mtmon.density') || 'comfortable', // comfortable | compact
@@ -37,7 +38,7 @@ export function applyTheme() {
 export function toast(msg) { app.toast = msg; setTimeout(() => { if (app.toast === msg) app.toast = '' }, 2200) }
 
 export async function checkSession() {
-  try { const me = await api('/me'); app.user = me.user || false } catch { app.user = false }
+  try { const me = await api('/me'); app.user = me.user || false; app.role = me.role || 'admin' } catch { app.user = false }
 }
 export function onAuthError(e) { if (e instanceof AuthError) { app.user = false; closeLive(); return true } return false }
 

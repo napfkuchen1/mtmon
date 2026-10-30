@@ -191,6 +191,9 @@ func Open(dir string) (*Store, error) {
 	if err := migrateAudit(db); err != nil {
 		return nil, fmt.Errorf("audit schema: %w", err)
 	}
+	if err := migrateSessionRoles(db); err != nil {
+		return nil, fmt.Errorf("session role schema: %w", err)
+	}
 	if _, err := db.Exec(healthSchema); err != nil {
 		return nil, err
 	}

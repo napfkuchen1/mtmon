@@ -53,7 +53,7 @@ func metaQuiet(k string) bool {
 
 func metaSecret(k string) bool {
 	k = strings.ToLower(k)
-	return k == "notify" || strings.HasPrefix(k, "totp") || strings.Contains(k, "pass") || strings.Contains(k, "secret") || strings.Contains(k, "token") || strings.Contains(k, "key")
+	return k == "notify" || strings.HasPrefix(k, "totp") || strings.Contains(k, "pass") || strings.Contains(k, "hash") || strings.Contains(k, "secret") || strings.Contains(k, "token") || strings.Contains(k, "key")
 }
 
 func auditShort(v string) string {

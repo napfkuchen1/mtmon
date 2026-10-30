@@ -68,7 +68,10 @@ const (
 	failLimit   = 5
 )
 
-type session struct{ idleUntil, born time.Time }
+type session struct {
+	idleUntil, born time.Time
+	role            string // "" = admin, "viewer" = read-only account
+}
 
 type sessions struct {
 	mu     sync.Mutex
@@ -139,6 +142,27 @@ func (s *sessions) create() string {
 	return tok
 }
 
+// createRole starts a session for a non-admin account.
+func (s *sessions) createRole(role string) string {
+	tok := s.create()
+	s.mu.Lock()
+	v := s.tokens[tok]
+	v.role = role
+	s.tokens[tok] = v
+	s.mu.Unlock()
+	if s.st != nil {
+		s.st.SetSessionRole(hashToken(tok), role)
+	}
+	return tok
+}
+
+// roleOf is the role of a (valid) session.
+func (s *sessions) roleOf(tok string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.tokens[tok].role
+}
+
 func (s *sessions) expired(v session, now time.Time) bool {
 	return now.After(v.idleUntil) || now.After(v.born.Add(sessionMax))
 }
@@ -149,7 +173,7 @@ func (s *sessions) valid(tok string) bool {
 	v, ok := s.tokens[tok]
 	if !ok && s.st != nil { // not known in memory: a session from before the restart
 		if idle, born, found := s.st.LoadSession(hashToken(tok)); found {
-			v, ok = session{idleUntil: time.Unix(idle, 0), born: time.Unix(born, 0)}, true
+			v, ok = session{idleUntil: time.Unix(idle, 0), born: time.Unix(born, 0), role: s.st.SessionRole(hashToken(tok))}, true
 		}
 	}
 	if !ok {
