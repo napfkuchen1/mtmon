@@ -27,6 +27,11 @@
     checking = false
   }
 
+  async function setHour(hour) {
+    err = ''
+    try { st.data = await api('/update/mode', { method: 'PUT', body: { hour: Number(hour) } }); toast(t('Saved')) } catch (e) { err = e.message }
+  }
+
   async function setMode(mode) {
     err = ''
     try { st.data = await api('/update/mode', { method: 'PUT', body: { mode } }); refreshShell(); toast(t('Saved')) } catch (e) { err = e.message }
@@ -83,11 +88,17 @@
           <option value="notify">{t('Notify only')}</option>
           <option value="auto">{t('Install automatically at night')}</option>
         </select></td></tr>
+      {#if s.mode === 'auto'}
+      <tr><td class="muted"><label for="upd-hour">{t('Install window')}</label></td><td class="r">
+        <select id="upd-hour" class="input sm" style="max-width:200px" value={s.hour} onchange={e => setHour(e.target.value)} disabled={busy}>
+          {#each Array.from({ length: 24 }, (_, i) => i) as h}<option value={h}>{String(h).padStart(2, '0')}:00 – {String((h + 1) % 24).padStart(2, '0')}:00</option>{/each}
+        </select></td></tr>
+      {/if}
     </tbody></table>
     <div class="card-b" style="display:flex;flex-direction:column;gap:12px;border-top:1px solid var(--border)">
       <div class="muted">
         {#if s.mode === 'off'}{t('No automatic checks. Use “Check now” when you want to look for a new version.')}
-        {:else if s.mode === 'auto'}{t('mtmon checks every 6 hours and installs a newer release between 03:00 and 04:00 (container time), once per release.')}
+        {:else if s.mode === 'auto'}{t('mtmon checks every 6 hours and installs a newer release in the install window set above (container time), once per release.')}
         {:else}{t('mtmon checks GitHub every 6 hours and shows a notice here and in the sidebar. Nothing is installed without your click.')}{/if}
       </div>
       {#if !s.comparable}<div class="muted">{t('This is a development build; updates are never offered for it automatically.')}</div>{/if}

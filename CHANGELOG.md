@@ -19,6 +19,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Prometheus endpoint GET /metrics (device health, interface rates, clients, open alerts, uptime). Use a read-only API token as bearer token (#193).
 - Internet page: DNS resolution time and failures through the system resolver (usually the router) for example.com and cloudflare.com, listed per target but kept out of the line-loss totals (#194).
 - Wi-Fi connection score 0-100 per client (signal, weak readings, roams per hour, link rate) at GET /api/wifi/health, and a status line at the top of the overview ("Everything OK" or the list of problems) (#191, #195).
+- Auto-update install window is a setting (hour of day, default 03:00) (#189)
 
 ### Changed
 - Docs: known limits now state the row cap and the one-instance-per-site recommendation, a tested-devices list and a "Report your device" issue template (#197).

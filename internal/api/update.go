@@ -54,14 +54,23 @@ func (s *Server) updateMode(w http.ResponseWriter, r *http.Request) {
 	}
 	var in struct {
 		Mode string `json:"mode"`
+		Hour *int   `json:"hour"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&in); err != nil {
 		jerr(w, 400, "bad request")
 		return
 	}
-	if err := s.Upd.SetMode(in.Mode); err != nil {
-		jerr(w, 400, err.Error())
-		return
+	if in.Mode != "" || in.Hour == nil {
+		if err := s.Upd.SetMode(in.Mode); err != nil {
+			jerr(w, 400, err.Error())
+			return
+		}
+	}
+	if in.Hour != nil {
+		if err := s.Upd.SetHour(*in.Hour); err != nil {
+			jerr(w, 400, err.Error())
+			return
+		}
 	}
 	jsonOut(w, s.Upd.Status())
 }

@@ -13,7 +13,7 @@ export default {
   'Notify only': 'Nur benachrichtigen',
   'Install automatically at night': 'Nachts automatisch installieren',
   'No automatic checks. Use “Check now” when you want to look for a new version.': 'Keine automatische Prüfung. Mit „Jetzt prüfen“ suchen Sie bei Bedarf nach einer neuen Version.',
-  'mtmon checks every 6 hours and installs a newer release between 03:00 and 04:00 (container time), once per release.': 'mtmon prüft alle 6 Stunden und installiert eine neuere Version zwischen 03:00 und 04:00 Uhr (Container-Zeit), pro Version nur einmal.',
+  'mtmon checks every 6 hours and installs a newer release in the install window set above (container time), once per release.': 'mtmon prüft alle 6 Stunden und installiert eine neuere Version im oben eingestellten Zeitfenster (Container-Zeit), pro Version nur einmal.',
   'mtmon checks GitHub every 6 hours and shows a notice here and in the sidebar. Nothing is installed without your click.': 'mtmon prüft alle 6 Stunden auf GitHub und zeigt einen Hinweis hier und in der Seitenleiste. Ohne Ihren Klick wird nichts installiert.',
   'This is a development build; updates are never offered for it automatically.': 'Dies ist eine Entwicklungsversion; dafür werden nie automatisch Updates angeboten.',
   'Update check failed:': 'Update-Prüfung fehlgeschlagen:',

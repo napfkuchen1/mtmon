@@ -512,9 +512,10 @@ func TestAutoUpdateWaitsWhileBusy(t *testing.T) {
 }
 
 func TestAutoWindowAndOncePerRelease(t *testing.T) {
-	if !inWindow(time.Date(2026, 10, 2, 3, 0, 0, 0, time.Local)) || !inWindow(time.Date(2026, 10, 2, 3, 59, 0, 0, time.Local)) ||
-		inWindow(time.Date(2026, 10, 2, 4, 0, 0, 0, time.Local)) || inWindow(time.Date(2026, 10, 2, 2, 59, 0, 0, time.Local)) {
-		t.Error("window must be 03:00-03:59 local")
+	if !inWindow(time.Date(2026, 10, 2, 3, 0, 0, 0, time.Local), 3) || !inWindow(time.Date(2026, 10, 2, 3, 59, 0, 0, time.Local), 3) ||
+		inWindow(time.Date(2026, 10, 2, 4, 0, 0, 0, time.Local), 3) || inWindow(time.Date(2026, 10, 2, 2, 59, 0, 0, time.Local), 3) ||
+		!inWindow(time.Date(2026, 10, 2, 23, 30, 0, 0, time.Local), 23) {
+		t.Error("window must be one local hour starting at the configured hour")
 	}
 	f := newFake(t, "v0.7.0", mkTar(t, tarEntry{name: "mtmon/mtmon", body: script("v9.9.9")})) // will fail verification
 	m, _ := f.mgr(t, "v0.6.0")
