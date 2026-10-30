@@ -257,6 +257,16 @@ func buildPath(in pathIn) (hops []pathHop, weakest int) {
 			wan.Facts = append(wan.Facts, fact("Port", u.Port))
 		}
 	}
+	if a, err := netip.ParseAddr(in.Dst.IP); err == nil {
+		fam := "IPv6 (no NAT)"
+		if a.Is4() || a.Is4In6() {
+			fam = "IPv4"
+			if ca, err := netip.ParseAddr(in.Client.IP); err == nil && ca.IsPrivate() {
+				fam = "IPv4 (source NAT on the gateway)"
+			}
+		}
+		wan.Facts = append(wan.Facts, fact("Address family of this target", fam))
+	}
 	if in.WAN.Sent > 0 {
 		wan.Facts = append(wan.Facts, fact("Probe latency", fmt.Sprintf("%.0f ms avg, %.0f ms max", in.WAN.AvgMS, in.WAN.MaxMS)), fact("Probe loss", fmt.Sprintf("%.1f%%", in.WAN.LossPct)))
 	}

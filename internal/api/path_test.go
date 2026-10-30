@@ -184,3 +184,28 @@ func TestPathFactFormatting(t *testing.T) {
 		t.Fatalf("port=%q bytes=%q", port, by)
 	}
 }
+
+func TestPathWANAddressFamily(t *testing.T) {
+	famOf := func(clientIP, dst string) string {
+		hops, _ := buildPath(pathIn{Client: store.Client{MAC: "AA:BB:CC:00:00:09", IP: clientIP}, Dst: pathDst{IP: dst}})
+		for _, h := range hops {
+			if h.Kind == "wan" {
+				for _, f := range h.Facts {
+					if f.K == "Address family of this target" {
+						return f.V
+					}
+				}
+			}
+		}
+		return ""
+	}
+	if got := famOf("192.168.1.5", "1.2.3.4"); got != "IPv4 (source NAT on the gateway)" {
+		t.Errorf("v4 behind NAT: %q", got)
+	}
+	if got := famOf("fd00::5", "2606:4700::1111"); got != "IPv6 (no NAT)" {
+		t.Errorf("v6: %q", got)
+	}
+	if got := famOf("192.168.1.5", ""); got != "" {
+		t.Errorf("no target address must add no fact: %q", got)
+	}
+}
