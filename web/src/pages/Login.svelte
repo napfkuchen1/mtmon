@@ -2,11 +2,11 @@
   import { app, checkSession } from '../lib/state.svelte.js'
   import { api } from '../lib/api.js'
   import { t, tr } from '../lib/i18n.svelte.js'
-  let user = $state('admin'), password = $state(''), err = $state(''), busy = $state(false)
+  let user = $state('admin'), password = $state(''), code = $state(''), needCode = $state(false), err = $state(''), busy = $state(false)
   async function submit(e) {
     e.preventDefault(); busy = true; err = ''
-    try { await api('/login', { method: 'POST', body: { user, password } }); await checkSession() }
-    catch (ex) { err = ex.message } finally { busy = false }
+    try { await api('/login', { method: 'POST', body: { user, password, code } }); await checkSession() }
+    catch (ex) { if (ex.data?.totp_required) { needCode = true } else { err = ex.message } } finally { busy = false }
   }
 </script>
 
@@ -18,6 +18,7 @@
     </div>
     <label>{t('Username')}<input class="input" bind:value={user} autocomplete="username" required /></label>
     <label>{t('Password')}<input class="input" type="password" bind:value={password} autocomplete="current-password" required /></label>
+    {#if needCode}<label>{t('Two-factor code')}<input class="input" bind:value={code} inputmode="numeric" autocomplete="one-time-code" placeholder={t('Code from your authenticator app (or a recovery code)')} required /></label>{/if}
     {#if err}<div class="badge bad" role="alert">{tr(err)}</div>{/if}
     <button class="btn primary" disabled={busy}>{busy ? t('Signing in…') : t('Sign in')}</button>
   </form>

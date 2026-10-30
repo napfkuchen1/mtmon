@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "country-flag-icons": "^1.6.20",
+    "qrcode-generator": "1.4.4",
     "topojson-client": "^3.1.0",
     "world-atlas": "^2.0.2"
   }
