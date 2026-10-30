@@ -1,11 +1,52 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
 	"github.com/napfkuchen1/mtmon/internal/poller"
+	"github.com/napfkuchen1/mtmon/internal/probe"
 )
+
+// CustomTargets returns the own probe targets from the settings (never nil).
+func CustomTargets(get func(string) string) []probe.Custom {
+	out := []probe.Custom{}
+	if v := get("wan_custom"); v != "" {
+		json.Unmarshal([]byte(v), &out)
+	}
+	if out == nil {
+		out = []probe.Custom{}
+	}
+	return out
+}
+
+// internetTargets: GET /api/internet/targets – the own targets and the limit.
+func (s *Server) internetTargets(w http.ResponseWriter, r *http.Request) {
+	jsonOut(w, map[string]any{"targets": CustomTargets(s.St.GetMeta), "max": probe.MaxCustom})
+}
+
+// internetTargetsSave: PUT /api/internet/targets {targets:[{kind,target,insecure}]} – replaces the list; the probe
+// reads it every round, so no restart is needed.
+func (s *Server) internetTargetsSave(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Targets []probe.Custom `json:"targets"`
+	}
+	if !readJSON(w, r, &in) {
+		return
+	}
+	list, err := probe.ValidateCustom(in.Targets)
+	if err != nil {
+		jerr(w, 400, err.Error())
+		return
+	}
+	b, _ := json.Marshal(list)
+	if err := s.St.SetMeta("wan_custom", string(b)); err != nil {
+		jerr(w, 500, err.Error())
+		return
+	}
+	jsonOut(w, map[string]any{"targets": list, "max": probe.MaxCustom})
+}
 
 // internet: GET /api/internet?range=… – quality of the internet connection as measured by mtmon's own probes, plus
 // how often the WAN link reconnected (from the alert history).

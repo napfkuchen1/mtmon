@@ -7,6 +7,7 @@
   import UpdateCard from './UpdateCard.svelte'
   import GroupsCard from '../lib/GroupsCard.svelte'
   import DNSBypassCard from '../lib/DNSBypassCard.svelte'
+  import InternetTargetsCard from '../lib/InternetTargetsCard.svelte'
   import ResetDialog from '../lib/ResetDialog.svelte'
   let reset = $state(null) // null | 'data' | 'full'
   const sys = poll(() => api('/system'), 5000)
@@ -272,6 +273,7 @@
 <GroupsCard />
 
 <DNSBypassCard />
+<InternetTargetsCard />
 
 <UpdateCard />
 

@@ -70,6 +70,8 @@ func (s *Server) featureRoutes(m *http.ServeMux, a func(http.HandlerFunc) http.H
 	m.HandleFunc("POST /api/learning/reset", a(s.learningReset))
 	m.HandleFunc("GET /api/internet", a(s.internet))
 	m.HandleFunc("PUT /api/internet", a(s.internetSave))
+	m.HandleFunc("GET /api/internet/targets", a(s.internetTargets))
+	m.HandleFunc("PUT /api/internet/targets", a(s.internetTargetsSave))
 	s.speedRoutes(m, a)
 	m.HandleFunc("GET /api/dns-bypass", a(s.dnsBypassList))
 	m.HandleFunc("PUT /api/dns-bypass", a(s.dnsBypassSave))

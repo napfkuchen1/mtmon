@@ -66,6 +66,7 @@ type Engine struct {
 	acl         map[string]*aclState   // device -> access-list baseline of the running burst (#211)
 	aclHits     map[string]aclRule     // device|mac -> reject rule whose counter rose
 	stories     map[string]*story      // kind|subject -> open story (see stories.go)
+	tgtFails    map[string]int         // own internet target -> failed checks in a row (targets.go)
 
 	Suggest func(store.Client) string // group name suggested for a client without a group (set by main), "" = none
 	hc      *http.Client

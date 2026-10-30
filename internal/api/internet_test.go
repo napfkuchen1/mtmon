@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -40,5 +41,33 @@ func TestInternetQualityEndpoint(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	if r, _ := c.Do(req); r.StatusCode != 200 || s.St.GetMeta("wan_probe") != "off" {
 		t.Error("probe switch")
+	}
+}
+
+func TestInternetTargetsAPI(t *testing.T) {
+	ts, s := newTestServer(t)
+	_, c := login(t, ts, "test-password-1")
+	do := func(method, body string) (int, string) {
+		req, _ := http.NewRequest(method, ts.URL+"/api/internet/targets", strings.NewReader(body))
+		r, err := c.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer r.Body.Close()
+		b, _ := io.ReadAll(r.Body)
+		return r.StatusCode, string(b)
+	}
+	if code, b := do("GET", ""); code != 200 || !strings.Contains(b, `"targets":[]`) {
+		t.Fatalf("empty list must be [] : %d %s", code, b)
+	}
+	if code, _ := do("PUT", `{"targets":[{"kind":"dns","target":"no name"}]}`); code != 400 {
+		t.Errorf("bad name accepted: %d", code)
+	}
+	if code, b := do("PUT", `{"targets":[{"kind":"http","target":"https://nas.lan/","insecure":true},{"kind":"dns","target":"example.org"}]}`); code != 200 {
+		t.Fatalf("save: %d %s", code, b)
+	}
+	got := CustomTargets(s.St.GetMeta)
+	if len(got) != 2 || !got[0].Insecure || got[1].Target != "example.org" {
+		t.Errorf("stored: %+v", got)
 	}
 }

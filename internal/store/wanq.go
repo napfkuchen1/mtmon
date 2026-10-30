@@ -35,7 +35,7 @@ type WANWindow struct {
 func (s *Store) WANQualitySince(since int64) WANWindow {
 	var w WANWindow
 	var sum float64
-	s.DB.QueryRow(`SELECT coalesce(sum(sent),0), coalesce(sum(lost),0), coalesce(sum(rtt_sum),0), coalesce(max(rtt_max),0) FROM wan_quality WHERE ts>=? AND target NOT LIKE 'dns:%' AND target NOT LIKE 'http:%'`, since/60*60).
+	s.DB.QueryRow(`SELECT coalesce(sum(sent),0), coalesce(sum(lost),0), coalesce(sum(rtt_sum),0), coalesce(max(rtt_max),0) FROM wan_quality WHERE ts>=? AND target NOT LIKE 'dns:%' AND target NOT LIKE 'http%:%'`, since/60*60).
 		Scan(&w.Sent, &w.Lost, &sum, &w.MaxMS)
 	if w.Sent > 0 {
 		w.LossPct = float64(w.Lost) * 100 / float64(w.Sent)
@@ -52,6 +52,8 @@ type WANTarget struct {
 	LossPct float64 `json:"loss_pct"`
 	AvgMS   float64 `json:"avg_ms"`
 	Sent    int64   `json:"sent"`
+	Err     string  `json:"err,omitempty"`  // error text of the last failed check (empty = answered)
+	Note    string  `json:"note,omitempty"` // target that cannot be checked (no IPv6 address)
 }
 
 func (s *Store) WANTargets(since int64) []WANTarget {
@@ -74,6 +76,22 @@ func (s *Store) WANTargets(since int64) []WANTarget {
 		}
 		out = append(out, t)
 	}
+	seen := map[string]bool{}
+	for i := range out {
+		seen[out[i].Target] = true
+		st := s.WANStatusOf()[out[i].Target]
+		out[i].Err, out[i].Note = st.Err, st.Note
+	}
+	var extra []string
+	for tg, st := range s.WANStatusOf() {
+		if st.Note != "" && !seen[tg] {
+			extra = append(extra, tg)
+		}
+	}
+	sort.Strings(extra)
+	for _, tg := range extra {
+		out = append(out, WANTarget{Target: tg, Note: s.WANStatusOf()[tg].Note})
+	}
 	return out
 }
 
@@ -90,7 +108,7 @@ func (s *Store) WANSeries(since, bucket int64) []WANPoint {
 		bucket = 60
 	}
 	out := []WANPoint{}
-	rows, err := s.DB.Query(`SELECT ts/?1*?1, sum(sent), sum(lost), sum(rtt_sum) FROM wan_quality WHERE ts>=?2 AND target NOT LIKE 'dns:%' AND target NOT LIKE 'http:%' GROUP BY 1 ORDER BY 1`, bucket, since/60*60)
+	rows, err := s.DB.Query(`SELECT ts/?1*?1, sum(sent), sum(lost), sum(rtt_sum) FROM wan_quality WHERE ts>=?2 AND target NOT LIKE 'dns:%' AND target NOT LIKE 'http%:%' GROUP BY 1 ORDER BY 1`, bucket, since/60*60)
 	if err != nil {
 		return out
 	}
