@@ -63,8 +63,9 @@ type Config struct {
 	// PortScanPorts / PortScanHosts: how many ports on one host, or hosts on one port, within 60 s count as a scan (default 100 / 200).
 	PortScanPorts int      `json:"port_scan_ports,omitempty"`
 	PortScanHosts int      `json:"port_scan_hosts,omitempty"`
-	Webhook       string   `json:"alert_webhook,omitempty"`  // generic JSON POST
-	NtfyURL       string   `json:"alert_ntfy_url,omitempty"` // e.g. https://ntfy.sh/topic or self-hosted; also works for Gotify-compatible text endpoints
+	Webhook       string   `json:"alert_webhook,omitempty"`        // generic JSON POST
+	WebhookSecret string   `json:"alert_webhook_secret,omitempty"` // signs the webhook body: X-Mtmon-Signature: sha256=<hex HMAC>
+	NtfyURL       string   `json:"alert_ntfy_url,omitempty"`       // e.g. https://ntfy.sh/topic or self-hosted; also works for Gotify-compatible text endpoints
 	SMTP          *SMTP    `json:"alert_smtp,omitempty"`
 	SyslogListen  string   `json:"syslog_listen,omitempty"` // default :5514 (UDP, RouterOS firewall logs)
 	DNSResolvers  []string `json:"dns_resolvers,omitempty"` // allowed resolvers; empty = disable "rogue DNS" alert
