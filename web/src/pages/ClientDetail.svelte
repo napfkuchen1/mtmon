@@ -88,6 +88,16 @@
   const wf = poll(() => api('/clients/' + encodeURIComponent(app.route.params.id) + '/wifi?range=' + rg()), 30000)
   const sigSeries = $derived([{ name: t('Signal (avg)'), color: 'var(--accent)', points: (wf.data?.points || []).map(p => ({ x: p.ts, y: p.avg + 100 })) },
     { name: t('Signal (weakest)'), color: 'var(--bad)', points: (wf.data?.points || []).map(p => ({ x: p.ts, y: p.min + 100 })) }])
+  const wh = poll(() => api('/wifi/health/' + encodeURIComponent(app.route.params.id)), 60000)
+  const wscore = $derived(wh.data?.health)
+  const scoreSeries = $derived([{ name: t('Wi-Fi score'), color: 'var(--accent)', points: (wh.data?.series || []).map(p => ({ x: p.ts, y: p.score })) }])
+  const scoreRows = $derived(wscore ? [
+    [t('Signal'), wscore.signal_penalty, Math.round(wscore.avg_dbm) + ' dBm'],
+    [t('Weak readings'), wscore.weak_penalty, ''],
+    [t('Roams'), wscore.roam_penalty, wscore.pinned ? t('pinned by an access-list rule, not counted') : wscore.roams_per_hour.toFixed(1) + ' / ' + t('h')],
+    [t('Link rate'), wscore.rate_penalty, bps(wscore.avg_rate_bps)],
+    [t('Disconnects'), wscore.disc_penalty, wscore.disconnects_per_hour.toFixed(1) + ' / ' + t('h')],
+  ] : [])
   const dbm = v => Math.round(v - 100) + ' dBm'
   const sigX = ts => new Date(ts * 1000).toLocaleString(i18n.locale, { hour12: false, month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })
   const arrow = $derived({ u: t('↑ out'), d: t('↓ in'), i: t('⇄ lan') })
@@ -202,6 +212,15 @@
     <div class="card" style="margin-top:16px"><div class="card-h" data-default="closed" data-sum={t('{n} events', { n: blocked.data.length })}><h2>{t('Blocked connection attempts')}</h2><span class="muted" style="font-size:12.5px">{t('dropped by the firewall – not visible in flows')}</span></div>
       <div class="scroll" style="max-height:300px;overflow-y:auto"><table><thead><tr><th>{t('Time')}</th><th>{t('Target')}</th><th>{t('Proto')}</th><th>{t('Rule')}</th><th>{t('Router')}</th></tr></thead>
         <tbody>{#each blocked.data as e, i (e.ts + e.dst + e.dport + i)}<tr><td class="mono muted">{clock(e.ts)}</td><td><IPName ip={e.dst} port={e.dport} name={e.dst_name} org={e.dst_org} cc={e.dst_country} /></td><td class="mono">{e.proto}</td><td>{tr(e.rule)}</td><td class="muted">{e.device}</td></tr>{/each}</tbody></table></div></div>
+  {/if}
+
+  {#if wscore}
+    <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Wi-Fi score')}</h2><span class="muted" style="font-size:12px">{t('last 24 hours; 100 minus the penalties below, under {n} is poor', { n: wh.data.poor_below })}</span></div>
+      <div class="card-b"><div style="font-size:22px;font-weight:600">{wscore.score} <span class="badge {wscore.poor ? 'bad' : 'ok'}">{wscore.poor ? t('poor') : t('good')}</span></div>
+        <table style="margin-top:8px"><tbody>
+          {#each scoreRows as r}<tr><td>{r[0]}</td><td class="r mono">{r[1] ? '−' + r[1] : '0'}</td><td class="muted">{r[2]}</td></tr>{/each}
+        </tbody></table>
+        <Chart series={scoreSeries} fmt={v => Math.round(v)} xfmt={sigX} height={110} empty={t('Not enough Wi-Fi history yet')} /></div></div>
   {/if}
 
   {#if c.wifi || wf.data?.points?.length}

@@ -10,6 +10,10 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ## [0.20.8] - 2026-10-31
 
+### New
+- Wi-Fi score counts disconnects (3 or more per hour cost up to 20 points), ignores roams of clients pinned by an access-list rule and only judges the link rate of clients that actually move data. The score list now names client, access point, band and network.
+- Client page: Wi-Fi score card with the breakdown (signal, weak readings, roams, link rate, disconnects) and the score of the last 24 hours (`GET /api/wifi/health/{mac}`).
+
 ### Changed
 - The overview status line and the "Open warnings" card count only warnings and critical alerts; info notes show as a small "n notes" link, so one warning no longer reads as "9 open alerts". /metrics gets `mtmon_alerts_open_info`.
 - Alerts can now carry a message key with parameters (first: traffic spikes); the Alerts page renders them in the language you use, old alerts keep their stored text.
@@ -20,6 +24,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - The "move clients to 5 GHz" hint only lists devices seen on 5 GHz before (or of a typical dual-band class) and skips clients pinned by a Wi-Fi access-list rule.
 - Config change alerts now name the real source from the router history ("claude via SSH from 192.168.0.200", "scheduler PPPoE_Reconnect", "script") instead of the script owner, list only changes since the last check, skip scheduler-only runs, no longer count Wi-Fi/interface runtime fields (bound, running, counters, derived channel) as changes, and say "1 entry" correctly (#222).
 - German UI: singular/plural counts ("1 offene Warnung"), all alert types in the Type column, the traffic-spike texts (group and "↔ host" parts), always-open "What to do" in suggestions, and a correct time-zone hint (browser zone is taken over at every login while no zone is set).
+- Wi-Fi score: the link-rate penalty never applied because rates in bit/s were read as Mbit/s; older stored readings are converted on update.
 
 ## [0.20.7] - 2026-10-30
 

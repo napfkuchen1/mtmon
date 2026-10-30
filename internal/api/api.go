@@ -102,6 +102,7 @@ func New(s *Server) http.Handler {
 	m.HandleFunc("GET /api/alerts/noise", a(s.alertNoise))
 	m.HandleFunc("GET /metrics", a(s.metrics))
 	m.HandleFunc("GET /api/wifi/health", a(s.wifiHealth))
+	m.HandleFunc("GET /api/wifi/health/{mac}", a(s.wifiHealthOne))
 	m.HandleFunc("POST /api/alerts/{id}/ack", a(s.ack))
 	m.HandleFunc("POST /api/alerts/ack-all", a(s.ackAll))
 	m.HandleFunc("POST /api/alerts/clear", a(s.clearAlerts))
@@ -556,7 +557,7 @@ func (s *Server) alertNoise(w http.ResponseWriter, r *http.Request) {
 // wifiHealth: GET /api/wifi/health - connection score per Wi-Fi client over the last 24 h, worst first (at most 50).
 func (s *Server) wifiHealth(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().Unix()
-	h, err := s.St.WifiHealthSince(now-86400, now)
+	h, err := s.St.WifiHealthSince(now-86400, now, s.pinnedClients())
 	if err != nil {
 		jerr(w, 500, err.Error())
 		return
@@ -571,6 +572,42 @@ func (s *Server) wifiHealth(w http.ResponseWriter, r *http.Request) {
 		h = h[:1000]
 	}
 	jsonOut(w, map[string]any{"poor": poor, "poor_below": store.WifiPoorBelow, "clients": h})
+}
+
+// pinnedClients returns the client MACs that a Wi-Fi access-list rule names on any device (a deliberate pin).
+func (s *Server) pinnedClients() map[string]bool {
+	out := map[string]bool{}
+	for _, d := range s.Cfg.AllDevices() {
+		if row, _ := s.St.DeviceRow(d.Name); row != nil {
+			if k := storedCaps(row); k != nil {
+				for _, m := range k.PinnedMACs {
+					out[strings.ToUpper(m)] = true
+				}
+			}
+		}
+	}
+	return out
+}
+
+// wifiHealthOne: GET /api/wifi/health/{mac} - the score of one client with its breakdown and the hourly score of
+// the last 24 h.
+func (s *Server) wifiHealthOne(w http.ResponseWriter, r *http.Request) {
+	mac := store.NormMAC(r.PathValue("mac"))
+	now := time.Now().Unix()
+	pinned := s.pinnedClients()
+	h, err := s.St.WifiHealthSince(now-86400, now, pinned)
+	if err != nil {
+		jerr(w, 500, err.Error())
+		return
+	}
+	for _, c := range h {
+		if c.MAC == mac {
+			jsonOut(w, map[string]any{"poor_below": store.WifiPoorBelow, "health": c,
+				"series": s.St.WifiScoreSeries(mac, now-86400, now, c.Pinned, c.Bytes > store.WifiRateMinBytes)})
+			return
+		}
+	}
+	jsonOut(w, map[string]any{"poor_below": store.WifiPoorBelow, "health": nil, "series": []store.WifiScorePoint{}})
 }
 
 func (s *Server) ack(w http.ResponseWriter, r *http.Request) {
