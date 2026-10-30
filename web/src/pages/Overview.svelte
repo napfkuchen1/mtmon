@@ -15,6 +15,7 @@
 
   const bucket = { live: 60, '1h': 60, '24h': 900, '7d': 3600, '30d': 14400 }
   const d = poll(() => api('/overview?range=' + app.range), 5000)
+  const wh = poll(() => api('/wifi/health'), 60000)
   const o = $derived(d.data)
 
   const series = $derived.by(() => {
@@ -43,12 +44,22 @@
   const dFlows = $derived(o ? delta(o.flows, o.prev?.flows) : null)
   const sparkDown = $derived(app.range === 'live' ? app.history.map(h => h.down) : (o?.series || []).map(p => p.down))
   const sparkUp = $derived(app.range === 'live' ? app.history.map(h => h.up) : (o?.series || []).map(p => p.up))
+  // one answer for "is everything OK?": only deviations get words
+  const problems = $derived.by(() => {
+    if (!o) return []
+    const l = []
+    if (o.alerts_open) l.push({ txt: t('{n} open alerts', { n: o.alerts_open }), href: '#/alerts' })
+    if (o.devices_up < o.devices_total) l.push({ txt: t('{n} devices down', { n: o.devices_total - o.devices_up }), href: '#/devices' })
+    if (wh.data?.poor) l.push({ txt: t('{n} clients with a poor Wi-Fi connection', { n: wh.data.poor }), href: '#/clients' })
+    return l
+  })
   const pickClient = r => go(r.device ? 'device/' + encodeURIComponent(r.device) : 'client/' + encodeURIComponent(r.key))
 </script>
 
 <div class="head"><h1>{t('Overview')}</h1><span class="muted">{app.range === 'live' ? t('Last 5 minutes') : t('Last {range}', { range: app.range })}</span></div>
 
 {#if o?.learning_until}<div class="infobox" style="margin-bottom:12px">{t('mtmon is re-learning normal traffic until {time}. Spikes and recurring-traffic findings are recorded as info until then, so there are no false alarms.', { time: datetime(o.learning_until) })}{#if o.learning_reason} <b>{o.learning_reason.startsWith('update ') ? t('Reason: update to {v}', { v: o.learning_reason.slice(7) }) : o.learning_reason === 'data reset' ? t('Reason: data reset') : t('Reason: baselines reset')}</b>{/if}</div>{/if}
+{#if o}<div class="card card-b" style="margin-bottom:12px;display:flex;gap:14px;flex-wrap:wrap;align-items:center"><b style="color:{problems.length ? 'var(--bad)' : 'inherit'}">{problems.length ? t('{n} problems', { n: problems.length }) : t('Everything OK')}</b>{#each problems as p}<a href={p.href}>{p.txt}</a>{/each}{#if wh.data?.poor}<span class="muted" title={t('Score 0-100 per Wi-Fi client: signal, weak readings, roams per hour and link rate each cost points. Poor means below {n}.', { n: wh.data.poor_below })}>(i)</span>{/if}</div>{/if}
 {#if d.error}<div class="warnbox">{t('Could not load data: {err}', { err: tr(d.error) })}</div>{/if}
 
 <div class="grid g6 kpis">
