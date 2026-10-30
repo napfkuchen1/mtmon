@@ -25,6 +25,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - A config change right after mtmon itself applied one (wizard, provisioning, within 30 min) is an info "made through mtmon" instead of a warning (#188).
 - Login sessions now survive a restart or update (only a hash is stored); nobody is logged out by an update any more (#189).
 - Installer aborts on a signed release when `minisign` is missing (override `MTMON_ALLOW_UNVERIFIED=1`); SECURITY.md documents the UDP ingest limits (#192)
+- README known limits now state measured scale numbers (100 clients x 30 days, 637 MB, all queries < 120 ms) (#197)
 
 ### Fixed
 - No more `config_changed` warning after a CAP reconnect: references that RouterOS re-resolves (`*1A` to `*2B` or to a `cap-…` interface name) are not counted as a configuration change (#187).
