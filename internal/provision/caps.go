@@ -71,6 +71,7 @@ type Caps struct {
 	} `json:"traffic_flow"`
 	WwwSSL     bool         `json:"www_ssl"`
 	WwwSSLAddr string       `json:"www_ssl_address"`
+	Cleartext  []string     `json:"cleartext_services"` // enabled telnet / ftp (baseline check)
 	LogActions []string     `json:"log_actions"`
 	Filter     []FilterRule `json:"filter_rules"`
 	// DNSRedirect: active dst-nat/redirect rules that send port-53 traffic to the router (hit counters from the probe).
@@ -367,7 +368,11 @@ func (k *Caps) probeServices(ctx context.Context, c *poller.Client) {
 		k.Flow.Targets = append(k.Flow.Targets, t["dst-address"]+" ("+t["version"]+")")
 	}
 	svcCert := map[string]string{} // service -> certificate name
+	k.Cleartext = nil
 	for _, s := range get(ctx, c, "/ip/service") {
+		if (s["name"] == "telnet" || s["name"] == "ftp") && s["disabled"] != "true" {
+			k.Cleartext = append(k.Cleartext, s["name"])
+		}
 		if s["name"] == "www-ssl" {
 			k.WwwSSL = s["disabled"] != "true"
 			k.WwwSSLAddr = s["address"]

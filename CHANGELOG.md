@@ -14,6 +14,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Back to Home default peer is recognised ("BTH default peer (router config / QR code)"): never connected is normal and it is no unused-peer tip; a handshake on it raises a warning (#186).
 - Alerts page lists noisy alert types: kinds with 5+ warnings in 7 days that were mostly acknowledged by hand; `GET /api/alerts/noise` (#188 slice 2).
 - Config change alerts name who made the latest changes (`by` from `/system/history`) (#188).
+- Baseline check (Suggestions, Security): a router with Telnet or FTP enabled gets a warning with the disable commands (#190).
 
 ### Changed
 - Docs: known limits now state the row cap and the one-instance-per-site recommendation, a tested-devices list and a "Report your device" issue template (#197).
