@@ -18,6 +18,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ### Changed
 - `wifi_disconnects` names the client and the AP interface, and says so when the signal is good (#211)
+- Advice "rules point to deleted interfaces" now offers a `set ... <field>=<current name>` command first (remove only as alternative) and, for Wi-Fi/CAPsMAN rules, explains the root cause (`create-dynamic-enabled` re-creates interfaces on reconnect; durable fix `create-enabled`, one short Wi-Fi drop) (#176)
 
 ### Fixed
 - `script_error` no longer fires for the second log line of a failed SSH/telnet command (already reported as `cli_error`) (#175)
