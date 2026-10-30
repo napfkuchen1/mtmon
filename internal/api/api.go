@@ -50,8 +50,8 @@ type Server struct {
 	mux           *http.ServeMux
 	up            websocket.Upgrader
 	TLS           bool
-	ResetBaseline func()                     // forget learned traffic levels in the alert engine (set by main)
-	ConfigChanged func(device string, n int) // a device's configuration differs from its last snapshot (set by main)
+	ResetBaseline func()                                  // forget learned traffic levels in the alert engine (set by main)
+	ConfigChanged func(device string, n int, by []string) // a device's configuration differs from its last snapshot (set by main)
 
 	Box     *secret.Box        // credential encryption (nil in tests that do not use device management)
 	Mgr     *poller.Manager    // device workers; Reload() after device changes

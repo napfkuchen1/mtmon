@@ -33,7 +33,8 @@ func (s *Server) takeConfig(ctx context.Context, name string) (changes []store.C
 	if !ok {
 		return nil, fmt.Errorf("unknown device")
 	}
-	snap, err := poller.NewGuardedClient(d, s.addrAllowed).ConfigSnapshot(ctx)
+	gc := poller.NewGuardedClient(d, s.addrAllowed)
+	snap, err := gc.ConfigSnapshot(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +64,7 @@ func (s *Server) takeConfig(ctx context.Context, name string) (changes []store.C
 		return nil, err
 	}
 	if len(times) > 0 && len(changes) > 0 && s.ConfigChanged != nil {
-		s.ConfigChanged(name, len(changes))
+		s.ConfigChanged(name, len(changes), gc.ChangedBy(ctx))
 	}
 	return changes, nil
 }
