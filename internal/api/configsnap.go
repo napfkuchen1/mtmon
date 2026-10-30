@@ -69,6 +69,55 @@ func (s *Server) takeConfig(ctx context.Context, name string) (changes []store.C
 	return changes, nil
 }
 
+// configWatchEvery is how often /system/history is polled; a new entry there triggers a snapshot right away
+// (the daily full snapshot stays as a safety net).
+const configWatchEvery = 2 * time.Minute
+
+// WatchConfig polls /system/history of every UI-managed device and snapshots a device as soon as its history changed.
+func (s *Server) WatchConfig(ctx context.Context) {
+	t := time.NewTicker(configWatchEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			s.watchConfigOnce(ctx)
+		}
+	}
+}
+
+func (s *Server) watchConfigOnce(ctx context.Context) {
+	rows, err := s.St.DeviceRows()
+	if err != nil {
+		return
+	}
+	for _, row := range rows {
+		d, ok := s.Cfg.Device(row.Name)
+		if !ok {
+			continue
+		}
+		cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		mark := poller.NewGuardedClient(d, s.addrAllowed).HistoryMark(cctx)
+		cancel()
+		if mark == "" {
+			continue
+		}
+		key := "cfghist:" + row.Name
+		prev := s.St.GetMeta(key)
+		if prev == mark {
+			continue
+		}
+		s.St.SetMeta(key, mark)
+		if prev == "" {
+			continue // first sight is only the reference point
+		}
+		tctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+		s.takeConfig(tctx, row.Name)
+		cancel()
+	}
+}
+
 // scrubStored applies the current volatile-field filter to an older stored snapshot, so fields that were
 // only later recognised as runtime values do not show up as a change.
 func scrubStored(old store.ConfigSnap) store.ConfigSnap {

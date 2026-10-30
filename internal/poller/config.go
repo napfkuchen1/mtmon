@@ -2,6 +2,7 @@ package poller
 
 import (
 	"context"
+	"strconv"
 	"strings"
 )
 
@@ -12,6 +13,9 @@ var ConfigSections = []string{
 	"/ip/route", "/ip/pool", "/ip/dhcp-server", "/ip/dhcp-server/network", "/ip/dns", "/ip/service",
 	"/interface", "/interface/bridge", "/interface/bridge/port", "/interface/bridge/vlan", "/interface/vlan",
 	"/interface/wireguard", "/interface/wireguard/peers", "/interface/wifi", "/interface/wireless",
+	"/interface/wifi/access-list", "/interface/wifi/provisioning", "/interface/wifi/configuration",
+	"/interface/wifi/security", "/interface/wifi/channel", "/interface/wifi/datapath", "/interface/wifi/steering",
+	"/interface/wifi/capsman", "/interface/wifi/cap",
 	"/system/identity", "/system/ntp/client", "/system/scheduler", "/user", "/snmp",
 }
 
@@ -31,6 +35,7 @@ var volatileKeys = map[string]bool{
 	"debug-info": true, "tx-bpdu": true, "rx-bpdu": true, "last-topology-change": true, "topology-change-count": true,
 	"role": true, "port-number": true, "root-path-cost": true, "designated-bridge": true,
 	"designated-port-number": true, "designated-cost": true, "sent-tc": true, "received-tc": true, "forwarding": true,
+	"discard-transitions": true, "forward-transitions": true, "rx-tc": true, "tx-tc": true, "topology-changes": true,
 	"external-fdb-status": true, "inactive-port-cost": true, "fast-leave-active": true,
 	// NTP client runtime state
 	"freq-drift": true, "system-offset": true, "synced-server": true, "synced-stratum": true,
@@ -71,6 +76,24 @@ func ScrubRowIn(section string, r Row) (Row, bool) {
 		out[k] = v
 	}
 	return out, true
+}
+
+// HistoryMark is a cheap fingerprint of /system/history: the entry count and the newest entry. It changes whenever
+// someone edits the router, so a poll of it tells when a new snapshot is worth taking. "" when the call fails.
+func (c *Client) HistoryMark(ctx context.Context) string {
+	rows, err := c.Get(ctx, "/system/history")
+	if err != nil {
+		return ""
+	}
+	return historyMark(rows)
+}
+
+func historyMark(rows []Row) string {
+	if len(rows) == 0 {
+		return "0"
+	}
+	l := rows[len(rows)-1]
+	return strconv.Itoa(len(rows)) + "|" + l[".id"] + "|" + l["time"] + "|" + l["action"] + "|" + l["by"]
 }
 
 // ChangedBy names who made the newest changes according to /system/history (the "by" of the last few entries,
