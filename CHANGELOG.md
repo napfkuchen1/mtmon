@@ -15,6 +15,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ### Changed
 - Docs: known limits now state the row cap and the one-instance-per-site recommendation, a tested-devices list and a "Report your device" issue template (#197).
+- A config change right after mtmon itself applied one (wizard, provisioning, within 30 min) is an info "made through mtmon" instead of a warning (#188).
 
 ### Fixed
 - No more `config_changed` warning after a CAP reconnect: references that RouterOS re-resolves (`*1A` to `*2B` or to a `cap-…` interface name) are not counted as a configuration change (#187).
