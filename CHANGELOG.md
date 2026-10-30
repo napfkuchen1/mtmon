@@ -10,6 +10,9 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ## [0.20.7] - 2026-10-30
 
+### New
+- Baseline checks: management services open to every address (warning on APs for the API) and a disabled NTP client (#190)
+
 ### Changed
 - Config history: mtmon polls the routers change history every 2 minutes and snapshots as soon as it changes (daily check stays as safety net); STP counters no longer count as changes; Wi-Fi access-list, provisioning, configuration, security, channel, datapath, steering and CAP settings are part of the snapshot (#222)
 - Folded cards keep a one-line summary and a health colour (Traffic, Groups, Internet, Speed, Path, top lists); Groups, Speed and a healthy Internet card start folded; top lists show 8 rows with "show more"; suggestions fold "why and what we saw" by default (#178)

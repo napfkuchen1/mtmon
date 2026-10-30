@@ -71,7 +71,9 @@ type Caps struct {
 	} `json:"traffic_flow"`
 	WwwSSL     bool         `json:"www_ssl"`
 	WwwSSLAddr string       `json:"www_ssl_address"`
-	Cleartext  []string     `json:"cleartext_services"` // enabled telnet / ftp (baseline check)
+	Cleartext  []string     `json:"cleartext_services"`  // enabled telnet / ftp (baseline check)
+	OpenMgmt   []string     `json:"open_mgmt,omitempty"` // enabled api/ssh/winbox/www services without an address restriction
+	NTPOff     bool         `json:"ntp_off,omitempty"`   // the NTP client exists but is disabled (baseline check)
 	LogActions []string     `json:"log_actions"`
 	Filter     []FilterRule `json:"filter_rules"`
 	// DNSRedirect: active dst-nat/redirect rules that send port-53 traffic to the router (hit counters from the probe).
@@ -368,10 +370,13 @@ func (k *Caps) probeServices(ctx context.Context, c *poller.Client) {
 		k.Flow.Targets = append(k.Flow.Targets, t["dst-address"]+" ("+t["version"]+")")
 	}
 	svcCert := map[string]string{} // service -> certificate name
-	k.Cleartext = nil
+	k.Cleartext, k.OpenMgmt, k.NTPOff = nil, nil, false
 	for _, s := range get(ctx, c, "/ip/service") {
 		if (s["name"] == "telnet" || s["name"] == "ftp") && s["disabled"] != "true" {
 			k.Cleartext = append(k.Cleartext, s["name"])
+		}
+		if mgmtServices[s["name"]] && s["disabled"] != "true" && (s["address"] == "" || s["address"] == "0.0.0.0/0") {
+			k.OpenMgmt = append(k.OpenMgmt, s["name"])
 		}
 		if s["name"] == "www-ssl" {
 			k.WwwSSL = s["disabled"] != "true"
@@ -383,6 +388,9 @@ func (k *Caps) probeServices(ctx context.Context, c *poller.Client) {
 	}
 	if len(svcCert) > 0 {
 		k.Certs = parseCerts(svcCert, get(ctx, c, "/certificate"))
+	}
+	if n := get(ctx, c, "/system/ntp/client"); len(n) > 0 {
+		k.NTPOff = n[0]["enabled"] == "false" || n[0]["enabled"] == "no"
 	}
 	if u := get(ctx, c, "/system/package/update"); len(u) > 0 {
 		k.Update = Update{Channel: u[0]["channel"], Installed: u[0]["installed-version"], Latest: u[0]["latest-version"]}
@@ -398,6 +406,9 @@ func (k *Caps) probeServices(ctx context.Context, c *poller.Client) {
 		}
 	}
 }
+
+// mgmtServices are the /ip/service entries that give access to the router itself (telnet and ftp have their own check).
+var mgmtServices = map[string]bool{"api": true, "api-ssl": true, "ssh": true, "winbox": true, "www": true, "www-ssl": true}
 
 // portListHas reports whether a RouterOS port list ("53", "53,5353", "50-60") contains the port.
 func portListHas(list, port string) bool {

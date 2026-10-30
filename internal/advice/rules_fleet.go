@@ -182,3 +182,70 @@ func ruleCleartextServices(s Snapshot) ([]Suggestion, string) {
 	}
 	return out, ""
 }
+
+// ruleOpenMgmt (#190 baseline): management services that answer on every address. On an access point the API is the
+// usual way in for scripts and scanners, so it is a warning there; elsewhere it is a tip to restrict the source networks.
+func ruleOpenMgmt(s Snapshot) ([]Suggestion, string) {
+	var out []Suggestion
+	seen := false
+	for _, d := range s.Devices() {
+		if d.Caps == nil || d.Caps.ProbedAt == 0 {
+			continue
+		}
+		seen = true
+		if len(d.Caps.OpenMgmt) == 0 {
+			continue
+		}
+		sev := SevTip
+		for _, n := range d.Caps.OpenMgmt {
+			if d.Caps.Role == "ap" && (n == "api" || n == "api-ssl") {
+				sev = SevWarning
+			}
+		}
+		var cmds []string
+		for _, n := range d.Caps.OpenMgmt {
+			cmds = append(cmds, fmt.Sprintf("/ip service set [find name=%s] address=<management network, e.g. 192.168.88.0/24>", n))
+		}
+		out = append(out, Suggestion{
+			Subject: d.Name, Severity: sev, Category: CatSecurity, Link: "device/" + d.Name, Confidence: "high",
+			Title:    fmt.Sprintf("%s: %s answer on every address", d.Name, strings.Join(d.Caps.OpenMgmt, ", ")),
+			Why:      "A management service without a source address limit can be reached from every network the router is connected to, including the internet side if the firewall lets it through. Limiting it to the management network is free and removes most of the attack surface.",
+			Evidence: []string{"Enabled in /ip service without an address: " + strings.Join(d.Caps.OpenMgmt, ", "), "Source: " + d.Caps.ReadNote()},
+			Steps:    []string{"Decide which network administers this device, set it as the allowed address, keep one way in that you have tested (a second session open), and disable services you do not use."},
+			Commands: strings.Join(cmds, "\n"),
+			Limits:   "mtmon only sees the service address list, not the firewall. If the input chain already drops these ports from outside, the risk is lower.",
+		})
+	}
+	if !seen {
+		return nil, "no stored router capabilities"
+	}
+	return out, ""
+}
+
+// ruleNTPOff (#190 baseline): a router without time sync writes wrong log times and breaks certificate checks.
+func ruleNTPOff(s Snapshot) ([]Suggestion, string) {
+	var out []Suggestion
+	seen := false
+	for _, d := range s.Devices() {
+		if d.Caps == nil || d.Caps.ProbedAt == 0 {
+			continue
+		}
+		seen = true
+		if !d.Caps.NTPOff {
+			continue
+		}
+		out = append(out, Suggestion{
+			Subject: d.Name, Severity: SevWarning, Category: CatSecurity, Link: "device/" + d.Name, Confidence: "high",
+			Title:    d.Name + " has no time synchronisation",
+			Why:      "Without NTP the clock drifts. Log entries, mtmon's alert times and certificate validity checks then show wrong times.",
+			Evidence: []string{"/system/ntp/client is disabled", "Source: " + d.Caps.ReadNote()},
+			Steps:    []string{"Enable the NTP client with a server you trust (or the router's gateway)."},
+			Commands: "/system/ntp/client set enabled=yes servers=pool.ntp.org",
+			Limits:   "Based on the capabilities stored at the last probe of the device.",
+		})
+	}
+	if !seen {
+		return nil, "no stored router capabilities"
+	}
+	return out, ""
+}

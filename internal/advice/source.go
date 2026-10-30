@@ -119,7 +119,8 @@ func (l *Live) Devices() []Device {
 
 func convCaps(k provision.Caps) *Caps {
 	c := &Caps{Fasttrack: k.Fasttrack, HWOffload: k.HWOffload, FlowSupported: k.Flow.Supported, FlowEnabled: k.Flow.Enabled,
-		FlowTargets: k.Flow.Targets, LogActions: len(k.LogActions), WwwSSL: k.WwwSSL, WwwSSLAddr: k.WwwSSLAddr, Cleartext: k.Cleartext}
+		FlowTargets: k.Flow.Targets, LogActions: len(k.LogActions), WwwSSL: k.WwwSSL, WwwSSLAddr: k.WwwSSLAddr, Cleartext: k.Cleartext,
+		OpenMgmt: k.OpenMgmt, NTPOff: k.NTPOff, Role: k.Role}
 	c.Addresses = k.Addresses
 	c.ProbedAt = k.ProbedAt
 	c.FilesReadable, c.NewestBackup, c.NewestExport = k.Files.Readable, k.Files.NewestBackup, k.Files.NewestExport

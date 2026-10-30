@@ -16,3 +16,22 @@ func TestCleartextServicesRule(t *testing.T) {
 		t.Fatal("no devices must be skipped")
 	}
 }
+
+func TestBaselineOpenMgmtAndNTP(t *testing.T) {
+	d := &Data{Devs: []Device{
+		{Name: "ap1", Caps: &Caps{ProbedAt: 1, Role: "ap", OpenMgmt: []string{"api", "winbox"}, NTPOff: true}},
+		{Name: "r1", Caps: &Caps{ProbedAt: 1, Role: "router", OpenMgmt: []string{"ssh"}}},
+		{Name: "ok", Caps: &Caps{ProbedAt: 1}},
+	}}
+	got, _ := ruleOpenMgmt(d)
+	if len(got) != 2 || got[0].Severity != SevWarning || got[1].Severity != SevTip {
+		t.Fatalf("open mgmt: %+v", got)
+	}
+	n, _ := ruleNTPOff(d)
+	if len(n) != 1 || n[0].Subject != "ap1" {
+		t.Fatalf("ntp: %+v", n)
+	}
+	if _, why := ruleNTPOff(&Data{}); why == "" {
+		t.Fatal("no devices must be skipped")
+	}
+}
