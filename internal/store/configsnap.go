@@ -5,15 +5,48 @@ import (
 	"compress/gzip"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"sort"
 	"strconv"
 	"strings"
 )
 
-// Configuration snapshots (#46): the device's scrubbed REST lists as gzip JSON, newest configSnapKeep per device.
+// Configuration snapshots (#46): the device's scrubbed REST lists as gzip JSON. They are kept for a number of days
+// (ConfigKeepDays, #190); configSnapKeep only caps the count per device as a safety net.
 
-const configSnapKeep = 30
+const (
+	configSnapKeep        = 200
+	DefaultConfigKeepDays = 90
+	MinConfigKeepDays     = 7
+)
+
+// ConfigKeepDays is how long snapshots are kept (default 90, at least 7).
+func (s *Store) ConfigKeepDays() int {
+	n, err := strconv.Atoi(s.GetMeta("config_keep_days"))
+	if err != nil || n <= 0 {
+		return DefaultConfigKeepDays
+	}
+	return max(n, MinConfigKeepDays)
+}
+
+// SetConfigKeepDays stores the retention; values below the minimum are refused.
+func (s *Store) SetConfigKeepDays(n int) error {
+	if n < MinConfigKeepDays || n > 3650 {
+		return fmt.Errorf("keep between %d and 3650 days", MinConfigKeepDays)
+	}
+	return s.SetMeta("config_keep_days", strconv.Itoa(n))
+}
+
+// PruneConfigSnaps deletes snapshots older than the retention. The newest snapshot of every device stays, however old.
+func (s *Store) PruneConfigSnaps(now int64) (int64, error) {
+	cutoff := now - int64(s.ConfigKeepDays())*86400
+	res, err := s.DB.Exec(`DELETE FROM config_snap WHERE ts<? AND ts<(SELECT max(ts) FROM config_snap c WHERE c.device=config_snap.device)`, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
 
 func migrateConfigSnap(db *sql.DB) error {
 	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS config_snap(

@@ -14,4 +14,9 @@ export default {
   "Changes between {a} and {b}": "Änderungen zwischen {a} und {b}",
   "No difference": "Kein Unterschied",
   "Passwords and keys are never stored. Only the {n} newest snapshots are kept.": "Passwörter und Schlüssel werden nie gespeichert. Es bleiben nur die {n} neuesten Snapshots.",
+  "Passwords and keys are never stored.": "Passwörter und Schlüssel werden nie gespeichert.",
+  "Snapshot": "Snapshot",
+  "Download snapshot": "Snapshot herunterladen",
+  "Readable change log, not a restorable backup. For a restore use /export or a backup on the router.": "Lesbares Änderungsprotokoll, kein wiederherstellbares Backup. Für eine Wiederherstellung /export oder ein Backup auf dem Router nutzen.",
+  "Keep snapshots for (days)": "Snapshots aufbewahren (Tage)",
 }

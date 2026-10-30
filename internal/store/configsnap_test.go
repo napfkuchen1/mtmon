@@ -37,7 +37,7 @@ func TestConfigSnapRoundTripDiffAndKeep(t *testing.T) {
 	if len(DiffConfig(a, a)) != 0 {
 		t.Error("identical snapshots must not differ")
 	}
-	for i := int64(1); i <= 35; i++ {
+	for i := int64(1); i <= configSnapKeep+5; i++ {
 		st.SaveConfigSnap("gw", 200+i, a)
 	}
 	if n := len(st.ConfigSnapTimes("gw")); n != configSnapKeep {
@@ -58,5 +58,31 @@ func TestDiffConfigIgnoresIDRenumbering(t *testing.T) {
 	d := ConfigSnap{"/interface/wifi/access-list": {{".id": "*1", "interface": "*1A", "action": "accept"}}}
 	if ch := DiffConfig(a, d); len(ch) != 1 {
 		t.Fatalf("real edit must stay: %+v", ch)
+	}
+}
+
+func TestPruneConfigSnapsByAge(t *testing.T) {
+	s, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	now := int64(100_000_000)
+	day := int64(86400)
+	for _, ts := range []int64{now - 200*day, now - 100*day, now - 10*day} {
+		s.SaveConfigSnap("a", ts, ConfigSnap{})
+	}
+	s.SaveConfigSnap("b", now-300*day, ConfigSnap{}) // only snapshot of b: stays however old
+	if n, err := s.PruneConfigSnaps(now); err != nil || n != 2 {
+		t.Fatalf("pruned %d err %v", n, err)
+	}
+	if got := s.ConfigSnapTimes("a"); len(got) != 1 || got[0] != now-10*day {
+		t.Errorf("a: %v", got)
+	}
+	if len(s.ConfigSnapTimes("b")) != 1 {
+		t.Errorf("newest of b must stay")
+	}
+	if err := s.SetConfigKeepDays(6); err == nil {
+		t.Errorf("below minimum must fail")
 	}
 }
