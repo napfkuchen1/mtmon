@@ -1,0 +1,23 @@
+// German translations – notification channels with quiet hours (#193)
+export default {
+  "Notifications": "Benachrichtigungen",
+  "Alerts can go to a webhook, ntfy and e-mail. In the quiet hours of a channel, warnings and info are held and sent as one summary afterwards; critical alerts always go out at once. Weekdays: none selected = every day; a night window belongs to the day it starts.": "Alerts können an einen Webhook, ntfy und E-Mail gehen. In den Ruhezeiten eines Kanals werden Warnungen und Infos zurückgehalten und danach als eine Zusammenfassung gesendet; kritische Alerts gehen immer sofort raus. Wochentage: keiner gewählt = jeden Tag; ein Nachtfenster gehört zu dem Tag, an dem es beginnt.",
+  "Quiet hours": "Ruhezeiten",
+  "From": "Von",
+  "To": "Bis",
+  "Send test": "Test senden",
+  "Test message sent": "Testnachricht gesendet",
+  "Test failed: {err}": "Test fehlgeschlagen: {err}",
+  "Secret stored – leave empty to keep": "Geheimnis gespeichert – leer lassen zum Behalten",
+  "Signing secret (optional)": "Signatur-Geheimnis (optional)",
+  "Signing secret": "Signatur-Geheimnis",
+  "E-mail": "E-Mail",
+  "SMTP server": "SMTP-Server",
+  "Port": "Port",
+  "User": "Benutzer",
+  "Password": "Passwort",
+  "Password stored – leave empty to keep": "Passwort gespeichert – leer lassen zum Behalten",
+  "Sender": "Absender",
+  "Recipients (comma separated)": "Empfänger (kommagetrennt)",
+  "Recipients": "Empfänger",
+}
