@@ -13,6 +13,9 @@ The first section below lists everything mtmon already covers. Later releases ad
 ### New
 - Back to Home default peer is recognised ("BTH default peer (router config / QR code)"): never connected is normal and it is no unused-peer tip; a handshake on it raises a warning (#186).
 
+### Changed
+- Docs: known limits now state the row cap and the one-instance-per-site recommendation, a tested-devices list and a "Report your device" issue template (#197).
+
 ### Fixed
 - No more `config_changed` warning after a CAP reconnect: references that RouterOS re-resolves (`*1A` to `*2B` or to a `cap-…` interface name) are not counted as a configuration change (#187).
 - Database growth and "disk full in N days" use a trend over all stored samples; after restarts the Settings card shows "not enough data yet (n h of samples)" instead of 0 (#196).

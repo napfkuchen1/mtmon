@@ -259,6 +259,9 @@ mtmon is young. Please read this before relying on it:
 * The wizard needs `www-ssl` enabled on the router. If the router has no usable certificate, the setup snippets (Settings → Router setup, and the Add-device checklist) create one (`mtmon-ca` / `mtmon-ssl`); the wizard itself does not.
 * The web UI is English by default; a language switch in the sidebar offers German.
 * Access points and switches are monitored (status, Wi-Fi clients, interfaces) but do not export flows.
+* **Sizes.** The raw flow table is capped at 15 million rows regardless of retention; older detail is kept as hourly rollups for the configured retention. No maximum number of clients or flows per second has been measured yet, so treat larger networks as untested.
+* **One instance per site.** mtmon has no multi-site or multi-tenant mode. For several sites or customers run one instance per site (separate data directory and login). Do not point routers of different customers at one instance.
+* Tested devices and how to report yours: [docs/TESTED-DEVICES.md](docs/TESTED-DEVICES.md).
 
 ## Troubleshooting
 
