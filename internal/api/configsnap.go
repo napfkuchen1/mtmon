@@ -50,6 +50,14 @@ func (s *Server) takeConfig(ctx context.Context, name string) (changes []store.C
 	defer configMu.Unlock()
 	now := time.Now().Unix()
 	s.St.SetConfigChecked(name, now)
+	// who changed things since the last check: history entries newer than the id seen then (also advanced when the
+	// check finds no difference, so old entries never get blamed for a later change)
+	idKey := "cfgid:" + name
+	after, _ := strconv.ParseInt(s.St.GetMeta(idKey), 10, 64)
+	by, newest, planned := gc.ChangedBy(ctx, after)
+	if newest > after {
+		s.St.SetMeta(idKey, strconv.FormatInt(newest, 10))
+	}
 	changes = []store.ConfigChange{}
 	times := s.St.ConfigSnapTimes(name)
 	if len(times) > 0 {
@@ -63,8 +71,11 @@ func (s *Server) takeConfig(ctx context.Context, name string) (changes []store.C
 	if err := s.St.SaveConfigSnap(name, now, cur); err != nil {
 		return nil, err
 	}
-	if len(times) > 0 && len(changes) > 0 && s.ConfigChanged != nil {
-		s.ConfigChanged(name, len(changes), gc.ChangedBy(ctx))
+	if len(times) > 0 && len(changes) > 0 && s.ConfigChanged != nil && !planned {
+		if len(by) == 0 {
+			by = []string{poller.SourceUnknown}
+		}
+		s.ConfigChanged(name, len(changes), by)
 	}
 	return changes, nil
 }
