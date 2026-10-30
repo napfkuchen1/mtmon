@@ -105,8 +105,17 @@ func (e *Engine) LogEvent(ev store.LogEvent) {
 			if e.St != nil {
 				e.St.AddWifiDisc(ev.TS, mac, dev)
 			}
-			subject := dev + "/" + mac
+			ap := dev
+			if m[2] != "" { // with CAPsMAN the log comes from the controller but names the AP interface
+				ap = m[2]
+			}
+			subject := ap + "/" + mac
 			c := e.burstCount("wifi|"+dev+"|"+mac, 5*time.Minute)
+			var rej aclRule
+			var rejected bool
+			if c >= 3 {
+				rej, rejected = e.rejectLoop(dev, mac, time.Unix(ev.TS, 0))
+			}
 			if c >= 6 || e.storyOpen("wifi_disconnects", subject) {
 				who := mac
 				if e.St != nil {
@@ -127,7 +136,7 @@ func (e *Engine) LogEvent(ev store.LogEvent) {
 						good = true
 					}
 				}
-				e.storyEvent("wifi_disconnects", subject, "warning", time.Unix(ev.TS, 0), c, wifiDiscText(who, where, why, good))
+				e.storyEvent("wifi_disconnects", subject, "warning", time.Unix(ev.TS, 0), c, wifiDiscText(who, where, why, good, rej, rejected))
 			}
 		}
 	}

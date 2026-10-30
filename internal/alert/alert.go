@@ -31,6 +31,9 @@ type Engine struct {
 	// upstream device of an outage that took several devices down together
 	Depths func() map[string]int
 
+	// AccessList reads the Wi-Fi access-list rows of a device (read-only); nil = no reject-loop hint (#211)
+	AccessList func(device string) ([]map[string]string, error)
+
 	start time.Time
 
 	mu       sync.Mutex
@@ -60,6 +63,8 @@ type Engine struct {
 	bursts      map[string][]time.Time // router log patterns: key -> recent occurrences
 	roams       map[string]roamConn    // client MAC -> its last Wi-Fi connect (see events_roam.go)
 	roamDHCP    map[string]*roamDHCP   // client MAC -> failed DHCP offers right after such a connect
+	acl         map[string]*aclState   // device -> access-list baseline of the running burst (#211)
+	aclHits     map[string]aclRule     // device|mac -> reject rule whose counter rose
 	stories     map[string]*story      // kind|subject -> open story (see stories.go)
 
 	Suggest func(store.Client) string // group name suggested for a client without a group (set by main), "" = none

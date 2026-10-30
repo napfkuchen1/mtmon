@@ -161,7 +161,7 @@ const (
 
 // wifiDiscText is the story text of a client that keeps disconnecting: the count and time span, the last reason,
 // the failed DHCP offers that followed its reconnects, and the hint when the signal was good.
-func wifiDiscText(who, where, why string, good bool) storyText {
+func wifiDiscText(who, where, why string, good bool, rej aclRule, rejected bool) storyText {
 	return func(n, extra int, first, last time.Time, closed bool) (string, map[string]string, string) {
 		key := keyWifiDiscOpen
 		if closed {
@@ -175,6 +175,9 @@ func wifiDiscText(who, where, why string, good bool) storyText {
 		}
 		if extra > 0 {
 			tail += " – " + strconv.Itoa(extra) + " failed DHCP offers after the reconnects"
+		}
+		if rejected {
+			tail += rejectTail(rej)
 		}
 		if good {
 			tail += " – " + tailGoodSignal

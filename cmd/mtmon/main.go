@@ -126,6 +126,7 @@ func run(args []string) error {
 	pipe.Owns = pm.OwnsAddr
 	al.SelfName = pm.SelfDevice
 	al.Depths = pm.Depths
+	al.AccessList = pm.AccessList
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
