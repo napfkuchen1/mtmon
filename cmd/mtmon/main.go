@@ -167,6 +167,7 @@ func run(args []string) error {
 		return fmt.Errorf("updater: %w", err)
 	}
 	raiseUpdateFailed(srv.Upd, al)
+	srv.Alerts = al
 	h := api.New(srv)
 	hs := &http.Server{Addr: cfg.Listen, Handler: h, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
 	if !cfg.NoTLS {

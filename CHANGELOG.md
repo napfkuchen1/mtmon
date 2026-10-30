@@ -18,6 +18,8 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Alerts page: any alert type can be turned down to info ("Make this type info") and restored again.
 - Automatic updates wait until a release is 24 hours old (a quick follow-up release resets the clock); Settings shows the earliest install time (#189).
 - Own internet targets: Settings has a new card where you add up to 10 DNS names or http(s) URLs. They are checked every 30 s over IPv4 and IPv6 separately (a site without an IPv6 address shows "no IPv6 address", not a failure). The Internet card shows the last error per target (NXDOMAIN, timeout, TLS error, HTTP status, "blocked by the router" for a 0.0.0.0 answer). An https server with a self-signed certificate can be added with the certificate check off. Three failed checks in a row raise one warning per target, the next answer an info; this is not counted as a WAN outage.
+- Notifications: webhook, ntfy and e-mail can be set up in Settings with a test button per channel, and each channel has its own quiet hours (time window and weekdays). In quiet hours warnings and info are held and sent as one summary afterwards; critical alerts always go out at once.
+- `/metrics` now also reports internet probe loss and latency per target, the last speed test (down, up, latency, time) and open alerts by severity.
 
 ### Changed
 - The overview status line and the "Open warnings" card count only warnings and critical alerts; info notes show as a small "n notes" link, so one warning no longer reads as "9 open alerts". /metrics gets `mtmon_alerts_open_info`.

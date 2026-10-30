@@ -63,6 +63,35 @@ func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(&b, "mtmon_alerts_open_info %d\n", s.St.OpenInfo())
 	g("mtmon_alerts_open_critical", "Unacknowledged critical alerts.")
 	fmt.Fprintf(&b, "mtmon_alerts_open_critical %d\n", s.St.OpenCritical())
+	g("mtmon_alerts_open_by_severity", "Unacknowledged alerts by severity.")
+	crit, all, info := s.St.OpenCritical(), s.St.OpenProblems(), s.St.OpenInfo()
+	fmt.Fprintf(&b, "mtmon_alerts_open_by_severity{severity=\"critical\"} %d\n", crit)
+	fmt.Fprintf(&b, "mtmon_alerts_open_by_severity{severity=\"warning\"} %d\n", max(all-crit, 0))
+	fmt.Fprintf(&b, "mtmon_alerts_open_by_severity{severity=\"info\"} %d\n", info)
+	// Internet probes of the last 5 minutes: at most the built-in targets plus MaxCustom own ones x 2 families
+	var loss, rtt strings.Builder
+	for _, t := range s.St.WANTargets(time.Now().Unix() - 300) {
+		if t.Sent == 0 || t.Note != "" {
+			continue
+		}
+		l := fmt.Sprintf("{target=%s}", lbl(t.Target))
+		fmt.Fprintf(&loss, "mtmon_probe_loss_percent%s %g\n", l, t.LossPct)
+		fmt.Fprintf(&rtt, "mtmon_probe_latency_ms%s %g\n", l, t.AvgMS)
+	}
+	g("mtmon_probe_loss_percent", "Packet or request loss of an internet probe target over the last 5 minutes.")
+	b.WriteString(loss.String())
+	g("mtmon_probe_latency_ms", "Average response time of an internet probe target over the last 5 minutes.")
+	b.WriteString(rtt.String())
+	if t := s.St.SpeedtestLastOK(); t.ID != 0 {
+		g("mtmon_speedtest_down_bps", "Download rate of the last successful speed test.")
+		fmt.Fprintf(&b, "mtmon_speedtest_down_bps %g\n", t.DownBps)
+		g("mtmon_speedtest_up_bps", "Upload rate of the last successful speed test.")
+		fmt.Fprintf(&b, "mtmon_speedtest_up_bps %g\n", t.UpBps)
+		g("mtmon_speedtest_latency_ms", "Latency of the last successful speed test.")
+		fmt.Fprintf(&b, "mtmon_speedtest_latency_ms %g\n", t.PingMS)
+		g("mtmon_speedtest_timestamp_seconds", "Time of the last successful speed test.")
+		fmt.Fprintf(&b, "mtmon_speedtest_timestamp_seconds %d\n", t.TS)
+	}
 	g("mtmon_uptime_seconds", "Uptime of mtmon itself.")
 	fmt.Fprintf(&b, "mtmon_uptime_seconds %d\n", int64(time.Since(s.Started).Seconds()))
 	fmt.Fprintf(&b, "# HELP mtmon_build_info Version of the running mtmon.\n# TYPE mtmon_build_info gauge\nmtmon_build_info{version=%s} 1\n", lbl(s.Version))
@@ -72,6 +101,6 @@ func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
 
 // lbl quotes a label value as the exposition format wants it.
 func lbl(v string) string {
-	v = strings.NewReplacer(`\`, `\`, `"`, `\"`, "\n", `\n`).Replace(v)
+	v = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`).Replace(v)
 	return `"` + v + `"`
 }

@@ -1,15 +1,11 @@
 package alert
 
 import (
-	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/netip"
-	"net/smtp"
 	"strconv"
 	"strings"
 	"time"
@@ -76,6 +72,7 @@ func (e *Engine) Run(stop <-chan struct{}) {
 			return
 		case <-t.C:
 			e.closeStale(time.Now())
+			e.flushHeld(time.Now())
 			e.Checks()
 		}
 	}
@@ -305,47 +302,6 @@ func SignWebhook(secret string, body []byte) string {
 	m := hmac.New(sha256.New, []byte(secret))
 	m.Write(body)
 	return "sha256=" + hex.EncodeToString(m.Sum(nil))
-}
-
-func (e *Engine) deliver(a store.Alert) {
-	text := fmt.Sprintf("[%s] %s", strings.ToUpper(a.Severity), a.Msg)
-	if u := e.Cfg.Webhook; u != "" {
-		b, _ := json.Marshal(a)
-		req, _ := http.NewRequest("POST", u, bytes.NewReader(b))
-		req.Header.Set("Content-Type", "application/json")
-		if sig := SignWebhook(e.Cfg.WebhookSecret, b); sig != "" {
-			req.Header.Set("X-Mtmon-Signature", sig)
-		}
-		if resp, err := e.hc.Do(req); err == nil {
-			resp.Body.Close()
-		} else {
-			e.Log.Warn("webhook failed", "err", err)
-		}
-	}
-	if u := e.Cfg.NtfyURL; u != "" {
-		req, _ := http.NewRequest("POST", u, strings.NewReader(a.Msg))
-		req.Header.Set("Title", "mtmon: "+a.Kind)
-		req.Header.Set("Priority", map[string]string{"critical": "urgent", "warning": "high"}[a.Severity])
-		if resp, err := e.hc.Do(req); err == nil {
-			resp.Body.Close()
-		} else {
-			e.Log.Warn("ntfy failed", "err", err)
-		}
-	}
-	if s := e.Cfg.SMTP; s != nil && s.Host != "" && s.To != "" {
-		port := s.Port
-		if port == 0 {
-			port = 587
-		}
-		var auth smtp.Auth
-		if s.User != "" {
-			auth = smtp.PlainAuth("", s.User, s.Pass, s.Host)
-		}
-		msg := "From: " + s.From + "\r\nTo: " + s.To + "\r\nSubject: mtmon: " + a.Kind + "\r\n\r\n" + text + "\r\n"
-		if err := smtp.SendMail(fmt.Sprintf("%s:%d", s.Host, port), auth, s.From, strings.Split(s.To, ","), []byte(msg)); err != nil {
-			e.Log.Warn("smtp failed", "err", err)
-		}
-	}
 }
 
 // clientGroup returns the group the client was put into (manually).

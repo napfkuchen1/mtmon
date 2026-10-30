@@ -36,6 +36,7 @@ type Engine struct {
 
 	start time.Time
 
+	nmu      sync.Mutex // held notifications (channels.go)
 	mu       sync.Mutex
 	last     map[string]time.Time
 	devUp    map[string]bool

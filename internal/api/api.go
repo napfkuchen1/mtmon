@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/napfkuchen1/mtmon/internal/alert"
 	"github.com/napfkuchen1/mtmon/internal/config"
 	"github.com/napfkuchen1/mtmon/internal/enrich"
 	"github.com/napfkuchen1/mtmon/internal/flow"
@@ -58,6 +59,7 @@ type Server struct {
 	Cls     *enrich.Classifier // service classification
 	Sys     *syslog.Server     // firewall log receiver
 	Speed   *speedtest.Runner  // scheduled speed tests (nil: not available)
+	Alerts  *alert.Engine      // notification channels (nil in tests that do not use them)
 	bypass  bypassCache        // DNS-bypass detection (dnsbypass.go)
 	Upd     *update.Manager    // self-update (nil in tests that do not use it)
 	provMu  sync.Mutex         // one provisioning / offboarding at a time
