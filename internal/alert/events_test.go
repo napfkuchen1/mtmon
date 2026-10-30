@@ -40,7 +40,7 @@ func TestRouterLogAlerts(t *testing.T) {
 	for i := 0; i < 6; i++ {
 		e3.LogEvent(logEv("ap", "wireless,info", "info", "AA:BB:CC:00:11:22@wifi1 disconnected, reason: ap-lost-connection"))
 	}
-	if kinds(*got3) != "wifi_disconnects/ap/AA:BB:CC:00:11:22" || !strings.Contains((*got3)[0].Msg, "ap-lost-connection") {
+	if kinds(*got3) != "wifi_disconnects/wifi1/AA:BB:CC:00:11:22" || !strings.Contains((*got3)[0].Msg, "ap-lost-connection") {
 		t.Fatalf("wifi storm: %+v", *got3)
 	}
 	// dhcp trouble and wireguard handshakes
