@@ -22,7 +22,7 @@ func TestAlertNoise(t *testing.T) {
 		add("script_error", "warning", true, now)
 	}
 	add("script_error", "warning", false, now)
-	add("script_error", "info", true, now)    // info is not a warning
+	add("script_error", "info", true, now) // info is not a warning
 	add("device_offline", "warning", false, now)
 	add("old", "warning", true, now-40*86400) // outside the window
 	got := st.AlertNoise(now - 7*86400)
