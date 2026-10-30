@@ -1,0 +1,36 @@
+name: Report your device
+description: Tell us which router, access point or switch works with mtmon, and what does not.
+labels: ["device-report"]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      placeholder: hEX S, wAP ax, CRS326 ...
+    validations:
+      required: true
+  - type: input
+    id: routeros
+    attributes:
+      label: RouterOS version and packages
+      placeholder: "7.24, wifi, container"
+    validations:
+      required: true
+  - type: input
+    id: mtmon
+    attributes:
+      label: mtmon version
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options: [Works, Partly works, Broken]
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What works, what does not
+      description: Flow export, polling, Wi-Fi clients, wizard, firewall page ... Do not paste passwords or tokens.
