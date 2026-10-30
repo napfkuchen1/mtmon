@@ -13,6 +13,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 ### New
 - Baseline checks: management services open to every address (warning on APs for the API) and a disabled NTP client (#190)
 - Alert webhook can be signed: set alert_webhook_secret and every POST carries X-Mtmon-Signature: sha256=<HMAC of the body> (#193)
+- Own synthetic tests on the Internet page: `wan_dns` sets the names resolved through the router, `wan_http` adds HTTP(S) requests (time to the response, status 500+ or no answer counts as a failure). Both are listed per target and stay out of the line loss (#194)
 
 ### Changed
 - Config history: mtmon polls the routers change history every 2 minutes and snapshots as soon as it changes (daily check stays as safety net); STP counters no longer count as changes; Wi-Fi access-list, provisioning, configuration, security, channel, datapath, steering and CAP settings are part of the snapshot (#222)

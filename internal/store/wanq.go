@@ -19,6 +19,7 @@ func (s *Store) AddWANSample(at time.Time, target string, ok bool, rttMS float64
 		rtt_max=CASE WHEN excluded.rtt_max>rtt_max THEN excluded.rtt_max ELSE rtt_max END`, ts, target, lost, rtt, rtt)
 }
 
+// Targets starting with "http:" are HTTP(S) request probes (time to the response headers); they are treated like "dns:".
 // Targets starting with "dns:" are name-resolution probes (via the system resolver, i.e. usually the router). They are listed
 // per target but kept out of the connection totals and the chart: a slow resolver is not a lossy line.
 
@@ -34,7 +35,7 @@ type WANWindow struct {
 func (s *Store) WANQualitySince(since int64) WANWindow {
 	var w WANWindow
 	var sum float64
-	s.DB.QueryRow(`SELECT coalesce(sum(sent),0), coalesce(sum(lost),0), coalesce(sum(rtt_sum),0), coalesce(max(rtt_max),0) FROM wan_quality WHERE ts>=? AND target NOT LIKE 'dns:%'`, since/60*60).
+	s.DB.QueryRow(`SELECT coalesce(sum(sent),0), coalesce(sum(lost),0), coalesce(sum(rtt_sum),0), coalesce(max(rtt_max),0) FROM wan_quality WHERE ts>=? AND target NOT LIKE 'dns:%' AND target NOT LIKE 'http:%'`, since/60*60).
 		Scan(&w.Sent, &w.Lost, &sum, &w.MaxMS)
 	if w.Sent > 0 {
 		w.LossPct = float64(w.Lost) * 100 / float64(w.Sent)
@@ -89,7 +90,7 @@ func (s *Store) WANSeries(since, bucket int64) []WANPoint {
 		bucket = 60
 	}
 	out := []WANPoint{}
-	rows, err := s.DB.Query(`SELECT ts/?1*?1, sum(sent), sum(lost), sum(rtt_sum) FROM wan_quality WHERE ts>=?2 AND target NOT LIKE 'dns:%' GROUP BY 1 ORDER BY 1`, bucket, since/60*60)
+	rows, err := s.DB.Query(`SELECT ts/?1*?1, sum(sent), sum(lost), sum(rtt_sum) FROM wan_quality WHERE ts>=?2 AND target NOT LIKE 'dns:%' AND target NOT LIKE 'http:%' GROUP BY 1 ORDER BY 1`, bucket, since/60*60)
 	if err != nil {
 		return out
 	}
