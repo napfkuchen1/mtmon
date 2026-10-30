@@ -98,6 +98,7 @@ func New(s *Server) http.Handler {
 	m.HandleFunc("GET /api/topology", a(s.topology))
 	m.HandleFunc("GET /api/path", a(s.path))
 	m.HandleFunc("GET /api/alerts", a(s.alerts))
+	m.HandleFunc("GET /api/alerts/noise", a(s.alertNoise))
 	m.HandleFunc("POST /api/alerts/{id}/ack", a(s.ack))
 	m.HandleFunc("POST /api/alerts/ack-all", a(s.ackAll))
 	m.HandleFunc("POST /api/alerts/clear", a(s.clearAlerts))
@@ -538,6 +539,15 @@ func (s *Server) alerts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	jsonOut(w, a)
+}
+
+// alertNoise: GET /api/alerts/noise?days=7 – warnings per alert kind and how many were only acknowledged by hand.
+func (s *Server) alertNoise(w http.ResponseWriter, r *http.Request) {
+	days, _ := strconv.Atoi(r.URL.Query().Get("days"))
+	if days != 30 {
+		days = 7
+	}
+	jsonOut(w, s.St.AlertNoise(time.Now().Add(-time.Duration(days)*24*time.Hour).Unix()))
 }
 
 func (s *Server) ack(w http.ResponseWriter, r *http.Request) {
