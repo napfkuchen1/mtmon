@@ -25,7 +25,7 @@
       {#if d.data.total}<a href="#/clients/dns-bypass">{t('Show clients')}</a>{/if}</div>
     {#if d.data.clients.length || d.data.observing.length}
       <div class="card-b">
-        <table><tbody>
+        <div class="scroll"><table><tbody>
           {#each d.data.clients as c (c.mac)}
             <tr><td><a href={'#/clients/' + c.mac}>{c.name}</a></td><td>{c.types.map(tr).join(' · ')}{#if c.redirected} <span class="badge" title={t('The router redirects these DNS queries to itself, so the client gets the router’s answers.')}>{t('redirected – harmless')}</span>{/if}</td>
               <td class="muted">{#if c.active}{t('active')}{:else}{t('ended (last {when})', { when: ago(c.last) })}{/if}</td>
@@ -34,7 +34,7 @@
           {#each d.data.observing as o (o.mac)}
             <tr><td><a href={'#/clients/' + o.mac}>{o.name}</a></td><td class="muted" colspan="3">{t('under observation: no bypass since {when}', { when: ago(o.since) })}</td></tr>
           {/each}
-        </tbody></table>
+        </tbody></table></div>
         {#if d.data.clients.length > 1}<p style="margin-bottom:0"><button class="btn sm" onclick={() => fixed({ all: true })}>{t('Mark all as fixed')}</button></p>{/if}
         <p class="muted" style="font-size:12.5px;margin-bottom:0">{t('“Mark as fixed” ignores older traffic. If the client bypasses the local DNS again it is flagged again (and alerted, if the alert is on) – this can take up to an hour. A bypass counts as ended after {h} h without traffic.', { h: d.data.ended_after_h })}</p>
       </div>

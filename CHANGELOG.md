@@ -24,6 +24,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ### Fixed
 - German translations for suggestion texts that were still English: the new baseline checks (open management services, NTP off), DNS redirect and DNS-over-TLS, hairpin traffic, ghost DNS, IPv6 prefix change, Back to Home (#195)
+- Phone layout: the Clients filter tabs and the DNS bypass tables no longer run past the screen edge at 375 px; the alert texts for device state, interfaces, new clients and config changes now have a German translation.
 
 ## [0.20.6] - 2026-10-30
 
