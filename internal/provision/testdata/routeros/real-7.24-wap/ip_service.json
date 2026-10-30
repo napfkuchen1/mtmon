@@ -1,0 +1,197 @@
+[
+ {
+  ".id": "*1",
+  "available-from": [],
+  "disabled": true,
+  "dynamic": false,
+  "invalid": true,
+  "max-sessions": 20,
+  "name": "ftp",
+  "port": 21,
+  "proto": "tcp",
+  "vrf": "main"
+ },
+ {
+  ".id": "*4",
+  "available-from": [
+   "192.168.0.0/24",
+   "192.168.216.0/24"
+  ],
+  "disabled": false,
+  "dynamic": false,
+  "invalid": false,
+  "max-sessions": 20,
+  "name": "ssh",
+  "port": 22,
+  "proto": "tcp",
+  "vrf": "main"
+ },
+ {
+  ".id": "*11D",
+  "connection": true,
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "local": "::ffff:192.168.0.231",
+  "name": "ssh",
+  "port": 22,
+  "proto": "tcp",
+  "remote": "192.168.0.200:60102"
+ },
+ {
+  ".id": "*0",
+  "available-from": [],
+  "disabled": true,
+  "dynamic": false,
+  "invalid": true,
+  "max-sessions": 20,
+  "name": "telnet",
+  "port": 23,
+  "proto": "tcp",
+  "vrf": "main"
+ },
+ {
+  ".id": "*19",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "dhcp",
+  "port": 67,
+  "proto": "udp"
+ },
+ {
+  ".id": "*10",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "dhcpclient",
+  "port": 68,
+  "proto": "udp"
+ },
+ {
+  ".id": "*2",
+  "available-from": [
+   "192.168.0.0/24",
+   "192.168.216.0/24"
+  ],
+  "disabled": false,
+  "dynamic": false,
+  "invalid": false,
+  "max-sessions": 20,
+  "name": "www",
+  "port": 80,
+  "proto": "tcp",
+  "vrf": "main"
+ },
+ {
+  ".id": "*D",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "ntp",
+  "port": 123,
+  "proto": "udp"
+ },
+ {
+  ".id": "*A",
+  "available-from": [
+   "192.168.0.0/24",
+   "192.168.216.0/24"
+  ],
+  "certificate": "none",
+  "disabled": false,
+  "dynamic": false,
+  "invalid": false,
+  "max-sessions": 20,
+  "name": "reverse-proxy",
+  "port": 443,
+  "proto": "tcp",
+  "vrf": "main"
+ },
+ {
+  ".id": "*6",
+  "available-from": [
+   "192.168.0.0/24",
+   "192.168.216.0/24"
+  ],
+  "certificate": "mtmon-ssl",
+  "disabled": false,
+  "dynamic": false,
+  "invalid": false,
+  "max-sessions": 20,
+  "name": "www-ssl",
+  "port": 443,
+  "proto": "tcp",
+  "vrf": "main"
+ },
+ {
+  ".id": "*10B",
+  "connection": true,
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "local": "::ffff:192.168.0.231",
+  "name": "reverse-proxy",
+  "port": 443,
+  "proto": "tcp",
+  "remote": "192.168.0.248:42036"
+ },
+ {
+  ".id": "*F",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "discover",
+  "port": 5678,
+  "proto": "udp"
+ },
+ {
+  ".id": "*8",
+  "available-from": [
+   "192.168.0.0/24",
+   "192.168.216.0/24"
+  ],
+  "disabled": false,
+  "dynamic": false,
+  "invalid": false,
+  "max-sessions": 20,
+  "name": "winbox",
+  "port": 8291,
+  "proto": "tcp",
+  "vrf": "main"
+ },
+ {
+  ".id": "*7",
+  "available-from": [],
+  "disabled": true,
+  "dynamic": false,
+  "invalid": true,
+  "max-sessions": 20,
+  "name": "api",
+  "port": 8728,
+  "proto": "tcp",
+  "vrf": "main"
+ },
+ {
+  ".id": "*9",
+  "available-from": [],
+  "certificate": "none",
+  "disabled": true,
+  "dynamic": false,
+  "invalid": true,
+  "max-sessions": 20,
+  "name": "api-ssl",
+  "port": 8729,
+  "proto": "tcp",
+  "vrf": "main"
+ },
+ {
+  ".id": "*E",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "ww2",
+  "port": 48271,
+  "proto": "udp"
+ }
+]

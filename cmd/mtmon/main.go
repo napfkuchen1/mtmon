@@ -123,6 +123,7 @@ func run(args []string) error {
 	al := alert.New(cfg, st, hub, log)
 	pm := poller.NewManager(cfg, st, hub, en, al, log)
 	pipe.SelfMAC = pm.SelfMACByAddr
+	pipe.Owns = pm.OwnsAddr
 	al.SelfName = pm.SelfDevice
 	al.Depths = pm.Depths
 

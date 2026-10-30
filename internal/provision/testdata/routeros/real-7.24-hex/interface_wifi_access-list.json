@@ -1,0 +1,32 @@
+[
+ {
+  ".id": "*1",
+  "action": "reject",
+  "comment": "Bambu X2D: force 5GHz - reject Audience 2.4GHz",
+  "interface": "cap-wifi2",
+  "mac-address": "50:31:23:A0:00:0A"
+ },
+ {
+  ".id": "*2",
+  "action": "reject",
+  "comment": "Bambu X2D: force Audience 5GHz - reject wAP 2.4GHz",
+  "interface": "cap-wifi1",
+  "mac-address": "50:31:23:A0:00:0A"
+ },
+ {
+  ".id": "*3",
+  "action": "reject",
+  "comment": "Bambu X2D: force Audience 5GHz - reject wAP 5GHz",
+  "interface": "cap-wifi4",
+  "mac-address": "50:31:23:A0:00:0A",
+  "match-count": 274
+ },
+ {
+  ".id": "*4",
+  "action": "reject",
+  "comment": "MC-Wohnzimmer: nur Audience 2.4 - reject wAP 2.4GHz",
+  "interface": "cap-wifi1",
+  "mac-address": "5C:F8:21:A0:00:09",
+  "match-count": 13
+ }
+]

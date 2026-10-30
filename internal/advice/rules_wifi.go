@@ -103,6 +103,19 @@ func IsIoT24(c Client) bool {
 	return false
 }
 
+// dualBandHints: vendors whose phones and laptops support 5 GHz (used when a device was never seen on 5 GHz).
+var dualBandHints = []string{"apple", "samsung", "google", "intel", "microsoft", "huawei", "oneplus", "dell", "lenovo", "hewlett", "asustek", "liteon"}
+
+func dualBandClass(c Client) bool {
+	v := strings.ToLower(c.Vendor)
+	for _, k := range dualBandHints {
+		if strings.Contains(v, k) {
+			return true
+		}
+	}
+	return false
+}
+
 func is24(band string) bool {
 	b := strings.ToLower(band)
 	return strings.Contains(b, "2ghz") || strings.Contains(b, "2.4")
@@ -133,9 +146,20 @@ func ruleBand24(s Snapshot) ([]Suggestion, string) {
 			}
 		}
 	}
+	pinned := map[string]bool{} // an access-list rule names the client: the band is a decision, not an accident
+	for _, d := range s.Devices() {
+		if d.Caps != nil {
+			for _, m := range d.Caps.PinnedMACs {
+				pinned[strings.ToUpper(m)] = true
+			}
+		}
+	}
 	bySSID := map[string][]Client{}
 	for _, c := range cls {
-		if c.SSID == "" || !is24(c.Band) || !has5[c.SSID] || IsIoT24(c) {
+		if c.SSID == "" || !is24(c.Band) || !has5[c.SSID] || IsIoT24(c) || pinned[strings.ToUpper(c.MAC)] {
+			continue
+		}
+		if !c.Seen5 && !dualBandClass(c) { // nothing says this device can use 5 GHz
 			continue
 		}
 		if c.Signal != 0 && c.Signal < -70 { // weak devices are often better off on 2.4 GHz
@@ -149,23 +173,31 @@ func ruleBand24(s Snapshot) ([]Suggestion, string) {
 			continue
 		}
 		var names []string
+		proven := 0
 		for _, c := range cs {
 			names = append(names, c.Display())
+			if c.Seen5 {
+				proven++
+			}
 		}
 		sort.Strings(names)
+		evidence := fmt.Sprintf("%d clients were already seen on 5 GHz but now use 2.4 GHz on \"%s\"", len(cs), ssid)
+		if proven == 0 {
+			evidence = fmt.Sprintf("%d clients on 2.4 GHz are of a device class that usually supports 5 GHz (\"%s\" offers it)", len(cs), ssid)
+		}
 		out = append(out, Suggestion{
 			Subject: ssid, Severity: SevTip, Category: CatWifi, Link: "clients", Confidence: "medium",
 			Title: fmt.Sprintf("Clients on 2.4 GHz could use 5 GHz on \"%s\"", ssid),
 			Why:   "2.4 GHz has only three usable channels, is shared with many neighbours and gadgets, and is much slower than 5 GHz. Devices that sit on 2.4 GHz although the same network also offers 5 GHz often just picked the first band they found.",
 			Evidence: []string{
-				fmt.Sprintf("%d clients are connected on 2.4 GHz with a decent signal although \"%s\" also offers 5 GHz", len(cs), ssid),
+				evidence,
 				fmt.Sprintf("Clients: %s", list(names, 8)),
 			},
 			Steps: []string{
 				"Many smart-home devices only support 2.4 GHz; leave those as they are.",
 				"For phones, laptops and TVs, enable band steering on the access points or offer a separate 5 GHz network name and connect them to it once.",
 			},
-			Limits: "mtmon cannot see whether a device is 5 GHz capable.",
+			Limits: "Clients with an access-list rule are left out (pinned on purpose). Only devices seen on 5 GHz before, or of a typical dual-band class, are listed.",
 		})
 	}
 	return out, ""

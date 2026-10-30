@@ -112,6 +112,21 @@ func (m *Manager) SelfByAddr(ip string) (string, bool) {
 	return "", false
 }
 
+// OwnsAddr reports whether any managed device owns this address (management address, any /ip/address or
+// /ipv6/address row incl. dynamic and link-local ones, EUI-64 of an own interface). It is the shared answer to
+// "is this a real host or an imaginary one", independent of whether the device's own MAC is known.
+func (m *Manager) OwnsAddr(ip string) bool {
+	a, err := netip.ParseAddr(ip)
+	if err != nil {
+		return false
+	}
+	if a.Unmap().IsLinkLocalUnicast() {
+		return true // every router has link-local addresses per interface; clients learn them from RDNSS
+	}
+	_, ok := m.SelfByAddr(a.Unmap().String())
+	return ok
+}
+
 // addrOf parses an entry of the stored capabilities ("192.168.1.1/24 on bridge", "2001:db8::1/64 on pppoe-out1").
 func addrOf(s string) (netip.Addr, bool) {
 	if i := strings.IndexByte(s, ' '); i > 0 {

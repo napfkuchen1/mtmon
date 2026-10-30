@@ -1,0 +1,368 @@
+[
+ {
+  ".id": "*1",
+  "available-from": [],
+  "disabled": true,
+  "dynamic": false,
+  "invalid": true,
+  "max-sessions": 20,
+  "name": "ftp",
+  "port": 21,
+  "proto": "tcp",
+  "vrf": "main"
+ },
+ {
+  ".id": "*4",
+  "available-from": [
+   "192.168.0.0/24",
+   "192.168.216.0/24"
+  ],
+  "disabled": false,
+  "dynamic": false,
+  "invalid": false,
+  "max-sessions": 20,
+  "name": "ssh",
+  "port": 22,
+  "proto": "tcp",
+  "vrf": "main"
+ },
+ {
+  ".id": "*3CB",
+  "connection": true,
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "local": "::ffff:192.168.0.1",
+  "name": "ssh",
+  "port": 22,
+  "proto": "tcp",
+  "remote": "192.168.0.200:61307"
+ },
+ {
+  ".id": "*0",
+  "available-from": [],
+  "disabled": true,
+  "dynamic": false,
+  "invalid": true,
+  "max-sessions": 20,
+  "name": "telnet",
+  "port": 23,
+  "proto": "tcp",
+  "vrf": "main"
+ },
+ {
+  ".id": "*D",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "resolver",
+  "port": 53,
+  "proto": "tcp"
+ },
+ {
+  ".id": "*16",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "resolver",
+  "port": 53,
+  "proto": "udp"
+ },
+ {
+  ".id": "*20",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "dhcp",
+  "port": 67,
+  "proto": "udp"
+ },
+ {
+  ".id": "*21",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "dhcpclient",
+  "port": 68,
+  "proto": "udp"
+ },
+ {
+  ".id": "*2",
+  "available-from": [
+   "192.168.0.0/24",
+   "192.168.216.0/24"
+  ],
+  "disabled": false,
+  "dynamic": false,
+  "invalid": false,
+  "max-sessions": 20,
+  "name": "www",
+  "port": 80,
+  "proto": "tcp",
+  "vrf": "main"
+ },
+ {
+  ".id": "*17",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "ntp",
+  "port": 123,
+  "proto": "udp"
+ },
+ {
+  ".id": "*1A",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "snmp",
+  "port": 161,
+  "proto": "udp"
+ },
+ {
+  ".id": "*A",
+  "available-from": [
+   "192.168.0.0/24",
+   "192.168.216.0/24"
+  ],
+  "certificate": "none",
+  "disabled": false,
+  "dynamic": false,
+  "invalid": false,
+  "max-sessions": 20,
+  "name": "reverse-proxy",
+  "port": 443,
+  "proto": "tcp",
+  "vrf": "main"
+ },
+ {
+  ".id": "*6",
+  "available-from": [
+   "192.168.0.0/24",
+   "192.168.216.0/24"
+  ],
+  "certificate": "mtmon-ssl",
+  "disabled": false,
+  "dynamic": false,
+  "invalid": false,
+  "max-sessions": 20,
+  "name": "www-ssl",
+  "port": 443,
+  "proto": "tcp",
+  "vrf": "main"
+ },
+ {
+  ".id": "*3A9",
+  "connection": true,
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "local": "::ffff:192.168.0.1",
+  "name": "reverse-proxy",
+  "port": 443,
+  "proto": "tcp",
+  "remote": "192.168.0.248:57040"
+ },
+ {
+  ".id": "*14",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "dhcpclient",
+  "port": 546,
+  "proto": "udp"
+ },
+ {
+  ".id": "*C",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "btest",
+  "port": 2000,
+  "proto": "tcp"
+ },
+ {
+  ".id": "*E",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "ww2",
+  "port": 5246,
+  "proto": "tcp"
+ },
+ {
+  ".id": "*18",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "ww2",
+  "port": 5246,
+  "proto": "udp"
+ },
+ {
+  ".id": "*15",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "discover",
+  "port": 5678,
+  "proto": "udp"
+ },
+ {
+  ".id": "*8",
+  "available-from": [
+   "192.168.0.0/24",
+   "192.168.216.0/24"
+  ],
+  "disabled": false,
+  "dynamic": false,
+  "invalid": false,
+  "max-sessions": 20,
+  "name": "winbox",
+  "port": 8291,
+  "proto": "tcp",
+  "vrf": "main"
+ },
+ {
+  ".id": "*7",
+  "available-from": [
+   "192.168.0.0/24",
+   "192.168.216.0/24"
+  ],
+  "disabled": false,
+  "dynamic": false,
+  "invalid": false,
+  "max-sessions": 20,
+  "name": "api",
+  "port": 8728,
+  "proto": "tcp",
+  "vrf": "main"
+ },
+ {
+  ".id": "*2C6",
+  "connection": true,
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "local": "::ffff:192.168.0.1",
+  "name": "api",
+  "port": 8728,
+  "proto": "tcp",
+  "remote": "192.168.0.252:57810"
+ },
+ {
+  ".id": "*9",
+  "available-from": [
+   "192.168.0.0/24",
+   "192.168.216.0/24"
+  ],
+  "certificate": "none",
+  "disabled": false,
+  "dynamic": false,
+  "invalid": false,
+  "max-sessions": 20,
+  "name": "api-ssl",
+  "port": 8729,
+  "proto": "tcp",
+  "vrf": "main"
+ },
+ {
+  ".id": "*B",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "wireguard-back-to-home-vpn",
+  "port": 20795,
+  "proto": "udp"
+ },
+ {
+  ".id": "*376",
+  "connection": true,
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "local": "::ffff:203.0.113.3",
+  "name": "resolver",
+  "port": 33862,
+  "proto": "tcp",
+  "remote": "203.0.113.134:443"
+ },
+ {
+  ".id": "*78",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "log",
+  "port": 35525,
+  "proto": "udp"
+ },
+ {
+  ".id": "*35C",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "detnet",
+  "port": 38363,
+  "proto": "udp"
+ },
+ {
+  ".id": "*3C3",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "detnet",
+  "port": 38855,
+  "proto": "udp"
+ },
+ {
+  ".id": "*3CC",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "cloud",
+  "port": 41813,
+  "proto": "udp"
+ },
+ {
+  ".id": "*363",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "detnet",
+  "port": 44182,
+  "proto": "udp"
+ },
+ {
+  ".id": "*374",
+  "connection": true,
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "local": "::ffff:203.0.113.3",
+  "name": "resolver",
+  "port": 45876,
+  "proto": "tcp",
+  "remote": "203.0.113.134:443"
+ },
+ {
+  ".id": "*375",
+  "connection": true,
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "local": "::ffff:203.0.113.3",
+  "name": "resolver",
+  "port": 46854,
+  "proto": "tcp",
+  "remote": "203.0.113.134:443"
+ },
+ {
+  ".id": "*3C5",
+  "disabled": false,
+  "dynamic": true,
+  "invalid": false,
+  "name": "detnet",
+  "port": 47185,
+  "proto": "udp"
+ }
+]

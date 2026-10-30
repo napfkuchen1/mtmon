@@ -33,6 +33,7 @@ type Pipeline struct {
 	En                *enrich.Enricher
 	Hub               *Hub
 	Cls               *enrich.Classifier
+	Owns              func(ip string) bool   // a managed device owns this address (any interface, polling address); optional
 	SelfMAC           func(ip string) string // own interface MAC of the managed device that has this address, "" = none; optional
 	mu                sync.Mutex
 	seen              map[dkey]int64
@@ -213,6 +214,9 @@ func (p *Pipeline) ghostDNSReply(r flow.Record, src, dst netip.Addr, ts int64) (
 		return false, ""
 	}
 	if src.IsLinkLocalUnicast() { // the router announces its own link-local address as RDNSS; clients learn it from the RA, it is no imaginary server
+		return false, ""
+	}
+	if p.Owns != nil && p.Owns(src.String()) { // an address of the router itself, whatever tables know about it
 		return false, ""
 	}
 	if p.macOf(src.String(), ts) != "" {

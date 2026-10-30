@@ -84,6 +84,7 @@ type Caps struct {
 	WwwSSLAddr                 string
 	Cleartext                  []string // enabled telnet / ftp services
 	OpenMgmt                   []string // enabled management services open to every address
+	PinnedMACs                 []string // clients named by a Wi-Fi access-list rule on this device
 	NTPOff                     bool     // NTP client disabled
 	Role                       string   // router | ap | switch (suggested by the probe)
 	Filter                     []FilterRule
@@ -157,6 +158,7 @@ type Client struct {
 	Signal                           int // dBm, 0 = unknown
 	WiFi, Online                     bool
 	FirstSeen, LastSeen              int64
+	Seen5                            bool    // was seen on 5 GHz at least once in the history
 	SigSamples                       int64   // Wi-Fi signal readings of the last 24 h (0 = no history)
 	WeakFrac                         float64 // share of those readings weaker than WeakSignal
 

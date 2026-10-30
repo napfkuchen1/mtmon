@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
 func TestRuleDNSGhost(t *testing.T) {
@@ -16,5 +18,24 @@ func TestRuleDNSGhost(t *testing.T) {
 	}
 	if !strings.Contains(out[0].Title, "pc-office") || !strings.Contains(out[0].Title, "fd00:1a2b::1") {
 		t.Errorf("title: %s", out[0].Title)
+	}
+}
+
+// #235: sightings stored before the pipeline knew the router's address disappear at the next advice run.
+func TestGhostDNSSightingOfOwnAddressFiltered(t *testing.T) {
+	st, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	st.NoteGhostDNS(map[[2]string]int64{{"AA:BB:CC:00:00:50", "192.168.0.1"}: 5, {"AA:BB:CC:00:00:50", "192.168.77.77"}: 5}, time.Now().Unix())
+	l := NewLive(st, nil, nil, nil, time.Now())
+	if n := len(l.GhostDNS7d()); n != 2 {
+		t.Fatalf("without ownership data both stay: %d", n)
+	}
+	l.OwnsAddr = func(ip string) bool { return ip == "192.168.0.1" }
+	g := l.GhostDNS7d()
+	if len(g) != 1 || g[0].IP != "192.168.77.77" {
+		t.Fatalf("%+v", g)
 	}
 }

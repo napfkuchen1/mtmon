@@ -47,6 +47,7 @@ func (s *Server) adviceResult(force bool) advice.Result {
 	l.Disk = s.DiskFn
 	if s.Mgr != nil {
 		l.IsSelf = func(mac string) bool { _, ok := s.Mgr.SelfDevice(mac); return ok }
+		l.OwnsAddr = s.Mgr.OwnsAddr
 	}
 	if s.Col != nil {
 		l.ExporterLast = func(addr string) (time.Time, bool) {

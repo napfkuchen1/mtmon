@@ -8,6 +8,13 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.20.8] - 2026-10-31
+
+### Fixed
+- No more false "imaginary DNS server" warnings for addresses a managed router owns itself (LAN, link-local, bridge addresses), and old sightings of them disappear at the next advice run.
+- The "management service open to everyone" hint now reads the RouterOS 7 "available-from" list correctly, ignores active-session rows, lists each service once, and treats private-only ranges as restricted.
+- The "move clients to 5 GHz" hint only lists devices seen on 5 GHz before (or of a typical dual-band class) and skips clients pinned by a Wi-Fi access-list rule.
+
 ## [0.20.7] - 2026-10-30
 
 ### New
