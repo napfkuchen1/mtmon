@@ -175,6 +175,7 @@ func TestBand24(t *testing.T) {
 	d := base()
 	d.Cls = []Client{wifiClient("aa1", "ap1", "Home", "2ghz-n", -55), wifiClient("bb1", "ap1", "Home", "2ghz-n", -60),
 		wifiClient("cc1", "ap1", "Home", "5ghz-ac", -50)}
+	d.Cls[0].Seen5, d.Cls[1].Seen5 = true, true
 	expect(t, d, "band-24", 1)
 	// weak 2.4 GHz clients are left alone; one client alone is not enough
 	d.Cls[0].Signal = -80

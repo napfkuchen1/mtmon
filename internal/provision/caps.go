@@ -71,9 +71,10 @@ type Caps struct {
 	} `json:"traffic_flow"`
 	WwwSSL     bool         `json:"www_ssl"`
 	WwwSSLAddr string       `json:"www_ssl_address"`
-	Cleartext  []string     `json:"cleartext_services"`  // enabled telnet / ftp (baseline check)
-	OpenMgmt   []string     `json:"open_mgmt,omitempty"` // enabled api/ssh/winbox/www services without an address restriction
-	NTPOff     bool         `json:"ntp_off,omitempty"`   // the NTP client exists but is disabled (baseline check)
+	Cleartext  []string     `json:"cleartext_services"`    // enabled telnet / ftp (baseline check)
+	OpenMgmt   []string     `json:"open_mgmt,omitempty"`   // enabled api/ssh/winbox/www services without an address restriction
+	NTPOff     bool         `json:"ntp_off,omitempty"`     // the NTP client exists but is disabled (baseline check)
+	PinnedMACs []string     `json:"pinned_macs,omitempty"` // clients named by a Wi-Fi access-list rule (intentional pin)
 	LogActions []string     `json:"log_actions"`
 	Filter     []FilterRule `json:"filter_rules"`
 	// DNSRedirect: active dst-nat/redirect rules that send port-53 traffic to the router (hit counters from the probe).
@@ -308,6 +309,7 @@ func (k *Caps) probeWifi(ctx context.Context, c *poller.Client) {
 			k.WifiIfs = append(k.WifiIfs, wi)
 		}
 		k.WifiClient = len(get(ctx, c, "/interface/wifi/registration-table"))
+		k.PinnedMACs = pinnedMACs(get(ctx, c, "/interface/wifi/access-list"))
 		if cp := get(ctx, c, "/interface/wifi/cap"); len(cp) > 0 && (cp[0]["enabled"] == "yes" || cp[0]["enabled"] == "true") {
 			k.CAP = true
 		}
@@ -371,16 +373,18 @@ func (k *Caps) probeServices(ctx context.Context, c *poller.Client) {
 	}
 	svcCert := map[string]string{} // service -> certificate name
 	k.Cleartext, k.OpenMgmt, k.NTPOff = nil, nil, false
-	for _, s := range get(ctx, c, "/ip/service") {
+	svcRows := get(ctx, c, "/ip/service")
+	k.OpenMgmt = openMgmtNames(svcRows)
+	for _, s := range svcRows {
+		if s["dynamic"] == "true" || s["connection"] == "true" {
+			continue // active sessions, not configuration
+		}
 		if (s["name"] == "telnet" || s["name"] == "ftp") && s["disabled"] != "true" {
 			k.Cleartext = append(k.Cleartext, s["name"])
 		}
-		if mgmtServices[s["name"]] && s["disabled"] != "true" && (s["address"] == "" || s["address"] == "0.0.0.0/0") {
-			k.OpenMgmt = append(k.OpenMgmt, s["name"])
-		}
 		if s["name"] == "www-ssl" {
 			k.WwwSSL = s["disabled"] != "true"
-			k.WwwSSLAddr = s["address"]
+			k.WwwSSLAddr = serviceFrom(s)
 		}
 		if (s["name"] == "www-ssl" || s["name"] == "api-ssl") && s["disabled"] != "true" && s["certificate"] != "" && s["certificate"] != "none" {
 			svcCert[s["name"]] = s["certificate"]

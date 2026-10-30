@@ -29,6 +29,9 @@ type Live struct {
 	ExporterLast func(addr string) (last time.Time, ok bool)
 	// IsSelf reports whether a MAC belongs to a managed router/AP itself; its own traffic is no client behaviour.
 	IsSelf func(mac string) bool
+	// OwnsAddr reports whether an address belongs to a managed device (shared address-ownership answer); sightings
+	// stored before the pipeline knew this address are filtered here, so old findings vanish without manual action.
+	OwnsAddr func(ip string) bool
 
 	now     time.Time
 	devs    []Device
@@ -120,7 +123,7 @@ func (l *Live) Devices() []Device {
 func convCaps(k provision.Caps) *Caps {
 	c := &Caps{Fasttrack: k.Fasttrack, HWOffload: k.HWOffload, FlowSupported: k.Flow.Supported, FlowEnabled: k.Flow.Enabled,
 		FlowTargets: k.Flow.Targets, LogActions: len(k.LogActions), WwwSSL: k.WwwSSL, WwwSSLAddr: k.WwwSSLAddr, Cleartext: k.Cleartext,
-		OpenMgmt: k.OpenMgmt, NTPOff: k.NTPOff, Role: k.Role}
+		OpenMgmt: k.OpenMgmt, PinnedMACs: k.PinnedMACs, NTPOff: k.NTPOff, Role: k.Role}
 	c.Addresses = k.Addresses
 	c.ProbedAt = k.ProbedAt
 	c.FilesReadable, c.NewestBackup, c.NewestExport = k.Files.Readable, k.Files.NewestBackup, k.Files.NewestExport
@@ -158,8 +161,9 @@ func (l *Live) Clients() []Client {
 	rows, _ := l.St.Clients()
 	grp, _ := l.St.ClientGroups()
 	sig, _ := l.St.WifiSignalStats(l.now.Add(-24 * time.Hour).Unix())
+	seen5, _ := l.St.WifiSeen5()
 	for _, c := range rows {
-		l.cls = append(l.cls, Client{Group: c.Group, ChattyMult: grp[c.MAC].ChattyMult, IgnoreWeak: grp[c.MAC].IgnoreWeak, SigSamples: sig[c.MAC].Samples, WeakFrac: sig[c.MAC].WeakFrac, MAC: c.MAC, Label: c.Label, Hostname: c.Hostname, Vendor: c.Vendor, IP: c.IP,
+		l.cls = append(l.cls, Client{Group: c.Group, ChattyMult: grp[c.MAC].ChattyMult, IgnoreWeak: grp[c.MAC].IgnoreWeak, Seen5: seen5[c.MAC], SigSamples: sig[c.MAC].Samples, WeakFrac: sig[c.MAC].WeakFrac, MAC: c.MAC, Label: c.Label, Hostname: c.Hostname, Vendor: c.Vendor, IP: c.IP,
 			Device: c.Device, SSID: c.SSID, Band: c.Band, Signal: c.Signal, WiFi: c.WiFi, Online: c.Online,
 			FirstSeen: c.FirstSeen, LastSeen: c.LastSeen})
 	}
@@ -351,6 +355,9 @@ func (l *Live) GhostDNS7d() []GhostDNS {
 	}
 	out := make([]GhostDNS, 0, len(rows))
 	for _, r := range rows {
+		if l.OwnsAddr != nil && l.OwnsAddr(r.IP) {
+			continue
+		}
 		out = append(out, GhostDNS{MAC: r.MAC, IP: r.IP, Flows: r.Flows, Last: r.Last})
 	}
 	return out

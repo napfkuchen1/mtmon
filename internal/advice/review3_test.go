@@ -158,3 +158,27 @@ func TestChattyTunnelTypeAndVPNPeerClient(t *testing.T) {
 		t.Error("isTunnelType")
 	}
 }
+
+// #235: only clients that were seen on 5 GHz (or are a typical dual-band class) are listed, pinned ones never.
+func TestBand24NeedsProofAndSkipsPinned(t *testing.T) {
+	d := base()
+	a, b, c := wifiClient("aa1", "ap1", "Home", "2ghz-n", -55), wifiClient("bb1", "ap1", "Home", "2ghz-n", -60), wifiClient("cc1", "ap1", "Home", "5ghz-ac", -50)
+	d.Cls = []Client{a, b, c}
+	expect(t, d, "band-24", 0) // media boxes that never used 5 GHz
+	d.Cls[0].Seen5, d.Cls[1].Seen5 = true, true
+	s := expect(t, d, "band-24", 1)
+	if !strings.Contains(s[0].Evidence[0], "already seen on 5 GHz") {
+		t.Fatal(s[0].Evidence)
+	}
+	// pinned by an access-list rule: left out
+	d.Devs = []Device{{Name: "ap1", Caps: &Caps{PinnedMACs: []string{strings.ToLower(a.MAC)}}}}
+	expect(t, d, "band-24", 0)
+	// OUI class only
+	d.Devs = nil
+	d.Cls[0].Seen5, d.Cls[1].Seen5 = false, false
+	d.Cls[0].Vendor, d.Cls[1].Vendor = "Apple, Inc.", "Samsung Electronics"
+	s = expect(t, d, "band-24", 1)
+	if !strings.Contains(s[0].Evidence[0], "usually supports 5 GHz") {
+		t.Fatal(s[0].Evidence)
+	}
+}

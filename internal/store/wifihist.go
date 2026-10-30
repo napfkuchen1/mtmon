@@ -116,6 +116,24 @@ func (s *Store) WifiEvents(mac string, since int64) ([]WifiEvent, error) {
 	return out, nil
 }
 
+// WifiSeen5 returns the clients that were ever seen on a 5 GHz (or 6 GHz) band: they demonstrably support it.
+func (s *Store) WifiSeen5() (map[string]bool, error) {
+	rows, err := s.DB.Query(`SELECT DISTINCT mac FROM wifi_hist WHERE band LIKE '5%' OR band LIKE '6%'`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]bool{}
+	for rows.Next() {
+		var m string
+		if err := rows.Scan(&m); err != nil {
+			return nil, err
+		}
+		out[m] = true
+	}
+	return out, rows.Err()
+}
+
 // WifiSignalStat summarises the signal of one client over a window.
 type WifiSignalStat struct {
 	Samples  int64

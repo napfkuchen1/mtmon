@@ -108,3 +108,21 @@ func TestGhostDNSReplyIsNoClient(t *testing.T) {
 		t.Fatalf("ghost sightings: %v %v", g, err)
 	}
 }
+
+// #235: an address a managed device owns (here the router's LAN address, which no ARP/lease table lists) is never an
+// imaginary DNS server; an address in no table still is.
+func TestGhostDNSOwnedAddressIsNoGhost(t *testing.T) {
+	p := dnsPipe(t)
+	p.Hub.SetIPMap(map[string]string{"192.168.0.50": "AA:BB:CC:00:00:50"}, nil)
+	p.Owns = func(ip string) bool { return ip == "192.168.0.1" || ip == "fd00::1" }
+	now := time.Now()
+	reply := func(src string) flow.Record {
+		return flow.Record{Src: netip.MustParseAddr(src), Dst: netip.MustParseAddr("192.168.0.50"), SrcPort: 53, DstPort: 40000,
+			Proto: 17, Bytes: 120, Packets: 1, Start: now, End: now}
+	}
+	p.Handle([]flow.Record{reply("192.168.0.1"), reply("192.168.0.1"), reply("192.168.0.1"), reply("192.168.77.77")})
+	g, err := p.St.GhostDNSSince(now.Unix() - 60)
+	if err != nil || len(g) != 1 || g[0].IP != "192.168.77.77" {
+		t.Fatalf("ghost sightings: %v %v", g, err)
+	}
+}

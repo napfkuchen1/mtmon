@@ -213,6 +213,12 @@ func parseRows(b []byte) ([]Row, error) {
 			case string:
 				r[k] = t
 			case nil:
+			case []any: // RouterOS lists (available-from, ...) become a comma separated string, like the REST API prints them
+				parts := make([]string, len(t))
+				for i, e := range t {
+					parts[i] = fmt.Sprint(e)
+				}
+				r[k] = strings.Join(parts, ",")
 			default:
 				r[k] = fmt.Sprint(t)
 			}
