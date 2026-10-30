@@ -36,9 +36,10 @@
         <div><div class="l muted">{t('WAN reconnects (24 h)')}</div><div class="v num">{x.reconnects_24h}</div>
           <div class="l muted">{x.last_reconnect ? t('last reconnect {when}', { when: ago(x.last_reconnect) }) : t('none recorded')}</div></div>
         <div><div class="l muted">{t('Targets')}</div>
-          {#each x.targets as g}<div class="num" style="font-size:12.5px"><span class="mono">{g.target}</span> · {g.avg_ms ? g.avg_ms.toFixed(0) + ' ms' : '—'} · {g.loss_pct.toFixed(0)} %</div>{/each}</div>
+          {#each x.targets as g}<div class="num" style="font-size:12.5px"><span class="mono">{g.target}</span>
+            {#if g.note}· <span class="muted">{tr(g.note)}</span>{:else}· {g.avg_ms ? g.avg_ms.toFixed(0) + ' ms' : '—'} · {g.loss_pct.toFixed(0)} %{#if g.err} · <span class="bad-t">{tr(g.err)}</span>{/if}{/if}</div>{/each}</div>
       </div>
     {/if}
   </div>
 {/if}
-<style>.v { font-size: 22px; font-weight: 600; margin: 2px 0; } .l { font-size: 12px; }</style>
+<style>.bad-t { color: var(--bad); } .v { font-size: 22px; font-weight: 600; margin: 2px 0; } .l { font-size: 12px; }</style>

@@ -5,6 +5,7 @@ package probe
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -36,12 +37,29 @@ type Prober struct {
 	DNS     func() []string                              // names to resolve; nil or empty: DefaultDNS
 	HTTP    func() []string                              // URLs to request; nil or empty: none
 	Get     func(ctx context.Context, url string) error  // nil: real HTTP request
+	// Custom lists the own targets (Settings -> Internet); nil: none
+	Custom func() []Custom
+	// Fetch requests an own http target over IPv4 or IPv6 (fam 4 or 6); ErrNoAddr = no address of that family. nil: real request
+	Fetch func(ctx context.Context, url string, insecure bool, fam int) error
+	// Report gets every result of an own target (ok, short error text); the alert engine counts failures in a row
+	Report func(target string, ok bool, errText string)
 }
 
 func lookup(ctx context.Context, name string) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	_, err := net.DefaultResolver.LookupHost(ctx, name)
+	addrs, err := net.DefaultResolver.LookupHost(ctx, name)
+	if err == nil && len(addrs) > 0 {
+		blocked := true
+		for _, a := range addrs {
+			if ip := net.ParseIP(a); ip == nil || !ip.IsUnspecified() {
+				blocked = false
+			}
+		}
+		if blocked {
+			return ErrBlocked
+		}
+	}
 	return err
 }
 
@@ -112,45 +130,75 @@ func (p *Prober) Once(ctx context.Context) {
 			}
 		}
 	}
-	fetch := p.Get
-	if fetch == nil {
-		fetch = get
+	legacyGet := p.Get
+	if legacyGet == nil {
+		legacyGet = get
 	}
-	done := make(chan struct{}, len(targets)+len(names)+len(urls))
+	var custom []Custom
+	if p.Custom != nil {
+		custom = p.Custom()
+	}
+	ownFetch := p.Fetch
+	if ownFetch == nil {
+		ownFetch = fetch
+	}
+	keep := map[string]bool{}
+	var jobs []func()
+	probe := func(target string, report bool, run func() error) {
+		keep[target] = true
+		jobs = append(jobs, func() {
+			start := time.Now()
+			err := run()
+			if ctx.Err() != nil {
+				return
+			}
+			if errors.Is(err, ErrNoAddr) {
+				p.St.SetWANStatus(target, store.WANStatus{Note: "no IPv6 address"})
+				return
+			}
+			why := Reason(err)
+			p.St.SetWANStatus(target, store.WANStatus{Err: why})
+			p.St.AddWANSample(start, target, err == nil, float64(time.Since(start).Microseconds())/1000)
+			if report && p.Report != nil {
+				p.Report(target, err == nil, why)
+			}
+		})
+	}
 	for _, t := range targets {
-		go func(t string) {
-			defer func() { done <- struct{}{} }()
-			start := time.Now()
-			err := dialer(ctx, t)
-			if ctx.Err() != nil {
-				return
-			}
-			p.St.AddWANSample(start, t, err == nil, float64(time.Since(start).Microseconds())/1000)
-		}(t)
+		probe(t, false, func() error { return dialer(ctx, t) })
 	}
+	own := map[string]bool{}
+	for _, c := range custom {
+		if c.Kind == "dns" {
+			own[c.Target] = true
+			names = append(names, c.Target)
+		}
+	}
+	seen := map[string]bool{}
 	for _, n := range names {
-		go func(n string) {
-			defer func() { done <- struct{}{} }()
-			start := time.Now()
-			err := resolve(ctx, n)
-			if ctx.Err() != nil {
-				return
-			}
-			p.St.AddWANSample(start, "dns:"+n, err == nil, float64(time.Since(start).Microseconds())/1000)
-		}(n)
+		if seen[n] {
+			continue
+		}
+		seen[n] = true
+		probe("dns:"+n, own[n], func() error { return resolve(ctx, n) })
 	}
 	for _, u := range urls {
-		go func(u string) {
-			defer func() { done <- struct{}{} }()
-			start := time.Now()
-			err := fetch(ctx, u)
-			if ctx.Err() != nil {
-				return
-			}
-			p.St.AddWANSample(start, "http:"+u, err == nil, float64(time.Since(start).Microseconds())/1000)
-		}(u)
+		probe("http:"+u, false, func() error { return legacyGet(ctx, u) })
 	}
-	for range len(targets) + len(names) + len(urls) {
+	for _, c := range custom {
+		if c.Kind != "http" || !ValidHTTPTarget(c.Target) {
+			continue
+		}
+		for _, fam := range []int{4, 6} {
+			probe(fmt.Sprintf("http%d:%s", fam, c.Target), true, func() error { return ownFetch(ctx, c.Target, c.Insecure, fam) })
+		}
+	}
+	p.St.ForgetWANStatus(keep)
+	done := make(chan struct{}, len(jobs))
+	for _, j := range jobs {
+		go func() { j(); done <- struct{}{} }()
+	}
+	for range jobs {
 		<-done
 	}
 }

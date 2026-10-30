@@ -133,6 +133,9 @@ CREATE TABLE IF NOT EXISTS seen_dest(
 type Store struct {
 	DB *sql.DB
 
+	wanStMu sync.Mutex
+	wanSt   map[string]WANStatus // latest probe result per target (wanstatus.go)
+
 	mu        sync.Mutex
 	flowQ     []FlowRow
 	Dropped   uint64
