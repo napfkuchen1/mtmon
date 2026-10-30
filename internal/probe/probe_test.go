@@ -61,3 +61,34 @@ func TestDisabledProberDoesNotProbe(t *testing.T) {
 		t.Error("probed while disabled")
 	}
 }
+
+func TestConfiguredDNSAndHTTPTargets(t *testing.T) {
+	st, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	p := &Prober{St: st, Log: slog.Default(), Targets: func() []string { return []string{"a:1"} },
+		Dial:   func(context.Context, string) error { return nil },
+		Lookup: func(context.Context, string) error { return nil },
+		DNS:    func() []string { return []string{"intranet.lan"} },
+		HTTP:   func() []string { return []string{"https://ok.example/", "ftp://nope", "https://down.example/"} },
+		Get: func(_ context.Context, u string) error {
+			if u == "https://down.example/" {
+				return errors.New("status 503")
+			}
+			return nil
+		}}
+	p.Once(context.Background())
+	ts := st.WANTargets(time.Now().Add(-time.Hour).Unix())
+	got := map[string]float64{}
+	for _, x := range ts {
+		got[x.Target] = x.LossPct
+	}
+	if len(got) != 4 || got["dns:intranet.lan"] != 0 || got["http:https://ok.example/"] != 0 || got["http:https://down.example/"] != 100 {
+		t.Errorf("targets: %+v", got)
+	}
+	if w := st.WANQualitySince(time.Now().Add(-time.Hour).Unix()); w.Sent != 1 || w.Lost != 0 {
+		t.Errorf("dns/http probes leaked into the line totals: %+v", w)
+	}
+}

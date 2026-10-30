@@ -182,7 +182,7 @@ func run(args []string) error {
 	go srv.WarmCaches(ctx)
 	go pm.Run(ctx)
 	go al.Run(ctx.Done())
-	go (&probe.Prober{St: st, Log: log, Targets: func() []string { return cfg.WANTargets }, Enabled: func() bool { return st.GetMeta("wan_probe") != "off" }}).Run(ctx)
+	go (&probe.Prober{St: st, Log: log, Targets: func() []string { return cfg.WANTargets }, DNS: func() []string { return cfg.WANDNS }, HTTP: func() []string { return cfg.WANHTTP }, Enabled: func() bool { return st.GetMeta("wan_probe") != "off" }}).Run(ctx)
 	go func() {
 		if err := sys.Run(ctx); err != nil {
 			log.Warn("syslog receiver not running (firewall log view disabled)", "addr", cfg.SyslogListen, "err", err)

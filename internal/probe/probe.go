@@ -5,8 +5,11 @@ package probe
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/napfkuchen1/mtmon/internal/store"
@@ -30,6 +33,9 @@ type Prober struct {
 	Enabled func() bool     // nil: always on
 	Dial    func(ctx context.Context, addr string) error
 	Lookup  func(ctx context.Context, name string) error // nil: net.DefaultResolver
+	DNS     func() []string                              // names to resolve; nil or empty: DefaultDNS
+	HTTP    func() []string                              // URLs to request; nil or empty: none
+	Get     func(ctx context.Context, url string) error  // nil: real HTTP request
 }
 
 func lookup(ctx context.Context, name string) error {
@@ -37,6 +43,34 @@ func lookup(ctx context.Context, name string) error {
 	defer cancel()
 	_, err := net.DefaultResolver.LookupHost(ctx, name)
 	return err
+}
+
+// get requests url and counts it as answered when the server returns headers with a status below 500. The body is
+// not read, redirects are not followed: the time is DNS + connect + TLS + first byte of the given address.
+func get(ctx context.Context, url string) error {
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("User-Agent", "mtmon-probe")
+	c := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := c.Do(req)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+	if resp.StatusCode >= 500 {
+		return fmt.Errorf("status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// ValidHTTPTarget reports whether s is an absolute http(s) URL with a host.
+func ValidHTTPTarget(s string) bool {
+	u, err := url.Parse(s)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
 func dial(ctx context.Context, addr string) error {
@@ -64,7 +98,25 @@ func (p *Prober) Once(ctx context.Context) {
 	if resolve == nil {
 		resolve = lookup
 	}
-	done := make(chan struct{}, len(targets)+len(DefaultDNS))
+	names := DefaultDNS
+	if p.DNS != nil {
+		if n := p.DNS(); len(n) > 0 {
+			names = n
+		}
+	}
+	var urls []string
+	if p.HTTP != nil {
+		for _, u := range p.HTTP() {
+			if ValidHTTPTarget(u) {
+				urls = append(urls, u)
+			}
+		}
+	}
+	fetch := p.Get
+	if fetch == nil {
+		fetch = get
+	}
+	done := make(chan struct{}, len(targets)+len(names)+len(urls))
 	for _, t := range targets {
 		go func(t string) {
 			defer func() { done <- struct{}{} }()
@@ -76,7 +128,7 @@ func (p *Prober) Once(ctx context.Context) {
 			p.St.AddWANSample(start, t, err == nil, float64(time.Since(start).Microseconds())/1000)
 		}(t)
 	}
-	for _, n := range DefaultDNS {
+	for _, n := range names {
 		go func(n string) {
 			defer func() { done <- struct{}{} }()
 			start := time.Now()
@@ -87,7 +139,18 @@ func (p *Prober) Once(ctx context.Context) {
 			p.St.AddWANSample(start, "dns:"+n, err == nil, float64(time.Since(start).Microseconds())/1000)
 		}(n)
 	}
-	for range len(targets) + len(DefaultDNS) {
+	for _, u := range urls {
+		go func(u string) {
+			defer func() { done <- struct{}{} }()
+			start := time.Now()
+			err := fetch(ctx, u)
+			if ctx.Err() != nil {
+				return
+			}
+			p.St.AddWANSample(start, "http:"+u, err == nil, float64(time.Since(start).Microseconds())/1000)
+		}(u)
+	}
+	for range len(targets) + len(names) + len(urls) {
 		<-done
 	}
 }
