@@ -93,6 +93,9 @@
         <select id="upd-hour" class="input sm" style="max-width:200px" value={s.hour} onchange={e => setHour(e.target.value)} disabled={busy}>
           {#each Array.from({ length: 24 }, (_, i) => i) as h}<option value={h}>{String(h).padStart(2, '0')}:00 – {String((h + 1) % 24).padStart(2, '0')}:00</option>{/each}
         </select></td></tr>
+      {#if s.available && s.auto_after && s.auto_after * 1000 > Date.now()}
+      <tr><td class="muted">{t('Automatic install')}</td><td class="r">{t('waits for the soak time, earliest {when}', { when: when(s.auto_after) })}</td></tr>
+      {/if}
       {/if}
     </tbody></table>
     <div class="card-b" style="display:flex;flex-direction:column;gap:12px;border-top:1px solid var(--border)">

@@ -162,10 +162,11 @@ func run(args []string) error {
 	}
 	errc := make(chan error, 4)
 	srv.Restart = func() { errc <- errUpdateRestart }
-	srv.Upd, err = newUpdater(cfg, st, log, func() { errc <- errUpdateRestart })
+	srv.Upd, err = newUpdater(cfg, st, hub, log, func() { errc <- errUpdateRestart })
 	if err != nil {
 		return fmt.Errorf("updater: %w", err)
 	}
+	raiseUpdateFailed(srv.Upd, al)
 	h := api.New(srv)
 	hs := &http.Server{Addr: cfg.Listen, Handler: h, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
 	if !cfg.NoTLS {
