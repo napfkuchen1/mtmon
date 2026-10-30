@@ -82,6 +82,7 @@ type Caps struct {
 	LogActions                 int // remote logging actions
 	WwwSSL                     bool
 	WwwSSLAddr                 string
+	Cleartext                  []string // enabled telnet / ftp services
 	Filter                     []FilterRule
 	DNSRedirectUDP             bool // active dst-nat rule sends UDP/53 to the router (rule existence counts, not its packet counter)
 	DNSRedirectTCP             bool

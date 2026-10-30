@@ -152,3 +152,33 @@ func ruleCertExpiry(s Snapshot) ([]Suggestion, string) {
 	}
 	return out, ""
 }
+
+// ruleCleartextServices: baseline check – Telnet and FTP send the login in clear text and are not needed when
+// SSH / SFTP / Winbox are available.
+func ruleCleartextServices(s Snapshot) ([]Suggestion, string) {
+	var out []Suggestion
+	seen := false
+	for _, d := range s.Devices() {
+		if d.Caps == nil || d.Caps.ProbedAt == 0 {
+			continue
+		}
+		seen = true
+		if len(d.Caps.Cleartext) == 0 {
+			continue
+		}
+		names := strings.Join(d.Caps.Cleartext, ", ")
+		out = append(out, Suggestion{
+			Subject: d.Name, Severity: SevWarning, Category: CatSecurity, Link: "device/" + d.Name, Confidence: "high",
+			Title:    fmt.Sprintf("%s still runs %s", d.Name, names),
+			Why:      "Telnet and FTP send user name and password unencrypted. Anyone who can read the traffic in between gets the login of the router. SSH and Winbox do the same job encrypted.",
+			Evidence: []string{"Enabled in /ip service: " + names, "Source: " + d.Caps.ReadNote()},
+			Steps:    []string{"Check that you do not use the service (a backup script may use FTP), then disable it."},
+			Commands: "/ip service disable [find name=telnet]\n/ip service disable [find name=ftp]",
+			Limits:   "Based on the capabilities stored at the last probe of the device.",
+		})
+	}
+	if !seen {
+		return nil, "no stored router capabilities"
+	}
+	return out, ""
+}
