@@ -16,6 +16,12 @@ The first section below lists everything mtmon already covers. Later releases ad
 - README known limits now state measured scale numbers (100 clients x 30 days, 637 MB, all queries < 120 ms) (#197)
 - Client list shows the 24 h Wi-Fi score next to the signal, with the penalty breakdown as tooltip (#191)
 
+### Changed
+- `wifi_disconnects` names the client and the AP interface, and says so when the signal is good (#211)
+
+### Fixed
+- `script_error` no longer fires for the second log line of a failed SSH/telnet command (already reported as `cli_error`) (#175)
+
 ## [0.20.5] - 2026-10-30
 
 ### New

@@ -56,9 +56,24 @@ func TestRouterLogAlerts(t *testing.T) {
 	}
 }
 
+func TestWifiDisconnectNamesInterfaceAndSignal(t *testing.T) {
+	e, got := newEngine(t)
+	for i := 0; i < 6; i++ {
+		e.LogEvent(logEv("capsman", "wireless,info", "info", "AA:BB:CC:00:11:33@cap-wifi1 disconnected, connection lost, signal strength -52"))
+	}
+	if len(*got) != 1 {
+		t.Fatalf("alerts: %d", len(*got))
+	}
+	m := (*got)[0].Msg
+	if !strings.Contains(m, "capsman (cap-wifi1)") || !strings.Contains(m, "signal is good") {
+		t.Errorf("msg: %s", m)
+	}
+}
+
 func TestCLICommandErrorIsNotAScriptError(t *testing.T) {
 	e, got := newEngine(t)
 	e.LogEvent(logEv("gw", "script,error,debug", "error", "(ssh-cmd:daniel@192.168.88.2) bad command name foo (line 1 column 1)"))
+	e.LogEvent(logEv("gw", "script,error", "error", "executing script from sshd failed, please check it manually"))
 	e.LogEvent(logEv("gw", "script,error", "error", "script error: failing script"))
 	if kinds(*got) != "cli_error/gw/daniel,script_error/gw" {
 		t.Fatalf("kinds: %s", kinds(*got))

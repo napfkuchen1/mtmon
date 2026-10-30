@@ -3,6 +3,7 @@ package alert
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,11 +13,13 @@ import (
 // Alerts derived from the router event log (RouterOS topics other than firewall). The message wording of RouterOS is
 // matched defensively; a line that does not match simply raises nothing.
 var (
-	reLoginFail = regexp.MustCompile(`(?i)login failure for user (\S+) from (\S+) via (\S+)`)
-	reDHCPFail  = regexp.MustCompile(`(?i)without success|no free address|pool is empty|address pool.*(exhaust|empty)`)
-	reWiFiDisc  = regexp.MustCompile(`(?i)([0-9a-f]{2}(?::[0-9a-f]{2}){5})\S*\s+.*?disconnected(?:,?\s*(?:reason:?\s*)?(.*))?$`)
-	reWGFail    = regexp.MustCompile(`(?i)handshake.*(fail|did not complete|timeout|timed out)`)
-	reCLICmd    = regexp.MustCompile(`\(\w+-cmd:([^@\s)]+)@([^)\s]+)\)`)
+	reLoginFail     = regexp.MustCompile(`(?i)login failure for user (\S+) from (\S+) via (\S+)`)
+	reDHCPFail      = regexp.MustCompile(`(?i)without success|no free address|pool is empty|address pool.*(exhaust|empty)`)
+	reWiFiDisc      = regexp.MustCompile(`(?i)([0-9a-f]{2}(?::[0-9a-f]{2}){5})(?:@([^\s,]+))?\S*\s+.*?disconnected(?:,?\s*(?:reason:?\s*)?(.*))?$`)
+	reWGFail        = regexp.MustCompile(`(?i)handshake.*(fail|did not complete|timeout|timed out)`)
+	reSessionScript = regexp.MustCompile(`executing script from (sshd|telnet|winbox|api)\b`) // the second log line of a failed typed command
+	reSignalDBm     = regexp.MustCompile(`signal strength (-\d+)`)
+	reCLICmd        = regexp.MustCompile(`\(\w+-cmd:([^@\s)]+)@([^)\s]+)\)`)
 )
 
 // burst records one occurrence of key and reports whether n or more happened within window.
@@ -73,6 +76,9 @@ func (e *Engine) LogEvent(ev store.LogEvent) {
 			e.Raise("cli_error", dev+"/"+m[1], "info", fmt.Sprintf("Command from %s@%s failed on %s: %s", m[1], m[2], dev, why), time.Hour)
 			break
 		}
+		if reSessionScript.MatchString(msg) { // already reported as cli_error from the line that carries the command
+			break
+		}
 		e.Raise("script_error", dev, "warning", fmt.Sprintf("A script on %s failed: %s", dev, msg), time.Hour)
 	}
 	if m := reLoginFail.FindStringSubmatch(msg); m != nil && hasTopic(ev.Topics, "account") {
@@ -91,9 +97,26 @@ func (e *Engine) LogEvent(ev store.LogEvent) {
 		if m := reWiFiDisc.FindStringSubmatch(msg); m != nil {
 			mac := strings.ToUpper(m[1])
 			if e.burst("wifi|"+dev+"|"+mac, 5*time.Minute, 6) {
-				msg := fmt.Sprintf("Client %s keeps disconnecting from %s (6 or more in 5 min)", mac, dev)
-				if why := strings.TrimSpace(m[2]); why != "" {
+				who := mac
+				if e.St != nil {
+					if c, err := e.St.Client(mac); err == nil && c != nil {
+						if n := firstNonEmpty(c.Label, c.Hostname); n != "" {
+							who = n + " (" + mac + ")"
+						}
+					}
+				}
+				where := dev
+				if m[2] != "" { // with CAPsMAN the log comes from the controller but names the AP interface
+					where = dev + " (" + m[2] + ")"
+				}
+				msg := fmt.Sprintf("Client %s keeps disconnecting from %s (6 or more in 5 min)", who, where)
+				if why := strings.TrimSpace(m[3]); why != "" {
 					msg += " – last reason: " + why
+					if dbm := reSignalDBm.FindStringSubmatch(why); dbm != nil {
+						if v, err := strconv.Atoi(dbm[1]); err == nil && v >= -65 {
+							msg += ". The signal is good, so this is probably not a coverage problem; check access-list reject rules for this client and roaming settings"
+						}
+					}
 				}
 				e.Raise("wifi_disconnects", dev+"/"+mac, "warning", msg, 30*time.Minute)
 			}
@@ -104,4 +127,11 @@ func (e *Engine) LogEvent(ev store.LogEvent) {
 			e.Raise("wireguard_handshake", dev, "info", fmt.Sprintf("WireGuard handshakes on %s keep failing: %s", dev, msg), time.Hour)
 		}
 	}
+}
+
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
