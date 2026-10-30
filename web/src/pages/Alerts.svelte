@@ -19,6 +19,11 @@
   const days = 7
   const noise = poll(() => api(`/alerts/noise?days=${days}`), 60000)
   const noisy = $derived((noise.data || []).filter(k => k.noisy))
+  const infoKinds = poll(() => api('/alerts/info-kinds'), 60000)
+  async function setInfo(kind, info) {
+    infoKinds.data = await api('/alerts/info-kinds', { method: 'POST', body: { kind, info } })
+    try { noise.data = await api(`/alerts/noise?days=${days}`) } catch {}
+  }
   const cls = { critical: 'bad', warning: 'warn', info: '' }
 </script>
 <div class="head"><h1>{t('Alerts')}</h1>
@@ -26,12 +31,17 @@
   <button class="btn sm" disabled={!open} onclick={ackAll}>{t('Acknowledge all')}</button>
   <button class="btn sm" disabled={!done} onclick={clear}>{t('Clear alerts')}</button>
   <button class="btn sm" onclick={() => download('/export/alerts?format=xlsx')}>{t('Export Excel')}</button></div>
-{#if noisy.length}
+{#if noisy.length || (infoKinds.data || []).length}
   <div class="card" style="margin-bottom:14px"><b>{t('Noisy alert types')}</b>
     <span class="muted"> – {t('mostly acknowledged by hand, probably not worth a warning')}</span>
     <ul style="margin:8px 0 0;padding-left:18px">
-      {#each noisy as k (k.kind)}<li><span class="mono">{tr(k.kind)}</span>: {t('{n} warnings, {p} % acknowledged', { n: k.warnings, p: Math.round(k.share * 100) })}</li>{/each}
-    </ul></div>
+      {#each noisy as k (k.kind)}<li><span class="mono">{tr(k.kind)}</span>: {t('{n} warnings, {p} % acknowledged', { n: k.warnings, p: Math.round(k.share * 100) })}
+        <button class="btn sm" style="margin-left:8px" onclick={() => setInfo(k.kind, true)}>{t('Make this type info')}</button></li>{/each}
+    </ul>
+    {#if (infoKinds.data || []).length}
+      <div class="muted" style="margin-top:10px">{t('Set to info')}:
+        {#each infoKinds.data as k (k)}<span class="mono" style="margin-left:6px">{tr(k)}</span> <button class="btn sm" onclick={() => setInfo(k, false)}>{t('Restore')}</button>{/each}</div>
+    {/if}</div>
 {/if}
 <div class="card"><div class="scroll"><table>
   <thead><tr><th>{t('Time')}</th><th>{t('Severity')}</th><th>{t('Type')}</th><th>{t('Message')}</th><th></th></tr></thead>

@@ -69,3 +69,60 @@ func TestWhoNamesManagedDevice(t *testing.T) {
 		t.Fatalf("unknown MAC stays the MAC: %q", got)
 	}
 }
+
+// #188: PPPoE_Reconnect at 03:10 daily explains the drop at 03:10:05; the 5-minute watchdog never explains anything.
+func TestPlannedRunWindowAndInterval(t *testing.T) {
+	e, _ := newEngine(t)
+	loc := time.Local
+	at := func(h, m, s int) time.Time { return time.Date(2026, 10, 30, h, m, s, 0, loc) }
+	schedulerSnap(e, map[string]string{"name": "PPPoE_Reconnect", "interval": "1d", "start-date": "oct/01/2026",
+		"start-time": "03:10:00", "on-event": "/interface pppoe-client disable pppoe-out1; /interface pppoe-client enable pppoe-out1"})
+	if got := e.plannedReconnect("gw", "pppoe-out1", at(3, 10, 5)); got != "PPPoE_Reconnect" {
+		t.Fatalf("03:10:05: %q", got)
+	}
+	if got := e.plannedReconnect("gw", "pppoe-out1", at(3, 20, 0)); got != "" {
+		t.Fatalf("10 min later must not match: %q", got)
+	}
+	schedulerSnap(e, map[string]string{"name": "WG_Check_Reload", "interval": "5m", "start-time": "00:00:00",
+		"on-event": "/interface wireguard disable wg0; /interface wireguard enable wg0"})
+	if got := e.plannedIface("gw", "wg0", at(3, 10, 5)); got != "" {
+		t.Fatalf("5 min interval is never planned: %q", got)
+	}
+	schedulerSnap(e, map[string]string{"name": "boot", "interval": "1d", "start-time": "startup", "on-event": "/interface disable ether5"})
+	if got := e.plannedIface("gw", "ether5", at(3, 10, 5)); got != "" {
+		t.Fatalf("start-time=startup is not a clock time: %q", got)
+	}
+}
+
+func TestPlannedIfaceAndConfigAreInfo(t *testing.T) {
+	e, got := newEngine(t)
+	run := time.Now().Add(-time.Minute)
+	schedulerSnap(e, map[string]string{"name": "port-cycle", "interval": "1d", "start-time": run.Format("15:04:05"),
+		"on-event": "/interface ethernet disable ether5; :delay 3s; /interface ethernet enable ether5"})
+	e.ConfigChanged("gw", 1, nil)
+	e.InterfaceState("gw", "ether5", false)
+	for _, a := range *got {
+		if a.Severity != "info" || !strings.Contains(a.Msg, "port-cycle") {
+			t.Errorf("planned, expected info: %+v", a)
+		}
+	}
+	if len(*got) < 1 {
+		t.Fatal("no alerts raised")
+	}
+}
+
+func TestInfoKindDowngradesWarning(t *testing.T) {
+	e, got := newEngine(t)
+	e.Raise("dhcp_problem", "gw", "warning", "DHCP trouble", 0)
+	if err := e.St.SetInfoKind("dhcp_problem", true); err != nil {
+		t.Fatal(err)
+	}
+	e.Raise("dhcp_problem", "gw2", "warning", "DHCP trouble", 0)
+	if len(*got) != 2 || (*got)[0].Severity != "warning" || (*got)[1].Severity != "info" || !strings.Contains((*got)[1].Msg, "set to info") {
+		t.Fatalf("%+v", *got)
+	}
+	e.St.SetInfoKind("dhcp_problem", false)
+	if e.St.IsInfoKind("dhcp_problem") {
+		t.Fatal("not restored")
+	}
+}

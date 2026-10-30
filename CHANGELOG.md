@@ -14,10 +14,13 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Wi-Fi score counts disconnects (3 or more per hour cost up to 20 points), ignores roams of clients pinned by an access-list rule and only judges the link rate of clients that actually move data. The score list now names client, access point, band and network.
 - Client page: Wi-Fi score card with the breakdown (signal, weak readings, roams, link rate, disconnects) and the score of the last 24 hours (`GET /api/wifi/health/{mac}`).
 - Suggestion "router sends debug logs": shows when a device floods mtmon with debug lines and gives the commands to exclude them.
+- Related events of one client are now one alert that is updated in place (count, first/last time, last reason). After 15 minutes of quiet it closes with a summary and one closing notification. First story: a client that keeps disconnecting, including the failed DHCP offers after its reconnects.
+- Alerts page: any alert type can be turned down to info ("Make this type info") and restored again.
 
 ### Changed
 - The overview status line and the "Open warnings" card count only warnings and critical alerts; info notes show as a small "n notes" link, so one warning no longer reads as "9 open alerts". /metrics gets `mtmon_alerts_open_info`.
 - Alerts can now carry a message key with parameters (first: traffic spikes); the Alerts page renders them in the language you use, old alerts keep their stored text.
+- Planned events: a router scheduler entry that runs rarely (at least hourly interval, with a clock start time) now also marks link-down and configuration-change alerts as info ("planned: scheduler NAME"). Watchdog jobs that run every few minutes never count as planned.
 
 ### Fixed
 - No more false "imaginary DNS server" warnings for addresses a managed router owns itself (LAN, link-local, bridge addresses), and old sightings of them disappear at the next advice run.
@@ -27,6 +30,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - German UI: singular/plural counts ("1 offene Warnung"), all alert types in the Type column, the traffic-spike texts (group and "↔ host" parts), always-open "What to do" in suggestions, and a correct time-zone hint (browser zone is taken over at every login while no zone is set).
 - Wi-Fi score: the link-rate penalty never applied because rates in bit/s were read as Mbit/s; older stored readings are converted on update.
 - Event-log rules created by the setup wizard no longer match debug lines (DHCP packet dumps, WireGuard keepalives). mtmon also drops those lines on arrival unless "Store debug log lines" is switched on in Settings.
+- The scheduler time match was an hour off for daily jobs after a daylight-saving change since their start date.
 
 ## [0.20.7] - 2026-10-30
 

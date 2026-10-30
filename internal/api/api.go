@@ -100,6 +100,8 @@ func New(s *Server) http.Handler {
 	m.HandleFunc("GET /api/path", a(s.path))
 	m.HandleFunc("GET /api/alerts", a(s.alerts))
 	m.HandleFunc("GET /api/alerts/noise", a(s.alertNoise))
+	m.HandleFunc("GET /api/alerts/info-kinds", a(s.alertInfoKinds))
+	m.HandleFunc("POST /api/alerts/info-kinds", a(s.alertInfoKinds))
 	m.HandleFunc("GET /metrics", a(s.metrics))
 	m.HandleFunc("POST /api/settings/debug_logs", a(s.setDebugLogs))
 	m.HandleFunc("GET /api/wifi/health", a(s.wifiHealth))
@@ -553,6 +555,25 @@ func (s *Server) alertNoise(w http.ResponseWriter, r *http.Request) {
 		days = 7
 	}
 	jsonOut(w, s.St.AlertNoise(time.Now().Add(-time.Duration(days)*24*time.Hour).Unix()))
+}
+
+// alertInfoKinds: GET lists the kinds turned down to info; POST {kind, info} turns one down or back up.
+func (s *Server) alertInfoKinds(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		var in struct {
+			Kind string `json:"kind"`
+			Info bool   `json:"info"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&in); err != nil || in.Kind == "" || len(in.Kind) > 64 {
+			jerr(w, 400, "bad request")
+			return
+		}
+		if err := s.St.SetInfoKind(in.Kind, in.Info); err != nil {
+			jerr(w, 500, err.Error())
+			return
+		}
+	}
+	jsonOut(w, s.St.InfoKinds())
 }
 
 // wifiHealth: GET /api/wifi/health - connection score per Wi-Fi client over the last 24 h, worst first (at most 50).
