@@ -16,6 +16,8 @@
   async function copy(v) { try { await navigator.clipboard.writeText(v) } catch {} }
   const x = $derived(s.data)
   const sm = $derived(x?.summary)
+  let rulesMore = $state(false)
+  const ruleRows = $derived((sm?.rules || []).filter(r => showOwn || !r.own))
   const rows = $derived((ev.data || []).filter(e => !q || (e.src + e.dst + e.rule + e.dport + e.device + e.proto + (e.src_name || '') + (e.dst_name || '') + (e.src_org || '') + (e.dst_org || '')).toLowerCase().includes(q.toLowerCase())))
   const chart = $derived([
     { name: t('Blocked'), color: 'var(--bad)', points: (sm?.series || []).map(p => ({ x: p.ts, y: p.blocked })) },
@@ -68,8 +70,9 @@
 
   <div class="grid g3" style="margin-top:16px">
     <div class="card"><div class="card-h"><h2>{t('Rules by hits')}</h2></div>
-      <table><tbody>{#each sm.rules.filter(r => showOwn || !r.own) as r}<tr><td><span class="badge {vcls[r.verdict]}">{vtxt[r.verdict]}</span></td><td>{tr(r.rule)}<div class="muted" style="font-size:12px">{r.device}</div></td><td class="r num"><b>{num(r.hits)}</b></td></tr>{/each}</tbody></table>
-      {#if !sm.rules.length}<div class="empty">{t('No hits')}</div>{/if}</div>
+      <table><tbody>{#each (rulesMore ? ruleRows : ruleRows.slice(0, 10)) as r}<tr><td><span class="badge {vcls[r.verdict]}">{vtxt[r.verdict]}</span></td><td>{tr(r.rule)}<div class="muted" style="font-size:12px">{r.device}</div></td><td class="r num"><b>{num(r.hits)}</b></td></tr>{/each}</tbody></table>
+      {#if !sm.rules.length}<div class="empty">{t('No hits')}</div>{/if}
+      {#if ruleRows.length > 10}<button class="btn sm" style="margin:8px 16px 12px" onclick={() => (rulesMore = !rulesMore)}>{rulesMore ? t('Show fewer') : t('Show {n} more', { n: ruleRows.length - 10 })}</button>{/if}</div>
     <div class="card"><div class="card-h"><h2>{t('Top blocked sources')}</h2></div>
       <table><tbody>{#each sm.top_blocked_src as x}<tr><td><IPName ip={x.key} name={x.name} org={x.org} cc={x.country} /></td><td class="r num"><b>{num(x.hits)}</b></td></tr>{/each}</tbody></table>
       {#if !sm.top_blocked_src.length}<div class="empty">—</div>{/if}</div>
