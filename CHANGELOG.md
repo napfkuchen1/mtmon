@@ -17,6 +17,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Baseline check (Suggestions, Security): a router with Telnet or FTP enabled gets a warning with the disable commands (#190).
 - Auto-update waits while a critical alert is open (#189).
 - Prometheus endpoint GET /metrics (device health, interface rates, clients, open alerts, uptime). Use a read-only API token as bearer token (#193).
+- Internet page: DNS resolution time and failures through the system resolver (usually the router) for example.com and cloudflare.com, listed per target but kept out of the line-loss totals (#194).
 
 ### Changed
 - Docs: known limits now state the row cap and the one-instance-per-site recommendation, a tested-devices list and a "Report your device" issue template (#197).

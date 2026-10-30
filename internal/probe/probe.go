@@ -15,6 +15,10 @@ import (
 // DefaultTargets are public anycast resolvers (host:port, TCP).
 var DefaultTargets = []string{"1.1.1.1:443", "9.9.9.9:443", "8.8.8.8:443"}
 
+// DefaultDNS are the names resolved through the system resolver (normally the router) every round. Stored as
+// target "dns:<name>"; a failed lookup counts as loss, the time is the resolution time.
+var DefaultDNS = []string{"example.com", "cloudflare.com"}
+
 // Interval between rounds; every round probes each target once.
 const Interval = 30 * time.Second
 
@@ -25,6 +29,14 @@ type Prober struct {
 	Targets func() []string // nil: DefaultTargets
 	Enabled func() bool     // nil: always on
 	Dial    func(ctx context.Context, addr string) error
+	Lookup  func(ctx context.Context, name string) error // nil: net.DefaultResolver
+}
+
+func lookup(ctx context.Context, name string) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	_, err := net.DefaultResolver.LookupHost(ctx, name)
+	return err
 }
 
 func dial(ctx context.Context, addr string) error {
@@ -48,7 +60,11 @@ func (p *Prober) Once(ctx context.Context) {
 	if dialer == nil {
 		dialer = dial
 	}
-	done := make(chan struct{}, len(targets))
+	resolve := p.Lookup
+	if resolve == nil {
+		resolve = lookup
+	}
+	done := make(chan struct{}, len(targets)+len(DefaultDNS))
 	for _, t := range targets {
 		go func(t string) {
 			defer func() { done <- struct{}{} }()
@@ -60,7 +76,18 @@ func (p *Prober) Once(ctx context.Context) {
 			p.St.AddWANSample(start, t, err == nil, float64(time.Since(start).Microseconds())/1000)
 		}(t)
 	}
-	for range targets {
+	for _, n := range DefaultDNS {
+		go func(n string) {
+			defer func() { done <- struct{}{} }()
+			start := time.Now()
+			err := resolve(ctx, n)
+			if ctx.Err() != nil {
+				return
+			}
+			p.St.AddWANSample(start, "dns:"+n, err == nil, float64(time.Since(start).Microseconds())/1000)
+		}(n)
+	}
+	for range len(targets) + len(DefaultDNS) {
 		<-done
 	}
 }
