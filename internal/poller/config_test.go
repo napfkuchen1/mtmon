@@ -66,7 +66,7 @@ func TestChangedByNewestFirstNoRepeats(t *testing.T) {
 func TestHistoryMarkChangesWithNewEntry(t *testing.T) {
 	a := []Row{{".id": "*1", "time": "t1", "action": "added", "by": "admin"}}
 	b := append(append([]Row{}, a...), Row{".id": "*2", "time": "t2", "action": "changed", "by": "admin"})
-	if historyMark(a) == historyMark(b) || historyMark(a) != historyMark(a) || historyMark(nil) != "0" {
+	if historyMark(a) == historyMark(b) || historyMark(a) != historyMark(append([]Row{}, a...)) || historyMark(nil) != "0" {
 		t.Fatal("history mark must change exactly when the history does")
 	}
 }
