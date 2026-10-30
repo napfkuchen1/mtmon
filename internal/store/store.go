@@ -164,6 +164,9 @@ func Open(dir string) (*Store, error) {
 	if err := migrateAlertParams(db); err != nil {
 		return nil, fmt.Errorf("alert params: %w", err)
 	}
+	if err := migrateWifiDisc(db); err != nil {
+		return nil, fmt.Errorf("wifi disconnects: %w", err)
+	}
 	if err := migrateClients(db); err != nil {
 		return nil, fmt.Errorf("clients schema: %w", err)
 	}
@@ -237,6 +240,7 @@ func (s *Store) Cleanup(rawDays, days int) {
 	s.DB.Exec(`DELETE FROM log_events WHERE ts < ?`, now.AddDate(0, 0, -LogRetentionDays).Unix())
 
 	s.DB.Exec(`DELETE FROM wifi_hist WHERE ts < ?`, cut)
+	s.DB.Exec(`DELETE FROM wifi_disc WHERE ts < ?`, cut)
 	s.DB.Exec(`DELETE FROM wan_quality WHERE ts < ?`, cut)
 	s.pruneSpeedtests(now)
 	s.DB.Exec(`DELETE FROM ipv6_hist WHERE last < ?`, now.AddDate(0, 0, -IPv6HistDays).Unix())

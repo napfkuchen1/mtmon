@@ -96,6 +96,9 @@ func (e *Engine) LogEvent(ev store.LogEvent) {
 		e.noteWiFiConnect(ev.TS, dev, msg)
 		if m := reWiFiDisc.FindStringSubmatch(msg); m != nil {
 			mac := strings.ToUpper(m[1])
+			if e.St != nil {
+				e.St.AddWifiDisc(ev.TS, mac, dev)
+			}
 			if e.burst("wifi|"+dev+"|"+mac, 5*time.Minute, 6) {
 				who := mac
 				if e.St != nil {

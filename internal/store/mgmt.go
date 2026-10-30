@@ -91,6 +91,7 @@ func (s *Store) DeleteDevice(name string, purge bool) error {
 		tx.Exec(`DELETE FROM log_events WHERE device=?`, name)
 
 		tx.Exec(`DELETE FROM wifi_hist WHERE device=?`, name)
+		tx.Exec(`DELETE FROM wifi_disc WHERE device=?`, name)
 		tx.Exec(`DELETE FROM fw_src_hourly WHERE device=?`, name)
 		tx.Exec(`DELETE FROM fw_dst_hourly WHERE device=?`, name)
 	}

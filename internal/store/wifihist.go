@@ -13,15 +13,29 @@ const WifiWeakDBm = -75
 // wifiBucket is the width of one history row; wifi_hist keeps min/avg/max signal per client, AP and band.
 const wifiBucket = 300
 
-var reRate = regexp.MustCompile(`^\s*([0-9]+(?:\.[0-9]+)?)\s*(?:Mbps|Gbps|kbps)?`)
+var reRate = regexp.MustCompile(`^\s*([0-9]+(?:\.[0-9]+)?)\s*(Gbps|Mbps|kbps|bps)?`)
 
-// rateMbps reads a RouterOS rate string such as "866.7Mbps-80MHz/2S/SGI" (0 when it cannot be read).
+// rateMbps reads a RouterOS rate string and returns Mbit/s (0 when it cannot be read). Older versions say
+// "866.7Mbps-80MHz/2S/SGI"; the wifi package of 7.x can report a bare number in bit/s ("20910513"). A bare number
+// of 10000 or more can only be bit/s, a smaller one is taken as Mbit/s.
 func rateMbps(s string) float64 {
 	m := reRate.FindStringSubmatch(s)
 	if m == nil {
 		return 0
 	}
 	v, _ := strconv.ParseFloat(m[1], 64)
+	switch m[2] {
+	case "Gbps":
+		return v * 1000
+	case "kbps":
+		return v / 1000
+	case "bps":
+		return v / 1e6
+	case "":
+		if v >= 10000 {
+			return v / 1e6
+		}
+	}
 	return v
 }
 
