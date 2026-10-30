@@ -101,6 +101,7 @@ func New(s *Server) http.Handler {
 	m.HandleFunc("GET /api/alerts", a(s.alerts))
 	m.HandleFunc("GET /api/alerts/noise", a(s.alertNoise))
 	m.HandleFunc("GET /metrics", a(s.metrics))
+	m.HandleFunc("GET /api/wifi/health", a(s.wifiHealth))
 	m.HandleFunc("POST /api/alerts/{id}/ack", a(s.ack))
 	m.HandleFunc("POST /api/alerts/ack-all", a(s.ackAll))
 	m.HandleFunc("POST /api/alerts/clear", a(s.clearAlerts))
@@ -550,6 +551,26 @@ func (s *Server) alertNoise(w http.ResponseWriter, r *http.Request) {
 		days = 7
 	}
 	jsonOut(w, s.St.AlertNoise(time.Now().Add(-time.Duration(days)*24*time.Hour).Unix()))
+}
+
+// wifiHealth: GET /api/wifi/health - connection score per Wi-Fi client over the last 24 h, worst first (at most 50).
+func (s *Server) wifiHealth(w http.ResponseWriter, r *http.Request) {
+	now := time.Now().Unix()
+	h, err := s.St.WifiHealthSince(now-86400, now)
+	if err != nil {
+		jerr(w, 500, err.Error())
+		return
+	}
+	poor := 0
+	for _, c := range h {
+		if c.Poor {
+			poor++
+		}
+	}
+	if len(h) > 50 {
+		h = h[:50]
+	}
+	jsonOut(w, map[string]any{"poor": poor, "poor_below": store.WifiPoorBelow, "clients": h})
 }
 
 func (s *Server) ack(w http.ResponseWriter, r *http.Request) {
