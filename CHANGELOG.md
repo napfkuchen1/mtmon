@@ -21,6 +21,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Notifications: webhook, ntfy and e-mail can be set up in Settings with a test button per channel, and each channel has its own quiet hours (time window and weekdays). In quiet hours warnings and info are held and sent as one summary afterwards; critical alerts always go out at once.
 - `/metrics` now also reports internet probe loss and latency per target, the last speed test (down, up, latency, time) and open alerts by severity.
 - Config history: download any snapshot as a readable text file (secrets and runtime values left out) and choose how long snapshots are kept (default 90 days, newest per device always stays). The README explains it is a change log, not a restorable backup.
+- Audit log (Settings): who logged in, changed settings, created or used API tokens, added devices, applied fixes or installed updates – with old and new values, kept 180 days. Passwords and request contents are never logged.
 
 ### Changed
 - The overview status line and the "Open warnings" card count only warnings and critical alerts; info notes show as a small "n notes" link, so one warning no longer reads as "9 open alerts". /metrics gets `mtmon_alerts_open_info`.
