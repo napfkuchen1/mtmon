@@ -14,6 +14,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Auto-update install window is a setting (hour of day, default 03:00) (#189)
 - Installer aborts on a signed release when `minisign` is missing (override `MTMON_ALLOW_UNVERIFIED=1`); SECURITY.md documents the UDP ingest limits (#192)
 - README known limits now state measured scale numbers (100 clients x 30 days, 637 MB, all queries < 120 ms) (#197)
+- Client list shows the 24 h Wi-Fi score next to the signal, with the penalty breakdown as tooltip (#191)
 
 ## [0.20.5] - 2026-10-30
 

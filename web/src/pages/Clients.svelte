@@ -15,6 +15,8 @@
   let sel = $state({}) // mac -> true: selected for the bulk action
   let grp = $state('') // group filter: '' all, 'none', or a group name
   const gl = poll(() => api('/groups'), 30000)
+  const wh = poll(() => api('/wifi/health'), 60000)
+  const health = $derived(Object.fromEntries((wh.data?.clients ?? []).map(h => [h.mac, h])))
   const groups = $derived((gl.data?.groups || []).map(g => g.name))
   const d = poll(() => api('/clients?range=' + (app.range === 'live' ? '1h' : app.range)), 5000)
 
@@ -99,7 +101,7 @@
               <div><b>{#if x.c.watch}<span title={t('Watched: alert when offline')}>★ </span>{/if}{display(x.c)}</b>{#if x.dns_bypass?.length} <span class="badge warn" title={t('Does not use the router’s DNS: {types}', { types: x.dns_bypass.map(tr).join(', ') })}>{t('DNS bypass')}</span>{/if}{#if x.c.group} <span class="badge">{x.c.group}</span>{:else if x.suggested_group && groups.includes(x.suggested_group)} <span class="muted" style="font-size:11.5px" title={t('Suggested group')}>({x.suggested_group}?)</span>{/if}<div class="muted mono" style="font-size:11.5px">{x.c.mac}{#if x.c.vendor} · {tr(x.c.vendor)}{/if}</div></div></div></td>
             <td class="mono">{x.c.ip || '—'}</td>
             <td>{#if x.c.device}{x.c.device}{#if x.c.wifi}<div><span class="badge acc">{x.c.ssid || t('Wi-Fi')}{x.c.band ? ' · ' + x.c.band : ''}</span></div>{:else}<div class="muted">{x.c.iface}</div>{/if}{:else}<span class="muted">—</span>{/if}</td>
-            <td>{#if x.c.wifi && x.c.online}<span class="badge {signalQuality(x.c.signal).cls}">{signalQuality(x.c.signal).txt}</span>{:else}<span class="muted">—</span>{/if}</td>
+            <td>{#if x.c.wifi && x.c.online}<span class="badge {signalQuality(x.c.signal).cls}">{signalQuality(x.c.signal).txt}</span>{#if health[x.c.mac]}{@const h = health[x.c.mac]} <span class="badge {h.poor ? 'bad' : 'ok'}" title={t('Wi-Fi score 24 h: signal −{a}, weak readings −{b}, roams −{c}, link rate −{d}', { a: h.signal_penalty, b: h.weak_penalty, c: h.roam_penalty, d: h.rate_penalty })}>{h.score}</span>{/if}{:else}<span class="muted">—</span>{/if}</td>
             <td class="r num">{x.live ? bps(x.live) : '—'}</td>
             <td class="r num">{bytes(x.bytes_up + x.bytes_down)}<div class="muted" style="font-size:11.5px">↓ {bytes(x.bytes_down)} ↑ {bytes(x.bytes_up)}</div></td>
             <td class="r muted">{x.c.online ? t('now') : ago(x.c.last_seen)}</td>
