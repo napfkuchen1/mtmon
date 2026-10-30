@@ -73,6 +73,29 @@ func ScrubRowIn(section string, r Row) (Row, bool) {
 	return out, true
 }
 
+// ChangedBy names who made the newest changes according to /system/history (the "by" of the last few entries,
+// newest first, without repeats). Empty when the router lists nobody or the call fails.
+func (c *Client) ChangedBy(ctx context.Context) []string {
+	rows, err := c.Get(ctx, "/system/history")
+	if err != nil {
+		return nil
+	}
+	return changedBy(rows, 5)
+}
+
+func changedBy(rows []Row, n int) []string {
+	var out []string
+	seen := map[string]bool{}
+	for i := len(rows) - 1; i >= 0 && i >= len(rows)-n; i-- { // RouterOS lists oldest first
+		by := rows[i]["by"]
+		if by != "" && !seen[by] {
+			seen[by] = true
+			out = append(out, by)
+		}
+	}
+	return out
+}
+
 // ConfigSnapshot reads every section. Sections that fail are skipped; err is set only when none could be read.
 func (c *Client) ConfigSnapshot(ctx context.Context) (ConfigSnap, error) {
 	snap := ConfigSnap{}

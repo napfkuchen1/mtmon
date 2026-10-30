@@ -51,3 +51,14 @@ func TestScrubRowInDropsRuntimeFieldsOfRealSections(t *testing.T) {
 		t.Errorf("setting dropped: %v", r)
 	}
 }
+
+func TestChangedByNewestFirstNoRepeats(t *testing.T) {
+	rows := []Row{{"by": "old"}, {"by": "admin"}, {"by": ""}, {"by": "admin"}, {"by": "bob"}}
+	got := changedBy(rows, 5)
+	if len(got) != 3 || got[0] != "bob" || got[1] != "admin" || got[2] != "old" {
+		t.Fatalf("got %v", got)
+	}
+	if got := changedBy(rows, 2); len(got) != 2 || got[1] != "admin" {
+		t.Fatalf("limit: %v", got)
+	}
+}
