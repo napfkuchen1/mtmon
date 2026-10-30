@@ -8,6 +8,11 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.20.7] - 2026-10-30
+
+### Changed
+- Config history: mtmon polls the routers change history every 2 minutes and snapshots as soon as it changes (daily check stays as safety net); STP counters no longer count as changes; Wi-Fi access-list, provisioning, configuration, security, channel, datapath, steering and CAP settings are part of the snapshot (#222)
+
 ## [0.20.6] - 2026-10-30
 
 ### New

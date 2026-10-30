@@ -173,6 +173,7 @@ func run(args []string) error {
 	backup := filepath.Join(cfg.DataDir, "backups")
 	os.MkdirAll(backup, 0o750)
 	go st.Writer(ctx)
+	go srv.WatchConfig(ctx)
 	go srv.Upd.Run(ctx)
 	go st.Maintain(ctx, cfg.RawRetention, cfg.Retention, backup)
 	go en.RunReverseDNS(ctx)

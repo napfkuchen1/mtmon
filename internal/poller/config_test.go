@@ -62,3 +62,25 @@ func TestChangedByNewestFirstNoRepeats(t *testing.T) {
 		t.Fatalf("limit: %v", got)
 	}
 }
+
+func TestHistoryMarkChangesWithNewEntry(t *testing.T) {
+	a := []Row{{".id": "*1", "time": "t1", "action": "added", "by": "admin"}}
+	b := append(append([]Row{}, a...), Row{".id": "*2", "time": "t2", "action": "changed", "by": "admin"})
+	if historyMark(a) == historyMark(b) || historyMark(a) != historyMark(append([]Row{}, a...)) || historyMark(nil) != "0" {
+		t.Fatal("history mark must change exactly when the history does")
+	}
+}
+
+func TestScrubDropsStpCountersKeepsWifiSettings(t *testing.T) {
+	r, _ := ScrubRowIn("/interface/bridge/port", Row{"interface": "ether2", "rx-tc": "3", "topology-changes": "1", "discard-transitions": "2"})
+	if len(r) != 1 || r["interface"] != "ether2" {
+		t.Fatalf("%v", r)
+	}
+	found := false
+	for _, s := range ConfigSections {
+		found = found || s == "/interface/wifi/access-list"
+	}
+	if !found {
+		t.Fatal("wifi access-list not in snapshot sections")
+	}
+}
