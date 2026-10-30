@@ -498,6 +498,19 @@ func TestModeStoredAndDefault(t *testing.T) {
 	}
 }
 
+func TestAutoUpdateWaitsWhileBusy(t *testing.T) {
+	f := newFake(t, "v0.7.0", mkTar(t, tarEntry{name: "mtmon/mtmon", body: script("v9.9.9")}))
+	m, _ := f.mgr(t, "v0.6.0")
+	m.o.Now = func() time.Time { return time.Date(2026, 10, 2, 3, 30, 0, 0, time.Local) }
+	m.o.Busy = func() string { return "critical alert open" }
+	m.SetMode(ModeAuto)
+	m.maybeAuto(context.Background())
+	time.Sleep(50 * time.Millisecond)
+	if m.Status().Apply.State != StateIdle {
+		t.Error("auto-update ran while an alert was open")
+	}
+}
+
 func TestAutoWindowAndOncePerRelease(t *testing.T) {
 	if !inWindow(time.Date(2026, 10, 2, 3, 0, 0, 0, time.Local)) || !inWindow(time.Date(2026, 10, 2, 3, 59, 0, 0, time.Local)) ||
 		inWindow(time.Date(2026, 10, 2, 4, 0, 0, 0, time.Local)) || inWindow(time.Date(2026, 10, 2, 2, 59, 0, 0, time.Local)) {

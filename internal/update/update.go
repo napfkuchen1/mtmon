@@ -91,11 +91,13 @@ type Options struct {
 	ExtraHosts []string
 	HelperPath string // when set, Apply refuses unless this file exists
 	Health     func() error
-	OnRestart  func() // called ExitDelay after a successful staging; default os.Exit(ExitCode)
-	Now        func() time.Time
-	Log        *slog.Logger
-	Confirm    time.Duration // uptime before the post-swap health check (default 60 s)
-	ExitDelay  time.Duration
+	// Busy returns a reason when an automatic install should wait (an outage or critical alert is open), "" otherwise.
+	Busy      func() string
+	OnRestart func() // called ExitDelay after a successful staging; default os.Exit(ExitCode)
+	Now       func() time.Time
+	Log       *slog.Logger
+	Confirm   time.Duration // uptime before the post-swap health check (default 60 s)
+	ExitDelay time.Duration
 }
 
 // Manager holds update state.
@@ -698,6 +700,12 @@ func (m *Manager) maybeAuto(ctx context.Context) {
 	st := m.Status()
 	if !st.Available || !st.CanApply || st.Pending {
 		return
+	}
+	if m.o.Busy != nil {
+		if why := m.o.Busy(); why != "" { // the next night tries again
+			m.o.Log.Info("auto-update postponed", "reason", why)
+			return
+		}
 	}
 	if tag, _ := m.attempted(); tag == st.Latest {
 		return // at most once per release; a failed attempt is not retried automatically

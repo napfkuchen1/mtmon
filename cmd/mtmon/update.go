@@ -29,6 +29,12 @@ func newUpdater(cfg *config.Config, st *store.Store, log *slog.Logger, restart f
 		Repo: cfg.UpdateRepo, Current: version, Dir: filepath.Join(cfg.DataDir, "update"), Meta: st,
 		HelperPath: update.HelperPath, Log: log, OnRestart: restart,
 		Health: func() error { return localHealth(cfg) },
+		Busy: func() string {
+			if n := st.OpenCritical(); n > 0 {
+				return fmt.Sprintf("%d critical alert(s) open", n)
+			}
+			return ""
+		},
 	}
 	if v := os.Getenv("MTMON_UPDATE_REPO"); v != "" {
 		o.Repo = v

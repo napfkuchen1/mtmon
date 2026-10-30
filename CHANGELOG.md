@@ -15,6 +15,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Alerts page lists noisy alert types: kinds with 5+ warnings in 7 days that were mostly acknowledged by hand; `GET /api/alerts/noise` (#188 slice 2).
 - Config change alerts name who made the latest changes (`by` from `/system/history`) (#188).
 - Baseline check (Suggestions, Security): a router with Telnet or FTP enabled gets a warning with the disable commands (#190).
+- Auto-update waits while a critical alert is open (#189).
 
 ### Changed
 - Docs: known limits now state the row cap and the one-instance-per-site recommendation, a tested-devices list and a "Report your device" issue template (#197).

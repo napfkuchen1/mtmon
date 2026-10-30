@@ -233,6 +233,13 @@ func (s *Store) ClearAlerts(all bool) (int64, error) {
 	return r.RowsAffected()
 }
 
+// OpenCritical counts the unacknowledged critical alerts (an outage is going on).
+func (s *Store) OpenCritical() int {
+	var n int
+	s.DB.QueryRow(`SELECT count(*) FROM alerts WHERE acked=0 AND severity='critical'`).Scan(&n)
+	return n
+}
+
 func (s *Store) OpenAlerts() int {
 	var n int
 	s.DB.QueryRow(`SELECT count(*) FROM alerts WHERE acked=0`).Scan(&n)
