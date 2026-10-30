@@ -12,6 +12,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ### Changed
 - Config history: mtmon polls the routers change history every 2 minutes and snapshots as soon as it changes (daily check stays as safety net); STP counters no longer count as changes; Wi-Fi access-list, provisioning, configuration, security, channel, datapath, steering and CAP settings are part of the snapshot (#222)
+- Folded cards keep a one-line summary and a health colour (Traffic, Groups, Internet, Speed, Path, top lists); Groups, Speed and a healthy Internet card start folded; top lists show 8 rows with "show more"; suggestions fold "why and what we saw" by default (#178)
 
 ## [0.20.6] - 2026-10-30
 

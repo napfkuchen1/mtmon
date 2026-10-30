@@ -9,7 +9,7 @@
   const max = $derived(groups.reduce((m, g) => Math.max(m, g.up + g.down), 0) || 1)
 </script>
 {#if groups.length}
-  <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Groups')}</h2><a href="#/clients">{t('All →')}</a></div>
+  <div class="card" style="margin-top:16px"><div class="card-h" data-default="closed" data-health={groups.some(g => g.online < g.clients) ? 'warn' : 'ok'} data-sum={t('{n} groups', { n: groups.length }) + ' · ' + t('{on}/{all} online', { on: groups.reduce((s, g) => s + g.online, 0), all: groups.reduce((s, g) => s + g.clients, 0) })}><h2>{t('Groups')}</h2><a href="#/clients">{t('All →')}</a></div>
     <div class="list">{#each groups as g (g.name)}
       <div class="row"><div class="top"><div class="name"><b>{g.name}</b> <span class="sub">{t('{on}/{all} online', { on: g.online, all: g.clients })}</span></div><div class="val num">{bytes(g.up + g.down)}</div></div>
         <div class="bar"><i style="width:{((g.up + g.down) / max) * 100}%"></i></div></div>{/each}</div>
