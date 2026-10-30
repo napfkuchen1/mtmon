@@ -57,6 +57,7 @@ const (
 	StateFailed      = "failed"
 
 	metaMode    = "update_mode"
+	metaHour    = "update_hour"    // start of the nightly install window, 0-23 (default 3)
 	metaAttempt = "update_attempt" // "<tag>|<result>|<unix>"
 )
 
@@ -152,6 +153,7 @@ type Status struct {
 	Available   bool        `json:"available"`
 	Comparable  bool        `json:"comparable"`
 	Mode        string      `json:"mode"`
+	Hour        int         `json:"hour"`
 	Repo        string      `json:"repo"`
 	Notes       string      `json:"notes"`
 	HTMLURL     string      `json:"html_url"`
@@ -274,6 +276,27 @@ func (m *Manager) SetMode(mode string) error {
 	return m.o.Meta.SetMeta(metaMode, mode)
 }
 
+// Hour returns the start hour (local time) of the one-hour install window.
+func (m *Manager) Hour() int {
+	if m.o.Meta != nil {
+		if h, err := strconv.Atoi(m.o.Meta.GetMeta(metaHour)); err == nil && h >= 0 && h <= 23 {
+			return h
+		}
+	}
+	return 3
+}
+
+// SetHour persists the window start hour.
+func (m *Manager) SetHour(h int) error {
+	if h < 0 || h > 23 {
+		return fmt.Errorf("invalid hour %d", h)
+	}
+	if m.o.Meta == nil {
+		return errors.New("no settings store")
+	}
+	return m.o.Meta.SetMeta(metaHour, strconv.Itoa(h))
+}
+
 // ---- status ----
 
 func (m *Manager) Status() Status {
@@ -283,7 +306,7 @@ func (m *Manager) Status() Status {
 }
 
 func (m *Manager) statusLocked() Status {
-	s := Status{Current: m.o.Current, Mode: m.Mode(), Repo: m.o.Repo, LastError: m.lastErr, Apply: m.apply}
+	s := Status{Current: m.o.Current, Mode: m.Mode(), Hour: m.Hour(), Repo: m.o.Repo, LastError: m.lastErr, Apply: m.apply}
 	cur, ok := ParseVersion(m.o.Current)
 	s.Comparable = ok
 	if m.rel != nil {
@@ -680,12 +703,12 @@ func (m *Manager) Run(ctx context.Context) {
 	}
 }
 
-// inWindow reports whether t lies in the nightly install window (03:00-04:00 local time).
-func inWindow(t time.Time) bool { return t.Hour() == 3 }
+// inWindow reports whether t lies in the install window starting at hour (local time, one hour long).
+func inWindow(t time.Time, hour int) bool { return t.Hour() == hour }
 
 func (m *Manager) maybeAuto(ctx context.Context) {
 	now := m.o.Now()
-	if !inWindow(now) {
+	if !inWindow(now, m.Hour()) {
 		return
 	}
 	// make sure we decide on fresh data

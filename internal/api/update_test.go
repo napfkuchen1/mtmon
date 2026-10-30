@@ -84,6 +84,15 @@ func TestUpdateFlow(t *testing.T) {
 	if code := put(`{"mode":"auto"}`, ""); code != 200 || get().Mode != "auto" {
 		t.Errorf("set auto: %d", code)
 	}
+	if get().Hour != 3 {
+		t.Errorf("default window hour %d", get().Hour)
+	}
+	if code := put(`{"hour":23}`, ""); code != 200 || get().Hour != 23 || get().Mode != "auto" {
+		t.Errorf("set hour: %d %+v", code, get())
+	}
+	if code := put(`{"hour":24}`, ""); code != 400 {
+		t.Errorf("hour 24: %d", code)
+	}
 	if code := put(`{"mode":"bogus"}`, ""); code != 400 {
 		t.Errorf("bogus mode: %d", code)
 	}
