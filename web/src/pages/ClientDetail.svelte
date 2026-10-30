@@ -135,7 +135,7 @@
       <button class="btn sm" onclick={async () => { try { await api('/dns-bypass/reset', { method: 'POST', body: { mac: x.client.mac } }); toast(t('Marked as fixed')); location.reload() } catch (e) { toast(tr(e.message)) } }}>{t('Mark as fixed')}</button></div>
       <div class="card-b">
         <p class="muted" style="margin-top:0">{t('Name lookups of this device go around the router, so DNS filters and host names in mtmon do not apply to it.')}</p>
-        <table><tbody>{#each x.dns_bypass.resolvers as r}<tr><td><span class="badge">{tr(r.type)}</span></td><td class="mono">{r.ip}</td><td class="muted">{r.host || ''}</td><td class="r num">{t('{n} connections', { n: r.flows })}</td></tr>{/each}</tbody></table>
+        <div class="scroll"><table><tbody>{#each x.dns_bypass.resolvers as r}<tr><td><span class="badge">{tr(r.type)}</span></td><td class="mono">{r.ip}</td><td class="muted">{r.host || ''}</td><td class="r num">{t('{n} connections', { n: r.flows })}</td></tr>{/each}</tbody></table></div>
         <ul class="hints">
           {#if x.dns_bypass.types.includes('DoT') || x.dns_bypass.types.includes('DoQ')}<li>{t('Android: Settings → Network → Private DNS → Off or Automatic. Home Assistant OS: ha dns options --fallback=false.')}</li>{/if}
           {#if x.dns_bypass.types.includes('DoH')}<li>{t('Browser: switch off “secure DNS” / DNS over HTTPS, or serve the canary domain use-application-dns.net from your DNS.')}</li>{/if}

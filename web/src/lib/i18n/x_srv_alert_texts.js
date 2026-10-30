@@ -1,0 +1,20 @@
+// German translations of alert messages raised by the alert engine (device state, interfaces, clients)
+export default {
+  "{name} is back online": "{name} ist wieder online",
+  "{name} CPU at {pct}% for >30s": "{name}: CPU bei {pct} % seit über 30 s",
+  "{name} temperature {t}°C": "{name}: Temperatur {t} °C",
+  "{name} updated {a} → {b} (reboot{gone})": "{name} aktualisiert: {a} → {b} (Neustart{gone})",
+  "{name} rebooted {dur} ago (version {ver}{gone})": "{name} wurde vor {dur} neu gestartet (Version {ver}{gone})",
+  "New client {mac} ({n}) {ip}": "Neuer Client {mac} ({n}) {ip}",
+  "New client {mac}": "Neuer Client {mac}",
+  "Client {mac} sends DNS to {ip} (not an allowed resolver)": "Client {mac} sendet DNS an {ip} (kein erlaubter Resolver)",
+  "WAN link on {dev} is back after {dur} (affected: {members})": "WAN-Verbindung auf {dev} ist nach {dur} zurück (betroffen: {members})",
+  "Interface {iface} on {dev} is up again after {dur}": "Schnittstelle {iface} auf {dev} ist nach {dur} wieder aktiv",
+  "Interface {iface} on {dev} is up": "Schnittstelle {iface} auf {dev} ist aktiv",
+  "Interface {iface} on {dev} went down for {dur} (short flap, possibly a restart)": "Schnittstelle {iface} auf {dev} war {dur} ausgefallen (kurzer Flap, möglicherweise ein Neustart)",
+  "Interface {iface} on {dev} went down": "Schnittstelle {iface} auf {dev} ist ausgefallen",
+  "{dev}: configuration changed ({n} entries) – see the device page, Config history": "{dev}: Konfiguration geändert ({n} Einträge) – siehe Geräteseite, Konfig-Historie",
+  "{dev}: configuration changed ({n} entries) – see the device page, Config history (made through mtmon)": "{dev}: Konfiguration geändert ({n} Einträge) – siehe Geräteseite, Konfig-Historie (über mtmon vorgenommen)",
+  "WAN link on {dev} went down ({iface})": "WAN-Verbindung auf {dev} ist ausgefallen ({iface})",
+  "planned reconnect (scheduler {name})": "geplanter Reconnect (Scheduler {name})",
+}
