@@ -49,6 +49,15 @@
   const cfg = poll(() => api('/devices/' + encodeURIComponent(app.route.params.id) + '/config'), 60000)
   let cBusy = $state(false)
   let chMore = $state(false)
+  let dlTs = $state(0)
+  let keepDays = $state(null)
+  async function saveKeep() {
+    try {
+      await api('/config-history', { method: 'PUT', body: { keep_days: Number(keepDays) } })
+      toast(t('Saved'))
+      cfg.data = await api('/devices/' + encodeURIComponent(name) + '/config')
+    } catch (e) { toast(tr(e.message)) }
+  }
   async function snapshotNow() {
     cBusy = true
     try {
@@ -170,7 +179,20 @@
         {#if cfg.data.changes.length > 12}<button class="btn sm" style="margin:8px 16px 12px" onclick={() => (chMore = !chMore)}>{chMore ? t('Show fewer') : t('Show {n} more', { n: cfg.data.changes.length - 12 })}</button>{/if}
       {:else}<div class="empty">{t('No difference')}</div>{/if}
     {/if}
-    <div class="card-b muted" style="font-size:12px">{t('Passwords and keys are never stored. Only the {n} newest snapshots are kept.', { n: 30 })}</div>
+    {#if cfg.data?.snapshots?.length}
+      <div class="card-b row" style="gap:8px;flex-wrap:wrap;align-items:center">
+        <select bind:value={dlTs} aria-label={t('Snapshot')}>
+          {#each cfg.data.snapshots as s, i}<option value={i === 0 ? 0 : s}>{datetime(s)}</option>{/each}
+        </select>
+        <a class="btn sm" href="/api/devices/{encodeURIComponent(name)}/config/download?ts={dlTs || cfg.data.snapshots[0]}" download>{t('Download snapshot')}</a>
+        <span class="muted" style="font-size:12px">{t('Readable change log, not a restorable backup. For a restore use /export or a backup on the router.')}</span>
+      </div>
+    {/if}
+    <div class="card-b row" style="gap:8px;flex-wrap:wrap;align-items:center;font-size:12px">
+      <span class="muted">{t('Passwords and keys are never stored.')}</span>
+      <label class="muted">{t('Keep snapshots for (days)')} <input type="number" min={cfg.data?.min_keep_days || 7} max="3650" style="width:80px" value={keepDays ?? cfg.data?.keep_days ?? 90} oninput={e => (keepDays = e.currentTarget.value)} /></label>
+      <button class="btn sm" disabled={keepDays === null} onclick={saveKeep}>{t('Save')}</button>
+    </div>
   </div>
   {#if x.source === 'ui'}
     <div class="card" style="margin-top:16px"><div class="card-h" data-default="closed" data-sum={t('{n} changes', { n: man.data?.length || 0 })}><h2>{t('Changes on the router')}</h2>

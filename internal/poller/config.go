@@ -65,7 +65,7 @@ func volatileKey(k string) bool {
 // secretKey: such fields never reach a snapshot, whatever the router's policy lets the login read.
 func secretKey(k string) bool {
 	return strings.Contains(k, "password") || strings.Contains(k, "private-key") || strings.Contains(k, "secret") ||
-		strings.Contains(k, "pre-shared-key") || strings.Contains(k, "passphrase") || k == "preshared-key"
+		strings.Contains(k, "pre-shared-key") || strings.Contains(k, "passphrase") || strings.Contains(k, "token") || k == "preshared-key"
 }
 
 // ScrubRow drops secrets and volatile fields. ok=false for rows the router creates by itself (dynamic ones),

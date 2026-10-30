@@ -23,6 +23,8 @@ func init() {
 	routeHooks = append(routeHooks, func(s *Server, m *http.ServeMux, a func(http.HandlerFunc) http.HandlerFunc) {
 		m.HandleFunc("GET /api/devices/{name}/config", a(s.configHistory))
 		m.HandleFunc("POST /api/devices/{name}/config/snapshot", a(s.configSnapshotNow))
+		m.HandleFunc("GET /api/devices/{name}/config/download", a(s.configDownload))
+		m.HandleFunc("PUT /api/config-history", a(s.configKeepSave))
 	})
 }
 
@@ -99,6 +101,7 @@ func (s *Server) WatchConfig(ctx context.Context) {
 }
 
 func (s *Server) watchConfigOnce(ctx context.Context) {
+	s.pruneConfigDaily(time.Now())
 	rows, err := s.St.DeviceRows()
 	if err != nil {
 		return
@@ -164,7 +167,7 @@ func (s *Server) configHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	times := s.St.ConfigSnapTimes(name)
-	out := map[string]any{"snapshots": times, "checked": s.St.ConfigCheckedAt(name), "changes": []store.ConfigChange{}, "from": 0, "to": 0}
+	out := map[string]any{"snapshots": times, "keep_days": s.St.ConfigKeepDays(), "min_keep_days": store.MinConfigKeepDays, "checked": s.St.ConfigCheckedAt(name), "changes": []store.ConfigChange{}, "from": 0, "to": 0}
 	if len(times) >= 2 {
 		to, from := times[0], times[1]
 		if v, _ := strconv.ParseInt(r.URL.Query().Get("to"), 10, 64); v > 0 {

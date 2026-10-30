@@ -20,6 +20,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Own internet targets: Settings has a new card where you add up to 10 DNS names or http(s) URLs. They are checked every 30 s over IPv4 and IPv6 separately (a site without an IPv6 address shows "no IPv6 address", not a failure). The Internet card shows the last error per target (NXDOMAIN, timeout, TLS error, HTTP status, "blocked by the router" for a 0.0.0.0 answer). An https server with a self-signed certificate can be added with the certificate check off. Three failed checks in a row raise one warning per target, the next answer an info; this is not counted as a WAN outage.
 - Notifications: webhook, ntfy and e-mail can be set up in Settings with a test button per channel, and each channel has its own quiet hours (time window and weekdays). In quiet hours warnings and info are held and sent as one summary afterwards; critical alerts always go out at once.
 - `/metrics` now also reports internet probe loss and latency per target, the last speed test (down, up, latency, time) and open alerts by severity.
+- Config history: download any snapshot as a readable text file (secrets and runtime values left out) and choose how long snapshots are kept (default 90 days, newest per device always stays). The README explains it is a change log, not a restorable backup.
 
 ### Changed
 - The overview status line and the "Open warnings" card count only warnings and critical alerts; info notes show as a small "n notes" link, so one warning no longer reads as "9 open alerts". /metrics gets `mtmon_alerts_open_info`.
@@ -28,6 +29,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - A Wi-Fi disconnect burst now names the access point (not the CAPsMAN controller) as the subject, and says when a reject rule for the client in the access-list kept matching during the burst – a likely reject loop – with the ways out (keep, signal-range on the unwanted AP, remove the pin) (#211).
 - The first update check runs 2 minutes after start and is retried once after 5 minutes; an error is shown only if the retry fails too (#189).
 - After an update mtmon checks HTTP, the database and the data sources; if it is still unhealthy after 5 minutes it restarts into the previous version, and one update_failed warning is raised. A database backup is taken before the restart (#189).
+- Config history keeps snapshots by age instead of a fixed count of 30; tokens are now stripped from stored configuration too.
 
 ### Fixed
 - No more false "imaginary DNS server" warnings for addresses a managed router owns itself (LAN, link-local, bridge addresses), and old sightings of them disappear at the next advice run.
