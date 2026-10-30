@@ -101,6 +101,7 @@ func New(s *Server) http.Handler {
 	m.HandleFunc("GET /api/alerts", a(s.alerts))
 	m.HandleFunc("GET /api/alerts/noise", a(s.alertNoise))
 	m.HandleFunc("GET /metrics", a(s.metrics))
+	m.HandleFunc("POST /api/settings/debug_logs", a(s.setDebugLogs))
 	m.HandleFunc("GET /api/wifi/health", a(s.wifiHealth))
 	m.HandleFunc("GET /api/wifi/health/{mac}", a(s.wifiHealthOne))
 	m.HandleFunc("POST /api/alerts/{id}/ack", a(s.ack))
@@ -817,7 +818,7 @@ func (s *Server) system(w http.ResponseWriter, r *http.Request) {
 		"flow_packets": pk, "flow_records": rec, "flow_errors": er, "flow_no_template": nt,
 		"flow_dropped_unknown_exporter": s.Col.Dropped.Load(),
 		"flows_ps":                      s.Hub.FlowsPS, "queue": s.St.QueueLen(), "db_dropped": s.St.Dropped,
-		"ignored_transit": s.Pipe.IgnoredCount(), "db_bytes": dbSize, "enrich": s.En.Status(),
+		"ignored_transit": s.Pipe.IgnoredCount(), "db_bytes": dbSize, "enrich": s.En.Status(), "store_debug_logs": s.St.StoreDebugLogs(),
 		"retention_days": s.Cfg.Retention, "raw_retention_days": s.Cfg.RawRetention,
 		"learning_until": s.St.LearningUntil(), "learning_reason": s.St.LearningReason(),
 		"rss_bytes": sysinfo.RSS(), "cpu_pct": s.cpu.Percent(),

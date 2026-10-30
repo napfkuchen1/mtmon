@@ -145,9 +145,11 @@ type Device struct {
 	MemTrend                 float64 // RAM % of the 2nd half of the window minus the 1st half
 	MinFreeMiB               float64 // smallest free RAM in the window, 0 = unknown
 	Firmware, FirmwareUpg    string
-	FlowKnown                bool  // collector could be asked about this device
-	FlowLast                 int64 // last flow packet (unix), 0 = never since mtmon started
-	FwLogging                bool  // firewall log rules are registered for the device
+	FlowKnown                bool     // collector could be asked about this device
+	FlowLast                 int64    // last flow packet (unix), 0 = never since mtmon started
+	FwLogging                bool     // firewall log rules are registered for the device
+	DebugPerHour             int      // debug log lines per hour the router sends for chatty topics (dropped on ingest)
+	DebugTopics              []string // those topics, busiest first
 	Caps                     *Caps
 	TunnelIfs                []string // interfaces of a tunnel type (wg, ovpn, l2tp, sstp ...), whatever their name
 }

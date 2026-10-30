@@ -325,7 +325,7 @@ func (s *Server) hasGroup(name string) bool { return s.dupName("/user/group", na
 
 // logTopics are the topics RouterOS 7.24 accepts that the tests use; unknown ones (e.g. "wifi") are rejected like on a real router.
 var logTopics = map[string]bool{"system": true, "account": true, "critical": true, "dhcp": true, "wireless": true,
-	"wireguard": true, "script": true, "firewall": true, "info": true, "error": true, "warning": true, "web-proxy": true}
+	"wireguard": true, "script": true, "firewall": true, "info": true, "error": true, "warning": true, "debug": true, "web-proxy": true}
 
 func validTopics(list string) bool {
 	if list == "" {

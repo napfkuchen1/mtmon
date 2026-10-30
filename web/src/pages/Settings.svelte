@@ -111,6 +111,13 @@
       toast(r.persisted ? t('Saved') : t('Active now – could not be saved to the config file'))
     } catch (e) { toast(tr(e.message)) } finally { rdnsBusy = false }
   }
+  async function toggleDebugLogs() {
+    try {
+      await api('/settings/debug_logs', { method: 'POST', body: { enabled: !s.store_debug_logs } })
+      sys.data = await api('/system')
+      toast(t('Saved'))
+    } catch (e) { toast(tr(e.message)) }
+  }
   const missing = $derived(s ? ['geo', 'asn', 'oui'].filter(k => !s.enrich[k]) : [])
   const stIcon = { pending: '·', running: '…', ok: '✓', failed: '✗' }
 
@@ -146,6 +153,8 @@
         {/each}
         <tr><td>{t('Reverse DNS fallback')}<div class="muted" style="font-size:12px">{t('Looks up names for addresses the routers do not know. Sends lookups to your DNS resolver.')}</div></td>
           <td class="r"><button class="sw" class:on={s.enrich.reverse_dns} role="switch" aria-checked={s.enrich.reverse_dns} aria-label={t('Reverse DNS fallback')} disabled={rdnsBusy} onclick={toggleRdns}><i></i></button></td></tr>
+        <tr><td>{t('Store debug log lines')}<div class="muted" style="font-size:12px">{t('Debug lines of DHCP, Wi-Fi and WireGuard (packet dumps, keepalives) are dropped by default; they are only counted for the suggestion.')}</div></td>
+          <td class="r"><button class="sw" class:on={s.store_debug_logs} role="switch" aria-checked={!!s.store_debug_logs} aria-label={t('Store debug log lines')} onclick={toggleDebugLogs}><i></i></button></td></tr>
       {/if}
     </tbody></table>
     <div class="card-b" style="border-top:1px solid var(--border);display:flex;flex-direction:column;gap:10px">

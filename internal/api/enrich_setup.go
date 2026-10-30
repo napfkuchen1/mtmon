@@ -135,3 +135,23 @@ func (s *Server) enrichReverseDNS(w http.ResponseWriter, r *http.Request) {
 	saved := s.St.SetMeta("reverse_dns", v) == nil
 	jsonOut(w, map[string]any{"enabled": in.Enabled, "persisted": saved})
 }
+
+// setDebugLogs: POST /api/settings/debug_logs {enabled} – keep the debug lines of chatty topics (default: dropped).
+func (s *Server) setDebugLogs(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&in); err != nil {
+		jerr(w, 400, "bad request")
+		return
+	}
+	v := "0"
+	if in.Enabled {
+		v = "1"
+	}
+	if err := s.St.SetMeta("store_debug_logs", v); err != nil {
+		jerr(w, 500, err.Error())
+		return
+	}
+	jsonOut(w, map[string]any{"enabled": in.Enabled})
+}

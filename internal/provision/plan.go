@@ -126,10 +126,10 @@ func buildActions(k *Caps, o Options) []action {
 		if o.EventLogs {
 			var cmds []string
 			for _, t := range EventTopics {
-				cmds = append(cmds, "/system logging add topics="+t+" action="+syslogAction)
+				cmds = append(cmds, "/system logging add topics="+t+" action="+syslogAction+" comment="+eventRuleComment)
 			}
 			a = append(a, action{Step: Step{Key: "evlog", Title: "Send the router's event log to mtmon",
-				Why:      "Login failures, critical system events, DHCP and Wi-Fi trouble, WireGuard handshakes and failing scripts reach mtmon, which shows them per device and raises alerts for the ones that matter. One logging rule per topic is added (a rule with several topics only matches lines that carry all of them). Local logging stays as it is.",
+				Why:      "Login failures, critical system events, DHCP and Wi-Fi trouble, WireGuard handshakes and failing scripts reach mtmon, which shows them per device and raises alerts for the ones that matter. One logging rule per topic is added; '!debug' keeps the router's debug flood (DHCP packet dumps, WireGuard keepalives) away from mtmon, while 'script,error' still delivers failing commands. Local logging stays as it is.",
 				Commands: cmds, Undo: "The logging rules are deleted", Risk: "low"},
 				run: func(ctx context.Context, r *runner) error { return r.eventLogs(ctx) }})
 		}

@@ -109,6 +109,7 @@ func (l *Live) Devices() []Device {
 				}
 			}
 		}
+		d.DebugPerHour, d.DebugTopics = l.St.DebugLineRate(c.Name, l.now)
 		if raw := caps[c.Name]; len(raw) > 2 {
 			var k provision.Caps
 			if json.Unmarshal(raw, &k) == nil && (k.Version != "" || k.Role != "") {
