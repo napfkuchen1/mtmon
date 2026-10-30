@@ -17,7 +17,7 @@ var (
 	reDHCPFail      = regexp.MustCompile(`(?i)without success|no free address|pool is empty|address pool.*(exhaust|empty)`)
 	reWiFiDisc      = regexp.MustCompile(`(?i)([0-9a-f]{2}(?::[0-9a-f]{2}){5})(?:@([^\s,]+))?\S*\s+.*?disconnected(?:,?\s*(?:reason:?\s*)?(.*))?$`)
 	reWGFail        = regexp.MustCompile(`(?i)handshake.*(fail|did not complete|timeout|timed out)`)
-	reSessionScript = regexp.MustCompile(`executing script from (sshd|telnet|winbox|api)`) // the second log line of a failed typed command
+	reSessionScript = regexp.MustCompile(`executing script from (sshd|telnet|winbox|api)\b`) // the second log line of a failed typed command
 	reSignalDBm     = regexp.MustCompile(`signal strength (-\d+)`)
 	reCLICmd        = regexp.MustCompile(`\(\w+-cmd:([^@\s)]+)@([^)\s]+)\)`)
 )
