@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"encoding/json"
 	"time"
 )
@@ -129,6 +130,13 @@ func (s *Store) Manifest(device string) ([]ManifestEntry, error) {
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+// LastManifestTS is the time of the newest change mtmon made on a device (0 = none): what mtmon did itself is not news.
+func (s *Store) LastManifestTS(device string) int64 {
+	var ts sql.NullInt64
+	s.DB.QueryRow(`SELECT max(ts) FROM manifest WHERE device=?`, device).Scan(&ts)
+	return ts.Int64
 }
 
 func (s *Store) SetManifestState(id int64, st string) {
