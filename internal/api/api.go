@@ -567,8 +567,8 @@ func (s *Server) wifiHealth(w http.ResponseWriter, r *http.Request) {
 			poor++
 		}
 	}
-	if len(h) > 50 {
-		h = h[:50]
+	if len(h) > 1000 {
+		h = h[:1000]
 	}
 	jsonOut(w, map[string]any{"poor": poor, "poor_below": store.WifiPoorBelow, "clients": h})
 }
