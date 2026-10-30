@@ -15,6 +15,9 @@
     if (!confirm(t('Remove all acknowledged alerts from the list? This cannot be undone.'))) return
     await api('/alerts/clear', { method: 'POST' }); d.data = (d.data || []).filter(a => !a.acked)
   }
+  const days = 7
+  const noise = poll(() => api(`/alerts/noise?days=${days}`), 60000)
+  const noisy = $derived((noise.data || []).filter(k => k.noisy))
   const cls = { critical: 'bad', warning: 'warn', info: '' }
 </script>
 <div class="head"><h1>{t('Alerts')}</h1>
@@ -22,6 +25,13 @@
   <button class="btn sm" disabled={!open} onclick={ackAll}>{t('Acknowledge all')}</button>
   <button class="btn sm" disabled={!done} onclick={clear}>{t('Clear alerts')}</button>
   <button class="btn sm" onclick={() => download('/export/alerts?format=xlsx')}>{t('Export Excel')}</button></div>
+{#if noisy.length}
+  <div class="card" style="margin-bottom:14px"><b>{t('Noisy alert types')}</b>
+    <span class="muted"> – {t('mostly acknowledged by hand, probably not worth a warning')}</span>
+    <ul style="margin:8px 0 0;padding-left:18px">
+      {#each noisy as k (k.kind)}<li><span class="mono">{tr(k.kind)}</span>: {t('{n} warnings, {p} % acknowledged', { n: k.warnings, p: Math.round(k.share * 100) })}</li>{/each}
+    </ul></div>
+{/if}
 <div class="card"><div class="scroll"><table>
   <thead><tr><th>{t('Time')}</th><th>{t('Severity')}</th><th>{t('Type')}</th><th>{t('Message')}</th><th></th></tr></thead>
   <tbody>
