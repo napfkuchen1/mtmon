@@ -134,6 +134,10 @@ func run(args []string) error {
 		Allow: func(ip netip.Addr) string { return cfg.SourceDevice(ip) },
 		LogHandler: func(le syslog.LogEvent) {
 			ev := store.LogEvent{TS: le.TS, Device: le.Device, Topics: le.Topics, Level: le.Level, Msg: le.Msg}
+			if t, noisy := store.NoisyDebug(le.Level, le.HasTopic); noisy && !st.StoreDebugLogs() {
+				st.NoteDebugLine(le.Device, t, time.Now())
+				return
+			}
 			if st.AddLogEvent(ev) {
 				al.LogEvent(ev)
 			}

@@ -80,7 +80,7 @@ var Rules = []Rule{
 	{"fw-origin", ruleBlockOrigin}, {"mgmt-open", ruleMgmtOpen}, {"fw-unused", ruleUnusedRules}, {"fw-regression", ruleRegression}, {"fw-nolog", ruleDropNoLog},
 	{"dns-bypass", ruleDNSBypass}, {"dns-doh", ruleDoH}, {"dns-ghost", ruleDNSGhost},
 	{"dominant-client", ruleDominant}, {"upload-heavy", ruleUploadHeavy}, {"chatty", ruleChatty},
-	{"flow-disabled", ruleFlowDisabled}, {"flow-silent", ruleFlowSilent}, {"no-syslog", ruleNoSyslog},
+	{"flow-disabled", ruleFlowDisabled}, {"flow-silent", ruleFlowSilent}, {"no-syslog", ruleNoSyslog}, {"debug-logs", ruleDebugLogs},
 	{"static-lease", ruleStaticLease}, {"stale-clients", ruleStaleClients}, {"mtmon-disk", ruleMtmonDisk}, {"backup-age", ruleBackupAge}, {"ra-lifetimes", ruleRALifetimes}, {"routeros-update", ruleRouterOSUpdate}, {"dangling-ifaces", ruleDanglingIfaces}, {"capsman-version", ruleCapsmanVersion}, {"cert-expiry", ruleCertExpiry}, {"cleartext-services", ruleCleartextServices}, {"open-mgmt", ruleOpenMgmt}, {"ntp-off", ruleNTPOff},
 }
 

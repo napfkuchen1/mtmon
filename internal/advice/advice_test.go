@@ -764,3 +764,18 @@ func TestBTHDefaultPeer(t *testing.T) {
 		t.Errorf("%+v", out[0])
 	}
 }
+
+func TestDebugLogs(t *testing.T) {
+	d := base()
+	d.Devs = []Device{{Name: "gw", Role: "router", DebugPerHour: 40, DebugTopics: []string{"dhcp"}}}
+	expect(t, d, "debug-logs", 0)
+	d.Devs[0].DebugPerHour = 240
+	d.Devs[0].DebugTopics = []string{"dhcp", "wireguard", "wifi"}
+	s := expect(t, d, "debug-logs", 1)
+	for _, w := range []string{"[find action=mtmonsyslog topics=dhcp] topics=dhcp,!debug", "topics=wireguard] topics=wireguard,!debug", "topics=wireless] topics=wireless,!debug"} {
+		if !strings.Contains(s[0].Commands, w) {
+			t.Errorf("missing %q in %q", w, s[0].Commands)
+		}
+	}
+	skipped(t, base(), "debug-logs")
+}
