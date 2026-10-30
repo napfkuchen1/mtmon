@@ -113,9 +113,37 @@ func touchesWAN(script, iface string) bool {
 	return strings.Contains(s, "pppoe-client") || strings.Contains(s, "pppoe-out") || strings.Contains(s, "lte") || strings.Contains(s, "wan")
 }
 
+// minPlannedInterval: only schedulers that run rarely can announce an event. A job that runs every few minutes
+// (a watchdog like WG_Check_Reload) would otherwise explain every outage as "planned".
+const minPlannedInterval = time.Hour
+
+// touchesIface: the script names this interface (disable/enable/reset of a port or tunnel).
+func touchesIface(script, iface string) bool {
+	return iface != "" && strings.Contains(strings.ToLower(script), strings.ToLower(iface))
+}
+
 // plannedReconnect returns the name of the scheduler entry on the device that explains a WAN drop of iface at now
 // ("" = none known). It reads the newest stored configuration snapshot.
 func (e *Engine) plannedReconnect(device, iface string, now time.Time) string {
+	return e.plannedRun(device, now, plannedAfter, func(script string) bool { return touchesWAN(script, iface) })
+}
+
+// plannedIface: a scheduler entry that touches this (non-WAN) interface ran just before its link went down.
+func (e *Engine) plannedIface(device, iface string, now time.Time) string {
+	return e.plannedRun(device, now, plannedAfter, func(script string) bool { return touchesIface(script, iface) })
+}
+
+// plannedConfig: any rarely running scheduler entry ran within the last few minutes; the config check runs every
+// few minutes, so the window is wider than for a link event.
+func (e *Engine) plannedConfig(device string, now time.Time) string {
+	return e.plannedRun(device, now, plannedConfigAfter, func(string) bool { return true })
+}
+
+const plannedConfigAfter = 10 * time.Minute
+
+// plannedRun finds an enabled scheduler entry of the device whose script matches and whose last run (start-time
+// plus a whole number of intervals, interval at least minPlannedInterval) lies within [now-after, now+plannedBefore].
+func (e *Engine) plannedRun(device string, now time.Time, after time.Duration, match func(script string) bool) string {
 	times := e.St.ConfigSnapTimes(device)
 	if len(times) == 0 {
 		return ""
@@ -125,24 +153,48 @@ func (e *Engine) plannedReconnect(device, iface string, now time.Time) string {
 		return ""
 	}
 	for _, r := range snap["/system/scheduler"] {
-		if r["disabled"] == "true" || !touchesWAN(r["on-event"], iface) {
+		if r["disabled"] == "true" || !match(r["on-event"]) {
 			continue
 		}
 		iv := parseRouterDuration(r["interval"])
-		if iv <= 0 {
+		if iv < minPlannedInterval {
 			continue
 		}
 		start, ok := parseSchedulerStart(r["start-date"], r["start-time"], now)
 		if !ok {
 			continue
 		}
-		off := now.Sub(start) % iv
-		if off < 0 {
-			off += iv
-		}
-		if off <= plannedAfter || iv-off <= plannedBefore {
+		off := sinceLastRun(start, now, iv)
+		if off <= after || iv-off <= plannedBefore {
 			return r["name"]
 		}
 	}
 	return ""
+}
+
+// sinceLastRun is the time since the last run of a scheduler entry that starts at start and repeats every iv. An
+// interval of whole days counts calendar days, so a daylight-saving change between start-date and now does not
+// shift the run by an hour.
+func sinceLastRun(start, now time.Time, iv time.Duration) time.Duration {
+	if iv%(24*time.Hour) == 0 {
+		n := int(iv / (24 * time.Hour))
+		y1, m1, d1 := start.Date()
+		y2, m2, d2 := now.Date()
+		days := int(time.Date(y2, m2, d2, 0, 0, 0, 0, time.UTC).Sub(time.Date(y1, m1, d1, 0, 0, 0, 0, time.UTC)) / (24 * time.Hour))
+		k := days % n
+		if k < 0 {
+			k += n
+		}
+		h, mi, sec := start.Clock()
+		last := time.Date(y2, m2, d2-k, h, mi, sec, 0, now.Location())
+		if last.After(now) {
+			last = time.Date(y2, m2, d2-k-n, h, mi, sec, 0, now.Location())
+		}
+		return now.Sub(last)
+	}
+	off := now.Sub(start) % iv
+	if off < 0 {
+		off += iv
+	}
+	return off
 }

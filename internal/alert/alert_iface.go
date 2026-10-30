@@ -115,7 +115,7 @@ func (e *Engine) wanEvent(device, iface string, running bool) {
 			sev, msg := "warning", fmt.Sprintf("WAN link on %s went down (%s)", device, iface)
 			if name := e.plannedReconnect(device, iface, now); name != "" {
 				sev = "info"
-				msg += fmt.Sprintf(" – planned reconnect (scheduler %s)", name)
+				msg += fmt.Sprintf(" – planned: scheduler %s", name)
 			} else if n, at := e.recurringWAN(device, now); n >= recurMinDays {
 				sev = "info"
 				msg += fmt.Sprintf(" – recurring: the same drop happened on %d earlier days around %s, probably scheduled (provider reconnect, router scheduler)", n, at)
@@ -266,5 +266,9 @@ func (e *Engine) raiseIfaceDown(device, iface, key string) {
 		e.mu.Unlock()
 		return
 	}
-	e.Raise("iface_down", key, "warning", fmt.Sprintf("Interface %s on %s went down", iface, device), 5*time.Minute)
+	sev, msg := "warning", fmt.Sprintf("Interface %s on %s went down", iface, device)
+	if name := e.plannedIface(device, iface, time.Now()); name != "" {
+		sev, msg = "info", msg+fmt.Sprintf(" – planned: scheduler %s", name)
+	}
+	e.Raise("iface_down", key, sev, msg, 5*time.Minute)
 }

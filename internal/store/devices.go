@@ -167,16 +167,18 @@ type Alert struct {
 	// the viewer's language. Msg keeps the English text (notifications, /metrics, old clients). Both empty for old alerts.
 	MsgKey string            `json:"msgkey,omitempty"`
 	Params map[string]string `json:"params,omitempty"`
+	// Story alerts (#188) collect related events: Count of them between First and Last (Unix seconds).
+	Count int   `json:"count,omitempty"`
+	First int64 `json:"first,omitempty"`
+	Last  int64 `json:"last,omitempty"`
 }
 
 func (s *Store) AddAlert(a Alert) (int64, error) {
 	params := ""
 	if len(a.Params) > 0 {
-		if b, err := json.Marshal(a.Params); err == nil {
-			params = string(b)
-		}
+		params = encodeParams(a.Params)
 	}
-	r, err := s.DB.Exec(`INSERT INTO alerts(ts,kind,subject,severity,msg,msgkey,params) VALUES(?,?,?,?,?,?,?)`, a.TS, a.Kind, a.Subject, a.Severity, a.Msg, a.MsgKey, params)
+	r, err := s.DB.Exec(`INSERT INTO alerts(ts,kind,subject,severity,msg,msgkey,params,cnt,first_ts,last_ts) VALUES(?,?,?,?,?,?,?,?,?,?)`, a.TS, a.Kind, a.Subject, a.Severity, a.Msg, a.MsgKey, params, a.Count, a.First, a.Last)
 	if err != nil {
 		return 0, err
 	}
@@ -184,7 +186,7 @@ func (s *Store) AddAlert(a Alert) (int64, error) {
 }
 
 func (s *Store) Alerts(limit int) ([]Alert, error) {
-	rows, err := s.DB.Query(`SELECT id,ts,kind,subject,severity,msg,acked,msgkey,params FROM alerts ORDER BY ts DESC LIMIT ?`, limit)
+	rows, err := s.DB.Query(`SELECT id,ts,kind,subject,severity,msg,acked,msgkey,params,cnt,first_ts,last_ts FROM alerts ORDER BY ts DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +196,7 @@ func (s *Store) Alerts(limit int) ([]Alert, error) {
 		var a Alert
 		var ack int
 		var params string
-		rows.Scan(&a.ID, &a.TS, &a.Kind, &a.Subject, &a.Severity, &a.Msg, &ack, &a.MsgKey, &params)
+		rows.Scan(&a.ID, &a.TS, &a.Kind, &a.Subject, &a.Severity, &a.Msg, &ack, &a.MsgKey, &params, &a.Count, &a.First, &a.Last)
 		a.Acked = ack == 1
 		a.Params = alertParams(params)
 		out = append(out, a)

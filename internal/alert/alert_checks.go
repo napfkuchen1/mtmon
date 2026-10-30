@@ -75,6 +75,7 @@ func (e *Engine) Run(stop <-chan struct{}) {
 		case <-stop:
 			return
 		case <-t.C:
+			e.closeStale(time.Now())
 			e.Checks()
 		}
 	}

@@ -30,4 +30,6 @@ export default {
   "source unknown": "Quelle unbekannt",
   "WAN link on {dev} went down ({iface})": "WAN-Verbindung auf {dev} ist ausgefallen ({iface})",
   "planned reconnect (scheduler {name})": "geplanter Reconnect (Scheduler {name})",
+  "planned: scheduler {name}": "geplant: Scheduler {name}",
+  "set to info in the alert settings": "in den Alarmeinstellungen auf Info gestellt",
 }

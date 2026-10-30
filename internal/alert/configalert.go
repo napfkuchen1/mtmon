@@ -24,6 +24,9 @@ func (e *Engine) ConfigChanged(device string, n int, by []string) {
 	if _, ok := e.St.Maintenance()[device]; ok {
 		sev, msg = "info", msg+" (maintenance window)"
 	}
+	if name := e.plannedConfig(device, time.Now()); name != "" && sev == "warning" {
+		sev, msg = "info", msg+fmt.Sprintf(" – planned: scheduler %s", name)
+	}
 	if ts := e.St.LastManifestTS(device); ts > 0 && time.Since(time.Unix(ts, 0)) < selfChangeWindow {
 		sev, msg = "info", msg+" (made through mtmon)"
 	}

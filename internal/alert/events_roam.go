@@ -92,6 +92,9 @@ func (e *Engine) dhcpAfterRoam(ts int64, msg string) bool {
 	}
 	snap := *ep
 	e.mu.Unlock()
+	if raise && e.foldExtra("wifi_disconnects", "/"+mac, time.Unix(ts, 0), snap.n) {
+		return true // the client has an open disconnect story: the failed offers are part of it
+	}
 	if raise {
 		text := fmt.Sprintf("%s roamed to %s and got no DHCP address for %d s (%d offers without success)", mac, snap.ap, snap.last-snap.ts, snap.n)
 		text += " – the Wi-Fi link after the roam is the problem, not the DHCP server"

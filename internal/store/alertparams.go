@@ -34,6 +34,13 @@ func migrateAlertParams(db *sql.DB) error {
 	return nil
 }
 
+func encodeParams(m map[string]string) string {
+	if b, err := json.Marshal(m); err == nil {
+		return string(b)
+	}
+	return ""
+}
+
 // alertParams decodes the stored parameters; broken or empty JSON gives nil (the alert then shows its stored text).
 func alertParams(raw string) map[string]string {
 	if raw == "" {

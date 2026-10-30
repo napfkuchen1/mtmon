@@ -161,6 +161,9 @@ func Open(dir string) (*Store, error) {
 	if err := migrateAdvice(db); err != nil {
 		return nil, fmt.Errorf("advice schema: %w", err)
 	}
+	if err := migrateAlertStory(db); err != nil {
+		return nil, fmt.Errorf("alert story: %w", err)
+	}
 	if err := migrateAlertParams(db); err != nil {
 		return nil, fmt.Errorf("alert params: %w", err)
 	}

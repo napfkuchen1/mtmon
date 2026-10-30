@@ -60,6 +60,7 @@ type Engine struct {
 	bursts      map[string][]time.Time // router log patterns: key -> recent occurrences
 	roams       map[string]roamConn    // client MAC -> its last Wi-Fi connect (see events_roam.go)
 	roamDHCP    map[string]*roamDHCP   // client MAC -> failed DHCP offers right after such a connect
+	stories     map[string]*story      // kind|subject -> open story (see stories.go)
 
 	Suggest func(store.Client) string // group name suggested for a client without a group (set by main), "" = none
 	hc      *http.Client
@@ -97,6 +98,12 @@ func (e *Engine) RaiseP(kind, subject, severity, key string, params map[string]s
 }
 
 func (e *Engine) raise(kind, subject, severity, msg, key string, params map[string]string, cooldown time.Duration) bool {
+	_, ok := e.raiseID(kind, subject, severity, msg, key, params, 0, 0, 0, cooldown)
+	return ok
+}
+
+// raiseID is raise for alerts that may collect events later (count/first/last, see stories.go); it returns the alert ID.
+func (e *Engine) raiseID(kind, subject, severity, msg, key string, params map[string]string, count int, first, last int64, cooldown time.Duration) (int64, bool) {
 	if kind == "device_offline" || kind == "iface_down" || kind == "iface_up" {
 		if e.inMaintenance(kind, subject) {
 			severity = "info"
@@ -107,11 +114,15 @@ func (e *Engine) raise(kind, subject, severity, msg, key string, params map[stri
 		severity = "info"
 		msg += " – learning: normal traffic is being re-learned"
 	}
+	if severity != "info" && e.St.IsInfoKind(kind) {
+		severity = "info"
+		msg += " – set to info in the alert settings"
+	}
 	lastKey := kind + "|" + subject
 	e.mu.Lock()
 	if t, ok := e.last[lastKey]; ok && time.Since(t) < cooldown {
 		e.mu.Unlock()
-		return false
+		return 0, false
 	}
 	e.last[lastKey] = time.Now()
 	if (kind == "traffic_spike" || kind == "port_scan" || kind == "rogue_dns") && len(e.wan) > 0 {
@@ -120,7 +131,7 @@ func (e *Engine) raise(kind, subject, severity, msg, key string, params map[stri
 		msg += fmt.Sprintf(" – a WAN link flapped %s ago, this may be a side effect", fmtDur(time.Since(e.lastWAN)))
 	}
 	e.mu.Unlock()
-	a := store.Alert{TS: time.Now().Unix(), Kind: kind, Subject: subject, Severity: severity, Msg: msg, MsgKey: key, Params: params}
+	a := store.Alert{TS: time.Now().Unix(), Kind: kind, Subject: subject, Severity: severity, Msg: msg, MsgKey: key, Params: params, Count: count, First: first, Last: last}
 	id, err := e.St.AddAlert(a)
 	if err != nil {
 		e.Log.Error("store alert", "err", err)
@@ -130,7 +141,7 @@ func (e *Engine) raise(kind, subject, severity, msg, key string, params map[stri
 		e.Notify(a)
 	}
 	go e.deliver(a)
-	return true
+	return id, true
 }
 
 // inMaintenance: the alert concerns a device in a maintenance window, or a link on another device that leads to it

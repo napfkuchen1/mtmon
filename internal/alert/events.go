@@ -24,6 +24,12 @@ var (
 
 // burst records one occurrence of key and reports whether n or more happened within window.
 func (e *Engine) burst(key string, window time.Duration, n int) bool {
+	c := e.burstCount(key, window)
+	return c >= n
+}
+
+// burstCount records one occurrence of key and returns how many happened within window (this one included).
+func (e *Engine) burstCount(key string, window time.Duration) int {
 	now := time.Now()
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -45,7 +51,7 @@ func (e *Engine) burst(key string, window time.Duration, n int) bool {
 			}
 		}
 	}
-	return len(keep) >= n
+	return len(keep)
 }
 
 func hasTopic(topics, t string) bool {
@@ -99,11 +105,13 @@ func (e *Engine) LogEvent(ev store.LogEvent) {
 			if e.St != nil {
 				e.St.AddWifiDisc(ev.TS, mac, dev)
 			}
-			if e.burst("wifi|"+dev+"|"+mac, 5*time.Minute, 6) {
+			subject := dev + "/" + mac
+			c := e.burstCount("wifi|"+dev+"|"+mac, 5*time.Minute)
+			if c >= 6 || e.storyOpen("wifi_disconnects", subject) {
 				who := mac
 				if e.St != nil {
-					if c, err := e.St.Client(mac); err == nil && c != nil {
-						if n := firstNonEmpty(c.Label, c.Hostname); n != "" {
+					if cl, err := e.St.Client(mac); err == nil && cl != nil {
+						if n := firstNonEmpty(cl.Label, cl.Hostname); n != "" {
 							who = n + " (" + mac + ")"
 						}
 					}
@@ -112,16 +120,14 @@ func (e *Engine) LogEvent(ev store.LogEvent) {
 				if m[2] != "" { // with CAPsMAN the log comes from the controller but names the AP interface
 					where = dev + " (" + m[2] + ")"
 				}
-				msg := fmt.Sprintf("Client %s keeps disconnecting from %s (6 or more in 5 min)", who, where)
-				if why := strings.TrimSpace(m[3]); why != "" {
-					msg += " – last reason: " + why
-					if dbm := reSignalDBm.FindStringSubmatch(why); dbm != nil {
-						if v, err := strconv.Atoi(dbm[1]); err == nil && v >= -65 {
-							msg += ". The signal is good, so this is probably not a coverage problem; check access-list reject rules for this client and roaming settings"
-						}
+				why := strings.TrimSpace(m[3])
+				good := false
+				if dbm := reSignalDBm.FindStringSubmatch(why); dbm != nil {
+					if v, err := strconv.Atoi(dbm[1]); err == nil && v >= -65 {
+						good = true
 					}
 				}
-				e.Raise("wifi_disconnects", dev+"/"+mac, "warning", msg, 30*time.Minute)
+				e.storyEvent("wifi_disconnects", subject, "warning", time.Unix(ev.TS, 0), c, wifiDiscText(who, where, why, good))
 			}
 		}
 	}
