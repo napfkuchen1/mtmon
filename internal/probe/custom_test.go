@@ -51,9 +51,9 @@ func TestFetchStatusAndFamily(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/redir":
-			http.Redirect(w, r, "/ok", 302)
+			http.Redirect(w, r, "/ok", http.StatusFound)
 		case "/bad":
-			w.WriteHeader(503)
+			w.WriteHeader(http.StatusServiceUnavailable)
 		}
 	}))
 	defer srv.Close()
