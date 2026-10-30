@@ -4,7 +4,7 @@
   import { api, download } from '../lib/api.js'
   import { app, go, toast } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
-  import { t, tr } from '../lib/i18n.svelte.js'
+  import { t, tn, tr } from '../lib/i18n.svelte.js'
   import { bps, bytes, ago, display, signalQuality } from '../lib/format.js'
   import CleanupDialog from '../lib/CleanupDialog.svelte'
   import { untrack } from 'svelte'
@@ -51,7 +51,7 @@
   const kinds = $derived([['all', t('All')], ['online', t('Online')], ['wifi', t('Wi-Fi')], ['wired', t('Wired')], ['offline', t('Offline')], ['watched', '★ ' + t('Watched')], ['dnsbypass', t('DNS bypass')]])
   const picked = $derived(Object.keys(sel).filter(k => sel[k]))
   async function groupSelected(group, auto = false) {
-    try { const r = await api('/clients/group', { method: 'POST', body: auto ? { macs: picked, auto: true } : { macs: picked, group } }); sel = {}; d.data = await api('/clients?range=' + (app.range === 'live' ? '1h' : app.range)); toast(t('{n} clients updated', { n: r.count })) }
+    try { const r = await api('/clients/group', { method: 'POST', body: auto ? { macs: picked, auto: true } : { macs: picked, group } }); sel = {}; d.data = await api('/clients?range=' + (app.range === 'live' ? '1h' : app.range)); toast(tn('{n} client updated', '{n} clients updated', r.count)) }
     catch (e) { toast(tr(e.message)) }
   }
   async function watchSelected(on) {

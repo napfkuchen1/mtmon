@@ -5,7 +5,7 @@
   import { app, go } from './state.svelte.js'
   import { poll } from './Poll.svelte.js'
   import { bytes, num, ago } from './format.js'
-  import { t } from './i18n.svelte.js'
+  import { t, tn } from './i18n.svelte.js'
   let { what, keyOf, title, range, onclose } = $props()
   const q = poll(() => api(`/usage/${what}?key=${encodeURIComponent(keyOf)}&range=${range}`), 15000)
   const open = c => { onclose?.(); go('client/' + encodeURIComponent(c.mac)) }
@@ -29,7 +29,7 @@
       </tbody>
     </table></div>
     <div class="muted" style="font-size:12.5px;margin-top:8px">
-      {t('{n} clients · total ↓ {down} ↑ {up}', { n: q.data.clients.length, down: bytes(q.data.down), up: bytes(q.data.up) })}
+      {tn('{n} client · total ↓ {down} ↑ {up}', '{n} clients · total ↓ {down} ↑ {up}', q.data.clients.length, { down: bytes(q.data.down), up: bytes(q.data.up) })}
       {#if q.data.truncated} · {t('Only the busiest destinations are analysed.')}{/if}
     </div>
   {/if}
