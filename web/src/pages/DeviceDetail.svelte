@@ -106,7 +106,7 @@
   {/if}
 
   {#if caps}
-    <div class="card" style="margin-bottom:16px"><div class="card-h"><h2>{t('Capabilities')}</h2><span class="muted" style="font-size:12.5px">{t('detected automatically when added')}</span></div>
+    <div class="card" style="margin-bottom:16px"><div class="card-h" data-default="closed" data-sum={caps.role}><h2>{t('Capabilities')}</h2><span class="muted" style="font-size:12.5px">{t('detected automatically when added')}</span></div>
       <div class="card-b caps">
         <div><span class="l">{t('Role')}</span><b>{caps.role}</b></div>
         <div><span class="l">{t('Wi-Fi')}</span><b>{caps.wifi_stack === 'wifi' ? caps.wifi_ifs.map(w => w.name + (w.ssid ? ' “' + w.ssid + '”' : '') + (w.band ? ' ' + w.band : '')).join(', ') : caps.wifi_stack === 'wireless' ? t('Legacy') : '—'}</b></div>
@@ -146,14 +146,14 @@
             <td class="r">{#if c.wifi}<span class="badge acc">{c.ssid || 'Wi-Fi'}</span>{:else}<span class="badge">{c.iface || t('wired')}</span>{/if}</td></tr>
         {/each}
       </tbody></table>{#if !x.clients.length}<div class="empty">{t('No clients')}</div>{/if}</div></div>
-    <div class="card"><div class="card-h"><h2>{t('Neighbors (LLDP/MNDP)')}</h2></div>
+    <div class="card"><div class="card-h" data-default="closed" data-sum={t('{n} neighbors', { n: x.neighbors.length })}><h2>{t('Neighbors (LLDP/MNDP)')}</h2></div>
       <div class="scroll"><table><tbody>
         {#each x.neighbors as n}
           <tr><td><b>{n.ident || n.mac}</b><div class="muted mono">{n.addr} · {n.mac}</div></td><td class="r muted">{n.iface}<br>{n.platform}</td></tr>
         {/each}
       </tbody></table>{#if !x.neighbors.length}<div class="empty">{t('No neighbors seen')}</div>{/if}</div></div>
   </div>
-  <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Config history')}</h2>
+  <div class="card" style="margin-top:16px"><div class="card-h" data-default="closed" data-sum={t('{n} snapshots', { n: cfg.data?.snapshots?.length || 0 }) + (cfg.data?.changes?.length ? ' · ' + t('{n} changes', { n: cfg.data.changes.length }) : '')}><h2>{t('Config history')}</h2>
     <button class="btn sm" disabled={cBusy} onclick={snapshotNow}>{cBusy ? t('Reading …') : t('Snapshot now')}</button></div>
     {#if (cfg.data?.snapshots?.length || 0) < 2}
       <div class="empty">{cfg.data?.snapshots?.length ? t('One snapshot stored. Changes show up here as soon as the configuration differs from it.') : t('No snapshot yet. mtmon reads the configuration once a day, or press Snapshot now.')}</div>
@@ -173,7 +173,7 @@
     <div class="card-b muted" style="font-size:12px">{t('Passwords and keys are never stored. Only the {n} newest snapshots are kept.', { n: 30 })}</div>
   </div>
   {#if x.source === 'ui'}
-    <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Changes on the router')}</h2>
+    <div class="card" style="margin-top:16px"><div class="card-h" data-default="closed" data-sum={t('{n} changes', { n: man.data?.length || 0 })}><h2>{t('Changes on the router')}</h2>
       <div style="display:flex;gap:8px"><a class="btn sm" href="/api/devices/{encodeURIComponent(name)}/offboard-script" target="_blank" rel="noopener">{t('Undo commands')}</a>
         <button class="btn sm" onclick={() => { off = true; oRes = null; oErr = '' }}>{t('Offboarding …')}</button></div></div>
       {#if x.managed && man.data?.length}

@@ -199,7 +199,7 @@
   </div>
 
   {#if blocked.data?.length}
-    <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Blocked connection attempts')}</h2><span class="muted" style="font-size:12.5px">{t('dropped by the firewall – not visible in flows')}</span></div>
+    <div class="card" style="margin-top:16px"><div class="card-h" data-default="closed" data-sum={t('{n} events', { n: blocked.data.length })}><h2>{t('Blocked connection attempts')}</h2><span class="muted" style="font-size:12.5px">{t('dropped by the firewall – not visible in flows')}</span></div>
       <div class="scroll" style="max-height:300px;overflow-y:auto"><table><thead><tr><th>{t('Time')}</th><th>{t('Target')}</th><th>{t('Proto')}</th><th>{t('Rule')}</th><th>{t('Router')}</th></tr></thead>
         <tbody>{#each blocked.data as e, i (e.ts + e.dst + e.dport + i)}<tr><td class="mono muted">{clock(e.ts)}</td><td><IPName ip={e.dst} port={e.dport} name={e.dst_name} org={e.dst_org} cc={e.dst_country} /></td><td class="mono">{e.proto}</td><td>{tr(e.rule)}</td><td class="muted">{e.device}</td></tr>{/each}</tbody></table></div></div>
   {/if}
@@ -212,10 +212,10 @@
   {/if}
 
   <div class="grid g2" style="margin-top:16px">
-    <div class="card"><div class="card-h"><h2>{t('IP history')}</h2></div><table><tbody>
+    <div class="card"><div class="card-h" data-default="closed" data-sum={t('{n} addresses', { n: x.ip_history.length })}><h2>{t('IP history')}</h2></div><table><tbody>
       {#each x.ip_history as h}<tr><td class="mono">{h.ip}</td><td class="r muted">{datetime(h.first)} → {datetime(h.last)}</td></tr>{/each}
     </tbody></table>{#if !x.ip_history.length}<div class="empty">—</div>{/if}</div>
-    <div class="card"><div class="card-h"><h2>{t('Roaming')}</h2></div><table><tbody>
+    <div class="card"><div class="card-h" data-default="closed" data-sum={t('{n} events', { n: x.roams.length })}><h2>{t('Roaming')}</h2></div><table><tbody>
       {#each x.roams as r}<tr><td>{r.from} → <b>{r.to}</b></td><td class="r muted">{datetime(r.ts)}</td></tr>{/each}
     </tbody></table>{#if !x.roams.length}<div class="empty">{t('No roaming events')}</div>{/if}</div>
   </div>
