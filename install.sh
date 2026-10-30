@@ -13,6 +13,7 @@
 #
 # Env: MTMON_REPO (owner/name, default napfkuchen1/mtmon) - MTMON_VERSION (tag, default latest)
 #      MTMON_BASE_URL (override download location, for tests)
+#      MTMON_ALLOW_UNVERIFIED=1 (install a signed release without minisign installed; default: abort)
 set -Eeuo pipefail
 REPO=${MTMON_REPO:-napfkuchen1/mtmon}
 VER=${MTMON_VERSION:-latest}
@@ -209,7 +210,8 @@ if curl -fsSL --retry 3 -o "$T/$ASSET.minisig" "$BASE/$ASSET.minisig" 2>/dev/nul
     minisign -Vqm "$T/$ASSET" -x "$T/$ASSET.minisig" -P "$MTMON_PUBKEY" || die "signature check FAILED - aborting (the archive was not signed by the mtmon maintainer)"
     printf '  %s✔%s signature verified (minisign)\n' "$C_GR" "$C_RS"
   else
-    printf '  %s!%s release is signed, but minisign is not installed here: signature not checked (apt install minisign)\n' "$C_YL" "$C_RS"
+    [ "${MTMON_ALLOW_UNVERIFIED:-}" = 1 ] || die "release is signed but minisign is not installed - aborting (apt install minisign, or set MTMON_ALLOW_UNVERIFIED=1 to install with the checksum only)"
+    printf '  %s!%s minisign is not installed: signature NOT checked (MTMON_ALLOW_UNVERIFIED=1)\n' "$C_YL" "$C_RS"
   fi
 else
   printf '  %s!%s this release has no signature (older than v0.8.0): only the checksum was verified\n' "$C_YL" "$C_RS"

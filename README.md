@@ -159,7 +159,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/napfkuchen1/mtmon/main/i
 MTMON_VERSION=v0.16.0 bash -c "$(curl -fsSL https://raw.githubusercontent.com/napfkuchen1/mtmon/main/install.sh)"
 ```
 
-All options: `install.sh install --help`. If `minisign` is installed on the host (`apt install minisign`), the installer also verifies the release signature (see [docs/release-signing.md](docs/release-signing.md)). You can also download `mtmon-linux-amd64.tar.gz` and its `.sha256` from the [releases page](https://github.com/napfkuchen1/mtmon/releases), unpack it on the host and run `./install-mtmon.sh --dry-run`.
+All options: `install.sh install --help`. If `minisign` is installed on the host (`apt install minisign`), the installer verifies the release signature and aborts without it unless `MTMON_ALLOW_UNVERIFIED=1` is set (see [docs/release-signing.md](docs/release-signing.md)). You can also download `mtmon-linux-amd64.tar.gz` and its `.sha256` from the [releases page](https://github.com/napfkuchen1/mtmon/releases), unpack it on the host and run `./install-mtmon.sh --dry-run`.
 </details>
 
 ## Usage
@@ -240,7 +240,7 @@ Your routers are **not** touched by this. Use *Offboarding* on each device **bef
 
 * **Read-only by default.** The only code that writes to a router is the setup/offboarding wizard, and only after your explicit confirmation.
 * **Admin credentials are used once and never stored.** The long-lived account is a generated read-only user restricted to the mtmon address. Its password is stored encrypted (AES-256-GCM, key file mode 0600).
-* **Signed releases.** Release archives are signed with minisign (public key in `minisign.pub`). The web updater refuses unsigned or mismatching releases; the installer verifies the signature when `minisign` is installed.
+* **Signed releases.** Release archives are signed with minisign (public key in `minisign.pub`). The web updater refuses unsigned or mismatching releases; the installer verifies the signature and aborts if `minisign` is missing.
 * **Certificate pinning.** The router's TLS fingerprint is shown and must be confirmed (trust on first use); there is no silent "insecure" mode.
 * **The wizard only talks to private addresses** (RFC 1918, loopback, link-local, CGNAT or networks you configured), so it cannot be abused to probe the internet.
 * **Speed tests** run natively in mtmon against Cloudflare, Hetzner or M-Lab NDT7 (open protocol, nearest server via the M-Lab locate API; M-Lab publishes results including your IP, so it is opt-in). mtmon does not bundle Ookla's Speedtest CLI: its licence allows only personal, non-commercial use on a single personal computer and forbids redistribution, so it stays an opt-in that you install yourself.
@@ -259,7 +259,7 @@ mtmon is young. Please read this before relying on it:
 * The wizard needs `www-ssl` enabled on the router. If the router has no usable certificate, the setup snippets (Settings → Router setup, and the Add-device checklist) create one (`mtmon-ca` / `mtmon-ssl`); the wizard itself does not.
 * The web UI is English by default; a language switch in the sidebar offers German.
 * Access points and switches are monitored (status, Wi-Fi clients, interfaces) but do not export flows.
-* **Sizes.** The raw flow table is capped at 15 million rows regardless of retention; older detail is kept as hourly rollups for the configured retention. No maximum number of clients or flows per second has been measured yet, so treat larger networks as untested.
+* **Sizes.** The raw flow table is capped at 15 million rows regardless of retention; older detail is kept as hourly rollups for the configured retention. Measured (`make scale`, synthetic data, Windows dev machine): 100 clients over 30 days (1.7 M raw flows, 0.86 M one-minute and 0.96 M hourly rollups, 637 MB database) keep every UI query under 120 ms; the 5,000 flows/s ingest figure is from the flow generator. Beyond about 100 clients or 5,000 flows/s nothing has been measured, so treat larger networks as untested.
 * **One instance per site.** mtmon has no multi-site or multi-tenant mode. For several sites or customers run one instance per site (separate data directory and login). Do not point routers of different customers at one instance.
 * Tested devices and how to report yours: [docs/TESTED-DEVICES.md](docs/TESTED-DEVICES.md).
 
