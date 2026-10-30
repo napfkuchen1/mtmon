@@ -23,6 +23,12 @@ func TestOnceStoresLossAndLatency(t *testing.T) {
 			}
 			time.Sleep(5 * time.Millisecond)
 			return nil
+		},
+		Lookup: func(_ context.Context, name string) error {
+			if name == "cloudflare.com" {
+				return errors.New("servfail")
+			}
+			return nil
 		}}
 	p.Once(context.Background())
 	p.Once(context.Background())
@@ -31,8 +37,12 @@ func TestOnceStoresLossAndLatency(t *testing.T) {
 		t.Errorf("window: %+v", w)
 	}
 	ts := st.WANTargets(time.Now().Add(-time.Hour).Unix())
-	if len(ts) != 2 || ts[0].Target != "a:1" || ts[0].LossPct != 0 || ts[1].LossPct != 100 || ts[1].AvgMS != 0 {
+	if len(ts) != 4 || ts[0].Target != "a:1" || ts[0].LossPct != 0 || ts[1].LossPct != 100 || ts[1].AvgMS != 0 {
 		t.Errorf("targets: %+v", ts)
+	}
+	// DNS probes are listed per target but stay out of the totals above
+	if ts[2].Target != "dns:cloudflare.com" || ts[2].LossPct != 100 || ts[3].Target != "dns:example.com" || ts[3].LossPct != 0 {
+		t.Errorf("dns targets: %+v", ts[2:])
 	}
 	if s := st.WANSeries(time.Now().Add(-time.Hour).Unix(), 300); len(s) != 1 || s[0].LossPct != 50 {
 		t.Errorf("series: %+v", s)
