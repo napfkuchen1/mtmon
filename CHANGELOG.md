@@ -21,6 +21,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ### Fixed
 - `script_error` no longer fires for the second log line of a failed SSH/telnet command (already reported as `cli_error`) (#175)
+- Time zone: saved on every login when not yet set (not only when offsets differ); Settings shows "not set" and a warning instead of a placeholder that looks like a value (#170)
 
 ## [0.20.5] - 2026-10-30
 
