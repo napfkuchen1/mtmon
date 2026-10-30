@@ -20,6 +20,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Config history: mtmon polls the routers change history every 2 minutes and snapshots as soon as it changes (daily check stays as safety net); STP counters no longer count as changes; Wi-Fi access-list, provisioning, configuration, security, channel, datapath, steering and CAP settings are part of the snapshot (#222)
 - Folded cards keep a one-line summary and a health colour (Traffic, Groups, Internet, Speed, Path, top lists); Groups, Speed and a healthy Internet card start folded; top lists show 8 rows with "show more"; suggestions fold "why and what we saw" by default (#178)
 - Long lists are shortened: alerts (30), firewall rules by hits (10) and the configuration history of a device (12) show a "Show N more" button (#178)
+- Device and client pages: secondary cards (capabilities, neighbors, config history, router changes, IP history, roaming, blocked attempts) start folded with a one-line summary.
 
 ### Fixed
 - German translations for suggestion texts that were still English: the new baseline checks (open management services, NTP off), DNS redirect and DNS-over-TLS, hairpin traffic, ghost DNS, IPv6 prefix change, Back to Home (#195)
