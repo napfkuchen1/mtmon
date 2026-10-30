@@ -99,6 +99,7 @@ func New(s *Server) http.Handler {
 	m.HandleFunc("GET /api/path", a(s.path))
 	m.HandleFunc("GET /api/alerts", a(s.alerts))
 	m.HandleFunc("GET /api/alerts/noise", a(s.alertNoise))
+	m.HandleFunc("GET /metrics", a(s.metrics))
 	m.HandleFunc("POST /api/alerts/{id}/ack", a(s.ack))
 	m.HandleFunc("POST /api/alerts/ack-all", a(s.ackAll))
 	m.HandleFunc("POST /api/alerts/clear", a(s.clearAlerts))
