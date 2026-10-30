@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -84,6 +85,7 @@ func TestOnceCustomTargets(t *testing.T) {
 	}
 	defer st.Close()
 	got := map[string][]bool{}
+	var mu sync.Mutex
 	p := &Prober{St: st, Log: slog.Default(), Targets: func() []string { return []string{"a:1"} }, DNS: func() []string { return []string{"x.de"} },
 		Dial: func(context.Context, string) error { return nil },
 		Lookup: func(_ context.Context, n string) error {
@@ -101,7 +103,11 @@ func TestOnceCustomTargets(t *testing.T) {
 			}
 			return nil
 		},
-		Report: func(target string, ok bool, _ string) { got[target] = append(got[target], ok) }}
+		Report: func(target string, ok bool, _ string) {
+			mu.Lock()
+			defer mu.Unlock()
+			got[target] = append(got[target], ok)
+		}}
 	p.Once(context.Background())
 	if len(got) != 2 || got["dns:blocked.de"][0] || !got["http4:https://v4only.de/"][0] {
 		t.Fatalf("reports: %v", got)
