@@ -235,11 +235,12 @@
 <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Time zone')}</h2></div>
   <table><tbody>
     <tr><td>{t('Zone for all clock times')}<div class="muted" style="font-size:12px">{t('Speed-test start time and window, quiet hours and the times in alert texts use this zone. The zone of the browser is stored on first login; a change applies after a restart.')}</div></td><td class="r">
-      <input class="input sm" list="tzlist" bind:value={tzInput} placeholder="Europe/Berlin" />
+      <input class="input sm" list="tzlist" bind:value={tzInput} placeholder={tz?.set ? "Europe/Berlin" : t("not set")} />
       <datalist id="tzlist">{#each (Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : []) as z}<option value={z}></option>{/each}</datalist>
       <button class="btn sm" disabled={!tzInput || tzInput === tz?.configured} onclick={() => saveTz(tzInput)}>{t('Save')}</button>
       {#if browserTz && browserTz !== tz?.configured}<button class="btn sm" onclick={() => saveTz(browserTz)}>{t('Use browser zone')} ({browserTz})</button>{/if}
       {#if tz}<div class="muted" style="font-size:12px">{t('Now')}: {tz.now} ({tz.zone})</div>{/if}
+      {#if tz && !tz.set}<div class="badge warn" style="margin-top:4px">{t('Time zone not set: mtmon uses {zone}. Click “Use browser zone” to save yours.', { zone: tz.zone })}</div>{/if}
       {#if tz?.restart_required}<div style="font-size:12px">{t('Takes effect after a restart.')} <button class="btn sm" onclick={restartForTz}>{t('Restart now')}</button></div>{/if}</td></tr>
   </tbody></table></div>
 
