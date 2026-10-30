@@ -3,7 +3,7 @@
   import { app, go } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
   import { bytes, bps, num, datetime } from '../lib/format.js'
-  import { t, tr, i18n } from '../lib/i18n.svelte.js'
+  import { t, tn, tr, i18n } from '../lib/i18n.svelte.js'
   import Chart from '../lib/Chart.svelte'
   import TopList from '../lib/TopList.svelte'
   import Spark from '../lib/Spark.svelte'
@@ -48,7 +48,7 @@
   const problems = $derived.by(() => {
     if (!o) return []
     const l = []
-    if (o.alerts_open) l.push({ txt: t('{n} open alerts', { n: o.alerts_open }), href: '#/alerts' })
+    if (o.alerts_open) l.push({ txt: tn('{n} open warning', '{n} open warnings', o.alerts_open), href: '#/alerts' })
     if (o.devices_up < o.devices_total) l.push({ txt: t('{n} devices down', { n: o.devices_total - o.devices_up }), href: '#/devices' })
     if (wh.data?.poor) l.push({ txt: t('{n} clients with a poor Wi-Fi connection', { n: wh.data.poor }), href: '#/clients' })
     return l
@@ -59,7 +59,7 @@
 <div class="head"><h1>{t('Overview')}</h1><span class="muted">{app.range === 'live' ? t('Last 5 minutes') : t('Last {range}', { range: app.range })}</span></div>
 
 {#if o?.learning_until}<div class="infobox" style="margin-bottom:12px">{t('mtmon is re-learning normal traffic until {time}. Spikes and recurring-traffic findings are recorded as info until then, so there are no false alarms.', { time: datetime(o.learning_until) })}{#if o.learning_reason} <b>{o.learning_reason.startsWith('update ') ? t('Reason: update to {v}', { v: o.learning_reason.slice(7) }) : o.learning_reason === 'data reset' ? t('Reason: data reset') : t('Reason: baselines reset')}</b>{/if}</div>{/if}
-{#if o}<div class="card card-b" style="margin-bottom:12px;display:flex;gap:14px;flex-wrap:wrap;align-items:center"><b style="color:{problems.length ? 'var(--bad)' : 'inherit'}">{problems.length ? t('{n} problems', { n: problems.length }) : t('Everything OK')}</b>{#each problems as p}<a href={p.href}>{p.txt}</a>{/each}{#if wh.data?.poor}<span class="muted" title={t('Score 0-100 per Wi-Fi client: signal, weak readings, roams per hour and link rate each cost points. Poor means below {n}.', { n: wh.data.poor_below })}>(i)</span>{/if}</div>{/if}
+{#if o}<div class="card card-b" style="margin-bottom:12px;display:flex;gap:14px;flex-wrap:wrap;align-items:center"><b style="color:{problems.length ? 'var(--bad)' : 'inherit'}">{problems.length ? tn('{n} problem', '{n} problems', problems.length) : t('Everything OK')}</b>{#each problems as p}<a href={p.href}>{p.txt}</a>{/each}{#if o.alerts_info}<a class="muted" href="#/alerts">{tn('{n} note', '{n} notes', o.alerts_info)}</a>{/if}{#if wh.data?.poor}<span class="muted" title={t('Score 0-100 per Wi-Fi client: signal, weak readings, roams per hour and link rate each cost points. Poor means below {n}.', { n: wh.data.poor_below })}>(i)</span>{/if}</div>{/if}
 {#if d.error}<div class="warnbox">{t('Could not load data: {err}', { err: tr(d.error) })}</div>{/if}
 
 <div class="grid g6 kpis">
@@ -68,7 +68,7 @@
   <div class="card card-b kpi"><div class="l">{t('Download')}</div><div class="v num" style="color:var(--down)">{o ? bytes(o.bytes_down) : '—'}</div><div class="l">{t('now {rate}', { rate: bps(app.live.down_bps) })}{#if dDown} <span class="dl {dDown.cls}" title={t('vs. the previous period')}>{dDown.txt}</span>{/if}</div><Spark points={sparkDown} color="var(--down)" /></div>
   <div class="card card-b kpi"><div class="l">{t('Upload')}</div><div class="v num" style="color:var(--up)">{o ? bytes(o.bytes_up) : '—'}</div><div class="l">{t('now {rate}', { rate: bps(app.live.up_bps) })}{#if dUp} <span class="dl {dUp.cls}" title={t('vs. the previous period')}>{dUp.txt}</span>{/if}</div><Spark points={sparkUp} color="var(--up)" /></div>
   <div class="card card-b kpi"><div class="l">{t('Flows')}</div><div class="v num">{o ? num(o.flows) : '—'}</div><div class="l">{app.live.flows_ps ? app.live.flows_ps.toFixed(0) + ' / s' : t('idle')}{#if dFlows} <span class="dl {dFlows.cls}" title={t('vs. the previous period')}>{dFlows.txt}</span>{/if}</div></div>
-  <a class="card card-b kpi" href="#/alerts" style="color:inherit;text-decoration:none"><div class="l">{t('Open alerts')}</div><div class="v num" style="color:{o?.alerts_open ? 'var(--bad)' : 'inherit'}">{o ? o.alerts_open : '—'}</div><div class="l">{t('view alerts →')}</div></a>
+  <a class="card card-b kpi" href="#/alerts" style="color:inherit;text-decoration:none"><div class="l">{t('Open warnings')}</div><div class="v num" style="color:{o?.alerts_open ? 'var(--bad)' : 'inherit'}">{o ? o.alerts_open : '—'}</div><div class="l">{t('view alerts →')}</div></a>
 </div>
 
 <div class="card" style="margin-top:16px">

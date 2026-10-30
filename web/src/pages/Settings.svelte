@@ -234,7 +234,7 @@
 
 <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Time zone')}</h2></div>
   <table><tbody>
-    <tr><td>{t('Zone for all clock times')}<div class="muted" style="font-size:12px">{t('Speed-test start time and window, quiet hours and the times in alert texts use this zone. The zone of the browser is stored on first login; a change applies after a restart.')}</div></td><td class="r">
+    <tr><td>{t('Zone for all clock times')}<div class="muted" style="font-size:12px">{t('Speed-test start time and window, quiet hours and the times in alert texts use this zone. The zone of the browser is stored on every login as long as no zone is set; a change applies after a restart.')}</div></td><td class="r">
       <input class="input sm" list="tzlist" bind:value={tzInput} placeholder={tz?.set ? "Europe/Berlin" : t("not set")} />
       <datalist id="tzlist">{#each (Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : []) as z}<option value={z}></option>{/each}</datalist>
       <button class="btn sm" disabled={!tzInput || tzInput === tz?.configured} onclick={() => saveTz(tzInput)}>{t('Save')}</button>

@@ -108,7 +108,7 @@
         </section>
         {#if s.steps.length || s.commands}
           <section class="fix">
-            <details open={s.severity === 'warning'}>
+            <details open>
               <summary>{t('What to do')} · {t('How to fix')}</summary>
               {#if s.steps.length}<ol class="steps">{#each s.steps as st}<li>{tr(st)}</li>{/each}</ol>{/if}
               {#if s.commands}
