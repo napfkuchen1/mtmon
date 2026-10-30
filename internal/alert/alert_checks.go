@@ -130,7 +130,9 @@ func (e *Engine) scanMsg(s store.ScanSuspect) string {
 // spike raises the traffic-spike alert with the client and destination that cause it. A spike caused by an
 // ignored client (backup, scanner) is dropped.
 func (e *Engine) spike(snap live.Snapshot, cur, base float64) {
-	msg := fmt.Sprintf("Traffic spike: %.1f Mbit/s (baseline %.1f)", cur/1e6, base/1e6)
+	key := "Traffic spike: {cur} Mbit/s (baseline {base})"
+	params := map[string]string{"cur": fmt.Sprintf("%.1f", cur/1e6), "base": fmt.Sprintf("%.1f", base/1e6)}
+	var msg string // notes after the base text
 	sev, subject := "warning", "total"
 	if len(snap.Clients) > 0 {
 		top := snap.Clients[0]
@@ -138,7 +140,8 @@ func (e *Engine) spike(snap live.Snapshot, cur, base float64) {
 			return
 		}
 		r := (top.UpBps + top.DownBps) / 1e6
-		msg += fmt.Sprintf(" – mostly %s (%.1f Mbit/s)", e.who(top.Key), r)
+		key += " – mostly {who} ({rate} Mbit/s)"
+		params["who"], params["rate"] = e.who(top.Key), fmt.Sprintf("%.1f", r)
 		subject = top.Key
 		if r*1e6 >= 0.8*cur && e.knownClient(top.Key) {
 			sev = "info" // one long-known device (backup, update, stream) explains almost everything: worth a note, not a warning
@@ -168,7 +171,7 @@ func (e *Engine) spike(snap live.Snapshot, cur, base float64) {
 			msg += fmt.Sprintf(" – recurring: the same client had a spike on %d earlier days around %s, probably scheduled (speed test, backup, update)", n, at)
 		}
 	}
-	e.Raise("traffic_spike", subject, sev, msg, time.Hour)
+	e.RaiseP("traffic_spike", subject, sev, key, params, msg, time.Hour)
 }
 
 // knownClient: the client was first seen more than 24 h ago (a new device doing a lot of traffic stays a warning).

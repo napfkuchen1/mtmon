@@ -12,6 +12,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ### Changed
 - The overview status line and the "Open warnings" card count only warnings and critical alerts; info notes show as a small "n notes" link, so one warning no longer reads as "9 open alerts". /metrics gets `mtmon_alerts_open_info`.
+- Alerts can now carry a message key with parameters (first: traffic spikes); the Alerts page renders them in the language you use, old alerts keep their stored text.
 
 ### Fixed
 - No more false "imaginary DNS server" warnings for addresses a managed router owns itself (LAN, link-local, bridge addresses), and old sightings of them disappear at the next advice run.

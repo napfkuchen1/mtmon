@@ -35,6 +35,17 @@ export function tn(one, many, n, vars) {
   return t(n === 1 ? one : many, { n, ...vars })
 }
 
+// Alert text: an alert with a message key is rendered from key + params in the viewer's language; the notes after
+// the base text (stored in English behind it) are translated segment by segment. Old alerts and unknown keys show tr(msg).
+export function trAlert(a) {
+  if (lang !== 'de' || !a.msgkey || !a.params) return tr(a.msg)
+  const en = fill(a.msgkey, a.params)
+  if (!a.msg.startsWith(en)) return tr(a.msg)
+  const base = de[a.msgkey] ?? srv[a.msgkey] ?? tr(a.msgkey)
+  const tail = a.msg.slice(en.length)
+  return fill(base, a.params) + (tail ? tail.split(' – ').map(tr).join(' – ') : '')
+}
+
 // Backend strings: exact match first, then templates such as "Enabled logging on {n} firewall rules".
 let tpl = null
 function templates() {

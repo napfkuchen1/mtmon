@@ -81,6 +81,22 @@ func (e *Engine) SetDelays(group, reboot time.Duration) {
 
 // Raise stores and delivers an alert unless the same kind|subject fired within cooldown.
 func (e *Engine) Raise(kind, subject, severity, msg string, cooldown time.Duration) bool {
+	return e.raise(kind, subject, severity, msg, "", nil, cooldown)
+}
+
+// RaiseP raises an alert from a message key (the English template with {name} placeholders) and its parameters.
+// The text is stored in English as well (notifications, /metrics); the UI renders key + params in the viewer's language.
+// tail is English text that follows the base (' – note' segments); it is translated separately. Notes the engine appends later (maintenance, learning, WAN side effect) follow the base text and are translated separately.
+func (e *Engine) RaiseP(kind, subject, severity, key string, params map[string]string, tail string, cooldown time.Duration) bool {
+	kv := make([]string, 0, 2*len(params))
+	for k, v := range params {
+		kv = append(kv, "{"+k+"}", v)
+	}
+	msg := strings.NewReplacer(kv...).Replace(key) // one pass: a value that looks like a placeholder stays as it is
+	return e.raise(kind, subject, severity, msg+tail, key, params, cooldown)
+}
+
+func (e *Engine) raise(kind, subject, severity, msg, key string, params map[string]string, cooldown time.Duration) bool {
 	if kind == "device_offline" || kind == "iface_down" || kind == "iface_up" {
 		if e.inMaintenance(kind, subject) {
 			severity = "info"
@@ -91,20 +107,20 @@ func (e *Engine) Raise(kind, subject, severity, msg string, cooldown time.Durati
 		severity = "info"
 		msg += " – learning: normal traffic is being re-learned"
 	}
-	key := kind + "|" + subject
+	lastKey := kind + "|" + subject
 	e.mu.Lock()
-	if t, ok := e.last[key]; ok && time.Since(t) < cooldown {
+	if t, ok := e.last[lastKey]; ok && time.Since(t) < cooldown {
 		e.mu.Unlock()
 		return false
 	}
-	e.last[key] = time.Now()
+	e.last[lastKey] = time.Now()
 	if (kind == "traffic_spike" || kind == "port_scan" || kind == "rogue_dns") && len(e.wan) > 0 {
 		msg += " – a WAN link is down right now, this is probably a side effect"
 	} else if (kind == "traffic_spike" || kind == "port_scan" || kind == "rogue_dns") && !e.lastWAN.IsZero() && time.Since(e.lastWAN) < 10*time.Minute {
 		msg += fmt.Sprintf(" – a WAN link flapped %s ago, this may be a side effect", fmtDur(time.Since(e.lastWAN)))
 	}
 	e.mu.Unlock()
-	a := store.Alert{TS: time.Now().Unix(), Kind: kind, Subject: subject, Severity: severity, Msg: msg}
+	a := store.Alert{TS: time.Now().Unix(), Kind: kind, Subject: subject, Severity: severity, Msg: msg, MsgKey: key, Params: params}
 	id, err := e.St.AddAlert(a)
 	if err != nil {
 		e.Log.Error("store alert", "err", err)

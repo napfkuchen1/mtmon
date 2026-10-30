@@ -163,10 +163,20 @@ type Alert struct {
 	Severity string `json:"severity"`
 	Msg      string `json:"msg"`
 	Acked    bool   `json:"acked"`
+	// MsgKey is the English template of the message and Params its values; the UI renders the text from them in
+	// the viewer's language. Msg keeps the English text (notifications, /metrics, old clients). Both empty for old alerts.
+	MsgKey string            `json:"msgkey,omitempty"`
+	Params map[string]string `json:"params,omitempty"`
 }
 
 func (s *Store) AddAlert(a Alert) (int64, error) {
-	r, err := s.DB.Exec(`INSERT INTO alerts(ts,kind,subject,severity,msg) VALUES(?,?,?,?,?)`, a.TS, a.Kind, a.Subject, a.Severity, a.Msg)
+	params := ""
+	if len(a.Params) > 0 {
+		if b, err := json.Marshal(a.Params); err == nil {
+			params = string(b)
+		}
+	}
+	r, err := s.DB.Exec(`INSERT INTO alerts(ts,kind,subject,severity,msg,msgkey,params) VALUES(?,?,?,?,?,?,?)`, a.TS, a.Kind, a.Subject, a.Severity, a.Msg, a.MsgKey, params)
 	if err != nil {
 		return 0, err
 	}
@@ -174,7 +184,7 @@ func (s *Store) AddAlert(a Alert) (int64, error) {
 }
 
 func (s *Store) Alerts(limit int) ([]Alert, error) {
-	rows, err := s.DB.Query(`SELECT id,ts,kind,subject,severity,msg,acked FROM alerts ORDER BY ts DESC LIMIT ?`, limit)
+	rows, err := s.DB.Query(`SELECT id,ts,kind,subject,severity,msg,acked,msgkey,params FROM alerts ORDER BY ts DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -183,8 +193,10 @@ func (s *Store) Alerts(limit int) ([]Alert, error) {
 	for rows.Next() {
 		var a Alert
 		var ack int
-		rows.Scan(&a.ID, &a.TS, &a.Kind, &a.Subject, &a.Severity, &a.Msg, &ack)
+		var params string
+		rows.Scan(&a.ID, &a.TS, &a.Kind, &a.Subject, &a.Severity, &a.Msg, &ack, &a.MsgKey, &params)
 		a.Acked = ack == 1
+		a.Params = alertParams(params)
 		out = append(out, a)
 	}
 	return out, nil
