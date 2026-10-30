@@ -2,6 +2,9 @@ package alert
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -290,11 +293,26 @@ func (e *Engine) watchChecks() {
 	}
 }
 
+// SignWebhook returns the X-Mtmon-Signature value for body ("sha256=<hex HMAC>"), or "" when no secret is set.
+func SignWebhook(secret string, body []byte) string {
+	if secret == "" {
+		return ""
+	}
+	m := hmac.New(sha256.New, []byte(secret))
+	m.Write(body)
+	return "sha256=" + hex.EncodeToString(m.Sum(nil))
+}
+
 func (e *Engine) deliver(a store.Alert) {
 	text := fmt.Sprintf("[%s] %s", strings.ToUpper(a.Severity), a.Msg)
 	if u := e.Cfg.Webhook; u != "" {
 		b, _ := json.Marshal(a)
-		if resp, err := e.hc.Post(u, "application/json", bytes.NewReader(b)); err == nil {
+		req, _ := http.NewRequest("POST", u, bytes.NewReader(b))
+		req.Header.Set("Content-Type", "application/json")
+		if sig := SignWebhook(e.Cfg.WebhookSecret, b); sig != "" {
+			req.Header.Set("X-Mtmon-Signature", sig)
+		}
+		if resp, err := e.hc.Do(req); err == nil {
 			resp.Body.Close()
 		} else {
 			e.Log.Warn("webhook failed", "err", err)
