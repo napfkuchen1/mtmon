@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"golang.org/x/crypto/blake2b"
 	"net/http"
@@ -165,7 +166,7 @@ func (f *fakeGH) mgr(t *testing.T, cur string, mod ...func(*Options)) (*Manager,
 	u, _ := url.Parse(f.srv.URL)
 	restarted := make(chan struct{}, 1)
 	o := Options{Repo: "o/r", API: f.srv.URL, Current: cur, Dir: filepath.Join(t.TempDir(), "update"), Meta: &memKV{},
-		PubKey: testPubB64(), ExtraHosts: []string{u.Host}, ExitDelay: 10 * time.Millisecond, OnRestart: func() { restarted <- struct{}{} }}
+		PubKey: testPubB64(), ExtraHosts: []string{u.Host}, ExitDelay: 10 * time.Millisecond, OnRestart: func() { restarted <- struct{}{} }, Soak: time.Second}
 	for _, m := range mod {
 		m(&o)
 	}
@@ -685,5 +686,66 @@ func TestApplyRejectsMissingOrBadSignature(t *testing.T) {
 			default:
 			}
 		})
+	}
+}
+
+// #189: a release younger than the soak time is not installed automatically, an older one is.
+func TestAutoUpdateSoak(t *testing.T) {
+	f := newFake(t, "v0.7.0", mkTar(t, tarEntry{name: "mtmon/mtmon", body: script("v9.9.9")}))
+	m, _ := f.mgr(t, "v0.6.0")
+	m.o.Soak = 24 * time.Hour
+	pub := time.Date(2026, 10, 1, 10, 0, 0, 0, time.UTC) // the fake publishes at this time
+	m.SetMode(ModeAuto)
+	m.o.Now = func() time.Time { return time.Date(2026, 10, 2, 3, 30, 0, 0, time.Local) }
+	if pub.Add(24 * time.Hour).Before(m.o.Now()) {
+		t.Skip("local zone puts the night after the soak time")
+	}
+	m.Check(context.Background(), true)
+	if want := pub.Add(24 * time.Hour).Unix(); m.Status().AutoAfter != want {
+		t.Fatalf("auto_after %d, want %d", m.Status().AutoAfter, want)
+	}
+	m.maybeAuto(context.Background())
+	time.Sleep(50 * time.Millisecond)
+	if m.Status().Apply.State != StateIdle {
+		t.Fatal("installed before the soak time")
+	}
+	m.o.Now = func() time.Time { return time.Date(2026, 10, 3, 3, 30, 0, 0, time.Local) }
+	m.maybeAuto(context.Background())
+	waitState(t, m, StateFailed) // the fake binary fails verification: it was started
+}
+
+// #189: the first failed check after start stays quiet, the retry decides.
+func TestFirstCheckErrorQuietUntilRetry(t *testing.T) {
+	m, _ := New(Options{Repo: "o/r", API: "http://127.0.0.1:1", Current: "v0.6.0", ExtraHosts: []string{"127.0.0.1:1"},
+		Meta: &memKV{}, FirstCheck: time.Millisecond, RetryCheck: 50 * time.Millisecond})
+	m.SetMode(ModeNotify)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go m.Run(ctx)
+	time.Sleep(25 * time.Millisecond)
+	if m.failed() == false || m.Status().LastError != "" {
+		t.Fatalf("after the first failure the error must be hidden: %+v", m.Status())
+	}
+	time.Sleep(150 * time.Millisecond)
+	if m.Status().LastError == "" {
+		t.Fatal("error must show after the retry failed too")
+	}
+}
+
+// #189: unhealthy for RollbackAfter -> restart so the helper restores the previous binary.
+func TestUnhealthyUpdateRestartsForRollback(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "confirm-pending"), []byte("version=v0.7.0\n"), 0o600)
+	restarted := make(chan struct{}, 1)
+	m, _ := New(Options{Dir: dir, Current: "v0.7.0", Confirm: time.Millisecond, RollbackAfter: 30 * time.Millisecond,
+		Health: func() error { return errors.New("db closed") }, OnRestart: func() { restarted <- struct{}{} }})
+	go m.confirmLoop(context.Background())
+	select {
+	case <-restarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("no restart for the rollback")
+	}
+	if !isFile(filepath.Join(dir, "confirm-pending")) {
+		t.Fatal("the marker must stay so the helper rolls back")
 	}
 }

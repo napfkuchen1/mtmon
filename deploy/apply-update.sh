@@ -117,7 +117,7 @@ if [ -e "$CONFIRM" ]; then
   if [ -f "$PREV" ] && [ ! -L "$PREV" ]; then
     if atomic_install "$PREV"; then
       rm -f "$CONFIRM"
-      record_rollback "${failed:-unknown}" "mtmon ${failed:-the new version} did not become healthy within 60 s after the update; the previous version was restored"
+      record_rollback "${failed:-unknown}" "mtmon ${failed:-the new version} did not become healthy within 5 min after the update; the previous version was restored"
       log err "ROLLBACK: mtmon ${failed:-new version} never became healthy - restored the previous binary from $PREV"
     else
       log err "ROLLBACK FAILED: could not restore $PREV to $BIN"

@@ -43,6 +43,10 @@ const (
 	maxExtract     = 150 << 20 // decompressed archive stream
 	MaxNotes       = 6000
 	ConfirmAfter   = 60 * time.Second
+	RollbackAfter  = 5 * time.Minute // unhealthy for this long after an update -> restart into the rollback
+	SoakTime       = 24 * time.Hour  // auto-install only releases that have been out this long
+	FirstCheck     = 2 * time.Minute // wait after start before the first check (network and DNS up)
+	RetryCheck     = 5 * time.Minute // one retry after a failed first check
 	ExitDelay      = time.Second
 	ExitCode       = 75 // EX_TEMPFAIL: non-zero so Restart=on-failure restarts the unit
 
@@ -98,7 +102,14 @@ type Options struct {
 	Now       func() time.Time
 	Log       *slog.Logger
 	Confirm   time.Duration // uptime before the post-swap health check (default 60 s)
-	ExitDelay time.Duration
+	// RollbackAfter: an update that is still unhealthy this long after the start is rolled back (default 5 min).
+	RollbackAfter time.Duration
+	// Soak: age a release needs before it is installed automatically (default 24 h); FirstCheck/RetryCheck: delays
+	// of the first update check after start and of its single retry.
+	Soak, FirstCheck, RetryCheck time.Duration
+	// PreRestart runs before the restart that installs an update (DB backup); a failure is logged, not fatal.
+	PreRestart func() error
+	ExitDelay  time.Duration
 }
 
 // Manager holds update state.
@@ -111,6 +122,8 @@ type Manager struct {
 	checkedAt time.Time
 	attemptAt time.Time
 	lastErr   string
+	fails     int  // consecutive failed checks
+	quiet     bool // startup phase: a failed check is shown only after its retry
 	apply     ApplyStatus
 	started   time.Time
 }
@@ -165,6 +178,7 @@ type Status struct {
 	Pending     bool        `json:"confirm_pending"`
 	Apply       ApplyStatus `json:"apply"`
 	LastRollbck *Rollback   `json:"last_rollback"`
+	AutoAfter   int64       `json:"auto_after,omitempty"` // unix time before which the release is not installed automatically (soak)
 }
 
 // New creates a Manager. It performs no network access.
@@ -188,13 +202,25 @@ func New(o Options) (*Manager, error) {
 	if o.Confirm == 0 {
 		o.Confirm = ConfirmAfter
 	}
+	if o.RollbackAfter == 0 {
+		o.RollbackAfter = RollbackAfter
+	}
+	if o.Soak == 0 {
+		o.Soak = SoakTime
+	}
+	if o.FirstCheck == 0 {
+		o.FirstCheck = FirstCheck
+	}
+	if o.RetryCheck == 0 {
+		o.RetryCheck = RetryCheck
+	}
 	if o.ExitDelay == 0 {
 		o.ExitDelay = ExitDelay
 	}
 	if o.OnRestart == nil {
 		o.OnRestart = func() { os.Exit(ExitCode) }
 	}
-	m := &Manager{o: o, apply: ApplyStatus{State: StateIdle}, started: o.Now()}
+	m := &Manager{o: o, apply: ApplyStatus{State: StateIdle}, started: o.Now(), quiet: true}
 	m.client = o.Client
 	if m.client == nil {
 		m.client = &http.Client{}
@@ -307,6 +333,9 @@ func (m *Manager) Status() Status {
 
 func (m *Manager) statusLocked() Status {
 	s := Status{Current: m.o.Current, Mode: m.Mode(), Hour: m.Hour(), Repo: m.o.Repo, LastError: m.lastErr, Apply: m.apply}
+	if m.quiet {
+		s.LastError = ""
+	}
 	cur, ok := ParseVersion(m.o.Current)
 	s.Comparable = ok
 	if m.rel != nil {
@@ -314,6 +343,9 @@ func (m *Manager) statusLocked() Status {
 		s.Notes = trimNotes(m.rel.Body)
 		s.HTMLURL = m.rel.HTMLURL
 		s.PublishedAt = m.rel.PublishedAt
+		if t, err := time.Parse(time.RFC3339, m.rel.PublishedAt); err == nil && s.Mode == ModeAuto {
+			s.AutoAfter = t.Add(m.o.Soak).Unix()
+		}
 		if lv, lok := ParseVersion(m.rel.Tag); lok && ok && Compare(lv, cur) > 0 {
 			s.Available = true
 		}
@@ -381,7 +413,11 @@ func readRollback(p string) *Rollback {
 // ---- check ----
 
 // Check queries GitHub for the latest release. Unless force is set a fresh cached result is reused.
-func (m *Manager) Check(ctx context.Context, force bool) Status {
+func (m *Manager) Check(ctx context.Context, force bool) Status { return m.check(ctx, force, true) }
+
+// check is Check; manual is false for the background checks, whose first failure after start stays quiet until
+// the retry also failed.
+func (m *Manager) check(ctx context.Context, force, manual bool) Status {
 	m.mu.Lock()
 	now := m.o.Now()
 	if !force {
@@ -401,9 +437,14 @@ func (m *Manager) Check(ctx context.Context, force bool) Status {
 	defer m.mu.Unlock()
 	if err != nil {
 		m.lastErr = err.Error()
+		m.fails++
+		if manual || m.fails >= 2 {
+			m.quiet = false
+		}
 		m.o.Log.Warn("update check failed", "err", err)
 	} else {
 		m.lastErr = ""
+		m.fails, m.quiet = 0, false
 		m.rel = rel
 		m.checkedAt = m.o.Now()
 	}
@@ -487,6 +528,11 @@ func (m *Manager) Apply(auto bool) error {
 		m.recordAttempt(rel.Tag, "staged")
 		m.setApply(ApplyStatus{State: StateRestarting, Version: rel.Tag, Message: "Restarting into " + rel.Tag})
 		m.o.Log.Info("update staged, restarting", "version", rel.Tag, "auto", auto)
+		if m.o.PreRestart != nil {
+			if err := m.o.PreRestart(); err != nil {
+				m.o.Log.Warn("backup before update failed", "err", err)
+			}
+		}
 		time.AfterFunc(m.o.ExitDelay, m.o.OnRestart)
 	}()
 	return nil
@@ -685,13 +731,26 @@ func (m *Manager) Run(ctx context.Context) {
 			return true
 		}
 	}
-	if !sleep(20 * time.Second) { // never delay startup
+	if !sleep(m.o.FirstCheck) { // never delay startup; the network may not be up yet
 		return
+	}
+	if mode := m.Mode(); mode != ModeOff {
+		cctx, cancel := context.WithTimeout(ctx, CheckTimeout+2*time.Second)
+		st := m.check(cctx, false, false)
+		cancel()
+		if st.LastError == "" && m.failed() { // one retry before an error is shown
+			if !sleep(m.o.RetryCheck) {
+				return
+			}
+			cctx, cancel := context.WithTimeout(ctx, CheckTimeout+2*time.Second)
+			m.check(cctx, true, false)
+			cancel()
+		}
 	}
 	for {
 		if mode := m.Mode(); mode != ModeOff {
 			cctx, cancel := context.WithTimeout(ctx, CheckTimeout+2*time.Second)
-			m.Check(cctx, false)
+			m.check(cctx, false, false)
 			cancel()
 			if mode == ModeAuto {
 				m.maybeAuto(ctx)
@@ -704,6 +763,13 @@ func (m *Manager) Run(ctx context.Context) {
 }
 
 // inWindow reports whether t lies in the install window starting at hour (local time, one hour long).
+// failed reports whether the last check failed.
+func (m *Manager) failed() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.lastErr != ""
+}
+
 func inWindow(t time.Time, hour int) bool { return t.Hour() == hour }
 
 func (m *Manager) maybeAuto(ctx context.Context) {
@@ -722,6 +788,10 @@ func (m *Manager) maybeAuto(ctx context.Context) {
 	}
 	st := m.Status()
 	if !st.Available || !st.CanApply || st.Pending {
+		return
+	}
+	if st.AutoAfter > 0 && now.Unix() < st.AutoAfter { // soak: a quick follow-up release resets the clock
+		m.o.Log.Info("auto-update waits for the soak time", "release", st.Latest, "after", time.Unix(st.AutoAfter, 0))
 		return
 	}
 	if m.o.Busy != nil {
@@ -757,6 +827,7 @@ func (m *Manager) confirmLoop(ctx context.Context) {
 	if m.o.Confirm < retry {
 		retry = m.o.Confirm
 	}
+	deadline := m.o.Now().Add(m.o.RollbackAfter)
 	for {
 		if m.o.Health == nil || m.o.Health() == nil {
 			os.Remove(marker)
@@ -765,6 +836,11 @@ func (m *Manager) confirmLoop(ctx context.Context) {
 			return
 		}
 		m.o.Log.Warn("post-update self-check failed, retrying")
+		if m.o.Now().After(deadline) { // still unhealthy: restart, the helper restores the previous binary (marker is still there)
+			m.o.Log.Error("post-update self-check failed for too long, rolling back", "version", m.o.Current)
+			m.o.OnRestart()
+			return
+		}
 		select {
 		case <-ctx.Done():
 			return

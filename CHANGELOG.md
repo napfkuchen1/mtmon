@@ -16,12 +16,15 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Suggestion "router sends debug logs": shows when a device floods mtmon with debug lines and gives the commands to exclude them.
 - Related events of one client are now one alert that is updated in place (count, first/last time, last reason). After 15 minutes of quiet it closes with a summary and one closing notification. First story: a client that keeps disconnecting, including the failed DHCP offers after its reconnects.
 - Alerts page: any alert type can be turned down to info ("Make this type info") and restored again.
+- Automatic updates wait until a release is 24 hours old (a quick follow-up release resets the clock); Settings shows the earliest install time (#189).
 
 ### Changed
 - The overview status line and the "Open warnings" card count only warnings and critical alerts; info notes show as a small "n notes" link, so one warning no longer reads as "9 open alerts". /metrics gets `mtmon_alerts_open_info`.
 - Alerts can now carry a message key with parameters (first: traffic spikes); the Alerts page renders them in the language you use, old alerts keep their stored text.
 - Planned events: a router scheduler entry that runs rarely (at least hourly interval, with a clock start time) now also marks link-down and configuration-change alerts as info ("planned: scheduler NAME"). Watchdog jobs that run every few minutes never count as planned.
 - A Wi-Fi disconnect burst now names the access point (not the CAPsMAN controller) as the subject, and says when a reject rule for the client in the access-list kept matching during the burst – a likely reject loop – with the ways out (keep, signal-range on the unwanted AP, remove the pin) (#211).
+- The first update check runs 2 minutes after start and is retried once after 5 minutes; an error is shown only if the retry fails too (#189).
+- After an update mtmon checks HTTP, the database and the data sources; if it is still unhealthy after 5 minutes it restarts into the previous version, and one update_failed warning is raised. A database backup is taken before the restart (#189).
 
 ### Fixed
 - No more false "imaginary DNS server" warnings for addresses a managed router owns itself (LAN, link-local, bridge addresses), and old sightings of them disappear at the next advice run.
