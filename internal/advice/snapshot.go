@@ -83,6 +83,9 @@ type Caps struct {
 	WwwSSL                     bool
 	WwwSSLAddr                 string
 	Cleartext                  []string // enabled telnet / ftp services
+	OpenMgmt                   []string // enabled management services open to every address
+	NTPOff                     bool     // NTP client disabled
+	Role                       string   // router | ap | switch (suggested by the probe)
 	Filter                     []FilterRule
 	DNSRedirectUDP             bool // active dst-nat rule sends UDP/53 to the router (rule existence counts, not its packet counter)
 	DNSRedirectTCP             bool
