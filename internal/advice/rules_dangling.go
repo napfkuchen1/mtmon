@@ -23,6 +23,7 @@ func ruleDanglingIfaces(s Snapshot) ([]Suggestion, string) {
 		}
 		sev, blocking := SevTip, 0
 		var ev, cmds []string
+		wifiRule := false
 		for i, r := range d.Caps.Dangling {
 			what := r.Menu + " " + r.Field + "=" + r.Value
 			if r.Comment != "" {
@@ -37,9 +38,12 @@ func ruleDanglingIfaces(s Snapshot) ([]Suggestion, string) {
 			if !r.Disabled && (r.Action == "drop" || r.Action == "reject") {
 				blocking++
 			}
+			if strings.Contains(r.Menu, "/wifi") || strings.Contains(r.Menu, "/wireless") || strings.Contains(r.Menu, "capsman") {
+				wifiRule = true
+			}
 			if i < maxDanglingEvidence {
 				ev = append(ev, what)
-				cmds = append(cmds, fmt.Sprintf("%s remove [find .id=%s]", r.Menu, r.ID))
+				cmds = append(cmds, fmt.Sprintf("%s set [find .id=%s] %s=<current name>", r.Menu, r.ID, r.Field), fmt.Sprintf("# only if the rule is no longer wanted: %s remove [find .id=%s]", r.Menu, r.ID))
 			}
 		}
 		if blocking > 0 {
@@ -53,18 +57,22 @@ func ruleDanglingIfaces(s Snapshot) ([]Suggestion, string) {
 		if blocking > 0 {
 			why += fmt.Sprintf(" %d of them are drop/reject rules that were meant to block something and now do nothing.", blocking)
 		}
+		steps := []string{
+			"Open each listed rule and set the current interface name (or interface list) that it was meant for.",
+			"If the rule is no longer needed, remove it.",
+			"For Wi-Fi access-list entries on CAP interfaces: after a re-provisioning the interface gets a new ID, so check them again.",
+		}
+		if wifiRule {
+			steps = append(steps, "If CAPsMAN provisioning uses action=create-dynamic-enabled, every CAP reconnect re-creates the interfaces with new IDs, so such rules break again after each reboot or power cut. The durable fix is action=create-enabled in /interface wifi provisioning (static interfaces); that re-provisions the radios once, which causes a short Wi-Fi drop.")
+		}
 		out = append(out, Suggestion{
 			Subject: d.Name, Severity: sev, Category: CatHygiene, Link: "device/" + d.Name, Confidence: "high",
 			Title:    fmt.Sprintf("%d rules on %s point to deleted interfaces", len(d.Caps.Dangling), d.Name),
 			Why:      why,
 			Evidence: ev,
-			Steps: []string{
-				"Open each listed rule and set the current interface name (or interface list) that it was meant for.",
-				"If the rule is no longer needed, remove it.",
-				"For Wi-Fi access-list entries on CAP interfaces: after a re-provisioning the interface gets a new ID, so check them again.",
-			},
+			Steps:    steps,
 			Commands: strings.Join(cmds, "\n"),
-			Limits:   "The commands remove the rule. If the rule is still wanted, set the interface name in it instead. Rows that RouterOS creates dynamically are ignored.",
+			Limits:   "Replace <current name> with the interface the rule was meant for; the remove line is only for rules that are not needed any more. Rows that RouterOS creates dynamically are ignored.",
 		})
 	}
 	if !read {

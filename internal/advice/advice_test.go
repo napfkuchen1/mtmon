@@ -739,7 +739,7 @@ func TestDanglingInterfaceRefs(t *testing.T) {
 	expect(t, d, "dangling-ifaces", 0)
 	d.Devs[0].Caps.Dangling = []DanglingRef{{Menu: "/ip/firewall/nat", ID: "*5", Field: "out-interface", Value: "*9", Action: "masquerade"}}
 	res := find(Evaluate(d), "dangling-ifaces")
-	if len(res) != 1 || res[0].Severity != SevTip || !strings.Contains(res[0].Commands, "/ip/firewall/nat remove [find .id=*5]") {
+	if len(res) != 1 || res[0].Severity != SevTip || !strings.Contains(res[0].Commands, "/ip/firewall/nat set [find .id=*5] out-interface=<current name>") {
 		t.Fatalf("masquerade row: %+v", res)
 	}
 	d.Devs[0].Caps.Dangling = append(d.Devs[0].Caps.Dangling, DanglingRef{Menu: "/interface/wifi/access-list", ID: "*2", Field: "interface", Value: "*61", Action: "reject", Comment: "keep off 2.4"})
