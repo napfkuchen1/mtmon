@@ -3,8 +3,19 @@
 const ROUTES = new Set(['overview', 'device', 'client', 'internet', 'firewall', 'suggestions'])
 const KEY = 'mtmon.collapsed.'
 
-function load(route) { try { return new Set(JSON.parse(localStorage.getItem(KEY + route) || '[]')) } catch { return new Set() } }
-function save(route, set) { try { localStorage.setItem(KEY + route, JSON.stringify([...set])) } catch {} }
+// Stored per page: { c: titles the viewer folded, o: titles the viewer opened although they start folded }.
+// Cards whose header says data-default="closed" start folded until the viewer opens them.
+function load(route) {
+  try {
+    const v = JSON.parse(localStorage.getItem(KEY + route) || '[]')
+    return Array.isArray(v) ? { c: new Set(v), o: new Set() } : { c: new Set(v.c || []), o: new Set(v.o || []) }
+  } catch { return { c: new Set(), o: new Set() } }
+}
+function save(route, st) { try { localStorage.setItem(KEY + route, JSON.stringify({ c: [...st.c], o: [...st.o] })) } catch {} }
+const isClosed = (h, st) => {
+  const t = titleOf(h)
+  return st.c.has(t) || (h.closest('.card-h')?.dataset.default === 'closed' && !st.o.has(t))
+}
 
 const titleOf = h => (h.textContent || '').trim().slice(0, 80)
 const heads = root => [...root.querySelectorAll('.card > .card-h h2')].filter(h => titleOf(h))
@@ -27,14 +38,14 @@ export function collapsible(node, route) {
         h.classList.add('foldable')
         h.setAttribute('role', 'button')
         h.tabIndex = 0
-        paint(h, closed.has(titleOf(h)))
+        paint(h, isClosed(h, closed))
       }
     }
   }
   const toggle = h => {
-    const set = load(r), t = titleOf(h), now = !set.has(t)
-    now ? set.add(t) : set.delete(t)
-    save(r, set)
+    const st = load(r), t = titleOf(h), now = !isClosed(h, st)
+    if (now) { st.c.add(t); st.o.delete(t) } else { st.c.delete(t); st.o.add(t) }
+    save(r, st)
     paint(h, now)
   }
   const click = e => {
@@ -46,9 +57,10 @@ export function collapsible(node, route) {
     if (h && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggle(h) }
   }
   const all = e => {
-    const set = e.detail === 'close' ? new Set(heads(node).map(titleOf)) : new Set()
-    save(r, set)
-    for (const h of heads(node)) paint(h, set.has(titleOf(h)))
+    const st = { c: new Set(), o: new Set() }
+    for (const h of heads(node)) (e.detail === 'close' ? st.c : st.o).add(titleOf(h))
+    save(r, st)
+    for (const h of heads(node)) paint(h, isClosed(h, st))
   }
   const mo = new MutationObserver(wire)
   mo.observe(node, { childList: true, subtree: true })

@@ -3,7 +3,9 @@
   import Empty from './Empty.svelte'
   import { bytes, num, countryName } from './format.js'
   import { t, tr, i18n } from './i18n.svelte.js'
-  let { rows = [], onpick = null, showFlows = false, mode = 'traffic', empty = null, emptyIcon = 'generic', emptyHref = '', emptyAction = '' } = $props()
+  let { rows = [], onpick = null, showFlows = false, mode = 'traffic', empty = null, emptyIcon = 'generic', emptyHref = '', emptyAction = '', limit = 8 } = $props()
+  let more = $state(false)
+  const shown = $derived(more ? rows : rows.slice(0, limit))
   const total = r => r.up + r.down + r.internal
   const max = $derived(rows.reduce((m, r) => Math.max(m, total(r)), 0) || 1)
 </script>
@@ -12,7 +14,7 @@
   <Empty compact icon={emptyIcon} title={empty ?? t('No traffic recorded in this range')} href={emptyHref} action={emptyAction} />
 {:else}
   <div class="list">
-    {#each rows as r, i (r.key + '|' + r.sub + '|' + i)}
+    {#each shown as r, i (r.key + '|' + r.sub + '|' + i)}
       <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
       <div class="row" class:click={!!onpick} role={onpick ? 'button' : undefined} tabindex={onpick ? 0 : undefined}
            onclick={() => onpick?.(r)} onkeydown={e => e.key === 'Enter' && onpick?.(r)}>
@@ -30,9 +32,11 @@
       </div>
     {/each}
   </div>
+  {#if rows.length > limit}<button class="btn sm moreb" onclick={() => (more = !more)}>{more ? t('Show fewer') : t('Show {n} more', { n: rows.length - limit })}</button>{/if}
 {/if}
 
 <style>
+  .moreb { margin: 8px 16px 12px; }
   .list { display: flex; flex-direction: column; }
   .row { padding: 10px 16px; border-bottom: 1px solid var(--border); }
   .row:last-child { border-bottom: 0; }

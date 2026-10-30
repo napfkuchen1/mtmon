@@ -16,7 +16,7 @@
 
 {#if x && x.last}
   <a class="card sc" href="#/internet" style="margin-top:16px; display:block; color:inherit; text-decoration:none">
-    <div class="card-h"><h2>{t('Speed')}</h2><span class="muted" style="font-size:12px">{t('last test {when}', { when: ago(x.last.ts) })}</span></div>
+    <div class="card-h" data-default="closed" data-sum={bps(x.last.down_bps) + ' ↓ · ' + (lastUp ? bps(lastUp.up_bps) : '—') + ' ↑'}><h2>{t('Speed')}</h2><span class="muted" style="font-size:12px">{t('last test {when}', { when: ago(x.last.ts) })}</span></div>
     <div class="card-b grid g4" style="align-items:start">
       <div><div class="l muted">{t('Download')}</div><div class="v num">{bps(x.last.down_bps)}</div>
         {#if pct}<div class="l muted">{t('{p} % of the contracted speed', { p: pct })}</div>{/if}<Spark points={down} color="var(--down)" /></div>

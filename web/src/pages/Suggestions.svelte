@@ -96,12 +96,15 @@
         <section class="problem">
           <div class="lbl">{t('Problem')}</div>
           <h2>{tr(s.title)}</h2>
-          <p class="why">{tr(s.why)}</p>
-          {#if s.evidence.length}
-            <div class="lbl ev-l">{t('What we saw')}</div>
-            <ul class="ev">{#each s.evidence as e}<li>{tr(e)}</li>{/each}</ul>
-          {/if}
-          {#if s.limits}<div class="muted note">{t('Limits')}: {tr(s.limits)}</div>{/if}
+          <details class="whyd">
+            <summary>{t('Why and what we saw')}</summary>
+            <p class="why">{tr(s.why)}</p>
+            {#if s.evidence.length}
+              <div class="lbl ev-l">{t('What we saw')}</div>
+              <ul class="ev">{#each s.evidence as e}<li>{tr(e)}</li>{/each}</ul>
+            {/if}
+            {#if s.limits}<div class="muted note">{t('Limits')}: {tr(s.limits)}</div>{/if}
+          </details>
         </section>
         {#if s.steps.length || s.commands}
           <section class="fix">
@@ -159,6 +162,7 @@
   .problem { padding: 10px 18px 14px; }
   .fix { margin: 0 18px 14px; padding: 10px 14px; background: var(--accent-bg); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; }
   h2 { font-size: 16px; letter-spacing: -.005em; margin-top: 2px; }
+  .whyd > summary { cursor: pointer; color: var(--muted); margin: 6px 0; }
   .why { margin: 6px 0 10px; color: var(--muted); }
   .lbl { font-size: 11.5px; font-weight: 700; color: var(--sc); text-transform: uppercase; letter-spacing: .06em; }
   .lbl.ev-l { color: var(--muted); margin-bottom: 4px; }

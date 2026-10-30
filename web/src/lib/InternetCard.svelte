@@ -19,7 +19,8 @@
 
 {#if x}
   <div class="card" style="margin-top:16px">
-    <div class="card-h"><h2>{t('Internet')}</h2>
+    <div class="card-h" data-default={x.enabled && x.now.loss_pct < 5 ? 'closed' : undefined} data-health={!x.enabled || !x.window.sent ? undefined : cls(x.now.loss_pct, 5, 20)}
+      data-sum={x.enabled && x.window.sent ? (x.now.avg_ms ? x.now.avg_ms.toFixed(0) + ' ms' : '—') + ', ' + t('{p} % loss', { p: x.now.loss_pct.toFixed(0) }) : ''}><h2>{t('Internet')}</h2>
       <span class="muted" style="font-size:12px">{t('measured by mtmon: TCP connect to public resolvers every 30 s')}</span>
       <button class="sw" class:on={x.enabled} role="switch" aria-checked={x.enabled} aria-label={t('Internet probe')} onclick={toggle}></button></div>
     {#if !x.enabled}

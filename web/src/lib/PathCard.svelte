@@ -14,7 +14,7 @@
 </script>
 
 <div class="card path" style="margin-top:16px">
-  <div class="card-h"><h2>{t('Path')}</h2>
+  <div class="card-h" data-health={hops[p.data?.weakest]?.health} data-sum={hops[p.data?.weakest] ? tr(hops[p.data.weakest].title || hops[p.data.weakest].label || '') : ''}><h2>{t('Path')}</h2>
     {#if hosts.length}
       <select class="input" style="width:auto;max-width:60%" aria-label={t('Destination')} bind:value={dst}>
         <option value="">{t('Top destination')}</option>

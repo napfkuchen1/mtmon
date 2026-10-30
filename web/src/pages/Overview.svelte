@@ -72,7 +72,7 @@
 </div>
 
 <div class="card" style="margin-top:16px">
-  <div class="card-h"><h2>{t('Traffic')}</h2>
+  <div class="card-h" data-sum={o ? bytes(o.bytes_down) + ' ↓ / ' + bytes(o.bytes_up) + ' ↑' : ''}><h2>{t('Traffic')}</h2>
     <div class="legend"><span><i style="background:var(--down)"></i>{t('Download')}</span><span><i style="background:var(--up)"></i>{t('Upload')}</span></div>
   </div>
   <div class="card-b"><Chart {series} fmt={bps} {xfmt} height={220} empty={app.range === 'live' ? t('Waiting for live data…') : t('No traffic recorded in this range yet')} /></div>
@@ -84,9 +84,9 @@
 <SpeedCard />
 
 <div class="grid g2" style="margin-top:16px">
-  <div class="card"><div class="card-h"><h2>{t('Top clients')}</h2><a href="#/insights">{t('All →')}</a></div><TopList rows={o?.top_clients || []} onpick={pickClient} /></div>
-  <div class="card"><div class="card-h"><h2>{t('Top destinations')}</h2><a href="#/insights/hosts">{t('All →')}</a></div><TopList rows={o?.top_hosts || []} /></div>
-  <div class="card"><div class="card-h"><h2>{t('Top services')}</h2><a href="#/services">{t('All →')}</a></div><TopList rows={o?.top_services || []} /></div>
+  <div class="card"><div class="card-h" data-sum={o?.top_clients?.[0] ? tr(o.top_clients[0].label || o.top_clients[0].key) : ''}><h2>{t('Top clients')}</h2><a href="#/insights">{t('All →')}</a></div><TopList rows={o?.top_clients || []} onpick={pickClient} /></div>
+  <div class="card"><div class="card-h" data-sum={o?.top_hosts?.[0] ? tr(o.top_hosts[0].label || o.top_hosts[0].key) : ''}><h2>{t('Top destinations')}</h2><a href="#/insights/hosts">{t('All →')}</a></div><TopList rows={o?.top_hosts || []} /></div>
+  <div class="card"><div class="card-h" data-sum={o?.top_services?.[0] ? tr(o.top_services[0].label || o.top_services[0].key) : ''}><h2>{t('Top services')}</h2><a href="#/services">{t('All →')}</a></div><TopList rows={o?.top_services || []} /></div>
   <div class="card"><div class="card-h"><h2>{t('Top countries')}</h2><a href="#/insights/country">{t('All →')}</a></div>{#if o?.top_countries?.length}<WorldMap rows={o.top_countries} />{/if}<TopList rows={o?.top_countries || []} mode="country" empty={t('No GeoIP database configured (see Settings)')} emptyIcon="generic" emptyHref="#/settings" emptyAction={t('Set up in Settings')} /></div>
 </div>
 
