@@ -53,6 +53,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Event-log rules created by the setup wizard no longer match debug lines (DHCP packet dumps, WireGuard keepalives). mtmon also drops those lines on arrival unless "Store debug log lines" is switched on in Settings.
 - The scheduler time match was an hour off for daily jobs after a daylight-saving change since their start date.
 - The reason at the end of a "device unreachable" alert (timeout, refused, login) is now translated too. (#194)
+- Alerts for device updates, reboots, unreachable devices and WAN recovery are now shown in German on the Alerts page, also for old entries (#195).
 
 ## [0.20.7] - 2026-10-30
 
