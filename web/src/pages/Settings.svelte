@@ -11,6 +11,7 @@
   import NotifyCard from '../lib/NotifyCard.svelte'
   import AuditCard from '../lib/AuditCard.svelte'
   import SecurityCard from '../lib/SecurityCard.svelte'
+  import ViewerCard from '../lib/ViewerCard.svelte'
   import ResetDialog from '../lib/ResetDialog.svelte'
   let reset = $state(null) // null | 'data' | 'full'
   const sys = poll(() => api('/system'), 5000)
@@ -281,6 +282,8 @@
 <NotifyCard />
 
 <SecurityCard />
+
+<ViewerCard />
 
 <AuditCard />
 

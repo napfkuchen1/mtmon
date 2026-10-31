@@ -209,6 +209,10 @@ func (s *Server) auth(h http.HandlerFunc) http.HandlerFunc {
 			jerr(w, 401, "unauthorized")
 			return
 		}
+		if s.sess.roleOf(c.Value) == roleViewer && !viewerAllowed(r) {
+			jerr(w, 403, "not allowed for the viewer role")
+			return
+		}
 		// CSRF: state-changing requests must be same-origin JSON (SameSite=Strict cookie is the primary defence)
 		if r.Method != "GET" && r.Method != "HEAD" {
 			if !s.originOK(r) {
@@ -236,6 +240,13 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	var in struct{ User, Password, Code string }
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in); err != nil {
 		jerr(w, 400, "bad request")
+		return
+	}
+	if s.viewerLoginOK(in.User, in.Password) {
+		s.audit(in.User, sourceIP(r), "login.ok", "viewer")
+		http.SetCookie(w, &http.Cookie{Name: "mtmon_session", Value: s.sess.createRole(roleViewer), Path: "/", HttpOnly: true,
+			Secure: s.secureRequest(r), SameSite: http.SameSiteStrictMode, MaxAge: 12 * 3600})
+		jsonOut(w, map[string]string{"user": in.User, "role": roleViewer})
 		return
 	}
 	if s.Cfg.AdminHash == "" || in.User != s.Cfg.AdminUser || !CheckPassword(in.Password, s.Cfg.AdminHash) {
@@ -267,7 +278,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie("mtmon_session"); err == nil {
 		if s.sess.valid(c.Value) {
-			s.audit(s.Cfg.AdminUser, sourceIP(r), "logout", "")
+			s.audit(s.sessionUser(c.Value), sourceIP(r), "logout", "")
 		}
 		s.sess.drop(c.Value)
 	}
@@ -286,7 +297,11 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 		jsonOut(w, map[string]any{"user": nil}) // 200 so the login screen causes no console noise
 		return
 	}
-	jsonOut(w, map[string]any{"user": s.Cfg.AdminUser, "version": s.Version})
+	if s.sess.roleOf(c.Value) == roleViewer {
+		jsonOut(w, map[string]any{"user": s.St.GetMeta(metaViewerUser), "role": roleViewer, "version": s.Version})
+		return
+	}
+	jsonOut(w, map[string]any{"user": s.Cfg.AdminUser, "role": "admin", "version": s.Version})
 }
 
 // ---- data ----
