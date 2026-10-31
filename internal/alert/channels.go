@@ -29,21 +29,24 @@ type WebhookCh struct {
 	URL    string `json:"url"`
 	Secret string `json:"secret,omitempty"`
 	Quiet  Quiet  `json:"quiet"`
+	MinSev string `json:"min_sev,omitempty"`
 }
 
 type NtfyCh struct {
-	URL   string `json:"url"`
-	Quiet Quiet  `json:"quiet"`
+	URL    string `json:"url"`
+	Quiet  Quiet  `json:"quiet"`
+	MinSev string `json:"min_sev,omitempty"`
 }
 
 type SMTPCh struct {
-	Host  string `json:"host"`
-	Port  int    `json:"port"`
-	User  string `json:"user"`
-	Pass  string `json:"pass,omitempty"`
-	From  string `json:"from"`
-	To    string `json:"to"`
-	Quiet Quiet  `json:"quiet"`
+	Host   string `json:"host"`
+	Port   int    `json:"port"`
+	User   string `json:"user"`
+	Pass   string `json:"pass,omitempty"`
+	From   string `json:"from"`
+	To     string `json:"to"`
+	Quiet  Quiet  `json:"quiet"`
+	MinSev string `json:"min_sev,omitempty"`
 }
 
 // Channels are the settings of all notification channels.
@@ -139,6 +142,11 @@ func (e *Engine) SaveChannels(in Channels) error {
 			return err
 		}
 	}
+	for _, m := range []string{in.Webhook.MinSev, in.Ntfy.MinSev, in.SMTP.MinSev} {
+		if m != "" && m != "info" && m != "warning" && m != "critical" {
+			return fmt.Errorf("minimum severity must be info, warning or critical")
+		}
+	}
 	for _, u := range []string{in.Webhook.URL, in.Ntfy.URL} {
 		if u != "" && !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
 			return fmt.Errorf("URL must start with http:// or https://")
@@ -168,6 +176,17 @@ func (c Channels) enabled(name string) bool {
 		return c.SMTP.Host != "" && c.SMTP.To != ""
 	}
 	return false
+}
+
+// minSev is the lowest severity a channel gets (default info = all).
+func (c Channels) minSev(name string) string {
+	switch name {
+	case "webhook":
+		return c.Webhook.MinSev
+	case "ntfy":
+		return c.Ntfy.MinSev
+	}
+	return c.SMTP.MinSev
 }
 
 func (c Channels) quiet(name string) Quiet {
@@ -216,6 +235,9 @@ func (e *Engine) deliverAt(a store.Alert, now time.Time) {
 	for _, name := range ChannelNames {
 		if !c.enabled(name) {
 			continue
+		}
+		if sevRank[a.Severity] < sevRank[c.minSev(name)] {
+			continue // this channel only wants more serious alerts
 		}
 		if a.Severity != "critical" && c.quiet(name).Active(now) {
 			e.nmu.Lock()

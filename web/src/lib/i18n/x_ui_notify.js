@@ -20,4 +20,8 @@ export default {
   "Sender": "Absender",
   "Recipients (comma separated)": "Empfänger (kommagetrennt)",
   "Recipients": "Empfänger",
+  "Send from severity": "Senden ab Schweregrad",
+  "Info and above (all)": "Info und höher (alle)",
+  "Warning and above": "Warnung und höher",
+  "Critical only": "Nur kritisch",
 }

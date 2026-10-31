@@ -26,6 +26,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Read-only account (#192): a second login that sees everything operational but cannot change anything and does not see settings, audit log, tokens or 2FA. Managed under Settings.
 - `/metrics` has `mtmon_client_wifi_score` for clients with a poor Wi-Fi connection (worst 100), so Grafana or Prometheus can alert on it. (#191)
 - Baseline check: the API service enabled on an access point is shown as a tip (mtmon itself uses REST). (#190)
+- Each notification channel (webhook, ntfy, e-mail) can get a minimum severity, so a phone channel can be limited to critical alerts.
 
 ### Changed
 - The overview status line and the "Open warnings" card count only warnings and critical alerts; info notes show as a small "n notes" link, so one warning no longer reads as "9 open alerts". /metrics gets `mtmon_alerts_open_info`.
