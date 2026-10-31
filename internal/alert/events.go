@@ -75,27 +75,27 @@ func (e *Engine) LogEvent(ev store.LogEvent) {
 		if ev.Level == "critical" || hasTopic(ev.Topics, "critical") {
 			sev = "critical"
 		}
-		e.Raise("system_critical", dev, sev, fmt.Sprintf("%s logged an important event (%s): %s", dev, ev.Topics, msg), 10*time.Minute)
+		e.RaiseP("system_critical", dev, sev, "{d} logged an important event ({t})", map[string]string{"d": dev, "t": ev.Topics}, ": "+msg, 10*time.Minute)
 	case hasTopic(ev.Topics, "script") && (ev.Level == "error" || hasTopic(ev.Topics, "error")):
 		if m := reCLICmd.FindStringSubmatch(msg); m != nil { // a command typed in a session, not a failing script
 			why := strings.TrimSpace(strings.Replace(msg, m[0], "", 1))
-			e.Raise("cli_error", dev+"/"+m[1], "info", fmt.Sprintf("Command from %s@%s failed on %s: %s", m[1], m[2], dev, why), time.Hour)
+			e.RaiseP("cli_error", dev+"/"+m[1], "info", "Command from {u}@{h} failed on {d}", map[string]string{"u": m[1], "h": m[2], "d": dev}, ": "+why, time.Hour)
 			break
 		}
 		if reSessionScript.MatchString(msg) { // already reported as cli_error from the line that carries the command
 			break
 		}
-		e.Raise("script_error", dev, "warning", fmt.Sprintf("A script on %s failed: %s", dev, msg), time.Hour)
+		e.RaiseP("script_error", dev, "warning", "A script on {d} failed", map[string]string{"d": dev}, ": "+msg, time.Hour)
 	}
 	if m := reLoginFail.FindStringSubmatch(msg); m != nil && hasTopic(ev.Topics, "account") {
 		if e.burst("login|"+dev+"|"+m[2], 10*time.Minute, 5) {
-			e.Raise("login_failures", dev+"/"+m[2], "warning",
-				fmt.Sprintf("Repeated failed logins on %s from %s (last user %q via %s, 5 or more in 10 min)", dev, m[2], m[1], m[3]), 30*time.Minute)
+			e.RaiseP("login_failures", dev+"/"+m[2], "warning", "Repeated failed logins on {d} from {h} (last user {u} via {s}, 5 or more in 10 min)",
+				map[string]string{"d": dev, "h": m[2], "u": fmt.Sprintf("%q", m[1]), "s": m[3]}, "", 30*time.Minute)
 		}
 	}
 	if hasTopic(ev.Topics, "dhcp") && reDHCPFail.MatchString(msg) && !e.dhcpAfterRoam(ev.TS, msg) {
 		if e.burst("dhcp|"+dev, 10*time.Minute, 3) {
-			e.Raise("dhcp_problem", dev, "warning", fmt.Sprintf("DHCP on %s has trouble handing out addresses: %s", dev, msg), time.Hour)
+			e.RaiseP("dhcp_problem", dev, "warning", "DHCP on {d} has trouble handing out addresses", map[string]string{"d": dev}, ": "+msg, time.Hour)
 		}
 	}
 	if (hasTopic(ev.Topics, "wireless") || hasTopic(ev.Topics, "wifi")) && !hasTopic(ev.Topics, "debug") {
@@ -142,7 +142,7 @@ func (e *Engine) LogEvent(ev store.LogEvent) {
 	}
 	if hasTopic(ev.Topics, "wireguard") && reWGFail.MatchString(msg) {
 		if e.burst("wg|"+dev, 10*time.Minute, 5) {
-			e.Raise("wireguard_handshake", dev, "info", fmt.Sprintf("WireGuard handshakes on %s keep failing: %s", dev, msg), time.Hour)
+			e.RaiseP("wireguard_handshake", dev, "info", "WireGuard handshakes on {d} keep failing", map[string]string{"d": dev}, ": "+msg, time.Hour)
 		}
 	}
 }

@@ -234,7 +234,7 @@ func (e *Engine) Checks() {
 				var mac, rip string
 				rows.Scan(&mac, &rip)
 				if a, err := netip.ParseAddr(rip); err == nil && !e.Cfg.IsLocal(a) && !allowed[rip] {
-					e.Raise("rogue_dns", mac, "warning", fmt.Sprintf("Client %s sends DNS to %s (not an allowed resolver)", mac, rip), 6*time.Hour)
+					e.RaiseP("rogue_dns", mac, "warning", "Client {m} sends DNS to {r} (not an allowed resolver)", map[string]string{"m": mac, "r": rip}, "", 6*time.Hour)
 				}
 			}
 			rows.Close()
@@ -284,12 +284,12 @@ func (e *Engine) watchChecks() {
 			if c.Device != "" {
 				where = ", last seen on " + c.Device
 			}
-			e.Raise("client_offline", c.MAC, "warning", fmt.Sprintf("Watched client %s (%s) has been offline for %s%s", name, c.MAC, fmtDur(now.Sub(time.Unix(c.LastSeen, 0))), where), time.Minute)
+			e.RaiseP("client_offline", c.MAC, "warning", "Watched client {n} ({m}) has been offline for {t}", map[string]string{"n": name, "m": c.MAC, "t": fmtDur(now.Sub(time.Unix(c.LastSeen, 0)))}, where, time.Minute)
 		case !gone && c.Online && down:
 			e.mu.Lock()
 			delete(e.watchDown, c.MAC)
 			e.mu.Unlock()
-			e.Raise("client_online", c.MAC, "info", fmt.Sprintf("Watched client %s (%s) is back online after %s", name, c.MAC, fmtDur(now.Sub(since))), time.Minute)
+			e.RaiseP("client_online", c.MAC, "info", "Watched client {n} ({m}) is back online after {t}", map[string]string{"n": name, "m": c.MAC, "t": fmtDur(now.Sub(since))}, "", time.Minute)
 		}
 	}
 }
@@ -384,6 +384,6 @@ func (e *Engine) wanQualityChecks() {
 		e.wanBad = false
 		e.mu.Unlock()
 		e.St.ResolveAlerts("wan_quality", "internet", " – resolved")
-		e.Raise("wan_quality_ok", "internet", "info", fmt.Sprintf("Internet connection is good again: %.0f %% loss, %.0f ms (last %d min)", w.LossPct, w.AvgMS, int(WANWindow.Minutes())), time.Minute)
+		e.RaiseP("wan_quality_ok", "internet", "info", "Internet connection is good again: {l} % loss, {a} ms (last {w} min)", map[string]string{"l": fmt.Sprintf("%.0f", w.LossPct), "a": fmt.Sprintf("%.0f", w.AvgMS), "w": strconv.Itoa(int(WANWindow.Minutes()))}, "", time.Minute)
 	}
 }

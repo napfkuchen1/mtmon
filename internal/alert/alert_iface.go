@@ -192,10 +192,10 @@ func (e *Engine) InterfaceState(device, iface string, running bool) {
 	}
 	if wasDown { // recovery after a down is always reported, with the outage length
 		// a second "up" with the same text within a minute is the same recovery seen twice (poll overlap)
-		e.Raise("iface_up", key, "info", fmt.Sprintf("Interface %s on %s is up again after %s", iface, device, fmtDur(time.Since(since))), time.Minute)
+		e.RaiseP("iface_up", key, "info", "Interface {i} on {d} is up again after {t}", map[string]string{"i": iface, "d": device, "t": fmtDur(time.Since(since))}, "", time.Minute)
 		return
 	}
-	e.Raise("iface_up", key, "info", fmt.Sprintf("Interface %s on %s is up", iface, device), 5*time.Minute)
+	e.RaiseP("iface_up", key, "info", "Interface {i} on {d} is up", map[string]string{"i": iface, "d": device}, "", 5*time.Minute)
 }
 
 // downBehind names a managed device that hangs on this port and is unreachable right now: the link-down is then a
@@ -253,7 +253,7 @@ func (e *Engine) raiseIfaceFlap(device, iface, key string, d time.Duration) {
 		return
 	}
 	if d < e.rebootGrace {
-		e.Raise("iface_down", key, "info", fmt.Sprintf("Interface %s on %s went down for %s (short flap, possibly a restart)", iface, device, fmtDur(d)), 5*time.Minute)
+		e.RaiseP("iface_down", key, "info", "Interface {i} on {d} went down for {t} (short flap, possibly a restart)", map[string]string{"i": iface, "d": device, "t": fmtDur(d)}, "", 5*time.Minute)
 		return
 	}
 	e.raiseIfaceDown(device, iface, key)

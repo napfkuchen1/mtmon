@@ -238,13 +238,13 @@ func (e *Engine) DeviceState(name string, up bool, errMsg string, cpu, temp floa
 			e.resolved[name] = true
 			e.mu.Unlock()
 		}
-		e.Raise("device_online", name, "info", name+" is back online", time.Minute)
+		e.RaiseP("device_online", name, "info", "{d} is back online", map[string]string{"d": name}, "", time.Minute)
 	}
 	if up && high >= 3 {
-		e.Raise("cpu_high", name, "warning", fmt.Sprintf("%s CPU at %.0f%% for >30s", name, cpu), 30*time.Minute)
+		e.RaiseP("cpu_high", name, "warning", "{d} CPU at {p}% for >30s", map[string]string{"d": name, "p": fmt.Sprintf("%.0f", cpu)}, "", 30*time.Minute)
 	}
 	if up && temp >= 80 {
-		e.Raise("temp_high", name, "warning", fmt.Sprintf("%s temperature %.0f°C", name, temp), 30*time.Minute)
+		e.RaiseP("temp_high", name, "warning", "{d} temperature {t}°C", map[string]string{"d": name, "t": fmt.Sprintf("%.0f", temp)}, "", 30*time.Minute)
 	}
 }
 
@@ -325,7 +325,7 @@ func (e *Engine) flushOffline() {
 	if m := e.St.Maintenance(); len(m) > 0 { // planned work is not a shared cause: report those on their own
 		for n, msg := range pend {
 			if _, ok := m[n]; ok {
-				e.Raise("device_offline", n, "critical", fmt.Sprintf("%s unreachable: %s (%s)", n, msg, reachReason(msg)), time.Minute)
+				e.RaiseP("device_offline", n, "critical", "{d} unreachable", map[string]string{"d": n}, fmt.Sprintf(": %s (%s)", msg, reachReason(msg)), time.Minute)
 				delete(pend, n)
 			}
 		}
@@ -335,7 +335,7 @@ func (e *Engine) flushOffline() {
 	}
 	if len(pend) == 1 {
 		for n, msg := range pend {
-			e.Raise("device_offline", n, "critical", fmt.Sprintf("%s unreachable: %s (%s)", n, msg, reachReason(msg)), time.Minute)
+			e.RaiseP("device_offline", n, "critical", "{d} unreachable", map[string]string{"d": n}, fmt.Sprintf(": %s (%s)", msg, reachReason(msg)), time.Minute)
 		}
 		return
 	}

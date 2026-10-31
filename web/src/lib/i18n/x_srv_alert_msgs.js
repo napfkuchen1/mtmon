@@ -1,0 +1,20 @@
+// German texts for alert messages built from kind + params (#195)
+export default {
+  "{d} is back online": "{d} ist wieder online",
+  "{d} CPU at {p}% for >30s": "{d}: CPU bei {p} % seit über 30 s",
+  "{d} temperature {t}°C": "{d}: Temperatur {t} °C",
+  "{d} unreachable": "{d} nicht erreichbar",
+  "Watched client {n} ({m}) has been offline for {t}": "Beobachteter Client {n} ({m}) ist seit {t} offline",
+  "Watched client {n} ({m}) is back online after {t}": "Beobachteter Client {n} ({m}) ist nach {t} wieder online",
+  "Client {m} sends DNS to {r} (not an allowed resolver)": "Client {m} sendet DNS an {r} (kein erlaubter Resolver)",
+  "Internet connection is good again: {l} % loss, {a} ms (last {w} min)": "Internetverbindung wieder gut: {l} % Verlust, {a} ms (letzte {w} Min.)",
+  "Interface {i} on {d} is up again after {t}": "Schnittstelle {i} auf {d} ist nach {t} wieder aktiv",
+  "Interface {i} on {d} is up": "Schnittstelle {i} auf {d} ist aktiv",
+  "Interface {i} on {d} went down for {t} (short flap, possibly a restart)": "Schnittstelle {i} auf {d} war {t} down (kurzes Flackern, evtl. Neustart)",
+  "{d} logged an important event ({t})": "{d} meldet ein wichtiges Ereignis ({t})",
+  "Command from {u}@{h} failed on {d}": "Befehl von {u}@{h} ist auf {d} fehlgeschlagen",
+  "A script on {d} failed": "Ein Skript auf {d} ist fehlgeschlagen",
+  "Repeated failed logins on {d} from {h} (last user {u} via {s}, 5 or more in 10 min)": "Wiederholte fehlgeschlagene Anmeldungen auf {d} von {h} (letzter Benutzer {u} über {s}, 5 oder mehr in 10 Min.)",
+  "DHCP on {d} has trouble handing out addresses": "DHCP auf {d} hat Probleme beim Vergeben von Adressen",
+  "WireGuard handshakes on {d} keep failing": "WireGuard-Handshakes auf {d} schlagen wiederholt fehl",
+}
