@@ -20,9 +20,9 @@
   }
   function body() {
     return {
-      webhook: { url: f.webhook.url.trim(), secret, quiet: f.webhook.quiet },
-      ntfy: { url: f.ntfy.url.trim(), quiet: f.ntfy.quiet },
-      smtp: { host: f.smtp.host.trim(), port: Number(f.smtp.port) || 0, user: f.smtp.user, pass, from: f.smtp.from.trim(), to: f.smtp.to.trim(), quiet: f.smtp.quiet },
+      webhook: { url: f.webhook.url.trim(), secret, quiet: f.webhook.quiet, min_sev: f.webhook.min_sev },
+      ntfy: { url: f.ntfy.url.trim(), quiet: f.ntfy.quiet, min_sev: f.ntfy.min_sev },
+      smtp: { host: f.smtp.host.trim(), port: Number(f.smtp.port) || 0, user: f.smtp.user, pass, from: f.smtp.from.trim(), to: f.smtp.to.trim(), quiet: f.smtp.quiet, min_sev: f.smtp.min_sev },
     }
   }
   async function save() {
@@ -40,6 +40,14 @@
     busy = ''
   }
 </script>
+{#snippet minsev(c)}
+  <label class="row" style="gap:8px;align-items:center;margin-top:8px">{t('Send from severity')}
+    <select bind:value={c.min_sev}>
+      <option value="">{t('Info and above (all)')}</option>
+      <option value="warning">{t('Warning and above')}</option>
+      <option value="critical">{t('Critical only')}</option>
+    </select></label>
+{/snippet}
 {#snippet quiet(q)}
   <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
     <label class="chk"><input type="checkbox" bind:checked={q.enabled} /> {t('Quiet hours')}</label>
@@ -61,6 +69,7 @@
         <input type="password" bind:value={secret} autocomplete="off" placeholder={f.webhook.secret_set ? t('Secret stored – leave empty to keep') : t('Signing secret (optional)')} aria-label={t('Signing secret')} style="min-width:200px" />
         <button class="btn sm" disabled={!f.webhook.url.trim() || busy} onclick={() => test('webhook')}>{t('Send test')}</button>
       </div>
+      {@render minsev(f.webhook)}
       {@render quiet(f.webhook.quiet)}
     </div>
     <div class="card-b">
@@ -69,6 +78,7 @@
         <input bind:value={f.ntfy.url} placeholder="https://ntfy.sh/topic" aria-label="ntfy URL" style="flex:1;min-width:220px" />
         <button class="btn sm" disabled={!f.ntfy.url.trim() || busy} onclick={() => test('ntfy')}>{t('Send test')}</button>
       </div>
+      {@render minsev(f.ntfy)}
       {@render quiet(f.ntfy.quiet)}
     </div>
     <div class="card-b">
@@ -84,6 +94,7 @@
         <input bind:value={f.smtp.to} placeholder={t('Recipients (comma separated)')} aria-label={t('Recipients')} style="flex:1;min-width:180px" />
         <button class="btn sm" disabled={!f.smtp.host.trim() || !f.smtp.to.trim() || busy} onclick={() => test('smtp')}>{t('Send test')}</button>
       </div>
+      {@render minsev(f.smtp)}
       {@render quiet(f.smtp.quiet)}
     </div>
     <div class="card-b"><button class="btn primary" disabled={!!busy} onclick={save}>{t('Save')}</button></div>

@@ -144,3 +144,24 @@ func TestChannelsKeepSecretAndTest(t *testing.T) {
 		t.Error("non-http URL must be rejected")
 	}
 }
+
+func TestChannelMinSeverity(t *testing.T) {
+	e, _ := newEngine(t)
+	srv, l := newHook(t)
+	if err := e.SaveChannels(Channels{Webhook: WebhookCh{URL: srv.URL, MinSev: "warning"}}); err != nil {
+		t.Fatal(err)
+	}
+	now := at(1, 12, 0)
+	e.deliverAt(store.Alert{TS: now.Unix(), Kind: "new_client", Severity: "info", Msg: "New client"}, now)
+	if l.n() != 0 {
+		t.Fatalf("info must not reach a warning-and-above channel, got %d", l.n())
+	}
+	e.deliverAt(store.Alert{TS: now.Unix(), Kind: "device_offline", Severity: "warning", Msg: "AP down"}, now)
+	e.deliverAt(store.Alert{TS: now.Unix(), Kind: "wan_down", Severity: "critical", Msg: "WAN down"}, now)
+	if l.n() != 2 {
+		t.Fatalf("warning and critical must go out, got %d", l.n())
+	}
+	if err := e.SaveChannels(Channels{Webhook: WebhookCh{MinSev: "loud"}}); err == nil {
+		t.Error("unknown minimum severity accepted")
+	}
+}
