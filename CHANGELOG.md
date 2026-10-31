@@ -41,6 +41,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - The "DNS server that does not exist" hint now says that direct queries to the router itself are normal when the DNS redirect skips local destinations.
 - The "pin to the stronger access point" suggestion now warns about reject loops and names signal-range as the gentler option.
 - Noisy alert types on the Alerts page link to the setting that controls them (traffic spikes, new clients) next to "Make this type info".
+- Automatic updates also wait while a speed test is running, so a restart does not cut the measurement short.
 
 ### Fixed
 - No more false "imaginary DNS server" warnings for addresses a managed router owns itself (LAN, link-local, bridge addresses), and old sightings of them disappear at the next advice run.
