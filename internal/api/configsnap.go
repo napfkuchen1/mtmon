@@ -128,6 +128,19 @@ func (s *Server) watchConfigOnce(ctx context.Context) {
 			continue
 		}
 		s.St.SetMeta(key, mark)
+		// reference for "who changed it": the newest history entry seen before this change. Installs that were
+		// updated from a version without the id reference take it from the stored mark, so the first change after
+		// the update is not blamed on old entries.
+		idKey := "cfgid:" + row.Name
+		if s.St.GetMeta(idKey) == "" {
+			ref := prev
+			if ref == "" {
+				ref = mark
+			}
+			if id := poller.MarkHistoryID(ref); id > 0 {
+				s.St.SetMeta(idKey, strconv.FormatInt(id, 10))
+			}
+		}
 		if prev == "" {
 			continue // first sight is only the reference point
 		}

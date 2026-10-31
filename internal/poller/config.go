@@ -4,6 +4,7 @@ package poller
 
 import (
 	"context"
+	"net/netip"
 	"strconv"
 	"strings"
 )
@@ -113,6 +114,15 @@ func historyMark(rows []Row) string {
 	return strconv.Itoa(len(rows)) + "|" + l[".id"] + "|" + l["time"] + "|" + l["action"] + "|" + l["by"]
 }
 
+// MarkHistoryID is the numeric id of the newest entry a HistoryMark was taken at (0 for an empty or unreadable mark).
+func MarkHistoryID(mark string) int64 {
+	f := strings.Split(mark, "|")
+	if len(f) < 2 {
+		return 0
+	}
+	return historyID(Row{".id": f[1]})
+}
+
 // SourceUnknown is reported for a change that no /system/history entry explains (RouterOS keeps only ~100 entries).
 const SourceUnknown = "source unknown"
 
@@ -127,7 +137,7 @@ func ChangeSource(r Row) (label string, planned bool) {
 		user = r["by"]
 	}
 	from := ""
-	if ip != "" {
+	if a, err := netip.ParseAddr(ip); ip != "" && (err != nil || !a.IsUnspecified()) { // "::" / "0.0.0.0" name no source
 		from = " from " + ip
 	}
 	switch kind {

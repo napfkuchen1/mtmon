@@ -93,6 +93,33 @@ func TestChangedByNewerThanLastSnapshotDedupNewestFirst(t *testing.T) {
 	}
 }
 
+// existing install: no stored id, the reference comes from the stored history mark; one new entry = one source
+func TestChangedByAfterMarkIDNamesOnlyTheNewEntry(t *testing.T) {
+	prev := historyMark(realHistory[:3]) // the mark taken before the last change
+	after := MarkHistoryID(prev)
+	if after != 0x228 {
+		t.Fatalf("mark id %x", after)
+	}
+	got, newest, _ := changedBy(realHistory, 5, after)
+	if len(got) != 1 || got[0] != "claude via SSH from 192.168.0.200" || newest != 0x229 {
+		t.Fatalf("got %v %x, want exactly the one new source", got, newest)
+	}
+	if MarkHistoryID("0") != 0 || MarkHistoryID("") != 0 {
+		t.Fatal("empty mark must give 0")
+	}
+}
+
+func TestChangeSourceDropsUnspecifiedAddress(t *testing.T) {
+	for _, ip := range []string{"::", "0.0.0.0"} {
+		if l, _ := ChangeSource(Row{"by": "bob", "trace": "winbox:bob@" + ip + "/x"}); l != "bob via WinBox/WebFig" {
+			t.Errorf("%s: %q", ip, l)
+		}
+	}
+	if l, _ := ChangeSource(Row{"trace": "api:bob@fe80::1/x"}); l != "bob via API/REST from fe80::1" {
+		t.Errorf("ipv6 kept: %q", l)
+	}
+}
+
 func TestChangedByPlannedWhenOnlySchedulerRan(t *testing.T) {
 	got, _, planned := changedBy(realHistory[:1], 5, 0)
 	if len(got) != 1 || !planned {
