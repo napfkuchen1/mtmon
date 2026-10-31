@@ -54,6 +54,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - The scheduler time match was an hour off for daily jobs after a daylight-saving change since their start date.
 - The reason at the end of a "device unreachable" alert (timeout, refused, login) is now translated too. (#194)
 - Alerts for device updates, reboots, unreachable devices and WAN recovery are now shown in German on the Alerts page, also for old entries (#195).
+- Dangling-reference hint: RouterOS history entries with several commands or wrapped lines are now read correctly (only the redo text is used).
 
 ## [0.20.7] - 2026-10-30
 
