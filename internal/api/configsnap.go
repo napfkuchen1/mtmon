@@ -73,6 +73,9 @@ func (s *Server) takeConfig(ctx context.Context, name string) (changes []store.C
 	if err := s.St.SaveConfigSnap(name, now, cur); err != nil {
 		return nil, err
 	}
+	if len(times) > 0 && len(changes) > 0 {
+		go s.reprobeAfterChange(name)
+	}
 	if len(times) > 0 && len(changes) > 0 && s.ConfigChanged != nil && !planned {
 		if len(by) == 0 {
 			by = []string{poller.SourceUnknown}

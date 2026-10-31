@@ -43,7 +43,12 @@ func ruleDanglingIfaces(s Snapshot) ([]Suggestion, string) {
 			}
 			if i < maxDanglingEvidence {
 				ev = append(ev, what)
-				cmds = append(cmds, fmt.Sprintf("%s set [find .id=%s] %s=<current name>", r.Menu, r.ID, r.Field), fmt.Sprintf("# only if the rule is no longer wanted: %s remove [find .id=%s]", r.Menu, r.ID))
+				target := "<interface>"
+				if r.Hint != "" {
+					target = r.Hint
+					ev = append(ev, fmt.Sprintf("last set to %s=%s in the router's history", r.Field, r.Hint))
+				}
+				cmds = append(cmds, fmt.Sprintf("%s set [find .id=%s] %s=%s", r.Menu, r.ID, r.Field, target), fmt.Sprintf("# only if the rule is no longer wanted: %s remove [find .id=%s]", r.Menu, r.ID))
 			}
 		}
 		if blocking > 0 {
@@ -72,7 +77,7 @@ func ruleDanglingIfaces(s Snapshot) ([]Suggestion, string) {
 			Evidence: ev,
 			Steps:    steps,
 			Commands: strings.Join(cmds, "\n"),
-			Limits:   "Replace <current name> with the interface the rule was meant for; the remove line is only for rules that are not needed any more. Rows that RouterOS creates dynamically are ignored.",
+			Limits:   "Where the command shows <interface>, the router's history has no earlier setting of this rule: put in the interface it was meant for. Where it shows a name, that is the last value found in /system/history (RouterOS keeps only about 100 entries), so check it first. The remove line is only for rules that are not needed any more. Rows that RouterOS creates dynamically are ignored.",
 		})
 	}
 	if !read {

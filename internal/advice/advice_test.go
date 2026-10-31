@@ -740,7 +740,7 @@ func TestDanglingInterfaceRefs(t *testing.T) {
 	expect(t, d, "dangling-ifaces", 0)
 	d.Devs[0].Caps.Dangling = []DanglingRef{{Menu: "/ip/firewall/nat", ID: "*5", Field: "out-interface", Value: "*9", Action: "masquerade"}}
 	res := find(Evaluate(d), "dangling-ifaces")
-	if len(res) != 1 || res[0].Severity != SevTip || !strings.Contains(res[0].Commands, "/ip/firewall/nat set [find .id=*5] out-interface=<current name>") {
+	if len(res) != 1 || res[0].Severity != SevTip || !strings.Contains(res[0].Commands, "/ip/firewall/nat set [find .id=*5] out-interface=<interface>") {
 		t.Fatalf("masquerade row: %+v", res)
 	}
 	d.Devs[0].Caps.Dangling = append(d.Devs[0].Caps.Dangling, DanglingRef{Menu: "/interface/wifi/access-list", ID: "*2", Field: "interface", Value: "*61", Action: "reject", Comment: "keep off 2.4"})
@@ -778,4 +778,22 @@ func TestDebugLogs(t *testing.T) {
 		}
 	}
 	skipped(t, base(), "debug-logs")
+}
+
+func TestDanglingInterfaceUsesHistoryHint(t *testing.T) {
+	d := base()
+	d.Devs = []Device{{Name: "gw", Role: "router", Caps: &Caps{ProbedAt: 1}}}
+	d.Devs[0].Caps.Dangling = []DanglingRef{
+		{Menu: "/interface/wifi/access-list", ID: "*1", Field: "interface", Value: "*6A", Action: "reject", Hint: "cap-wifi1"},
+		{Menu: "/interface/wifi/access-list", ID: "*2", Field: "interface", Value: "*6B"},
+	}
+	res := find(Evaluate(d), "dangling-ifaces")
+	if len(res) != 1 {
+		t.Fatalf("suggestions: %+v", res)
+	}
+	if !strings.Contains(res[0].Commands, "[find .id=*1] interface=cap-wifi1") || !strings.Contains(res[0].Commands, "[find .id=*2] interface=<interface>") {
+		t.Errorf("commands: %s", res[0].Commands)
+	}
+	d.Devs[0].Caps.Dangling = []DanglingRef{}
+	expect(t, d, "dangling-ifaces", 0) // fixed: the next advice run no longer reports it
 }

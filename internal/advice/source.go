@@ -146,7 +146,7 @@ func convCaps(k provision.Caps) *Caps {
 			Packets: f.Packets, Counted: f.Counted})
 	}
 	for _, d := range k.Dangling {
-		c.Dangling = append(c.Dangling, DanglingRef{Menu: d.Menu, ID: d.ID, Field: d.Field, Value: d.Value, Comment: d.Comment, Action: d.Action, Disabled: d.Disabled})
+		c.Dangling = append(c.Dangling, DanglingRef{Menu: d.Menu, ID: d.ID, Field: d.Field, Value: d.Value, Comment: d.Comment, Action: d.Action, Disabled: d.Disabled, Hint: d.Hint})
 	}
 	for _, w := range k.WifiIfs {
 		c.WifiIfs = append(c.WifiIfs, WifiIf{Name: w.Name, SSID: w.SSID, Band: w.Band})
