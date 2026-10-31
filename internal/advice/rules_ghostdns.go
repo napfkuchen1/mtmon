@@ -33,7 +33,7 @@ func ruleDNSGhost(s Snapshot) ([]Suggestion, string) {
 			Steps: []string{
 				"On the device set the DNS server to automatic (DHCP / router advertisement) and remove the static entry for " + g.IP + ".",
 			},
-			Limits: "mtmon sees only flows: if " + g.IP + " is a real host that no router has an ARP/ND entry or lease for, this is a false alarm.",
+			Limits: "mtmon sees only flows: if " + g.IP + " is a real host that no router has an ARP/ND entry or lease for, this is a false alarm. Direct queries to the router itself are normal when the DNS redirect skips local destinations (dst-address-type=!local).",
 		})
 	}
 	return out, ""
