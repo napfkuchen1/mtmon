@@ -72,7 +72,9 @@ func historyHint(history []poller.Row, id, field string) string {
 
 // hasWord reports whether s contains tok as a whole word (so "*1" does not match "*1A").
 func hasWord(s, tok string) bool {
-	for _, w := range strings.FieldsFunc(s, func(r rune) bool { return r == ' ' || r == ';' || r == '=' || r == ',' || r == '"' || r == '[' || r == ']' }) {
+	for _, w := range strings.FieldsFunc(s, func(r rune) bool {
+		return r == ' ' || r == ';' || r == '=' || r == ',' || r == '"' || r == '[' || r == ']'
+	}) {
 		if w == tok {
 			return true
 		}
