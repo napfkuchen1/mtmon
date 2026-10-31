@@ -14,6 +14,9 @@ export default {
   "Interface {iface} on {dev} is up": "Schnittstelle {iface} auf {dev} ist aktiv",
   "Interface {iface} on {dev} went down for {dur} (short flap, possibly a restart)": "Schnittstelle {iface} auf {dev} war {dur} ausgefallen (kurzer Flap, möglicherweise ein Neustart)",
   "Interface {iface} on {dev} went down": "Schnittstelle {iface} auf {dev} ist ausgefallen",
+  // alerts stored by 0.20.6/0.20.7 say "(1 entries)"; these keys come first so the template below does not make "1 Einträge" of it
+  "{dev}: configuration changed (1 entries) – see the device page, Config history": "{dev}: Konfiguration geändert (1 Eintrag) – siehe Geräteseite, Konfig-Historie",
+  "{dev}: configuration changed (1 entries)": "{dev}: Konfiguration geändert (1 Eintrag)",
   "{dev}: configuration changed ({n} entries) – see the device page, Config history": "{dev}: Konfiguration geändert ({n} Einträge) – siehe Geräteseite, Konfig-Historie",
   "{dev}: configuration changed ({n} entries) – see the device page, Config history (made through mtmon)": "{dev}: Konfiguration geändert ({n} Einträge) – siehe Geräteseite, Konfig-Historie (über mtmon vorgenommen)",
   "{dev}: configuration changed (1 entry) – see the device page, Config history": "{dev}: Konfiguration geändert (1 Eintrag) – siehe Geräteseite, Konfig-Historie",
