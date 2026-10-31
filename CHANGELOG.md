@@ -12,6 +12,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ### Fixed
 - Own internet targets (#194): removing a target now closes its open "did not answer" warning (shown as info, "target removed") and resets its failure count. Names are looked up as absolute names, so a search domain or wildcard record of the local domain can no longer turn a dead name into a TLS error: it shows NXDOMAIN. Adding a target that is already in the list says so.
+- Wi-Fi score (#191): the disconnect input counts the client's worst hour of the last 24 h instead of the 24 h average, so two bursts of six disconnects now cost points (an average of 0.5 per hour hid them). Disconnects logged before the counter table existed are read from the stored device log once, so the input survives an update or restart. `disconnects_per_hour` in `/api/wifi/health` is that worst hour.
 - Device event log: with "Store debug log lines" off, every line that carries only debug is dropped now (also `script,debug`, e.g. a script that logs "ok" every 5 minutes). `script,error,debug` still arrives, so SSH typos still give a CLI error. mtmon's own API logins and logouts (3 lines per router every 10 minutes) are no longer stored; a login of the same user from another address is still shown (#236).
 - "Config changed" alert (#222): installs updated from an older version no longer name the last five old history entries as the source of the first new change; the source is only what changed since the last check. A source address of `::` or `0.0.0.0` is left out ("from ::").
 
