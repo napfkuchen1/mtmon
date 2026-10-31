@@ -23,7 +23,7 @@ func TestAlertKindsAndKeysHaveGerman(t *testing.T) {
 	d := dict.String()
 	src, _ := filepath.Glob("*.go")
 	raise := regexp.MustCompile(`Raise(?:P)?\("([a-z_0-9]+)"`)
-	key := regexp.MustCompile(`key :?= "([^"]+)"`)
+	key := regexp.MustCompile(`key :?= "([^"]+)"|RaiseP\("[a-z_0-9]+", [^,]+, [^,]+, "([^"]+)"`)
 	for _, f := range src {
 		if strings.HasSuffix(f, "_test.go") {
 			continue
@@ -35,8 +35,9 @@ func TestAlertKindsAndKeysHaveGerman(t *testing.T) {
 			}
 		}
 		for _, m := range key.FindAllStringSubmatch(string(b), -1) {
-			if !strings.Contains(d, `"`+m[1]+`"`) {
-				t.Errorf("%s: message key %q has no German text", f, m[1])
+			k := m[1] + m[2]
+			if !strings.Contains(d, `"`+k+`"`) {
+				t.Errorf("%s: message key %q has no German text", f, k)
 			}
 		}
 	}
