@@ -12,6 +12,7 @@ import (
 	"github.com/napfkuchen1/mtmon/internal/advice"
 	"github.com/napfkuchen1/mtmon/internal/poller"
 	"github.com/napfkuchen1/mtmon/internal/provision"
+	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
 // The suggestion rules are evaluated on demand and cached for adviceTTL; there is no background job.
@@ -107,22 +108,48 @@ func (s *Server) refreshCaps() {
 		return
 	}
 	for _, row := range rows {
-		d, ok := s.Cfg.Device(row.Name)
-		if !ok {
-			continue
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		cl := poller.NewGuardedClient(d, s.addrAllowed)
-		c, err := provision.Probe(ctx, cl)
-		if err != nil {
-			cancel()
-			continue
-		}
-		c.Export = s.exportProbe(ctx, cl, row.Caps)
-		cancel()
+		s.refreshDeviceCaps(row)
 		s.checkConfigDue(row.Name)
-		if raw, err := json.Marshal(c); err == nil {
-			s.St.SetDeviceCaps(row.Name, raw)
+	}
+}
+
+// refreshDeviceCaps re-probes one device and stores the result; an unreachable device keeps its old capabilities.
+func (s *Server) refreshDeviceCaps(row store.DeviceRow) bool {
+	d, ok := s.Cfg.Device(row.Name)
+	if !ok {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cl := poller.NewGuardedClient(d, s.addrAllowed)
+	c, err := provision.Probe(ctx, cl)
+	if err != nil {
+		return false
+	}
+	c.Export = s.exportProbe(ctx, cl, row.Caps)
+	raw, err := json.Marshal(c)
+	if err != nil {
+		return false
+	}
+	s.St.SetDeviceCaps(row.Name, raw)
+	return true
+}
+
+// reprobeAfterChange reads a device's rules again right after its configuration changed (#176), so a rule that was
+// just fixed disappears from the suggestions within one config check instead of at the next hourly probe.
+func (s *Server) reprobeAfterChange(name string) {
+	rows, err := s.St.DeviceRows()
+	if err != nil {
+		return
+	}
+	for _, row := range rows {
+		if row.Name != name {
+			continue
+		}
+		if s.refreshDeviceCaps(row) {
+			s.adv.mu.Lock()
+			s.adv.at = time.Time{}
+			s.adv.mu.Unlock()
 		}
 	}
 }

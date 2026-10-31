@@ -33,6 +33,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - The first update check runs 2 minutes after start and is retried once after 5 minutes; an error is shown only if the retry fails too (#189).
 - After an update mtmon checks HTTP, the database and the data sources; if it is still unhealthy after 5 minutes it restarts into the previous version, and one update_failed warning is raised. A database backup is taken before the restart (#189).
 - Config history keeps snapshots by age instead of a fixed count of 30; tokens are now stripped from stored configuration too.
+- Suggestion "Rules point to deleted interfaces" (#176): the command now names the interface the rule was last set to (read from the router history), and the rules of a device are read again right after its configuration changed, so a fixed rule disappears within minutes. Queue-tree parents are checked too.
 
 ### Fixed
 - No more false "imaginary DNS server" warnings for addresses a managed router owns itself (LAN, link-local, bridge addresses), and old sightings of them disappear at the next advice run.

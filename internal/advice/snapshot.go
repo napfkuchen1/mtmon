@@ -114,6 +114,7 @@ type Caps struct {
 type DanglingRef struct {
 	Menu, ID, Field, Value, Comment, Action string
 	Disabled                                bool
+	Hint                                    string // interface the rule was last set to (from the router's history), "" = unknown
 }
 
 // Cert is a certificate used by a router service (www-ssl, api-ssl).
