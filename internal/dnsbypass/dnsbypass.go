@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package dnsbypass finds clients that do not use the router's DNS: DNS-over-TLS (TCP 853), DNS-over-QUIC (UDP 853),
 // DNS-over-HTTPS to well-known resolvers (443) and plain DNS to a public server that the router did not redirect
 // (flows of redirected queries are already dropped by the pipeline). It needs only flow data, no router changes.

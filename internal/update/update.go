@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package update checks GitHub for newer mtmon releases and stages them for a privileged swap.
 //
 // The service itself never replaces its own binary (it runs as an unprivileged user under ProtectSystem=strict).

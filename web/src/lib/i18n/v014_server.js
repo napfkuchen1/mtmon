@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // v0.14: texts produced by the backend (alerts, suggestions)
 export default {
   "Client {who} probed {n} ports on {targets} within 60 s (e.g. {ports}) – looks like a port scan": "Client {who} hat innerhalb von 60 s {n} Ports auf {targets} abgefragt (z. B. {ports}) – sieht nach einem Portscan aus",

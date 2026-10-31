@@ -6,6 +6,7 @@ One small container, zero-touch device onboarding, fully reversible.</p>
 <p align="center">
   <a href="https://github.com/napfkuchen1/mtmon/actions/workflows/ci.yml"><img alt="ci" src="https://github.com/napfkuchen1/mtmon/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/napfkuchen1/mtmon/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/napfkuchen1/mtmon"></a>
+  <a href="LICENSE"><img alt="license AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-blue"></a>
   <a href="docs/release-signing.md"><img alt="signed releases" src="https://img.shields.io/badge/releases-signed%20(minisign)-brightgreen"></a>
 </p>
 
@@ -307,4 +308,8 @@ Contributions, bug reports and feedback from real MikroTik setups are welcome: p
 
 ## License
 
-No license has been chosen yet; all rights are reserved by the author. If you would like to use mtmon in your own project, please open an issue.
+mtmon is free software under the [GNU Affero General Public License v3.0 only](LICENSE) (AGPL-3.0-only), Copyright (C) 2026 Daniel Sauer.
+
+In plain words: you may run, study, change and share mtmon, including at work. If you change it and let others use it over a network, you must offer them the source of your version under the same license. The running UI links to the source of its exact version (Settings -> System -> Source code). Contributions are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Release archives include `LICENSE` and `THIRD_PARTY_NOTICES.md` (license texts of all bundled dependencies). Optional data downloaded at runtime keeps its own terms: GeoIP/ASN from [DB-IP Lite](https://db-ip.com) under CC BY 4.0, the vendor list from the IEEE OUI registry.

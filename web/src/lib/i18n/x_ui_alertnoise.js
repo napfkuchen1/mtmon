@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – noisy alert types (Alerts page)
 export default {
   "Noisy alert types": "Laute Alarmarten",

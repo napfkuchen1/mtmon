@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   import { t } from './i18n.svelte.js'
   let { title = '', onclose, wide = false, children, footer } = $props()

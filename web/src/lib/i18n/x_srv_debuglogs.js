@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – "router sends debug logs" suggestion (#236)
 export default {
   "{name} sends debug logs to mtmon": "{name} schickt Debug-Logs an mtmon",

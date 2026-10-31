@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package store
 
 // WANStatus is the latest result of one probe target: the error text of the last failed check (empty = it

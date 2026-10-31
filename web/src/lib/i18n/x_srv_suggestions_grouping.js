@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations of backend text – grouped suggestions, recurring spikes, idle VPN peers
 export default {
   "Blocked packets from {n} addresses look like late replies, not a scan": "Blockierte Pakete von {n} Adressen sehen wie verspätete Antworten aus, nicht wie ein Scan",

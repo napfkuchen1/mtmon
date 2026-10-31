@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import { tr } from './i18n.svelte.js'
 export class AuthError extends Error {}
 

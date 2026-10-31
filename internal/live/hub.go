@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package live keeps realtime state (IP↔MAC map, rates, recent connections) and the flow pipeline.
 package live
 

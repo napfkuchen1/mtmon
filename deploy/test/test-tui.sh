@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
 # shellcheck disable=SC2015
 # Tests the interactive dialog of install.sh with a scripted fake whiptail and fake Proxmox tools.
 # Usage: deploy/test/test-tui.sh   (run as root: install.sh refuses otherwise)

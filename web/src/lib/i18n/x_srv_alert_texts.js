@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations of alert messages raised by the alert engine (device state, interfaces, clients)
 export default {
   "{name} is back online": "{name} ist wieder online",

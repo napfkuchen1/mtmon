@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   // Overview: how the client groups are doing (online count and traffic of the last 24 h).
   import { api } from './api.js'

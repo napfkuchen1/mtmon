@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations (key = English source text emitted by the Go backend; {name} = dynamic part)
 export default {
   "Back up configuration (/export)": "Konfiguration sichern (/export)",

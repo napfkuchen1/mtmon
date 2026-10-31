@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   // Settings -> Internet: own probe targets (DNS names and HTTP(S) URLs) next to the built-in ones (#194).
   import { api } from './api.js'

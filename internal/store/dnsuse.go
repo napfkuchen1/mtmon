@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package store
 
 // DNSUseRow is what one client sent to one destination on a DNS-related port, with the first and last hour it was seen.

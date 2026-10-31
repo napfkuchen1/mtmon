@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package store
 
 // KindNoise is how a kind of warning was handled in a period: a warning that people only acknowledge, over and

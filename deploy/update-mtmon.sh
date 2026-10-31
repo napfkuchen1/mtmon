@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
 # update-mtmon.sh - upgrade mtmon in an existing CT with automatic snapshot and automatic rollback.
 # Run as root ON THE PROXMOX HOST.
 set -Eeuo pipefail

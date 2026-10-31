@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   // Application list with share bars and an "active now" dot (client detail + Services page).
   import { bytes, num, ago } from './format.js'

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package sysinfo
 
 // Disk is unknown on Windows (development machines only).

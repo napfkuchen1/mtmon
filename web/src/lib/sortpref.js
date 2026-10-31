@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // The sort a user picked for a table is kept in the browser, one entry per table (mtmon.sort.<table>).
 export function loadSort(table, def) {
   try {

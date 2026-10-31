@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package flow decodes NetFlow v9 and IPFIX datagrams (MikroTik Traffic-Flow).
 package flow
 

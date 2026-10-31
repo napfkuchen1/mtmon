@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – status line on the overview
 export default {
   "Everything OK": "Alles in Ordnung",

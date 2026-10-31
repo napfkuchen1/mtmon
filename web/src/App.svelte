@@ -1,6 +1,8 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   import { app, checkSession, parseHash, go, openLive, closeLive, applyTheme, setTheme, setRange, setPref, toast } from './lib/state.svelte.js'
   import { api } from './lib/api.js'
+  import { sourceURL } from './lib/source.js'
   import { collapsible, foldable, foldAll } from './lib/collapse.js'
   import { t, tr, i18n } from './lib/i18n.svelte.js'
   import Login from './pages/Login.svelte'
@@ -172,6 +174,7 @@
           <div class="ver full">
             <a class="vtxt" href="#/settings/updates" title={t('Updates')}>mtmon {vlabel(upd.current)}</a>
             {#if upd.available}<a class="vbadge" href="#/settings/updates">{t('Update {v}', { v: vlabel(upd.latest) })}</a>{/if}
+            <a class="vtxt" href={sourceURL(upd.current)} target="_blank" rel="noopener" title={t('Licensed under AGPL-3.0. Click for the source code of this version.')}>{t('Source code')}</a>
           </div>
         {/if}
         <button class="btn sm" style="width:100%" onclick={logout} title={t('Sign out')}><span class="full">{t('Sign out')}</span><span class="mini"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8M6.3 6.8a8 8 0 1011.4 0"/></svg></span></button>

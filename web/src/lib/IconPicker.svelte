@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   import { ICONS, ICON_CHOICES } from './icons.js'
   import { t } from './i18n.svelte.js'

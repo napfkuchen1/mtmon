@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import { ICONS } from './icons.js'
 import { t, i18n } from './i18n.svelte.js'
 const fmtN = (i, n) => (i === 0 || n >= 100 ? Math.round(n) : Math.round(n * 10) / 10).toLocaleString(i18n.locale, { maximumFractionDigits: 1 })

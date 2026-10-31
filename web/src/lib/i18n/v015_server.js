@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // v0.15.1: texts produced by the backend (alerts, suggestions) – review iteration 3
 export default {
   "Blocked packets arrive with your own public address {ip} as sender": "Blockierte Pakete kommen mit Ihrer eigenen öffentlichen Adresse {ip} als Absender an",

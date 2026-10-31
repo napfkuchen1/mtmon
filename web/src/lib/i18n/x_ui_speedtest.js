@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – speed tests (Internet page)
 export default {
   "Speed tests run from the mtmon host, not from a router, so they measure your line.": "Speedtests laufen auf dem mtmon-Host, nicht auf einem Router – sie messen also deine Leitung.",

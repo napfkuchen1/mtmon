@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package poller talks to MikroTik RouterOS 7 over the REST API (read-only).
 package poller
 

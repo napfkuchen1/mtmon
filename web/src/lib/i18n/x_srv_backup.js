@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations of backend text – backup age suggestion
 export default {
   "{dev} has no recent backup": "{dev} hat kein aktuelles Backup",

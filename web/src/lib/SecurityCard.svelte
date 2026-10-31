@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   // Settings -> Two-factor login (#192): authenticator app (TOTP, RFC 6238) plus ten single-use recovery codes.
   import qrcode from 'qrcode-generator'

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
 # shellcheck shell=bash disable=SC2034
 # Shared helpers for install/update/uninstall. Sourced, not executed.
 

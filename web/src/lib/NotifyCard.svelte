@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   // Settings -> Notifications: webhook, ntfy and e-mail with quiet hours per channel and a test button (#193).
   import { api } from './api.js'

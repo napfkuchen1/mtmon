@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   // Overview card "Internet": latency and loss measured by mtmon's own probes, plus reconnects of the WAN link.
   import { api } from './api.js'

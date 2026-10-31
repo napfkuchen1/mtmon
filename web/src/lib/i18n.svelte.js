@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Minimal i18n. Source strings in the code are ENGLISH (the default); German lives in dictionaries.
 //   t('Add device')                      -> UI text
 //   t('{n} devices', { n: 3 })           -> with placeholders

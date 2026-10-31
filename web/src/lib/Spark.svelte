@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   // Tiny trend line for KPI cards. points: numbers, oldest first.
   let { points = [], color = 'var(--accent)', height = 30 } = $props()

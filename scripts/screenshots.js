@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Regenerates docs/img/*.png from the demo (scripts/demo.sh must be running on 127.0.0.1:18443; `make screenshots` does it all).
 // Needs Playwright with Chromium (npm i -g playwright, or the one preinstalled in the cloud image).
 // Dark theme at 1400 px, like the default UI most users see. Pages that need hardware (the Add-device wizard against a

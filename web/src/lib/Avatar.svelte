@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   import DeviceIcon from './DeviceIcon.svelte'
   // Round device icon with a small presence dot. client: {label, hostname, vendor, wifi}, online: bool

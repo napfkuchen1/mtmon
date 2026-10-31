@@ -2,7 +2,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 GO      ?= go
 
-.PHONY: all ui build test lint scale screenshots scale-live deploy-test release run-demo clean
+.PHONY: all ui build test lint licenses scale screenshots scale-live deploy-test release run-demo clean
 
 all: test build
 
@@ -23,6 +23,10 @@ lint:                     ## static analysis + shell checks
 	cd deploy && shellcheck -x -s bash lib.sh install-mtmon.sh update-mtmon.sh uninstall-mtmon.sh test/test-deploy.sh test/test-tui.sh test/test-apply-update.sh && shellcheck -s sh update-geo.sh apply-update.sh
 	gofmt -l . | (! grep .)
 
+licenses:                 ## SPDX line on every source file, dependency licences allowed (needs `make ui` once)
+	node scripts/spdx.js
+	node scripts/licenses.js --check
+
 scale:                    ## 100 clients x 30 days data set; asserts every query < 500 ms
 	MTMON_SCALE=1 $(GO) test ./internal/integration -run TestScale -v -timeout 20m
 
@@ -41,8 +45,9 @@ release: build            ## dist/mtmon-<version>-linux-amd64.tar.gz with checks
 	rm -rf dist && mkdir -p dist/mtmon
 	cp bin/mtmon dist/mtmon/mtmon
 	cp deploy/install-mtmon.sh deploy/update-mtmon.sh deploy/uninstall-mtmon.sh deploy/lib.sh deploy/mtmon.service deploy/relax.conf deploy/config.example.json deploy/update-geo.sh deploy/apply-update.sh deploy/mtmon-geo.service deploy/mtmon-geo.timer dist/mtmon/
-	cp README.md dist/mtmon/; cp -r docs dist/mtmon/docs
-	cd dist/mtmon && sha256sum mtmon install-mtmon.sh update-mtmon.sh uninstall-mtmon.sh lib.sh mtmon.service relax.conf update-geo.sh apply-update.sh mtmon-geo.service mtmon-geo.timer > SHA256SUMS
+	cp README.md LICENSE dist/mtmon/; cp -r docs dist/mtmon/docs
+	node scripts/licenses.js --out dist/mtmon/THIRD_PARTY_NOTICES.md
+	cd dist/mtmon && sha256sum mtmon LICENSE THIRD_PARTY_NOTICES.md install-mtmon.sh update-mtmon.sh uninstall-mtmon.sh lib.sh mtmon.service relax.conf update-geo.sh apply-update.sh mtmon-geo.service mtmon-geo.timer > SHA256SUMS
 	cd dist && tar czf mtmon-$(VERSION)-linux-amd64.tar.gz mtmon && sha256sum mtmon-$(VERSION)-linux-amd64.tar.gz > mtmon-$(VERSION)-linux-amd64.tar.gz.sha256
 	@ls -la dist
 

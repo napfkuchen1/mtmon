@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – DNS bypass
 export default {
   "DNS bypass": "DNS-Umgehung",

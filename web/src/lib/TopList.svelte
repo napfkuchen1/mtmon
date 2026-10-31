@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   import Flag from './Flag.svelte'
   import Empty from './Empty.svelte'

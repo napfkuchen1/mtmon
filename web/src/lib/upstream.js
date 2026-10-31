@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Texts for the ISP modem / router in front of a gateway (banner and topology node).
 import { t } from './i18n.svelte.js'
 export const modeText = m => (m.startsWith('transfer net ') ? t('transfer net {net}', { net: m.slice(13) }) : m === 'double NAT' ? t('double NAT') : m === 'tunnel' ? t('tunnel') : m)

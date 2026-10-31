@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations of backend text – IPv6 router advertisement lifetimes
 export default {
   "IPv6 router advertisements on {d} keep old prefixes alive": "Die IPv6-Router-Advertisements auf {d} halten alte Präfixe am Leben",

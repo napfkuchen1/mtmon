@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – singular forms of counts (plural helper tn)
 export default {
   "{n} device down": "{n} Gerät nicht erreichbar",

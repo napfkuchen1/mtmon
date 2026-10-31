@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – path view (#147)
 export default {
   "Path": "Pfad",

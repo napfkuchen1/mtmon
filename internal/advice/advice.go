@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package advice derives improvement suggestions from data mtmon already has. Rules are pure functions
 // over a read-only Snapshot, so they can be unit-tested with synthetic data; the evaluator runs on demand
 // (see internal/api) and never polls anything itself.

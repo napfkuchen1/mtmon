@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   // Settings -> Audit log: who did what (logins, setting changes, tokens, devices, fixes, updates), 180 days (#192).
   import { api } from './api.js'

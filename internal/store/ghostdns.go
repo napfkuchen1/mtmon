@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package store
 
 import "github.com/napfkuchen1/mtmon/internal/addr"

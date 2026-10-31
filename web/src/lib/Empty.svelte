@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   import { ICONS } from './icons.js'
   // Friendly empty state: icon, headline, hint and an optional next step (link or button).

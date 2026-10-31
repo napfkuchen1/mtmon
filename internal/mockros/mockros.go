@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package mockros is a tiny fake RouterOS 7 REST server for tests and demos.
 package mockros
 

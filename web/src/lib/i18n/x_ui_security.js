@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – two-factor login
 export default {
   "Two-factor login": "Zwei-Faktor-Anmeldung",

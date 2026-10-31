@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – fewer duplicated views
 export default {
   "5 min": "5 Min.",

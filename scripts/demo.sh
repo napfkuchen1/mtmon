@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
 # Local demo without any MikroTik hardware: mock RouterOS REST devices + synthetic IPFIX traffic.
 set -euo pipefail
 cd "$(dirname "$0")/.."

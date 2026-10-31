@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations (key = English source text) – 0.8.3 UI additions
 export default {
   "Offline right now": "Gerade offline",

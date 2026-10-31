@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package probe measures the internet connection from mtmon itself: TCP connect time and loss to a few well-known
 // anycast resolvers. It needs no router rights and no raw sockets (works in an unprivileged container). It answers
 // "is the internet slow or my Wi-Fi?", which flow data cannot.

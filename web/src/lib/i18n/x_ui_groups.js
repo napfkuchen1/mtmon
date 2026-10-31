@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – client groups
 export default {
   "Group": "Gruppe", "All groups": "Alle Gruppen", "No group": "Keine Gruppe", "Set group": "Gruppe setzen", "Set group…": "Gruppe setzen…",

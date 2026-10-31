@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations (key = English source text) – 0.13.0 UI additions
 export default {
   "not sent (normal for a plain page load)": "nicht gesendet (normal beim einfachen Seitenaufruf)",

@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   // Who uses it? Lists the clients behind one row of the Top lists or one app.
   import Modal from './Modal.svelte'

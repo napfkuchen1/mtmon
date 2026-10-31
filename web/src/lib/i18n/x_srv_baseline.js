@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations of backend text – baseline checks (#190)
 export default {
   "{dev} still runs {names}": "{dev} betreibt noch {names}",

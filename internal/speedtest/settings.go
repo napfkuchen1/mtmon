@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package speedtest runs scheduled speed tests from the mtmon host (never from a router: /tool fetch on a small
 // router is CPU-bound and would measure the router). Providers are native HTTP measurements (Hetzner download,
 // Cloudflare download/upload/latency); results go to the speedtests table. Everything that costs traffic is

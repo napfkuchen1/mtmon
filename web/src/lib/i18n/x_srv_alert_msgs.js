@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German texts for alert messages built from kind + params (#195)
 export default {
   "{d} is back online": "{d} ist wieder online",

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – alert stories (#188)
 export default {
   "Client {who} keeps disconnecting from {where}: {n} times between {first} and {last}": "Client {who} trennt sich ständig von {where}: {n}-mal zwischen {first} und {last}",
