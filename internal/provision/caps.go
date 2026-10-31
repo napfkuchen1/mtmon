@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package provision discovers what a MikroTik device can do (Probe), explains what mtmon would change
 // (BuildPlan), applies it with a full change manifest and automatic rollback (Apply), and undoes it
 // again on offboarding (Rollback). All router writes in mtmon live here.

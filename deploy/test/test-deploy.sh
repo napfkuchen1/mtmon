@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
 # shellcheck disable=SC2015,SC2016
 # Tests install/update/uninstall against fake Proxmox tools (stubs/). Needs a built mtmon binary.
 # Usage: deploy/test/test-deploy.sh [path/to/mtmon-binary]   (the binary is only used for its `version` output)

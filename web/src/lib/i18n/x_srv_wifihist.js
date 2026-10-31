@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations of backend text – weak signal with history
 export default {
   "{name} ({sig} dBm now, weak in {p} % of the last 24 h)": "{name} ({sig} dBm jetzt, in {p} % der letzten 24 h schwach)",

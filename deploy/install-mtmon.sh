@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
 # install-mtmon.sh - create a lightweight unprivileged LXC on Proxmox VE 9 and install mtmon.
 # Run as root ON THE PROXMOX HOST. Safe to re-run: refuses to touch an existing CT.
 set -Eeuo pipefail

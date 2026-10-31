@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   import { api, download } from '../lib/api.js'
   import { go, toast } from '../lib/state.svelte.js'

@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   // Settings: DNS-bypass overview (period, active/ended, "mark as fixed") and the alert switch (off by default).
   import { api } from './api.js'

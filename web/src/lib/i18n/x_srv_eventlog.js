@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations of backend text – router event log
 export default {
   "system_critical": "Wichtiges System-Ereignis", "script_error": "Skriptfehler", "cli_error": "Fehler im Befehl", "wifi_roam_dhcp": "WLAN: Adresse nach Roaming", "login_failures": "Fehlgeschlagene Logins",

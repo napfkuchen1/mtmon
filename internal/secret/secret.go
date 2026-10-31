@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package secret encrypts device credentials at rest (AES-256-GCM, key file next to the DB, 0600).
 // This is defence in depth: whoever can read both key and DB can decrypt. It keeps credentials out of
 // DB backups/copies that are moved without the key file.

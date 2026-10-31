@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-only
 # mtmon-apply-update - installed as /usr/local/bin/mtmon-apply-update and run by systemd as root before every
 # start of mtmon.service (ExecStartPre=-+/usr/local/bin/mtmon-apply-update).
 #

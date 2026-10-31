@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations of backend text – device outage resolved / reboot noted
 export default {
   "resolved: back after {dur}": "gelöst: nach {dur} wieder erreichbar",

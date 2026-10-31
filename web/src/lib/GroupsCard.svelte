@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   // Settings → Groups: client groups with their own alert behaviour (IoT, Family, Servers, Guests, Lab, …).
   import { api } from './api.js'

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – collapsible cards
 export default {
   "{n} neighbors": "{n} Nachbarn",

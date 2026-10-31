@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – Wi-Fi score breakdown on the client page and tooltip (#191)
 export default {
   "Wi-Fi score": "WLAN-Bewertung",

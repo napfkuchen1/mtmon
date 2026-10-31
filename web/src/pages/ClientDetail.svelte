@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   import Avatar from '../lib/Avatar.svelte'
   import IconPicker from '../lib/IconPicker.svelte'

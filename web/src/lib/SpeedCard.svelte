@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   // Overview tile: the latest speed-test result and the trend of the last 7 days; links to the Internet page.
   import { api } from './api.js'

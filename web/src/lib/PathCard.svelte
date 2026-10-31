@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   // Path view (#147): hops from this client to one destination, weakest hop highlighted. Desktop left → right, phone top → bottom.
   import { api } from './api.js'

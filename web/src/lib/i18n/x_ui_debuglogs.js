@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – debug log setting (#236)
 export default {
   "Store debug log lines": "Debug-Logzeilen speichern",

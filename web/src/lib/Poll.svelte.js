@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import { onAuthError } from './state.svelte.js'
 
 // Reactive polling helper: const d = poll(() => api('/x'), 5000); d.data / d.error / d.loading

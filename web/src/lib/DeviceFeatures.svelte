@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   import { api } from './api.js'
   import { t, tr } from './i18n.svelte.js'

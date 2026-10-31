@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   // Country flag as a real image: flag emoji are not rendered on Windows (they show as the letters "DE").
   // SVGs are loaded lazily, one tiny chunk per country, so only the flags that are actually shown get downloaded.

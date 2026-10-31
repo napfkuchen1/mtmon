@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – router event log
 export default {
   "Event log": "Ereignislog",

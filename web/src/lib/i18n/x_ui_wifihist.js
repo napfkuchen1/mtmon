@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – Wi-Fi history
 export default {
   "Signal (avg)": "Signal (Mittel)",

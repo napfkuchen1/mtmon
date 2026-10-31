@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   import { app, checkSession } from '../lib/state.svelte.js'
   import { api } from '../lib/api.js'

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – notification channels with quiet hours (#193)
 export default {
   "Notifications": "Benachrichtigungen",

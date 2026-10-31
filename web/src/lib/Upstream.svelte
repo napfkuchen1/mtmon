@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   // The ISP modem / router in front of a gateway (not a client): label, address, port and how the line is brought in.
   import { t } from './i18n.svelte.js'

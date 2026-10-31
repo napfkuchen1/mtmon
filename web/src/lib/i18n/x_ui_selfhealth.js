@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – mtmon health (Settings → System)
 export default {
   "Memory (mtmon)": "Speicher (mtmon)",

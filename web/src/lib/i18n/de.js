@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import shell from './ui_shell.js'
 import pagesA from './ui_pages_a.js'
 import pagesB from './ui_pages_b.js'

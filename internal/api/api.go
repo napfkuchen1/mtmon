@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package api serves the JSON/WebSocket API and the embedded UI.
 package api
 

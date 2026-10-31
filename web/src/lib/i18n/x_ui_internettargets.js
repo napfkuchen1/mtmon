@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – own internet targets (#194)
 export default {
   "Own internet targets": "Eigene Internet-Ziele",

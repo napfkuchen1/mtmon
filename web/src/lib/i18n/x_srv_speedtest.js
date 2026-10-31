@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations of backend text – speed tests
 export default {
   "Ookla server id must be 0 (automatic) or a positive number": "Die Ookla-Server-ID muss 0 (automatisch) oder eine positive Zahl sein",

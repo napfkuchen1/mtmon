@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – config history card
 export default {
   "Config history": "Konfigurationsverlauf",

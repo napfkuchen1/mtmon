@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package syslog receives RouterOS syslog (UDP) and parses firewall log lines.
 package syslog
 

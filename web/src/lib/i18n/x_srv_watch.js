@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations of backend text – watched clients
 export default {
   "client_offline": "Client offline",

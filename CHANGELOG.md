@@ -13,6 +13,9 @@ The first section below lists everything mtmon already covers. Later releases ad
 ### Changed
 - A quiet-hours summary now lists at most the newest 200 held alerts and says "+N older not listed" for the rest.
 
+### New
+- mtmon is now licensed under AGPL-3.0-only (#198): `LICENSE`, an SPDX line in every source file, `CONTRIBUTING.md` (DCO sign-off) and a README license section. The UI links to the source of the running version (sidebar and Settings -> System). Release archives include `LICENSE` and `THIRD_PARTY_NOTICES.md`; CI fails on a missing SPDX line or a dependency under a license that is not allowed (`scripts/spdx.js`, `scripts/licenses.js`).
+
 ## [0.20.8] - 2026-10-31
 
 ### New

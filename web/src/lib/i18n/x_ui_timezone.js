@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – time zone setting
 export default {
   "Time zone": "Zeitzone",

@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-only
 # update-geo.sh - fetch offline GeoIP/ASN (DB-IP Lite, CC BY 4.0) and the IEEE OUI vendor list.
 # Runs INSIDE the mtmon container (installed as /usr/local/bin/mtmon-update-geo, monthly via systemd timer).
 # Atomic: files are only replaced after a successful, plausible download. The service is restarted to reload them.

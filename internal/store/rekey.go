@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package store
 
 // RekeyTraffic moves stored traffic that is keyed by `from` (a bare address, used while an address could not be

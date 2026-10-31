@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   import Flag from './Flag.svelte'
   // Human name + IP for an address: name (bold) on the first line, IP (+ org · country) muted below.

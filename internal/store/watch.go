@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package store
 
 // SetWatch marks clients as "must be online" (or clears it). Unknown MACs are ignored.

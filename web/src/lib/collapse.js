@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Collapsible cards: every `.card` whose `.card-h` has an <h2> folds when the title is clicked. No markup is injected
 // (Svelte owns the DOM); the chevron comes from CSS and the state is kept per page in localStorage.
 const ROUTES = new Set(['overview', 'device', 'client', 'internet', 'firewall', 'suggestions'])

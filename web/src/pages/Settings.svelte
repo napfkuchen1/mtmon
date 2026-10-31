@@ -1,8 +1,10 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   import { api } from '../lib/api.js'
   import { t, tr } from '../lib/i18n.svelte.js'
   import { app, toast, setPref, ACCENTS } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
+  import { sourceURL } from '../lib/source.js'
   import { bytes, dur, num, ago, datetime } from '../lib/format.js'
   import UpdateCard from './UpdateCard.svelte'
   import GroupsCard from '../lib/GroupsCard.svelte'
@@ -135,6 +137,7 @@
     <table><tbody>
       {#if s}
         <tr><td class="muted">{t('Version')}</td><td class="r">{s.version}</td></tr>
+        <tr><td class="muted">{t('Source code')}</td><td class="r"><a href={sourceURL(s.version)} target="_blank" rel="noopener" title={t('Licensed under AGPL-3.0. Click for the source code of this version.')}>AGPL-3.0</a></td></tr>
         <tr><td class="muted">{t('Uptime')}</td><td class="r">{dur(s.uptime_s)}</td></tr>
         <tr><td class="muted">{t('Flow packets / records')}</td><td class="r num">{num(s.flow_packets)} / {num(s.flow_records)}</td></tr>
         <tr><td class="muted">{t('Flow rate')}</td><td class="r num">{s.flows_ps.toFixed(0)} / s</td></tr>

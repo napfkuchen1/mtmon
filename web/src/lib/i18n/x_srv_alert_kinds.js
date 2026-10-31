@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations of backend text – alert kinds (Type column)
 export default {
   "config_changed": "Konfiguration geändert", "cpu_high": "CPU-Last hoch", "device_offline": "Gerät offline", "device_online": "Gerät wieder online",

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // flowgen sends synthetic IPFIX/NetFlow v9 traffic for load tests and demos.
 //
 //	flowgen -target 127.0.0.1:2055 -rate 5000 -duration 10s -clients 50

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // mockros runs fake RouterOS REST devices for demos: mockros -router :9001 -ap :9002
 package main
 

@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   // Lightweight SVG area/line chart. series: [{name,color,points:[{x,y}]}]
   import { t, i18n } from './i18n.svelte.js'

@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   import Flag from '../lib/Flag.svelte'
   import { api } from '../lib/api.js'

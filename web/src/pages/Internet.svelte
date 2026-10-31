@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   // Internet page: scheduled speed tests (history, schedule, data budget) measured by mtmon from its own host.
   import { api } from '../lib/api.js'

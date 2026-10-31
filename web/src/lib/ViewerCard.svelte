@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   // Settings -> Read-only account (#192): a second login that can look but not change anything or see settings.
   import { api } from './api.js'

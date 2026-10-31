@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package web embeds the compiled Svelte UI (web/dist, built by `make ui`).
 package web
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
 # shellcheck disable=SC2015,SC2016,SC2034
 # Tests deploy/apply-update.sh (the root-run swap/rollback helper) against temp dirs and fake binaries.
 # Usage: deploy/test/test-apply-update.sh      (needs no root, no systemd)

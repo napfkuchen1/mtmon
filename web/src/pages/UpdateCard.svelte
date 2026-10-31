@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <script>
   import { api, AuthError } from '../lib/api.js'
   import { t, tr, i18n } from '../lib/i18n.svelte.js'

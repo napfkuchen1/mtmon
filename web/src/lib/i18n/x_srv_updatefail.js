@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – update_failed alert (#189)
 export default {
   "Update to {v} failed and was rolled back": "Update auf {v} ist fehlgeschlagen und wurde zurückgerollt",

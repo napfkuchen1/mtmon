@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations of backend text – mtmon health suggestion
 export default {
   "mtmon's disk is filling up": "Der Speicherplatz von mtmon füllt sich",

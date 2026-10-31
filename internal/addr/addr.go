@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package addr answers one question in one place: what kind of address is this? Lists, advice rules, alerts and the
 // poller used to carry their own copies of these checks, and a fix in one copy missed the others (#87, #122, #135).
 // The package has no dependencies on the rest of mtmon so every layer can use it.

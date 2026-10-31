@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package enrich adds service names, domain names, geo/ASN and vendor info.
 package enrich
 

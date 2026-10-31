@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // mtmon – realtime monitoring for MikroTik routers and access points.
 package main
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – learning period
 export default {
   "mtmon is re-learning normal traffic until {time}. Spikes and recurring-traffic findings are recorded as info until then, so there are no false alarms.": "mtmon lernt den normalen Datenverkehr bis {time} neu. Bis dahin werden Spitzen und Wiederholungs-Befunde nur als Info festgehalten – es gibt keine Fehlalarme.",

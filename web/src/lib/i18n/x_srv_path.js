@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – path view (server hop texts, #147)
 export default {
   "bypasses the router": "umgeht den Router",

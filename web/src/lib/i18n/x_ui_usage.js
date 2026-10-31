@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations – "Who uses" dialog
 export default {
   "Who uses {name}": "Wer nutzt {name}",

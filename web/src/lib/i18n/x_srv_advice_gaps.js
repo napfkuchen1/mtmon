@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations of backend text – advice rules that had none (DNS redirect, hairpin, ghost DNS, IPv6 prefix, Back to Home)
 export default {
   "Replace <current name> with the interface the rule was meant for; the remove line is only for rules that are not needed any more. Rows that RouterOS creates dynamically are ignored.": "Ersetze <current name> durch die Schnittstelle, für die die Regel gedacht war; die Zeile zum Entfernen ist nur für Regeln, die nicht mehr gebraucht werden. Zeilen, die RouterOS dynamisch anlegt, werden ignoriert.",

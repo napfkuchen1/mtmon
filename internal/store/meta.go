@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 package store
 
 // GetMeta returns a value from the small key/value meta table ("" when unset).

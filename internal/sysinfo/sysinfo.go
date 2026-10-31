@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package sysinfo reads mtmon's own resource use (Linux /proc and statfs). Every reading degrades to "unknown" (0)
 // where the platform does not provide it.
 package sysinfo

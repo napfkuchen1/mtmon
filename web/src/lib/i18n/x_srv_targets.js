@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations of backend text – own internet targets (#194)
 export default {
   "target_down": "Internet-Ziel nicht erreichbar", "target_up": "Internet-Ziel wieder erreichbar",

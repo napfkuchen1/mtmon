@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // German translations of backend text – RouterOS updates, CAPsMAN versions, certificate expiry
 export default {
   "RouterOS update available on {dev}": "RouterOS-Update verfügbar für {dev}",

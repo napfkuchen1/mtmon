@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // v0.14: alerts bulk actions, Excel export, firewall page (unreadable lines, own traffic)
 export default {
   "A token is read-only (scope: read). GET /api/me with the token shows its name; paths that do not exist answer 404 as JSON.": "Ein Token ist nur lesend (Scope: read). GET /api/me mit dem Token zeigt seinen Namen; nicht vorhandene Pfade antworten mit 404 als JSON.",
