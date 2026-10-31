@@ -35,3 +35,18 @@ func TestBaselineOpenMgmtAndNTP(t *testing.T) {
 		t.Fatal("no devices must be skipped")
 	}
 }
+
+func TestAPOnAPRule(t *testing.T) {
+	d := &Data{Devs: []Device{
+		{Name: "ap1", Caps: &Caps{ProbedAt: 1, Role: "ap", APIOn: []string{"api"}}},
+		{Name: "r1", Caps: &Caps{ProbedAt: 1, Role: "router", APIOn: []string{"api"}}},
+		{Name: "ap2", Caps: &Caps{ProbedAt: 1, Role: "ap"}},
+	}}
+	got, _ := ruleAPOnAP(d)
+	if len(got) != 1 || got[0].Subject != "ap1" || got[0].Severity != SevTip {
+		t.Fatalf("got %+v", got)
+	}
+	if _, why := ruleAPOnAP(&Data{}); why == "" {
+		t.Fatal("no devices must be skipped")
+	}
+}

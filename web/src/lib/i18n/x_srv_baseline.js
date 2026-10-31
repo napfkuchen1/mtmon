@@ -14,4 +14,8 @@ export default {
   "Without NTP the clock drifts. Log entries, mtmon's alert times and certificate validity checks then show wrong times.": "Ohne NTP läuft die Uhr weg. Logeinträge, Alarmzeiten in mtmon und Zertifikatsprüfungen zeigen dann falsche Zeiten.",
   "/system/ntp/client is disabled": "/system/ntp/client ist deaktiviert",
   "Enable the NTP client with a server you trust (or the router's gateway).": "Aktiviere den NTP-Client mit einem vertrauenswürdigen Server (oder dem Gateway des Routers).",
+  "{dev}: {names} is enabled on an access point": "{dev}: {names} ist auf einem Access Point aktiviert",
+  "An access point is managed with Winbox or SSH. The API service is the usual way in for scripts and scanners, and mtmon does not need it (it uses REST).": "Ein Access Point wird per Winbox oder SSH verwaltet. Der API-Dienst ist der übliche Zugang für Skripte und Scanner, und mtmon braucht ihn nicht (es nutzt REST).",
+  "If none of your own scripts or tools uses the API on this device, disable it.": "Wenn keines deiner Skripte oder Werkzeuge die API auf diesem Gerät nutzt, deaktiviere sie.",
+  "mtmon cannot see which tools use the API. Keep it if a controller or script depends on it.": "mtmon sieht nicht, welche Werkzeuge die API nutzen. Lass sie an, wenn ein Controller oder Skript davon abhängt.",
 }

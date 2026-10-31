@@ -83,6 +83,7 @@ type Caps struct {
 	WwwSSL                     bool
 	WwwSSLAddr                 string
 	Cleartext                  []string // enabled telnet / ftp services
+	APIOn                      []string // enabled api / api-ssl services
 	OpenMgmt                   []string // enabled management services open to every address
 	PinnedMACs                 []string // clients named by a Wi-Fi access-list rule on this device
 	NTPOff                     bool     // NTP client disabled

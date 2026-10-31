@@ -72,6 +72,7 @@ type Caps struct {
 	WwwSSL     bool         `json:"www_ssl"`
 	WwwSSLAddr string       `json:"www_ssl_address"`
 	Cleartext  []string     `json:"cleartext_services"`    // enabled telnet / ftp (baseline check)
+	APIOn      []string     `json:"api_on,omitempty"`      // enabled api / api-ssl services (an AP rarely needs them)
 	OpenMgmt   []string     `json:"open_mgmt,omitempty"`   // enabled api/ssh/winbox/www services without an address restriction
 	NTPOff     bool         `json:"ntp_off,omitempty"`     // the NTP client exists but is disabled (baseline check)
 	PinnedMACs []string     `json:"pinned_macs,omitempty"` // clients named by a Wi-Fi access-list rule (intentional pin)
@@ -372,12 +373,15 @@ func (k *Caps) probeServices(ctx context.Context, c *poller.Client) {
 		k.Flow.Targets = append(k.Flow.Targets, t["dst-address"]+" ("+t["version"]+")")
 	}
 	svcCert := map[string]string{} // service -> certificate name
-	k.Cleartext, k.OpenMgmt, k.NTPOff = nil, nil, false
+	k.Cleartext, k.OpenMgmt, k.APIOn, k.NTPOff = nil, nil, nil, false
 	svcRows := get(ctx, c, "/ip/service")
 	k.OpenMgmt = openMgmtNames(svcRows)
 	for _, s := range svcRows {
 		if s["dynamic"] == "true" || s["connection"] == "true" {
 			continue // active sessions, not configuration
+		}
+		if (s["name"] == "api" || s["name"] == "api-ssl") && s["disabled"] != "true" {
+			k.APIOn = append(k.APIOn, s["name"])
 		}
 		if (s["name"] == "telnet" || s["name"] == "ftp") && s["disabled"] != "true" {
 			k.Cleartext = append(k.Cleartext, s["name"])
