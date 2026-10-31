@@ -24,6 +24,8 @@
     infoKinds.data = await api('/alerts/info-kinds', { method: 'POST', body: { kind, info } })
     try { noise.data = await api(`/alerts/noise?days=${days}`) } catch {}
   }
+  // loud kinds that have a setting of their own (#188): link to it
+  const kindSetting = { traffic_spike: 'settings', new_client: 'settings' }
   const cls = { critical: 'bad', warning: 'warn', info: '' }
 </script>
 <div class="head"><h1>{t('Alerts')}</h1>
@@ -36,6 +38,7 @@
     <span class="muted"> – {t('mostly acknowledged by hand, probably not worth a warning')}</span>
     <ul style="margin:8px 0 0;padding-left:18px">
       {#each noisy as k (k.kind)}<li><span class="mono">{tr(k.kind)}</span>: {t('{n} warnings, {p} % acknowledged', { n: k.warnings, p: Math.round(k.share * 100) })}
+        {#if kindSetting[k.kind]}<a href="#/{kindSetting[k.kind]}" style="margin-left:8px">{t('Adjust setting')}</a>{/if}
         <button class="btn sm" style="margin-left:8px" onclick={() => setInfo(k.kind, true)}>{t('Make this type info')}</button></li>{/each}
     </ul>
     {#if (infoKinds.data || []).length}

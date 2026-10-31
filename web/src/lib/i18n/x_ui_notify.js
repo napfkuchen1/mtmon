@@ -24,4 +24,5 @@ export default {
   "Info and above (all)": "Info und höher (alle)",
   "Warning and above": "Warnung und höher",
   "Critical only": "Nur kritisch",
+  "Adjust setting": "Einstellung anpassen",
 }
