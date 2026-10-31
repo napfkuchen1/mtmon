@@ -50,12 +50,14 @@ export function trAlert(a) {
 }
 
 // Backend strings: exact match first, then templates such as "Enabled logging on {n} firewall rules".
+// A placeholder never spans a note separator (" – ") and a version is one word: otherwise a template with a leading
+// placeholder swallows a whole stored sentence and replaces only a word of it ("their uplink läuft mit through …").
 let tpl = null
 function templates() {
   if (tpl) return tpl
   tpl = Object.keys(srv).filter(k => k.includes('{')).map(k => {
     const names = []
-    const re = new RegExp('^' + k.replace(/[.*+?^$()|[\]\\]/g, '\\$&').replace(/\{(\w+)\}/g, (m, n) => { names.push(n); return '(.+?)' }) + '$', 's')
+    const re = new RegExp('^' + k.replace(/[.*+?^$()|[\]\\]/g, '\\$&').replace(/\{(\w+)\}/g, (m, n) => { names.push(n); return n === 'ver' ? '([^\s;,]+)' : '((?:(?! – ).)+?)' }) + '$', 's')
     return { re, names, to: srv[k] }
   })
   return tpl
@@ -63,11 +65,13 @@ function templates() {
 const MAINT = ' (maintenance window)'
 const SELF = ' (made through mtmon)'
 const LASTBY = 'last changes by ' // config_changed alerts of 0.20.6/0.20.7: sources separated by ", "
+const GOODSIG = '. The signal is good, so this is probably not a coverage problem; check access-list reject rules for this client and roaming settings' // wifi_disconnects of 0.20.6/0.20.7: hint inside the reason
 const BYLIST = 'changed by: ' // config_changed alert: sources of the change, separated by "; "
 export function tr(s) {
   if (lang !== 'de' || !s) return s
   if (s.endsWith(SELF)) return tr(s.slice(0, -SELF.length)) + ' (über mtmon vorgenommen)'
   if (s.startsWith(LASTBY)) return 'letzte Änderungen durch: ' + s.slice(LASTBY.length).split(', ').map(tr).join(', ')
+  if (s.startsWith('last reason: ') && s.endsWith(GOODSIG)) return tr(s.slice(0, -GOODSIG.length)) + ' – ' + tr(GOODSIG.slice(2))
   if (s.startsWith(BYLIST)) return 'geändert durch: ' + s.slice(BYLIST.length).split('; ').map(tr).join('; ')
   if (s.endsWith(MAINT)) return tr(s.slice(0, -MAINT.length)) + ' (Wartungsfenster)' // appended by the alert engine
   if (de[s]) return de[s]
