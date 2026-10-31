@@ -10,6 +10,9 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ## [Unreleased]
 
+### Fixed
+- Device event log: with "Store debug log lines" off, every line that carries only debug is dropped now (also `script,debug`, e.g. a script that logs "ok" every 5 minutes). `script,error,debug` still arrives, so SSH typos still give a CLI error. mtmon's own API logins and logouts (3 lines per router every 10 minutes) are no longer stored; a login of the same user from another address is still shown (#236).
+
 ### Changed
 - A quiet-hours summary now lists at most the newest 200 held alerts and says "+N older not listed" for the rest.
 

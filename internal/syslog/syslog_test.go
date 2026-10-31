@@ -42,6 +42,32 @@ func FuzzParse(f *testing.F) {
 	f.Fuzz(func(t *testing.T, s string) { ParseFirewall(s) })
 }
 
+func TestOwnLogin(t *testing.T) {
+	cases := []struct {
+		msg  string
+		user string
+		addr string
+		want bool
+	}{
+		{"system,info,account user mon logged in via api", "mon", "10.0.0.5", true},
+		{"system,info,account user mon logged out via api", "mon", "10.0.0.5", true},
+		{"system,info,account user mon logged in from 10.0.0.5 via rest-api", "mon", "10.0.0.5", true},
+		{"system,info,account user mon logged in from 10.0.0.9 via rest-api", "mon", "10.0.0.5", false},
+		{"system,info,account user mon logged in from 10.0.0.5 via rest-api", "mon", "", false},
+		{"system,info,account user admin logged in from 10.0.0.5 via ssh", "mon", "10.0.0.5", false},
+		{"system,info user mon logged in via api", "mon", "10.0.0.5", false},
+	}
+	for _, c := range cases {
+		e, ok := ParseLog(c.msg)
+		if !ok {
+			t.Fatal(c.msg)
+		}
+		if got := e.OwnLogin(c.user, c.addr); got != c.want {
+			t.Errorf("%q: %v", c.msg, got)
+		}
+	}
+}
+
 func TestParseLog(t *testing.T) {
 	for _, c := range []struct {
 		line, topics, level, msg string

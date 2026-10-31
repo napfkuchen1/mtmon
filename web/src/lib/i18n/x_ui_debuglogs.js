@@ -1,5 +1,5 @@
 // German translations – debug log setting (#236)
 export default {
   "Store debug log lines": "Debug-Logzeilen speichern",
-  "Debug lines of DHCP, Wi-Fi and WireGuard (packet dumps, keepalives) are dropped by default; they are only counted for the suggestion.": "Debug-Zeilen von DHCP, WLAN und WireGuard (Paketdumps, Keepalives) werden standardmäßig verworfen und nur für den Vorschlag gezählt.",
+  "Lines that carry only debug (DHCP packet dumps, WireGuard keepalives, script debug output) are dropped by default and only counted. mtmon's own API logins are never stored.": "Zeilen, die nur Debug enthalten (DHCP-Paketdumps, WireGuard-Keepalives, Script-Debugausgaben), werden standardmäßig verworfen und nur gezählt. Eigene API-Logins von mtmon werden nie gespeichert.",
 }

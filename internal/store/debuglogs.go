@@ -18,7 +18,12 @@ var debugNoise = struct {
 // DebugTopics are the topics whose debug lines are dropped on ingest.
 var DebugTopics = map[string]bool{"dhcp": true, "wireguard": true, "wireless": true, "wifi": true}
 
-// NoisyDebug reports whether a log line is a debug line of a chatty topic (and not e.g. "script,error,debug").
+// OtherDebug is the counter name of debug-only lines outside DebugTopics (a script that logs "ok" every 5 minutes).
+// They are dropped and counted, but the suggestion cannot exclude them on the router (it would hide "script,error,debug").
+const OtherDebug = "other"
+
+// NoisyDebug reports whether a log line carries nothing but debug (and not e.g. "script,error,debug", which
+// cli_error needs): the chatty topic it belongs to, or OtherDebug.
 func NoisyDebug(level string, has func(string) bool) (string, bool) {
 	if level != "debug" || has("error") || has("critical") || has("warning") {
 		return "", false
@@ -28,7 +33,7 @@ func NoisyDebug(level string, has func(string) bool) (string, bool) {
 			return t, true
 		}
 	}
-	return "", false
+	return OtherDebug, true
 }
 
 // NoteDebugLine counts one dropped debug line of `topic` from `device`.
@@ -66,8 +71,10 @@ func (s *Store) DebugLineRate(device string, now time.Time) (int, []string) {
 		return 0, nil
 	}
 	sum := func(m map[string]int) (n int) {
-		for _, v := range m {
-			n += v
+		for t, v := range m {
+			if t != OtherDebug {
+				n += v
+			}
 		}
 		return
 	}
@@ -77,7 +84,9 @@ func (s *Store) DebugLineRate(device string, now time.Time) (int, []string) {
 	}
 	var ts []string
 	for t := range src {
-		ts = append(ts, t)
+		if t != OtherDebug {
+			ts = append(ts, t)
+		}
 	}
 	sort.Slice(ts, func(i, j int) bool {
 		if src[ts[i]] != src[ts[j]] {
