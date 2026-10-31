@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -275,10 +276,10 @@ func (e *Engine) DeviceBoot(name, ver string, uptime int64) {
 		gone = ", " + fmtDur(time.Since(down))
 	}
 	if ver != "" && p.ver != "" && ver != p.ver {
-		e.Raise("device_updated", name, "info", fmt.Sprintf("%s updated %s → %s (reboot%s)", name, p.ver, ver, gone), 0)
+		e.RaiseP("device_updated", name, "info", "{d} updated {a} → {b} (reboot{g})", map[string]string{"d": name, "a": p.ver, "b": ver, "g": gone}, "", 0)
 		return
 	}
-	e.Raise("device_reboot", name, "info", fmt.Sprintf("%s rebooted %s ago (version %s%s)", name, fmtDur(time.Duration(uptime)*time.Second), ver, gone), time.Minute)
+	e.RaiseP("device_reboot", name, "info", "{d} rebooted {t} ago (version {v}{g})", map[string]string{"d": name, "t": fmtDur(time.Duration(uptime) * time.Second), "v": ver, "g": gone}, "", time.Minute)
 }
 
 // reachReason names why a poll failed in one word: a timeout (nothing answers, usually the path or the device is
@@ -347,14 +348,14 @@ func (e *Engine) flushOffline() {
 	}
 	sort.Strings(names)
 	if root, deps, ok := e.outageRoot(pend); ok {
-		e.Raise("devices_unreachable", root, "warning", fmt.Sprintf("%s is unreachable (%s); %s unreachable too because their uplink runs through %s", root, pend[root], strings.Join(deps, ", "), root), 5*time.Minute)
+		e.RaiseP("devices_unreachable", root, "warning", "{root} is unreachable ({r}); {deps} unreachable too because their uplink runs through {root}", map[string]string{"root": root, "r": pend[root], "deps": strings.Join(deps, ", ")}, "", 5*time.Minute)
 		return
 	}
 	hint := "several devices failing together point to a shared cause (the link between mtmon and the network, a switch or power), not to each device"
 	if reasons["refused"] == len(pend) {
 		hint = "all answer but refuse the API connection: check the API service / firewall on the devices"
 	}
-	e.Raise("devices_unreachable", "group", "warning", fmt.Sprintf("mtmon cannot reach %d devices: %s – %s", len(pend), strings.Join(names, ", "), hint), 5*time.Minute)
+	e.RaiseP("devices_unreachable", "group", "warning", "mtmon cannot reach {n} devices: {names}", map[string]string{"n": strconv.Itoa(len(pend)), "names": strings.Join(names, ", ")}, " – "+hint, 5*time.Minute)
 }
 
 // outageRoot finds the one failed device the others hang below: the failing devices must form one connected

@@ -20,4 +20,11 @@ export default {
   "Repeated failed logins on {d} from {h} (last user {u} via {s}, 5 or more in 10 min)": "Wiederholte fehlgeschlagene Anmeldungen auf {d} von {h} (letzter Benutzer {u} über {s}, 5 oder mehr in 10 Min.)",
   "DHCP on {d} has trouble handing out addresses": "DHCP auf {d} hat Probleme beim Vergeben von Adressen",
   "WireGuard handshakes on {d} keep failing": "WireGuard-Handshakes auf {d} schlagen wiederholt fehl",
+  "{d} updated {a} → {b} (reboot{g})": "{d} aktualisiert {a} → {b} (Neustart{g})",
+  "{d} rebooted {t} ago (version {v}{g})": "{d} vor {t} neu gestartet (Version {v}{g})",
+  "{root} is unreachable ({r}); {deps} unreachable too because their uplink runs through {root}": "{root} ist nicht erreichbar ({r}); {deps} ebenfalls nicht, weil ihr Uplink über {root} läuft",
+  "mtmon cannot reach {n} devices: {names}": "mtmon erreicht {n} Geräte nicht: {names}",
+  "several devices failing together point to a shared cause (the link between mtmon and the network, a switch or power), not to each device": "Mehrere gleichzeitig ausgefallene Geräte deuten auf eine gemeinsame Ursache hin (Verbindung zwischen mtmon und Netz, ein Switch oder Strom), nicht auf die einzelnen Geräte",
+  "all answer but refuse the API connection: check the API service / firewall on the devices": "alle antworten, lehnen aber die API-Verbindung ab: API-Dienst bzw. Firewall auf den Geräten prüfen",
+  "WAN link on {d} is back after {t} (affected: {m})": "WAN-Verbindung an {d} ist nach {t} wieder da (betroffen: {m})",
 }

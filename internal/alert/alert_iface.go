@@ -136,7 +136,7 @@ func (e *Engine) wanEvent(device, iface string, running bool) {
 	delete(e.wan, device)
 	dur, members := now.Sub(st.since), strings.Join(st.seen, ", ")
 	e.mu.Unlock()
-	e.Raise("wan_up", device, "info", fmt.Sprintf("WAN link on %s is back after %s (affected: %s)", device, fmtDur(dur), members), 0)
+	e.RaiseP("wan_up", device, "info", "WAN link on {d} is back after {t} (affected: {m})", map[string]string{"d": device, "t": fmtDur(dur), "m": members}, "", 0)
 }
 
 func (e *Engine) InterfaceState(device, iface string, running bool) {
