@@ -8,6 +8,11 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [Unreleased]
+
+### Changed
+- A quiet-hours summary now lists at most the newest 200 held alerts and says "+N older not listed" for the rest.
+
 ## [0.20.8] - 2026-10-31
 
 ### New

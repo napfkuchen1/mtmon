@@ -283,13 +283,23 @@ func (e *Engine) flushHeld(now time.Time) {
 	}
 }
 
+// maxHeldListed caps the lines of one summary so a long night cannot make an oversized message.
+const maxHeldListed = 200
+
 func summaryText(list []heldAlert) (title, body string) {
 	title = fmt.Sprintf("%d alerts held during quiet hours", len(list))
 	if len(list) == 1 {
 		title = "1 alert held during quiet hours"
 	}
 	var b strings.Builder
-	for _, h := range list {
+	shown := list
+	if len(shown) > maxHeldListed {
+		shown = shown[len(shown)-maxHeldListed:] // newest ones; held alerts are appended in time order
+	}
+	if older := len(list) - len(shown); older > 0 {
+		fmt.Fprintf(&b, "+%d older not listed\n", older)
+	}
+	for _, h := range shown {
 		fmt.Fprintf(&b, "%s [%s] %s\n", time.Unix(h.TS, 0).Format("15:04"), strings.ToUpper(h.Severity), h.Msg)
 	}
 	return title, strings.TrimRight(b.String(), "\n")

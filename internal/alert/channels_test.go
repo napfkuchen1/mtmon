@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -163,5 +164,19 @@ func TestChannelMinSeverity(t *testing.T) {
 	}
 	if err := e.SaveChannels(Channels{Webhook: WebhookCh{MinSev: "loud"}}); err == nil {
 		t.Error("unknown minimum severity accepted")
+	}
+}
+
+func TestSummaryTextCapsList(t *testing.T) {
+	var l []heldAlert
+	for i := 0; i < maxHeldListed+5; i++ {
+		l = append(l, heldAlert{TS: int64(i), Kind: "k", Severity: "warning", Msg: "m"})
+	}
+	title, body := summaryText(l)
+	if !strings.Contains(title, "205 alerts") || !strings.HasPrefix(body, "+5 older not listed\n") {
+		t.Errorf("title %q body %q", title, body[:20])
+	}
+	if n := strings.Count(body, "\n") + 1; n != maxHeldListed+1 {
+		t.Errorf("lines: %d", n)
 	}
 }
