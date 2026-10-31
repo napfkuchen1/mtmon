@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // German translations – own internet targets (#194)
 export default {
+  "Already in the list": "Steht schon in der Liste",
   "Own internet targets": "Eigene Internet-Ziele",
   "{n} of {max}": "{n} von {max}",
   "mtmon checks these names and addresses every 30 s on top of the built-in ones. A target that fails 3 checks in a row raises one warning; it is not counted as a WAN outage. Takes effect at once.": "mtmon prüft diese Namen und Adressen alle 30 s zusätzlich zu den eingebauten. Ein Ziel, das 3 Prüfungen hintereinander nicht besteht, löst eine Warnung aus; es zählt nicht als WAN-Ausfall. Gilt sofort.",

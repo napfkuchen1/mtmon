@@ -42,12 +42,36 @@ func (s *Server) internetTargetsSave(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 400, err.Error())
 		return
 	}
+	old := CustomTargets(s.St.GetMeta)
 	b, _ := json.Marshal(list)
 	if err := s.St.SetMeta("wan_custom", string(b)); err != nil {
 		jerr(w, 500, err.Error())
 		return
 	}
+	s.targetsRemoved(old, list)
 	jsonOut(w, map[string]any{"targets": list, "max": probe.MaxCustom})
+}
+
+// targetsRemoved closes the alerts of the targets that are in old but no longer in list (#194).
+func (s *Server) targetsRemoved(old, list []probe.Custom) {
+	keep := map[string]bool{}
+	for _, c := range list {
+		for _, k := range probe.Keys(c) {
+			keep[k] = true
+		}
+	}
+	for _, c := range old {
+		for _, k := range probe.Keys(c) {
+			if keep[k] {
+				continue
+			}
+			if s.Alerts != nil {
+				s.Alerts.TargetRemoved(k)
+			} else {
+				s.St.ResolveAlerts("target_down", k, " – target removed")
+			}
+		}
+	}
 }
 
 // internet: GET /api/internet?range=… – quality of the internet connection as measured by mtmon's own probes, plus

@@ -102,6 +102,23 @@ func Reason(err error) string {
 	return msg
 }
 
+// Keys are the probe keys under which c is measured and reported: dns:<name>, or http4:/http6:<url>.
+func Keys(c Custom) []string {
+	if c.Kind == "dns" {
+		return []string{"dns:" + c.Target}
+	}
+	return []string{"http4:" + c.Target, "http6:" + c.Target}
+}
+
+// fqdn makes a host name absolute (trailing dot) so the resolver neither appends a search domain nor tries the name
+// under it first: a dead name must be NXDOMAIN, not whatever a wildcard record of the local domain answers (#194).
+func fqdn(host string) string {
+	if host == "" || net.ParseIP(host) != nil || strings.HasSuffix(host, ".") {
+		return host
+	}
+	return host + "."
+}
+
 // resolveFam resolves host to addresses of one family (4 or 6). 0.0.0.0 / :: answers are a router block.
 func resolveFam(ctx context.Context, host string, fam int) ([]net.IP, error) {
 	if ip := net.ParseIP(host); ip != nil {
@@ -110,7 +127,7 @@ func resolveFam(ctx context.Context, host string, fam int) ([]net.IP, error) {
 		}
 		return []net.IP{ip}, nil
 	}
-	addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	addrs, err := net.DefaultResolver.LookupIPAddr(ctx, fqdn(host))
 	if err != nil {
 		return nil, err
 	}

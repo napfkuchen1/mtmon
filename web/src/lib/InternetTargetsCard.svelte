@@ -16,6 +16,8 @@
   async function add() {
     const v = target.trim()
     if (!v) return
+    const norm = x => (kind === 'dns' ? x.toLowerCase().replace(/\.$/, '') : x)
+    if (list.some(c => c.kind === kind && c.target === norm(v))) { toast(t('Already in the list')); return }
     if (await save([...list, { kind, target: v, insecure: kind === 'http' && insecure }])) { target = ''; insecure = false }
   }
   const https = $derived(kind === 'http' && target.trim().startsWith('https://'))

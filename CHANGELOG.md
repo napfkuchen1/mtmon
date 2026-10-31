@@ -11,6 +11,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 ## [Unreleased]
 
 ### Fixed
+- Own internet targets (#194): removing a target now closes its open "did not answer" warning (shown as info, "target removed") and resets its failure count. Names are looked up as absolute names, so a search domain or wildcard record of the local domain can no longer turn a dead name into a TLS error: it shows NXDOMAIN. Adding a target that is already in the list says so.
 - Device event log: with "Store debug log lines" off, every line that carries only debug is dropped now (also `script,debug`, e.g. a script that logs "ok" every 5 minutes). `script,error,debug` still arrives, so SSH typos still give a CLI error. mtmon's own API logins and logouts (3 lines per router every 10 minutes) are no longer stored; a login of the same user from another address is still shown (#236).
 
 ### Changed

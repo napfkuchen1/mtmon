@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -127,5 +128,31 @@ func TestOnceCustomTargets(t *testing.T) {
 	}
 	if w := st.WANQualitySince(time.Now().Add(-time.Hour).Unix()); w.Sent != 1 {
 		t.Errorf("own targets must stay out of the connection totals: %+v", w)
+	}
+}
+
+func TestFQDNAndReasonTextsTranslated(t *testing.T) {
+	for in, want := range map[string]string{"example.com": "example.com.", "example.com.": "example.com.", "10.0.0.1": "10.0.0.1", "::1": "::1", "": ""} {
+		if got := fqdn(in); got != want {
+			t.Errorf("fqdn(%q) = %q, want %q", in, got, want)
+		}
+	}
+	dict, err := os.ReadFile("../../web/src/lib/i18n/x_srv_targets.js")
+	if err != nil {
+		t.Skip("dictionary not found")
+	}
+	for _, r := range []string{"timeout", "NXDOMAIN", "blocked by the router (answer 0.0.0.0)"} {
+		if !strings.Contains(string(dict), `"`+r+`"`) {
+			t.Errorf("no German text for %q", r)
+		}
+	}
+}
+
+func TestKeys(t *testing.T) {
+	if k := Keys(Custom{Kind: "dns", Target: "a.b"}); len(k) != 1 || k[0] != "dns:a.b" {
+		t.Errorf("dns keys: %v", k)
+	}
+	if k := Keys(Custom{Kind: "http", Target: "https://a/"}); len(k) != 2 || k[0] != "http4:https://a/" || k[1] != "http6:https://a/" {
+		t.Errorf("http keys: %v", k)
 	}
 }
