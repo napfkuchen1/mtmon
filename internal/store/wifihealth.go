@@ -101,7 +101,7 @@ func (s *Store) WifiHealthSince(since, now int64, pinned map[string]bool) ([]Wif
 		}
 		rr.Close()
 	}
-	discN := s.wifiDiscCounts(since)
+	discN := s.wifiDiscPeak(since)
 	bytesBy := map[string]int64{}
 	if ct, err := s.ClientTotals(since); err == nil {
 		for _, c := range ct {
@@ -120,7 +120,7 @@ func (s *Store) WifiHealthSince(since, now int64, pinned map[string]bool) ([]Wif
 	}
 	out := []WifiHealth{}
 	for mac, r := range byMAC {
-		h := WifiHealth{MAC: mac, AvgDBm: float64(r.sig) / float64(r.n), RoamsH: float64(roamN[mac]) / hours, DiscH: float64(discN[mac]) / hours,
+		h := WifiHealth{MAC: mac, AvgDBm: float64(r.sig) / float64(r.n), RoamsH: float64(roamN[mac]) / hours, DiscH: float64(discN[mac]),
 			Pinned: pinned[mac], Bytes: bytesBy[mac]}
 		if c, ok := clients[mac]; ok {
 			h.Name, h.AP, h.Band, h.SSID = firstNonEmptyS(c.Label, c.Hostname), c.Device, c.Band, c.SSID

@@ -119,6 +119,34 @@ func TestWifiHealthFixture22(t *testing.T) {
 	}
 }
 
+func TestWifiDisconnectBurstsCountAndSurviveRestart(t *testing.T) {
+	dir := t.TempDir()
+	st, _ := Open(dir)
+	now := time.Now().Unix()
+	ts := now / wifiBucket * wifiBucket
+	mac := "AA:00:00:00:01:01"
+	st.DB.Exec(`INSERT INTO wifi_hist(ts,mac,device,band,n,sig_sum,sig_min,sig_max,weak,tx_sum,rx_sum) VALUES(?,?,?,?,4,-240,-60,-60,0,400,400)`, ts, mac, "ap1", "5ghz")
+	// two bursts of six within 24 h, written to the stored device log only (as before the wifi_disc table existed)
+	for _, base := range []int64{now - 20*3600, now - 10*3600} {
+		for i := int64(0); i < 6; i++ {
+			st.DB.Exec(`INSERT INTO log_events(ts,device,topics,level,msg) VALUES(?,?,?,?,?)`, base+i*40, "ap1", "wireless,info", "info", mac+"@wlan1: disconnected, extensive data loss")
+		}
+	}
+	st.Close()
+	st, err := Open(dir) // restart: the table is empty, the log is not
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	h, err := st.WifiHealthSince(now-86400, now, nil)
+	if err != nil || len(h) != 1 {
+		t.Fatalf("%v %d", err, len(h))
+	}
+	if h[0].Disc == 0 || h[0].DiscH < 6 || h[0].Score >= 100 {
+		t.Fatalf("two bursts of six must cost points: %+v", h[0])
+	}
+}
+
 func TestWifiRateUnitMigration(t *testing.T) {
 	dir := t.TempDir()
 	st, _ := Open(dir)
