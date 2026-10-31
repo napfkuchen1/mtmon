@@ -47,6 +47,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Wi-Fi score: the link-rate penalty never applied because rates in bit/s were read as Mbit/s; older stored readings are converted on update.
 - Event-log rules created by the setup wizard no longer match debug lines (DHCP packet dumps, WireGuard keepalives). mtmon also drops those lines on arrival unless "Store debug log lines" is switched on in Settings.
 - The scheduler time match was an hour off for daily jobs after a daylight-saving change since their start date.
+- The reason at the end of a "device unreachable" alert (timeout, refused, login) is now translated too. (#194)
 
 ## [0.20.7] - 2026-10-30
 

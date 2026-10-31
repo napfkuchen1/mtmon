@@ -43,7 +43,9 @@ export function trAlert(a) {
   if (!a.msg.startsWith(en)) return tr(a.msg)
   const base = de[a.msgkey] ?? srv[a.msgkey] ?? tr(a.msgkey)
   const tail = a.msg.slice(en.length)
-  return fill(base, a.params) + (tail ? tail.split(' – ').map(tr).join(' – ') : '')
+  // an unreachable-device tail ends in the one-word reason: ": i/o timeout (timeout)"
+  const seg = x => tr(x).replace(/\((timeout|refused|auth|error)\)$/, (_, w) => '(' + tr(w) + ')')
+  return fill(base, a.params) + (tail ? tail.split(' – ').map(seg).join(' – ') : '')
 }
 
 // Backend strings: exact match first, then templates such as "Enabled logging on {n} firewall rules".
