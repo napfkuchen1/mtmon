@@ -3,6 +3,7 @@
 package syslog
 
 import (
+	"net/netip"
 	"regexp"
 	"strings"
 )
@@ -56,6 +57,28 @@ func ParseLog(msg string) (LogEvent, bool) {
 		}
 	}
 	return e, true
+}
+
+var reAccountLogin = regexp.MustCompile(`^user (\S+) logged (?:in|out)(?: from (\S+))? via \S+`)
+
+// OwnLogin reports whether the line is a login or logout of `user` (mtmon's own router user) that mtmon itself
+// caused: "user X logged in via api", "... logged in from <ownAddr> via rest-api", "... logged out via api".
+// A login of that user from any other address is not own. When ownAddr is unknown only lines without an address
+// count, so nothing foreign is ever hidden.
+func (e LogEvent) OwnLogin(user, ownAddr string) bool {
+	if user == "" || !e.HasTopic("account") {
+		return false
+	}
+	m := reAccountLogin.FindStringSubmatch(e.Msg)
+	if m == nil || m[1] != user {
+		return false
+	}
+	if m[2] == "" {
+		return true
+	}
+	a, err1 := netip.ParseAddr(m[2])
+	b, err2 := netip.ParseAddr(ownAddr)
+	return err1 == nil && err2 == nil && a.Unmap() == b.Unmap()
 }
 
 // HasTopic reports whether the topic list contains t.

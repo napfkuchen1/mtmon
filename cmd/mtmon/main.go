@@ -137,6 +137,9 @@ func run(args []string) error {
 		Allow: func(ip netip.Addr) string { return cfg.SourceDevice(ip) },
 		LogHandler: func(le syslog.LogEvent) {
 			ev := store.LogEvent{TS: le.TS, Device: le.Device, Topics: le.Topics, Level: le.Level, Msg: le.Msg}
+			if d, ok := cfg.Device(le.Device); ok && le.OwnLogin(d.User, localAddrFor(d.Addr)) {
+				return // mtmon's own polling logins: 3 lines per router every 10 min (#236)
+			}
 			if t, noisy := store.NoisyDebug(le.Level, le.HasTopic); noisy && !st.StoreDebugLogs() {
 				st.NoteDebugLine(le.Device, t, time.Now())
 				return

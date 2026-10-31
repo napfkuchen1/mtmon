@@ -27,6 +27,9 @@ func TestNoisyDebug(t *testing.T) {
 	if _, ok := NoisyDebug("error", has("script", "error", "debug")); ok {
 		t.Error("script,error,debug must stay (cli_error)")
 	}
+	if tp, ok := NoisyDebug("debug", has("script", "debug")); !ok || tp != OtherDebug {
+		t.Error("script,debug must be dropped too (#236)")
+	}
 	if _, ok := NoisyDebug("info", has("dhcp", "info")); ok {
 		t.Error("normal dhcp line must stay")
 	}
@@ -45,6 +48,12 @@ func TestDebugLineRate(t *testing.T) {
 	n, ts := st.DebugLineRate("gw", now)
 	if n != 170 || len(ts) != 2 || ts[0] != "dhcp" {
 		t.Errorf("%d %v", n, ts)
+	}
+	for i := 0; i < 500; i++ {
+		st.NoteDebugLine("gw", OtherDebug, now)
+	}
+	if n, ts := st.DebugLineRate("gw", now); n != 170 || len(ts) != 2 {
+		t.Errorf("other debug must not count towards the suggestion: %d %v", n, ts)
 	}
 	if n, _ := st.DebugLineRate("gw", now.Add(30*time.Minute)); n != 170 && n != 0 {
 		t.Errorf("%d", n)
