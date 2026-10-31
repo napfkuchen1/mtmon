@@ -27,4 +27,5 @@ export default {
   "Rule counters: {fired} of these rules have matched packets, {zero} never did (0 packets: no hurry)": "Regelzähler: {fired} dieser Regeln hatten Treffer, {zero} nie (0 Pakete: keine Eile)",
   "Isolation rules (blocking private ranges between segments): {list}": "Isolationsregeln (sperren private Bereiche zwischen Segmenten): {list}",
   "{n} rule(s) drop packets right now without logging: {list}": "{n} Regel(n) verwerfen gerade Pakete ohne Logging: {list}",
+  "A reject rule can start a reject loop: the device tries the rejected access point, drops its current connection and falls back. If it keeps disconnecting after the pin, use a signal-range limit on the unwanted AP instead of reject, or remove the pin.": "Eine Reject-Regel kann eine Reject-Schleife auslösen: Das Gerät versucht den abgewiesenen Access Point, verliert die aktuelle Verbindung und fällt zurück. Bricht es nach dem Pin weiter ab, auf dem unerwünschten AP lieber eine Signalbereich-Grenze (signal-range) statt Reject setzen oder den Pin entfernen.",
 }
