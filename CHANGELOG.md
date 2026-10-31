@@ -10,6 +10,9 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ## [Unreleased]
 
+### Fixed
+- German alert texts (#195): alerts stored by older versions (config changes, repeated Wi-Fi disconnects, devices behind an unreachable uplink) are no longer shown as a mix of English and German; the router's own reason is quoted on its own and mtmon's hint is translated.
+
 ## [0.20.9] - 2026-10-31
 
 ### Fixed
