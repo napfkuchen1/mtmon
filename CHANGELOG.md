@@ -12,14 +12,13 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ### Fixed
 - Device event log: with "Store debug log lines" off, every line that carries only debug is dropped now (also `script,debug`, e.g. a script that logs "ok" every 5 minutes). `script,error,debug` still arrives, so SSH typos still give a CLI error. mtmon's own API logins and logouts (3 lines per router every 10 minutes) are no longer stored; a login of the same user from another address is still shown (#236).
+- "Config changed" alert (#222): installs updated from an older version no longer name the last five old history entries as the source of the first new change; the source is only what changed since the last check. A source address of `::` or `0.0.0.0` is left out ("from ::").
 
 ### Changed
 - A quiet-hours summary now lists at most the newest 200 held alerts and says "+N older not listed" for the rest.
 
 ### New
 - mtmon is now licensed under AGPL-3.0-only (#198): `LICENSE`, an SPDX line in every source file, `CONTRIBUTING.md` (DCO sign-off) and a README license section. The UI links to the source of the running version (sidebar and Settings -> System). Release archives include `LICENSE` and `THIRD_PARTY_NOTICES.md`; CI fails on a missing SPDX line or a dependency under a license that is not allowed (`scripts/spdx.js`, `scripts/licenses.js`).
-### Fixed
-- "Config changed" alert (#222): installs updated from an older version no longer name the last five old history entries as the source of the first new change; the source is only what changed since the last check. A source address of `::` or `0.0.0.0` is left out ("from ::").
 
 ## [0.20.8] - 2026-10-31
 
