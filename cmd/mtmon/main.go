@@ -162,7 +162,7 @@ func run(args []string) error {
 	}
 	errc := make(chan error, 4)
 	srv.Restart = func() { errc <- errUpdateRestart }
-	srv.Upd, err = newUpdater(cfg, st, hub, log, func() { errc <- errUpdateRestart })
+	srv.Upd, err = newUpdater(cfg, st, hub, srv.Speed, log, func() { errc <- errUpdateRestart })
 	if err != nil {
 		return fmt.Errorf("updater: %w", err)
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/napfkuchen1/mtmon/internal/alert"
 	"github.com/napfkuchen1/mtmon/internal/config"
 	"github.com/napfkuchen1/mtmon/internal/live"
+	"github.com/napfkuchen1/mtmon/internal/speedtest"
 	"github.com/napfkuchen1/mtmon/internal/store"
 	"github.com/napfkuchen1/mtmon/internal/update"
 )
@@ -26,7 +27,7 @@ var errUpdateRestart = errors.New("restarting to install an update")
 // newUpdater wires the self-update manager. MTMON_UPDATE_API / MTMON_UPDATE_REPO exist for tests and demos;
 // a custom API base URL also becomes an allowed download host (it is set by whoever controls the service
 // environment, i.e. root).
-func newUpdater(cfg *config.Config, st *store.Store, hub *live.Hub, log *slog.Logger, restart func()) (*update.Manager, error) {
+func newUpdater(cfg *config.Config, st *store.Store, hub *live.Hub, speed *speedtest.Runner, log *slog.Logger, restart func()) (*update.Manager, error) {
 	o := update.Options{
 		Repo: cfg.UpdateRepo, Current: version, Dir: filepath.Join(cfg.DataDir, "update"), Meta: st,
 		HelperPath: update.HelperPath, Log: log, OnRestart: restart,
@@ -35,6 +36,9 @@ func newUpdater(cfg *config.Config, st *store.Store, hub *live.Hub, log *slog.Lo
 		Busy: func() string {
 			if n := st.OpenCritical(); n > 0 {
 				return fmt.Sprintf("%d critical alert(s) open", n)
+			}
+			if speed != nil && speed.Status().Running { // a restart would cut the measurement short
+				return "a speed test is running"
 			}
 			return ""
 		},
