@@ -26,6 +26,7 @@ lint:                     ## static analysis + shell checks
 licenses:                 ## SPDX line on every source file, dependency licences allowed (needs `make ui` once)
 	node scripts/spdx.js
 	node scripts/licenses.js --check
+	node scripts/alert-i18n.test.js
 
 scale:                    ## 100 clients x 30 days data set; asserts every query < 500 ms
 	MTMON_SCALE=1 $(GO) test ./internal/integration -run TestScale -v -timeout 20m
