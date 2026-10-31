@@ -50,7 +50,7 @@ type Prober struct {
 func lookup(ctx context.Context, name string) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	addrs, err := net.DefaultResolver.LookupHost(ctx, name)
+	addrs, err := net.DefaultResolver.LookupHost(ctx, fqdn(name))
 	if err == nil && len(addrs) > 0 {
 		blocked := true
 		for _, a := range addrs {

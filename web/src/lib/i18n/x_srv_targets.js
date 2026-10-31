@@ -4,6 +4,7 @@ export default {
   "target_down": "Internet-Ziel nicht erreichbar", "target_up": "Internet-Ziel wieder erreichbar",
   "Internet target {t} did not answer 3 checks in a row": "Internet-Ziel {t} hat 3 Prüfungen hintereinander nicht geantwortet",
   "Internet target {t} answers again": "Internet-Ziel {t} antwortet wieder",
+  "target removed": "Ziel entfernt",
   "timeout": "Zeitüberschreitung",
   "NXDOMAIN": "Name existiert nicht (NXDOMAIN)",
   "blocked by the router (answer 0.0.0.0)": "vom Router blockiert (Antwort 0.0.0.0)",

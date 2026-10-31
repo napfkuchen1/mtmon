@@ -72,4 +72,23 @@ func TestInternetTargetsAPI(t *testing.T) {
 	if len(got) != 2 || !got[0].Insecure || got[1].Target != "example.org" {
 		t.Errorf("stored: %+v", got)
 	}
+	// removing a target closes its open target_down alert, the other one stays open
+	s.St.AddAlert(store.Alert{TS: time.Now().Unix(), Kind: "target_down", Subject: "http4:https://nas.lan/", Severity: "warning", Msg: "down"})
+	s.St.AddAlert(store.Alert{TS: time.Now().Unix(), Kind: "target_down", Subject: "dns:example.org", Severity: "warning", Msg: "down"})
+	if code, b := do("PUT", `{"targets":[{"kind":"dns","target":"example.org"}]}`); code != 200 {
+		t.Fatalf("remove: %d %s", code, b)
+	}
+	al, _ := s.St.Alerts(10)
+	for _, a := range al {
+		switch a.Subject {
+		case "http4:https://nas.lan/":
+			if !a.Acked || a.Severity != "info" || !strings.HasSuffix(a.Msg, "target removed") {
+				t.Errorf("removed target's alert not resolved: %+v", a)
+			}
+		case "dns:example.org":
+			if a.Acked {
+				t.Errorf("kept target's alert must stay open: %+v", a)
+			}
+		}
+	}
 }

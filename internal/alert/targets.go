@@ -33,6 +33,15 @@ func (e *Engine) TargetResult(target string, ok bool, why string) {
 	}
 }
 
+// TargetRemoved closes what is open for a target the operator took out of the list: the failure counter starts over
+// and an open target_down warning is resolved (shown as info, "target removed"), so it no longer counts as open.
+func (e *Engine) TargetRemoved(target string) {
+	e.mu.Lock()
+	delete(e.tgtFails, target)
+	e.mu.Unlock()
+	e.St.ResolveAlerts("target_down", target, " – target removed")
+}
+
 // targetLabel is the target as the operator typed it: "http6:https://host/" shows as "https://host/ (IPv6)".
 func targetLabel(k string) string {
 	switch {
