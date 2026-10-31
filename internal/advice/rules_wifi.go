@@ -252,6 +252,7 @@ func ruleRoaming(s Snapshot) ([]Suggestion, string) {
 			sg.Steps = []string{
 				fmt.Sprintf("Pin the device to %s: add an access-list rule that rejects it on the %s Wi-Fi interface (or set a minimum signal strength there).", best.Device, weak.Device),
 				"Access-list rules on CAP interfaces refer to an interface ID that changes when CAPsMAN re-creates the interface; the check \"rules point to deleted interfaces\" lists such rules.",
+				"A reject rule can start a reject loop: the device tries the rejected access point, drops its current connection and falls back. If it keeps disconnecting after the pin, use a signal-range limit on the unwanted AP instead of reject, or remove the pin.",
 				"If the device is mobile after all, skip the pin and lower the transmit power or enable 802.11r/k/v instead.",
 			}
 			sg.Commands = fmt.Sprintf("# run on %s (use the name of its Wi-Fi interface)\n/interface/wifi/access-list add mac-address=%s action=reject interface=<wifi interface of %s> comment=\"pin to %s\"", weak.Device, r.MAC, weak.Device, best.Device)
