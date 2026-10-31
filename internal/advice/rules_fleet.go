@@ -249,3 +249,37 @@ func ruleNTPOff(s Snapshot) ([]Suggestion, string) {
 	}
 	return out, ""
 }
+
+// ruleAPOnAP (#190 baseline): the API service on an access point. mtmon talks REST (www), so the binary API is only
+// attack surface unless a script of yours uses it.
+func ruleAPOnAP(s Snapshot) ([]Suggestion, string) {
+	var out []Suggestion
+	seen := false
+	for _, d := range s.Devices() {
+		if d.Caps == nil || d.Caps.ProbedAt == 0 || d.Caps.Role != "ap" {
+			continue
+		}
+		seen = true
+		if len(d.Caps.APIOn) == 0 {
+			continue
+		}
+		names := strings.Join(d.Caps.APIOn, ", ")
+		var cmds []string
+		for _, n := range d.Caps.APIOn {
+			cmds = append(cmds, "/ip service disable [find name="+n+"]")
+		}
+		out = append(out, Suggestion{
+			Subject: d.Name, Severity: SevTip, Category: CatSecurity, Link: "device/" + d.Name, Confidence: "medium",
+			Title:    fmt.Sprintf("%s: %s is enabled on an access point", d.Name, names),
+			Why:      "An access point is managed with Winbox or SSH. The API service is the usual way in for scripts and scanners, and mtmon does not need it (it uses REST).",
+			Evidence: []string{"Enabled in /ip service: " + names, "Source: " + d.Caps.ReadNote()},
+			Steps:    []string{"If none of your own scripts or tools uses the API on this device, disable it."},
+			Commands: strings.Join(cmds, "\n"),
+			Limits:   "mtmon cannot see which tools use the API. Keep it if a controller or script depends on it.",
+		})
+	}
+	if !seen {
+		return nil, "no stored access point capabilities"
+	}
+	return out, ""
+}
