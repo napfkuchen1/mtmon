@@ -57,17 +57,34 @@ func historyHint(history []poller.Row, id, field string) string {
 	}
 	re := regexp.MustCompile(`(?:^|[\s;])` + regexp.QuoteMeta(field) + `=("[^"]+"|[^\s;]+)`)
 	for i := len(history) - 1; i >= 0; i-- {
-		redo := history[i]["redo"]
-		if !hasWord(redo, id) {
-			continue
-		}
-		if m := re.FindStringSubmatch(redo); m != nil {
-			if v := strings.Trim(m[1], `"`); v != "" && !reRouterOSID.MatchString(v) {
-				return v
+		// only "redo" is read: "undo" may hold whole script sources or secrets and is never stored or shown
+		for _, cmd := range redoCommands(history[i]["redo"]) {
+			if !hasWord(cmd, id) {
+				continue
+			}
+			if m := re.FindStringSubmatch(cmd); m != nil {
+				if v := strings.Trim(m[1], `"`); v != "" && !reRouterOSID.MatchString(v) {
+					return v
+				}
 			}
 		}
 	}
 	return ""
+}
+
+// reWrapped is RouterOS line wrapping inside one command: a backslash, the line break and the indent.
+var reWrapped = regexp.MustCompile(`\\r?\n[ \t]*`)
+
+// redoCommands splits a history "redo" into its commands: several commands are separated by line breaks, long ones are
+// wrapped (also in the middle of a word) and are joined first.
+func redoCommands(redo string) []string {
+	var out []string
+	for _, l := range strings.FieldsFunc(reWrapped.ReplaceAllString(redo, ""), func(r rune) bool { return r == '\n' || r == '\r' }) {
+		if l = strings.TrimSpace(l); l != "" {
+			out = append(out, l)
+		}
+	}
+	return out
 }
 
 // hasWord reports whether s contains tok as a whole word (so "*1" does not match "*1A").
