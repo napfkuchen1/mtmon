@@ -52,7 +52,8 @@ Seit 0.17: Listen ohne Client-Dimension (Ziele, Dienste, Länder …) über 25 h
 Schreibpfad: Channel-freier Puffer (max. 200 000 Zeilen, danach Drop mit Zähler), 1-s-Flush, Rollups werden vor dem Upsert im Speicher voraggregiert.
 
 ## Sicherheit
-- Login: argon2id, 12-h-Session (Cookie HttpOnly, SameSite=Strict, Secure bei TLS), Rate-Limit 5 Fehlversuche/min/IP (Login und API-Token getrennt), Origin-Check bei schreibenden Calls, CSP/nosniff/frame-deny. Hinter einem Reverse-Proxy mit privater Adresse zählt die echte Client-Adresse aus `X-Forwarded-For`/`X-Real-IP`.
+- Login: argon2id, 12-h-Session (Cookie HttpOnly, SameSite=Strict, Secure bei TLS), Rate-Limit 5 Versuche/min/IP (Login und API-Token getrennt; beim Login wird jeder Versuch vor der Passwortprüfung gezählt und bei Erfolg zurückgegeben), höchstens 2 argon2-Prüfungen gleichzeitig (sonst nach 10 s `503`), Origin-Check bei schreibenden Calls, CSP/nosniff/frame-deny. `X-Forwarded-*`/`X-Real-IP` zählen nur von vertrauenswürdigen Proxys: Loopback plus die Liste unter *Settings → Access & reverse proxy* (`meta.trusted_proxies`). Eine private Absenderadresse allein reicht nicht.
+- Speicher: Ohne `GOMEMLIMIT` liest mtmon beim Start das kleinste `memory.max` seiner cgroup-Kette (systemd `MemoryMax`, LXC) und setzt das Go-Limit auf 85 % davon.
 - Router-Zugang: eigener Read-only-User (`read,api,rest-api`, ohne write/policy/ssh/…), Quelladresse auf mtmon beschränkt, **Zertifikats-Pinning** (`fingerprint`), kein stilles `insecure`.
 - Flows nur von konfigurierten Exporter-IPs (`addr` oder `flow_sources`); andere werden gezählt und verworfen.
 - systemd-Härtung (`ProtectSystem=strict`, `NoNewPrivileges`, `SystemCallFilter` …) mit automatischem Fallback-Drop-in, falls der Container Sandbox-Optionen ablehnt.

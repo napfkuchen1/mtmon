@@ -58,12 +58,12 @@
     try { await api('/learning/reset', { method: 'POST', body: { hours: 24 } }); toast(t('Learning period started')) } catch (e) { toast(tr(e.message)) }
   }
   // --- access: port, public URL (reverse proxy), nginx snippet, restart
-  let acc = $state(null), accPort = $state(''), accUrl = $state(''), accBusy = $state(false), accErr = $state(''), restarting = $state(false)
-  async function loadAcc() { try { acc = await api('/access'); accPort = acc.port_override || ''; accUrl = acc.public_url || '' } catch (e) { accErr = e.message } }
+  let acc = $state(null), accPort = $state(''), accUrl = $state(''), accProxies = $state(''), accBusy = $state(false), accErr = $state(''), restarting = $state(false)
+  async function loadAcc() { try { acc = await api('/access'); accPort = acc.port_override || ''; accUrl = acc.public_url || ''; accProxies = acc.trusted_proxies || '' } catch (e) { accErr = e.message } }
   loadAcc()
   async function saveAcc() {
     accBusy = true; accErr = ''
-    try { acc = await api('/access', { method: 'PUT', body: { public_url: accUrl, listen_port: accPort ? Number(accPort) : 0 } }); toast(t('Saved')) }
+    try { acc = await api('/access', { method: 'PUT', body: { public_url: accUrl, listen_port: accPort ? Number(accPort) : 0, trusted_proxies: accProxies } }); accProxies = acc.trusted_proxies || ''; toast(t('Saved')) }
     catch (e) { accErr = e.message } finally { accBusy = false }
   }
   async function restart() {
@@ -225,6 +225,9 @@
         <label class="fld">{t('Public URL (when mtmon is behind a reverse proxy)')}
           <input class="input" placeholder="https://mtmon.example.com" bind:value={accUrl} />
           <span class="muted" style="font-size:12px">{t('Browsers send this address as “Origin”. mtmon accepts it for logins, changes and the live view.')}</span></label>
+        <label class="fld">{t('Trusted reverse proxies')}
+          <input class="input mono" placeholder="192.168.1.5, 10.0.0.0/24" bind:value={accProxies} />
+          <span class="muted" style="font-size:12px">{t('IP addresses or networks of your reverse proxy, separated by commas. Only these (and mtmon’s own machine) may pass the visitor’s address and host name in X-Forwarded-* headers. Leave empty if the proxy runs on the same machine as mtmon.')}</span></label>
         {#if accErr}<div class="warnbox">{tr(accErr)}</div>{/if}
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn primary" disabled={accBusy} onclick={saveAcc}>{t('Save')}</button>
@@ -238,8 +241,10 @@
             <tr><td class="muted">{t('Address in this browser')}</td><td class="r mono">{location.origin}</td></tr>
             <tr><td class="muted">X-Forwarded-Host / -Proto</td><td class="r mono">{acc.request.forwarded_host || '—'} / {acc.request.forwarded_proto || '—'}</td></tr>
             <tr><td class="muted">{t('Through a proxy')}</td><td class="r">{acc.request.via_proxy ? t('yes') : t('no (direct)')}</td></tr>
+            {#if acc.request.via_proxy}<tr><td class="muted">{t('Sender is a trusted proxy')}</td><td class="r"><span class="mono">{acc.request.remote}</span> <span class="badge {acc.request.trusted_proxy ? 'ok' : 'warn'}">{acc.request.trusted_proxy ? t('yes') : t('no')}</span></td></tr>{/if}
             <tr><td class="muted">{t('Changes and live view allowed')}</td><td class="r"><span class="badge {acc.request.origin_ok ? 'ok' : 'bad'}">{acc.request.origin_ok ? t('yes') : t('no')}</span></td></tr>
           </tbody></table>
+          {#if acc.request.via_proxy && !acc.request.trusted_proxy}<div class="warnbox" style="margin-top:8px">{t('This request carries X-Forwarded-* headers from {ip}, which is not a trusted proxy, so mtmon ignores them. If {ip} is your reverse proxy, add it under “Trusted reverse proxies”.', { ip: acc.request.remote })}</div>{/if}
           {#if acc.request.via_proxy && !acc.request.origin_ok}<div class="warnbox" style="margin-top:8px">{t('The proxy does not pass the original host name. Add “proxy_set_header Host $host;” (see the nginx example) or enter the public URL above.')}</div>{/if}
         </div>
         <details><summary>{t('nginx example')}</summary>

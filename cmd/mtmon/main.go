@@ -100,6 +100,7 @@ func run(args []string) error {
 		return err
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	applyMemoryLimit(log)
 	if err := os.MkdirAll(cfg.DataDir, 0o750); err != nil {
 		return err
 	}

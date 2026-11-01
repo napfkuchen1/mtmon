@@ -32,7 +32,7 @@ pct exec 210 -- mtmon selftest         # UI, /healthz, Flow-Port, DB, Passwort
 pct exec 210 -- mtmon passwd -u admin  # Passwort ändern (Env MTMON_PASSWORD oder Eingabe)
 pct exec 210 -- systemctl restart mtmon   # nach Config-Änderung
 ```
-Config: `/etc/mtmon/config.json` (Referenz: `deploy/config.example.json`). Felder: `local_nets`, `raw_retention_days`, `retention_days`, `reverse_dns`, `alert_webhook`, `alert_ntfy_url`, `alert_smtp`, `dns_resolvers` (Liste erlaubter Resolver → „rogue DNS“-Alert), `tls_cert/tls_key` (eigenes Zertifikat statt self-signed), `no_tls` (hinter Reverse-Proxy).
+Config: `/etc/mtmon/config.json` (Referenz: `deploy/config.example.json`). Felder: `local_nets`, `raw_retention_days`, `retention_days`, `reverse_dns`, `alert_webhook`, `alert_ntfy_url`, `alert_smtp`, `dns_resolvers` (Liste erlaubter Resolver → „rogue DNS“-Alert), `tls_cert/tls_key` (eigenes Zertifikat statt self-signed), `no_tls` (hinter Reverse-Proxy). Läuft der Reverse-Proxy auf einem anderen Rechner, seine Adresse unter *Settings → Access & reverse proxy → Trusted reverse proxies* eintragen (gespeichert in der DB, nicht in der Config), sonst ignoriert mtmon seine `X-Forwarded-*`-Header. Speicher: `GOMEMLIMIT` in der Unit überschreibt das automatisch aus der cgroup abgeleitete Limit.
 Firewall-Empfehlung: UDP 2055 nur von Router-IPs; TCP 8443 nur aus dem Admin-Netz.
 
 ### GeoIP / ASN / Hersteller

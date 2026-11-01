@@ -37,6 +37,14 @@ func TestOriginBehindProxy(t *testing.T) {
 	if s.originOK(mk("203.0.113.9:5555", "mtmon.lan", "https://evil.example", "evil.example")) {
 		t.Error("X-Forwarded-Host from a public peer must be ignored")
 	}
+	if s.originOK(mk("192.168.1.5:5555", "10.0.0.9:8443", "https://mtmon.example.com", "mtmon.example.com")) {
+		t.Error("X-Forwarded-Host from a LAN peer that is not a listed proxy must be ignored")
+	}
+	withProxies(t, "192.168.1.5")
+	if !s.originOK(mk("192.168.1.5:5555", "10.0.0.9:8443", "https://mtmon.example.com", "mtmon.example.com")) {
+		t.Error("X-Forwarded-Host from a listed proxy must be accepted")
+	}
+	setTrustedProxies(nil)
 	s.St.SetMeta("public_url", "https://mtmon.example.com")
 	if !s.originOK(mk("127.0.0.1:5555", "127.0.0.1:8443", "https://mtmon.example.com", "")) {
 		t.Error("configured public URL must be accepted")
