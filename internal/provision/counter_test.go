@@ -10,7 +10,9 @@ import (
 	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
-func filterByID(m interface{ Lists(string) []map[string]string }, id string) map[string]string {
+func filterByID(m interface {
+	Lists(string) []map[string]string
+}, id string) map[string]string {
 	for _, f := range m.Lists("/ip/firewall/filter") {
 		if f[".id"] == id {
 			return f

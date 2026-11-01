@@ -126,9 +126,9 @@ type featuresReq struct {
 	// AllowRules: .id of accept rules to log on (empty = the enabled accept rules that are not "established/related")
 	AllowRules []string `json:"allow_rules"`
 	// Convert switches the accept rules mtmon made log every packet to counter mode (log=no, #278).
-	Convert bool     `json:"convert"`
-	LogNew     bool     `json:"log_new"` // legacy: together with enabling firewall_logs it enables log_new as well
-	DryRun     bool     `json:"dry_run"`
+	Convert bool `json:"convert"`
+	LogNew  bool `json:"log_new"` // legacy: together with enabling firewall_logs it enables log_new as well
+	DryRun  bool `json:"dry_run"`
 }
 
 // defaultAllowRules: enabled, not yet logging accept rules that do not match every packet of established connections

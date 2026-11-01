@@ -21,8 +21,8 @@ type Options struct {
 	SyslogPort       int      `json:"syslog_port"`
 	Flow             bool     `json:"flow"`
 	Syslog           bool     `json:"syslog"`
-	FwRules          []string `json:"fw_rules"`    // .id of filter rules to enable logging on
-	AllowRules       []string `json:"allow_rules"` // .id of accept rules to enable logging on
+	FwRules          []string `json:"fw_rules"`      // .id of filter rules to enable logging on
+	AllowRules       []string `json:"allow_rules"`   // .id of accept rules to enable logging on
 	ConvertAllow     []string `json:"convert_allow"` // .id of accept rules mtmon logged earlier: switch them to counter mode (log=no)
 	LogNew           bool     `json:"log_new"`
 	DisableFasttrack bool     `json:"disable_fasttrack"`

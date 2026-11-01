@@ -247,7 +247,7 @@ type FwRuleHits struct {
 	Rule    string `json:"rule"`
 	Verdict string `json:"verdict"`
 	Hits    int64  `json:"hits"`
-	Own     bool   `json:"own,omitempty"` // rule only logs mtmon's own management traffic
+	Own     bool   `json:"own,omitempty"`     // rule only logs mtmon's own management traffic
 	Counter bool   `json:"counter,omitempty"` // hits come from the router's rule counter
 }
 
