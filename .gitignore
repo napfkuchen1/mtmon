@@ -13,3 +13,5 @@ config.json
 # local / maintainer-only
 docs/testreport.md
 scripts/.demo_b.sh
+mtmon.exe
+bin/

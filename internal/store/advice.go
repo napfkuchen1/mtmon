@@ -145,9 +145,9 @@ type ClientTotal struct {
 	Up, Down, Int, Fl int64
 }
 
-// ClientTotals: per-client sums from the tiny hourly client rollup.
+// ClientTotals: per-client sums from the tiny hourly client rollup, without mtmon's own traffic (#279).
 func (s *Store) ClientTotals(since int64) ([]ClientTotal, error) {
-	rows, err := s.DB.Query(`SELECT mac, sum(b_up), sum(b_down), sum(b_int), sum(flows) FROM rollup_1h_client
+	rows, err := s.DB.Query(`SELECT mac, sum(b_up-o_up), sum(b_down-o_down), sum(b_int-o_int), sum(flows) FROM rollup_1h_client
 		WHERE ts>=? GROUP BY mac`, since/3600*3600)
 	if err != nil {
 		return nil, err

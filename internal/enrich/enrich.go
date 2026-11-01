@@ -145,7 +145,7 @@ func hexByte(s string) byte {
 // SetName stores a hostname for ip (from a router's DNS cache).
 func (e *Enricher) SetName(ip netip.Addr, name string, ttl time.Duration) {
 	name = strings.TrimSuffix(strings.ToLower(name), ".")
-	if name == "" {
+	if name == "" || ip.IsUnspecified() { // blocked names resolve to 0.0.0.0 / :: – that address is no host (#279)
 		return
 	}
 	e.mu.Lock()
@@ -155,6 +155,9 @@ func (e *Enricher) SetName(ip netip.Addr, name string, ttl time.Duration) {
 
 // Name returns a known domain for ip. It schedules a reverse lookup on a miss.
 func (e *Enricher) Name(ip netip.Addr) string {
+	if ip.IsUnspecified() {
+		return ""
+	}
 	e.mu.RLock()
 	n, ok := e.names[ip]
 	rdns := e.rdns
@@ -179,6 +182,9 @@ func (e *Enricher) Name(ip netip.Addr) string {
 // NameCached returns a known, unexpired name for ip without ever scheduling a lookup. Request
 // handlers use it so that listing pages never trigger (or wait for) network traffic.
 func (e *Enricher) NameCached(ip netip.Addr) string {
+	if ip.IsUnspecified() {
+		return ""
+	}
 	e.mu.RLock()
 	n, ok := e.names[ip]
 	e.mu.RUnlock()

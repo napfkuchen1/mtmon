@@ -25,10 +25,11 @@ func (s *Store) RekeyTraffic(from, to string) error {
 			return err
 		}
 	}
-	if _, err := tx.Exec(`INSERT INTO rollup_1h_client(ts,mac,b_up,b_down,b_int,flows)
-		SELECT ts,?1,b_up,b_down,b_int,flows FROM rollup_1h_client WHERE mac=?2
+	if _, err := tx.Exec(`INSERT INTO rollup_1h_client(ts,mac,b_up,b_down,b_int,flows,o_up,o_down,o_int)
+		SELECT ts,?1,b_up,b_down,b_int,flows,o_up,o_down,o_int FROM rollup_1h_client WHERE mac=?2
 		ON CONFLICT(ts,mac) DO UPDATE SET b_up=b_up+excluded.b_up, b_down=b_down+excluded.b_down,
-		b_int=b_int+excluded.b_int, flows=flows+excluded.flows`, to, from); err != nil {
+		b_int=b_int+excluded.b_int, flows=flows+excluded.flows, o_up=o_up+excluded.o_up, o_down=o_down+excluded.o_down,
+		o_int=o_int+excluded.o_int`, to, from); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(`DELETE FROM rollup_1h_client WHERE mac=?`, from); err != nil {

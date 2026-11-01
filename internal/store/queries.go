@@ -106,11 +106,11 @@ func (s *Store) topBy(what string, since int64, limit int, mac string, own bool)
 		return nil, fmt.Errorf("unknown top list %q", what)
 	}
 	tbl, al := tableFor(what, since, mac)
-	up, down := `r.b_up`, `r.b_down`
+	up, down, in := `r.b_up`, `r.b_down`, `r.b_int`
 	switch {
 	case mac != "" || own:
 	case tbl == "rollup_1h_client": // no service column there: the own bytes are kept in two columns of their own
-		up, down = `(r.b_up-r.o_up)`, `(r.b_down-r.o_down)`
+		up, down, in = `(r.b_up-r.o_up)`, `(r.b_down-r.o_down)`, `(r.b_int-r.o_int)`
 	default:
 		where += ` AND coalesce(r.svc,'') NOT IN ` + ownSvcs
 	}
@@ -124,7 +124,7 @@ func (s *Store) topBy(what string, since int64, limit int, mac string, own bool)
 	if strings.Contains(sel, "c.") { // only clients/internal need names from the clients table
 		join = " LEFT JOIN clients c ON c.mac=r.mac"
 	}
-	q := `SELECT ` + sel + `, sum(` + up + `), sum(` + down + `), sum(r.b_int), sum(r.flows)
+	q := `SELECT ` + sel + `, sum(` + up + `), sum(` + down + `), sum(` + in + `), sum(r.flows)
 		FROM ` + tbl + ` r ` + idx + join + ` WHERE r.ts>=?` + where
 	args := []any{since / al * al}
 	if src, sargs, ok := dimSource(since); ok && mac == "" && join == "" && what != "internal" {
@@ -137,9 +137,9 @@ func (s *Store) topBy(what string, since int64, limit int, mac string, own bool)
 	}
 	q += ` GROUP BY ` + grp
 	if what == "clients" && mac == "" && !own {
-		q += ` HAVING sum(` + up + `)+sum(` + down + `)+sum(r.b_int)>0` // a host with nothing but own traffic is no row
+		q += ` HAVING sum(` + up + `)+sum(` + down + `)+sum(` + in + `)>0` // a host with nothing but own traffic is no row
 	}
-	q += ` ORDER BY sum(` + up + `)+sum(` + down + `)+sum(r.b_int) DESC LIMIT ?`
+	q += ` ORDER BY sum(` + up + `)+sum(` + down + `)+sum(` + in + `) DESC LIMIT ?`
 	args = append(args, limit)
 	rows, err := s.DB.Query(q, args...)
 	if err != nil {
