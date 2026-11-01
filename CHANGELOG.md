@@ -8,6 +8,16 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.20.12] - 2026-11-01
+
+### Fixed
+- Own traffic (#279): traffic between a router and mtmon (NetFlow, Syslog, REST) counts as mtmon's own and is left out of the top lists and per-client totals unless "Eigenen mtmon-Verkehr anzeigen" is ticked. A one-time migration relabels old data; it covers the minute and hour tiers only (the daily tier of past days stays as it was). The address 0.0.0.0 / :: never gets a name from a router's DNS cache.
+- Settings (#280): tab names, search placeholder and "IP protocol 0" are German; the "…" menu stays inside the window; the RAM bar turns yellow from 85 %.
+- After an update the UI reloads itself: index.html is revalidated on every load (assets carry a content hash) and the page reloads when the server reports a new version.
+- Suggestions (#195): the memory evidence lines ("Stable: …", "Only … MiB of RAM stayed free", "Memory use is rising") have German texts; the test also covers evidence built in local variables. Stored suggestions render with the same templates.
+- Activity log (#192): the value of a secret setting (SMTP password, webhook secret, tokens, keys, 2FA secret) is written as ••• ; the card text says so.
+- Firewall rules (#278): a counted rule without traffic reports `packets: 0` instead of a missing value.
+
 ## [0.20.11] - 2026-11-01
 
 ### New

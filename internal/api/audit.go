@@ -53,6 +53,9 @@ func metaQuiet(k string) bool {
 	return strings.Contains(k, ":")
 }
 
+// auditMask replaces the value of a secret setting in the log: the log shows that it changed, never what it is (#192).
+const auditMask = "•••"
+
 func metaSecret(k string) bool {
 	k = strings.ToLower(k)
 	return k == "notify" || strings.HasPrefix(k, "totp") || strings.Contains(k, "pass") || strings.Contains(k, "hash") || strings.Contains(k, "secret") || strings.Contains(k, "token") || strings.Contains(k, "key")
@@ -86,7 +89,7 @@ func metaDiff(before, after map[string]string) string {
 	var parts []string
 	for _, k := range keys {
 		if metaSecret(k) {
-			parts = append(parts, k+": changed (value hidden)")
+			parts = append(parts, k+": "+auditMask)
 			continue
 		}
 		parts = append(parts, k+": "+auditShort(before[k])+" → "+auditShort(after[k]))

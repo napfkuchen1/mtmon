@@ -66,3 +66,14 @@ func TestRealDatabases(t *testing.T) {
 		t.Errorf("IPv6 lookup: %+v", g)
 	}
 }
+
+func TestUnspecifiedAddressGetsNoName(t *testing.T) {
+	e := New("", "", "", false)
+	for _, a := range []string{"0.0.0.0", "::"} {
+		ip := netip.MustParseAddr(a)
+		e.SetName(ip, "ads.example.com", time.Hour)
+		if n := e.Name(ip); n != "" || e.NameCached(ip) != "" {
+			t.Errorf("%s got the name %q", a, n)
+		}
+	}
+}

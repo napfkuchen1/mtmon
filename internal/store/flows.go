@@ -72,6 +72,7 @@ type aggKey struct {
 type aggVal struct {
 	up, down, internal uint64
 	ownUp, ownDown     uint64 // part of up/down that is mtmon's own traffic
+	ownInt             uint64 // part of internal that is mtmon's own traffic
 	flows              int64
 	svc, host, cc, org string
 	asn                uint32
@@ -91,6 +92,9 @@ func (v *aggVal) add(r FlowRow) {
 		}
 	default:
 		v.internal += r.Bytes
+		if IsOwnSvc(r.Svc) {
+			v.ownInt += r.Bytes
+		}
 	}
 	v.flows++
 	if v.svc == "" {
@@ -183,14 +187,14 @@ func (s *Store) Flush() error {
 	if err := full("rollup_1h", h1); err != nil {
 		return fail(err)
 	}
-	stc, err := tx.Prepare(`INSERT INTO rollup_1h_client(ts,mac,b_up,b_down,b_int,flows,o_up,o_down) VALUES(?,?,?,?,?,?,?,?)` + upsertTail +
-		`, o_up=o_up+excluded.o_up, o_down=o_down+excluded.o_down`)
+	stc, err := tx.Prepare(`INSERT INTO rollup_1h_client(ts,mac,b_up,b_down,b_int,flows,o_up,o_down,o_int) VALUES(?,?,?,?,?,?,?,?,?)` + upsertTail +
+		`, o_up=o_up+excluded.o_up, o_down=o_down+excluded.o_down, o_int=o_int+excluded.o_int`)
 	if err != nil {
 		return fail(err)
 	}
 	defer stc.Close()
 	for k, v := range hc {
-		if _, err := stc.Exec(k.ts, k.mac, v.up, v.down, v.internal, v.flows, v.ownUp, v.ownDown); err != nil {
+		if _, err := stc.Exec(k.ts, k.mac, v.up, v.down, v.internal, v.flows, v.ownUp, v.ownDown, v.ownInt); err != nil {
 			return fail(err)
 		}
 	}

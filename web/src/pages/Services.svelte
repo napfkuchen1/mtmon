@@ -33,7 +33,7 @@
   const val = (s, k) => (k === 'name' ? label(s.name) : k === 'category' ? tr(s.category) : s[k])
   const sorted = $derived([...shown].sort((a, b) => { const x = val(a, sk), y = val(b, sk); return (typeof x === 'string' ? x.localeCompare(y) : x - y) * sdir || label(a.name).localeCompare(label(b.name)) }))
   const arrow = k => (sk === k ? (sdir < 0 ? ' ▼' : ' ▲') : '')
-  const IPPROTO = { 1: 'ICMP', 2: 'IGMP', 6: 'TCP', 17: 'UDP', 41: 'IPv6-in-IP', 47: 'GRE', 50: 'ESP', 51: 'AH', 58: 'ICMPv6', 89: 'OSPF', 112: 'VRRP' }
+  const IPPROTO = { 0: 'HOPOPT', 1: 'ICMP', 2: 'IGMP', 6: 'TCP', 17: 'UDP', 41: 'IPv6-in-IP', 47: 'GRE', 50: 'ESP', 51: 'AH', 58: 'ICMPv6', 89: 'OSPF', 112: 'VRRP' }
   function label(n) { // "proto-<n>" is the raw name of traffic without a port service
     const m = /^proto-(\d+)$/.exec(n || '')
     if (!m) return tr(n)

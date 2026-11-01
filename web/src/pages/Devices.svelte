@@ -41,7 +41,7 @@
         <div class="muted mono" style="margin-bottom:10px">{x.addr}{#if x.state?.model}&nbsp;· {x.state.model}{/if}</div>
         {#if l?.up}
           <div class="m"><span>CPU</span><div class="bar"><i style="width:{l.cpu}%;background:{l.cpu > 80 ? 'var(--bad)' : 'var(--accent)'}"></i></div><b class="num">{l.cpu.toFixed(0)}%</b></div>
-          <div class="m"><span>RAM</span><div class="bar"><i style="width:{l.mem_pct}%"></i></div><b class="num">{l.mem_pct.toFixed(0)}%</b></div>
+          <div class="m"><span>RAM</span><div class="bar"><i style="width:{l.mem_pct}%;background:{l.mem_pct >= 95 ? 'var(--bad)' : l.mem_pct >= 85 ? 'var(--warn)' : 'var(--accent)'}"></i></div><b class="num">{l.mem_pct.toFixed(0)}%</b></div>
           <div class="foot muted"><span>{t('Up {t}', { t: dur(l.uptime) })}</span>{#if l.temp}<span>{l.temp.toFixed(0)} °C</span>{/if}{#if x.state?.version}<span>ROS {x.state.version.split(' ')[0]}</span>{/if}</div>
         {:else}
           <div class="badge bad" style="white-space:normal">{tr(l?.err || x.state?.last_err) || t('unreachable')}</div>

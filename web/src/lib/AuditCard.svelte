@@ -28,7 +28,7 @@
   const label = a => (a.includes('.') ? a.replace(/\./g, ' · ') : a)
 </script>
 <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Audit log')}</h2></div>
-  <div class="card-b muted" style="font-size:13px">{t('Who did what: logins, setting changes, API tokens, devices, fixes and updates. Passwords and request contents are never logged. Entries are kept {n} days. Updates are logged with their health check, API token use once per token and hour.', { n: keep })}</div>
+  <div class="card-b muted" style="font-size:13px">{t('Who did what: logins, setting changes, API tokens, devices, fixes and updates. Setting values are logged without secrets: passwords, tokens and keys show as •••. Request contents are never logged. Entries are kept {n} days. Updates are logged with their health check, API token use once per token and hour.', { n: keep })}</div>
   <div class="card-b row" style="gap:8px;flex-wrap:wrap">
     {#each kinds as [k, l]}<button type="button" class="btn sm" class:primary={kind === k} onclick={() => { kind = k; load(false) }}>{t(l)}</button>{/each}
   </div>

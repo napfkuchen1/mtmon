@@ -153,6 +153,16 @@ func TestStaticAndHeaders(t *testing.T) {
 	if !strings.Contains(r.Header.Get("Content-Security-Policy"), "default-src 'self'") {
 		t.Error("CSP missing")
 	}
+	// index.html is revalidated, hashed assets are immutable (#280)
+	if got := r.Header.Get("Cache-Control"); got != "no-cache" {
+		t.Errorf("spa fallback Cache-Control = %q", got)
+	}
+	if ri, _ := http.Get(ts.URL + "/index.html"); ri.Header.Get("Cache-Control") != "no-cache" {
+		t.Errorf("index.html Cache-Control = %q", ri.Header.Get("Cache-Control"))
+	}
+	if ra, _ := http.Get(ts.URL + "/assets/a.js"); !strings.Contains(ra.Header.Get("Cache-Control"), "immutable") {
+		t.Errorf("asset Cache-Control = %q", ra.Header.Get("Cache-Control"))
+	}
 	if r, _ := http.Get(ts.URL + "/../../etc/passwd"); r.StatusCode == 200 && strings.Contains(r.Header.Get("Content-Type"), "text/plain") {
 		t.Error("path traversal served a file")
 	}

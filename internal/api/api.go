@@ -157,12 +157,15 @@ func (s *Server) static(w http.ResponseWriter, r *http.Request) {
 	}
 	if f, err := s.UI.Open(p); err == nil {
 		f.Close()
-		if strings.HasPrefix(p, "assets/") {
+		if strings.HasPrefix(p, "assets/") { // file names carry a content hash
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			w.Header().Set("Cache-Control", "no-cache") // index.html is revalidated so an update shows up at once (#280)
 		}
 		http.ServeFileFS(w, r, s.UI, p)
 		return
 	}
+	w.Header().Set("Cache-Control", "no-cache")
 	http.ServeFileFS(w, r, s.UI, "index.html") // SPA fallback
 }
 
