@@ -105,6 +105,7 @@ func (e *Engine) rejectLoop(dev, mac string, now time.Time) (aclRule, bool) {
 	}
 	fresh := st.base == nil || now.Sub(st.baseAt) > aclBaseTTL
 	hits := map[string]aclRule{}
+	seen := false // a non-disabled reject rule names the client
 	for i, r := range rows {
 		if r["disabled"] == "true" {
 			continue
@@ -118,6 +119,7 @@ func (e *Engine) rejectLoop(dev, mac string, now time.Time) (aclRule, bool) {
 		if fresh || r["action"] != "reject" || !macMatches(r["mac-address"], mac) {
 			continue
 		}
+		seen = true
 		if b, ok := st.base[id]; ok && n > b {
 			hits[mac] = aclRule{Comment: r["comment"], Iface: r["interface"]}
 		}
@@ -133,9 +135,24 @@ func (e *Engine) rejectLoop(dev, mac string, now time.Time) (aclRule, bool) {
 	}
 	if h, ok := hits[mac]; ok {
 		e.aclHits[dev+"|"+mac] = h
+		delete(e.aclMiss, dev+"|"+mac)
+	} else if seen && !fresh {
+		// the baseline of this burst exists and the rule did not count since: not a reject loop
+		if e.aclMiss == nil {
+			e.aclMiss = map[string]bool{}
+		}
+		e.aclMiss[dev+"|"+mac] = true
 	}
 	e.mu.Unlock()
 	return e.aclHitLocked(dev, mac)
+}
+
+// rejectMiss reports that a reject rule names the client but did not count during the burst (no reject loop).
+func (e *Engine) rejectMiss(dev, mac string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	_, hit := e.aclHits[dev+"|"+mac]
+	return e.aclMiss[dev+"|"+mac] && !hit
 }
 
 func (e *Engine) aclHitLocked(dev, mac string) (aclRule, bool) {

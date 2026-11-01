@@ -69,8 +69,10 @@ type Engine struct {
 	roamDHCP    map[string]*roamDHCP   // client MAC -> failed DHCP offers right after such a connect
 	acl         map[string]*aclState   // device -> access-list baseline of the running burst (#211)
 	aclHits     map[string]aclRule     // device|mac -> reject rule whose counter rose
+	aclMiss     map[string]bool        // device|mac -> a reject rule for the client exists, but its counter did not rise
 	stories     map[string]*story      // kind|subject -> open story (see stories.go)
 	tgtFails    map[string]int         // own internet target -> failed checks in a row (targets.go)
+	tgtNX       map[string]bool        // own internet target -> the last failure was NXDOMAIN (one alert for both families)
 
 	Suggest func(store.Client) string // group name suggested for a client without a group (set by main), "" = none
 	hc      *http.Client

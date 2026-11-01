@@ -98,6 +98,8 @@ type Options struct {
 	ExtraHosts []string
 	HelperPath string // when set, Apply refuses unless this file exists
 	Health     func() error
+	// OnResult reports the outcome of the post-update check: ok (healthy, update confirmed) or not (rolled back).
+	OnResult func(version string, ok bool)
 	// Busy returns a reason when an automatic install should wait (an outage or critical alert is open), "" otherwise.
 	Busy      func() string
 	OnRestart func() // called ExitDelay after a successful staging; default os.Exit(ExitCode)
@@ -835,11 +837,17 @@ func (m *Manager) confirmLoop(ctx context.Context) {
 			os.Remove(marker)
 			os.Remove(filepath.Join(m.o.Dir, "last-rollback")) // an older failure is obsolete now
 			m.o.Log.Info("update confirmed: new version is healthy", "version", m.o.Current)
+			if m.o.OnResult != nil {
+				m.o.OnResult(m.o.Current, true)
+			}
 			return
 		}
 		m.o.Log.Warn("post-update self-check failed, retrying")
 		if m.o.Now().After(deadline) { // still unhealthy: restart, the helper restores the previous binary (marker is still there)
 			m.o.Log.Error("post-update self-check failed for too long, rolling back", "version", m.o.Current)
+			if m.o.OnResult != nil {
+				m.o.OnResult(m.o.Current, false)
+			}
 			m.o.OnRestart()
 			return
 		}
