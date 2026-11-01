@@ -4,6 +4,7 @@ package live
 
 import (
 	"net/netip"
+	"strings"
 	"sync"
 	"time"
 
@@ -197,18 +198,34 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 	p.St.NoteGhostDNS(ghosts, now.Unix())
 }
 
-// monitorPorts are the ports mtmon talks to its routers on: SSH, REST/API (HTTP, HTTPS, 8728, 8729), SNMP, syslog and
-// the flow exports (NetFlow 2055, IPFIX 4739).
-var monitorPorts = map[uint16]bool{22: true, 80: true, 161: true, 162: true, 443: true, 514: true, 2055: true, 4739: true, 8728: true, 8729: true}
-
-// monitoring reports whether r is traffic between the machine mtmon runs on and a managed router (polling, flow export,
-// syslog, SNMP): mtmon's own traffic, not client behaviour.
+// monitoring reports whether r is traffic between the machine mtmon runs on and a managed device (REST/API polling,
+// flow export, syslog, SNMP, SSH): mtmon's own traffic, not client behaviour. Any port counts as soon as the two ends
+// are the mtmon host and a managed device (#279).
 func (p *Pipeline) monitoring(r flow.Record, src, dst netip.Addr) bool {
-	if p.HostAddr == nil || p.Owns == nil || !(monitorPorts[r.SrcPort] || monitorPorts[r.DstPort]) {
+	if p.Owns == nil {
 		return false
 	}
 	s, d := src.Unmap().String(), dst.Unmap().String()
-	return p.HostAddr(s) && p.Owns(d) || p.HostAddr(d) && p.Owns(s)
+	return p.isHost(s) && p.Owns(d) || p.isHost(d) && p.Owns(s)
+}
+
+// isHost reports whether ip is the machine mtmon runs on: one of its interface addresses, or – behind NAT or in a
+// container, where the routers see another address – the client that carries the name "mtmon".
+func (p *Pipeline) isHost(ip string) bool {
+	if p.HostAddr != nil && p.HostAddr(ip) {
+		return true
+	}
+	if p.Hub == nil {
+		return false
+	}
+	mac := p.Hub.MACFor(ip)
+	if mac == "" {
+		return false
+	}
+	p.Hub.mu.Lock()
+	n := strings.ToLower(p.Hub.names[mac])
+	p.Hub.mu.Unlock()
+	return n == "mtmon" || strings.HasPrefix(n, "mtmon.")
 }
 
 // macOf resolves a local address to a client or router MAC the same way flow rows are attributed ("" = nobody).

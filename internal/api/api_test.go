@@ -226,3 +226,23 @@ func TestSystemReportsOwnHealth(t *testing.T) {
 		t.Errorf("%v", m)
 	}
 }
+
+func TestMergeHostRowsFoldsAddressesOfOneName(t *testing.T) {
+	rows := []store.TopRow{
+		{Key: "2001:db8::1", Label: "cdn.example.net", Down: 50},
+		{Key: "203.0.113.5", Label: "other.example.org", Down: 80},
+		{Key: "2001:db8::2", Label: "cdn.example.net", Down: 40},
+		{Key: "2001:db8::3", Label: "cdn.example.net", Down: 30},
+		{Key: "198.51.100.7", Label: "198.51.100.7", Down: 5},
+	}
+	got := mergeHostRows(rows)
+	if len(got) != 3 {
+		t.Fatalf("%d rows: %+v", len(got), got)
+	}
+	if got[0].Label != "cdn.example.net" || got[0].Down != 120 || got[0].Sub != "3 addresses" || got[0].Key != "2001:db8::1" {
+		t.Errorf("merged row: %+v", got[0])
+	}
+	if got[2].Sub != "" {
+		t.Errorf("a bare address stays as it is: %+v", got[2])
+	}
+}

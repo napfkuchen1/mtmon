@@ -8,6 +8,16 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.20.13] - 2026-11-02
+
+### Fixed
+- Own traffic (#279): every flow between the machine mtmon runs on and a managed device counts as mtmon's own, on any port – also when the routers see mtmon behind NAT or in a container (the client named "mtmon" is the host then).
+- Top destinations (#279): rows with the same host name (one row per address of a CDN host) are merged and show how many addresses there are.
+- Database growth (#278): the forecast follows the last two days instead of the whole week and says "Schätzung" until the samples span the retention period.
+
+### Changed
+- REST polling (#279): the interface list, DNS cache and firewall counters are requested with `.proplist` (only the properties mtmon uses); routes, addresses, interface lists and static DNS entries are read every fourth run only. The device card shows the polling volume per day.
+
 ## [0.20.12] - 2026-11-01
 
 ### Fixed

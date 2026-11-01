@@ -524,6 +524,17 @@ func (s *Server) setLabel(w http.ResponseWriter, r *http.Request) {
 func wantOwn(r *http.Request) bool { return r.URL.Query().Get("own") == "1" }
 
 func (s *Server) topByOwn(what string, since int64, limit int, mac string, own bool) ([]store.TopRow, error) {
+	if what == "hosts" { // one CDN host has many addresses: fetch more, merge by name, then cut
+		rows, err := s.St.TopByOwn(what, since, min(limit*4, 500), mac, own)
+		if err != nil {
+			return nil, err
+		}
+		rows = mergeHostRows(rows)
+		if len(rows) > limit {
+			rows = rows[:limit]
+		}
+		return rows, nil
+	}
 	rows, err := s.St.TopByOwn(what, since, limit, mac, own)
 	if err != nil || s.Mgr == nil || (what != "clients" && what != "internal") {
 		return rows, err
@@ -541,6 +552,41 @@ func (s *Server) topByOwn(what string, since int64, limit int, mac string, own b
 		}
 	}
 	return rows, nil
+}
+
+// mergeHostRows folds rows that carry the same resolved name (one row per address of a CDN host) into the first of
+// them, which has the most traffic; its Sub says how many addresses there are. Rows are sorted by traffic already and
+// stay so, the merged ones move up as far as their sum carries them.
+func mergeHostRows(rows []store.TopRow) []store.TopRow {
+	at := map[string]int{}
+	n := map[string]int{}
+	var out []store.TopRow
+	for _, r := range rows {
+		if r.Label == "" || r.Label == r.Key {
+			out = append(out, r)
+			continue
+		}
+		if i, ok := at[r.Label]; ok {
+			out[i].Up += r.Up
+			out[i].Down += r.Down
+			out[i].Internal += r.Internal
+			out[i].Flows += r.Flows
+			n[r.Label]++
+			continue
+		}
+		at[r.Label] = len(out)
+		n[r.Label] = 1
+		out = append(out, r)
+	}
+	for l, i := range at {
+		if n[l] > 1 {
+			out[i].Sub = fmt.Sprintf("%d addresses", n[l])
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].Up+out[i].Down+out[i].Internal > out[j].Up+out[j].Down+out[j].Internal
+	})
+	return out
 }
 
 func (s *Server) top(w http.ResponseWriter, r *http.Request) {
@@ -878,7 +924,7 @@ func (s *Server) system(w http.ResponseWriter, r *http.Request) {
 		disk = sysinfo.Disk
 	}
 	free, total, _ := disk(s.Cfg.DataDir)
-	growth, growthKnown, growthH := s.St.DBGrowthInfo()
+	growth, growthKnown, growthH, growthEst := s.St.DBGrowthEstimate(s.Cfg.Retention)
 	daysLeft := -1 // -1: no growth or not enough samples yet
 	if growth > 0 {
 		daysLeft = int(free / growth)
@@ -893,7 +939,7 @@ func (s *Server) system(w http.ResponseWriter, r *http.Request) {
 		"learning_until": s.St.LearningUntil(), "learning_reason": s.St.LearningReason(),
 		"rss_bytes": sysinfo.RSS(), "cpu_pct": s.cpu.Percent(),
 		"data_dir_free_bytes": free, "data_dir_total_bytes": total, "db_growth_bytes_per_day": growth, "disk_days_left": daysLeft,
-		"db_growth_known": growthKnown, "db_sample_hours": growthH,
+		"db_growth_known": growthKnown, "db_sample_hours": growthH, "db_growth_estimate": growthEst,
 	})
 }
 
