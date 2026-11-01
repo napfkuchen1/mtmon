@@ -517,12 +517,6 @@ func (s *Server) setLabel(w http.ResponseWriter, r *http.Request) {
 	jsonOut(w, map[string]bool{"ok": true})
 }
 
-// topBy is Store.TopBy plus naming: traffic of a managed router/AP itself (DNS, syslog, flow export, ...) is booked on its
-// own interface MAC, which is no client - show the device name instead of a bare MAC and say which device it is.
-func (s *Server) topBy(what string, since int64, limit int, mac string) ([]store.TopRow, error) {
-	return s.topByOwn(what, since, limit, mac, false)
-}
-
 // wantOwn: ?own=1 asks for mtmon's own traffic (speed tests, monitoring of the routers) to be counted too.
 func wantOwn(r *http.Request) bool { return r.URL.Query().Get("own") == "1" }
 
