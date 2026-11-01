@@ -65,6 +65,11 @@ tmps.push(deTmp, tmp)
       // evidence lines (#195)
       ['1 clients sent DNS traffic (port 53) to public servers in the last 24 h', 'Clients: 1'],
       ['About 120 debug log lines per hour, from the topics: dhcp, wireless', 'Debug-Logzeilen'],
+      ['3 clients sent port 853 traffic to public servers in the last 24 h', 'Port-853-Verkehr'],
+      ['2 clients sent port 53 traffic to public servers; the redirect rule on the router has matched packets', 'Umleitungsregel'],
+      ['Stable: +0.1 points between the first and second half of the window, at least 28 MiB free', 'Stabil'],
+      ['Only 12 MiB of RAM stayed free (limit 20 MiB)', 'MiB'],
+      ['Memory use is rising: +6.2 points between the first and second half of the window', 'steigt'],
       ['Default peer AA:BB:CC:DD:EE:FF (tunnel address 10.0.0.2) on rb1 has connected', 'Standard-Peer'],
     ]
     for (const [en, de] of sugg) {

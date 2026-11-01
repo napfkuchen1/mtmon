@@ -116,6 +116,10 @@ func TestSuggestionTextsHaveGerman(t *testing.T) {
 					if sel, ok := l.(*ast.SelectorExpr); ok && i < len(x.Rhs) {
 						field(sel.Sel.Name, x.Rhs[i])
 					}
+					// evidence built in a local variable and appended later (#195)
+					if id, ok := l.(*ast.Ident); ok && id.Name == "stable" && i < len(x.Rhs) {
+						check(x.Rhs[i])
+					}
 				}
 			}
 			return true
