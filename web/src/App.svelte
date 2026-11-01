@@ -118,10 +118,17 @@
     })()
   })
   let upd = $state(null)
+  let loadedVersion = '' // version this page was built for; a different server version after an update reloads the UI (#280)
   $effect(() => {
     if (!app.user) return
     let timer, stop = false
-    const run = async () => { try { upd = await api('/update') } catch {} if (!stop) timer = setTimeout(run, 30 * 60 * 1000) }
+    const run = async () => { try {
+      upd = await api('/update')
+      if (upd?.current && upd.current !== 'dev') {
+        if (!loadedVersion) loadedVersion = upd.current
+        else if (upd.current !== loadedVersion) location.reload()
+      }
+    } catch {} if (!stop) timer = setTimeout(run, 30 * 60 * 1000) }
     const onUpd = () => { clearTimeout(timer); run() }
     window.addEventListener('mtmon:update', onUpd)
     run()
