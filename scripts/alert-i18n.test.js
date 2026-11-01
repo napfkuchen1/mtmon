@@ -62,6 +62,10 @@ tmps.push(deTmp, tmp)
       ['Pin the device to ap-eg: add an access-list rule that rejects it on the ap-og Wi-Fi interface (or set a minimum signal strength there).', 'Gerät an ap-eg binden'],
       ['Optional: block port 853 so devices fall back to plain DNS, which the router can redirect. Put the rule above any FastTrack or accept-all rules.', 'Port 853 sperren'],
       ['3 rules on ap1 point to deleted interfaces', 'verweisen auf gelöschte'],
+      // evidence lines (#195)
+      ['1 clients sent DNS traffic (port 53) to public servers in the last 24 h', 'Clients: 1'],
+      ['About 120 debug log lines per hour, from the topics: dhcp, wireless', 'Debug-Logzeilen'],
+      ['Default peer AA:BB:CC:DD:EE:FF (tunnel address 10.0.0.2) on rb1 has connected', 'Standard-Peer'],
     ]
     for (const [en, de] of sugg) {
       const out = tr(en)
