@@ -18,6 +18,7 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/napfkuchen1/mtmon/internal/config"
@@ -28,6 +29,7 @@ type Client struct {
 	user string
 	pass string
 	hc   *http.Client
+	rx   atomic.Int64 // bytes of all answers
 }
 
 var ErrAuth = errors.New("routeros: authentication failed")
@@ -159,7 +161,17 @@ func FingerprintGuarded(addr string, allow Guard) (string, error) {
 type Row map[string]string
 
 // Get fetches a path. Arrays are returned as rows; a single object as a one-element slice.
-func (c *Client) Get(ctx context.Context, path string) ([]Row, error) {
+func (c *Client) Get(ctx context.Context, path string) ([]Row, error) { return c.get(ctx, path) }
+
+// GetProps is Get with .proplist: the router sends only these properties, which cuts the volume of the big tables a lot.
+func (c *Client) GetProps(ctx context.Context, path string, props ...string) ([]Row, error) {
+	return c.get(ctx, path+"?.proplist="+strings.Join(props, ","))
+}
+
+// Bytes is the size of all answers received so far (the REST polling volume of this device).
+func (c *Client) Bytes() int64 { return c.rx.Load() }
+
+func (c *Client) get(ctx context.Context, path string) ([]Row, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+path, nil)
 	if err != nil {
 		return nil, err
@@ -171,6 +183,7 @@ func (c *Client) Get(ctx context.Context, path string) ([]Row, error) {
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
+	c.rx.Add(int64(len(body)))
 	if err != nil {
 		return nil, err
 	}
