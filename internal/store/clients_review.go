@@ -146,13 +146,19 @@ func (s *Store) ReviewClients(items []ReviewItem) (int, error) {
 
 // TotalsBetween sums traffic in [from,to). ok is false when retention no longer covers the whole window.
 func (s *Store) TotalsBetween(from, to int64) (up, down, flows int64, ok bool) {
+	return s.TotalsBetweenOwn(from, to, false)
+}
+
+// TotalsBetweenOwn is TotalsBetween; own=true counts mtmon's own traffic too.
+func (s *Store) TotalsBetweenOwn(from, to int64, own bool) (up, down, flows int64, ok bool) {
 	tbl, al := seriesTable(from, "")
 	var oldest sql.NullInt64
 	s.DB.QueryRow(`SELECT min(ts) FROM ` + tbl).Scan(&oldest)
 	if !oldest.Valid || oldest.Int64 > from+al {
 		return 0, 0, 0, false
 	}
-	s.DB.QueryRow(`SELECT coalesce(sum(b_up),0),coalesce(sum(b_down),0),coalesce(sum(flows),0) FROM `+tbl+` WHERE ts>=? AND ts<?`,
+	u, d, w := ownCols(tbl, "", own)
+	s.DB.QueryRow(`SELECT coalesce(sum(`+u+`),0),coalesce(sum(`+d+`),0),coalesce(sum(flows),0) FROM `+tbl+` WHERE ts>=? AND ts<?`+w,
 		from/al*al, to/al*al).Scan(&up, &down, &flows)
 	return up, down, flows, true
 }

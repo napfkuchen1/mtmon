@@ -53,17 +53,24 @@ type TopRow struct {
 
 // TopBy supports: clients, hosts, asn, country, ports, services, protocols, internal.
 func (s *Store) TopBy(what string, since int64, limit int, mac string) ([]TopRow, error) {
-	if mac == "" && what != "clients" && what != "internal" && olderThan(since, hybridMinAge) {
-		// a week or a month of destinations: memoised per hour of window start (daily rows change slowly anyway)
-		return memoize(&s.memo, "top|"+what+"|"+itoa(limit)+"|"+itoa(int(since/3600)), 2*time.Minute, sliceCopy[TopRow],
-			func() ([]TopRow, error) { return s.topBy(what, since, limit, mac) })
-	}
-	return s.topBy(what, since, limit, mac)
+	return s.TopByOwn(what, since, limit, mac, false)
 }
 
-func (s *Store) topBy(what string, since int64, limit int, mac string) ([]TopRow, error) {
+// TopByOwn is TopBy; own=true counts mtmon's own traffic (speed tests, monitoring of the routers) too. Without a
+// client (mac) the lists leave it out, so they show what the users of the network do. A single client's lists are
+// never filtered: the mtmon host itself is a client whose own page shows all of its traffic.
+func (s *Store) TopByOwn(what string, since int64, limit int, mac string, own bool) ([]TopRow, error) {
+	if mac == "" && what != "clients" && what != "internal" && olderThan(since, hybridMinAge) {
+		// a week or a month of destinations: memoised per hour of window start (daily rows change slowly anyway)
+		return memoize(&s.memo, "top|"+what+"|"+itoa(limit)+"|"+itoa(int(since/3600))+"|"+strconv.FormatBool(own), 2*time.Minute, sliceCopy[TopRow],
+			func() ([]TopRow, error) { return s.topBy(what, since, limit, mac, own) })
+	}
+	return s.topBy(what, since, limit, mac, own)
+}
+
+func (s *Store) topBy(what string, since int64, limit int, mac string, own bool) ([]TopRow, error) {
 	if _, ok := dimOf[what]; ok && mac == "" && olderThan(since, 8*24*time.Hour) {
-		return s.topByDim(what, since, limit)
+		return s.topByDim(what, since, limit, own)
 	}
 	var sel, grp, where string
 	switch what {
@@ -99,6 +106,14 @@ func (s *Store) topBy(what string, since int64, limit int, mac string) ([]TopRow
 		return nil, fmt.Errorf("unknown top list %q", what)
 	}
 	tbl, al := tableFor(what, since, mac)
+	up, down := `r.b_up`, `r.b_down`
+	switch {
+	case mac != "" || own:
+	case tbl == "rollup_1h_client": // no service column there: the own bytes are kept in two columns of their own
+		up, down = `(r.b_up-r.o_up)`, `(r.b_down-r.o_down)`
+	default:
+		where += ` AND coalesce(r.svc,'') NOT IN ` + ownSvcs
+	}
 	idx := ""
 	if mac == "" {
 		// Force the ts range scan on the primary key. Without this SQLite picks the (mac,ts) index for
@@ -109,7 +124,7 @@ func (s *Store) topBy(what string, since int64, limit int, mac string) ([]TopRow
 	if strings.Contains(sel, "c.") { // only clients/internal need names from the clients table
 		join = " LEFT JOIN clients c ON c.mac=r.mac"
 	}
-	q := `SELECT ` + sel + `, sum(r.b_up), sum(r.b_down), sum(r.b_int), sum(r.flows)
+	q := `SELECT ` + sel + `, sum(` + up + `), sum(` + down + `), sum(r.b_int), sum(r.flows)
 		FROM ` + tbl + ` r ` + idx + join + ` WHERE r.ts>=?` + where
 	args := []any{since / al * al}
 	if src, sargs, ok := dimSource(since); ok && mac == "" && join == "" && what != "internal" {
@@ -120,7 +135,11 @@ func (s *Store) topBy(what string, since int64, limit int, mac string) ([]TopRow
 		q += ` AND r.mac=?`
 		args = append(args, NormMAC(mac))
 	}
-	q += ` GROUP BY ` + grp + ` ORDER BY sum(r.b_up)+sum(r.b_down)+sum(r.b_int) DESC LIMIT ?`
+	q += ` GROUP BY ` + grp
+	if what == "clients" && mac == "" && !own {
+		q += ` HAVING sum(` + up + `)+sum(` + down + `)+sum(r.b_int)>0` // a host with nothing but own traffic is no row
+	}
+	q += ` ORDER BY sum(` + up + `)+sum(` + down + `)+sum(r.b_int) DESC LIMIT ?`
 	args = append(args, limit)
 	rows, err := s.DB.Query(q, args...)
 	if err != nil {
@@ -155,6 +174,11 @@ type Point struct {
 
 // Series returns bucketed traffic. bucket in seconds (multiple of 60).
 func (s *Store) Series(since int64, bucket int64, mac string) ([]Point, error) {
+	return s.SeriesOwn(since, bucket, mac, false)
+}
+
+// SeriesOwn is Series; own=true counts mtmon's own traffic too (never filtered for a single client).
+func (s *Store) SeriesOwn(since int64, bucket int64, mac string, own bool) ([]Point, error) {
 	if bucket < 60 {
 		bucket = 60
 	}
@@ -162,7 +186,8 @@ func (s *Store) Series(since int64, bucket int64, mac string) ([]Point, error) {
 	if al == 3600 && bucket < 3600 {
 		bucket = 3600
 	}
-	q := `SELECT (ts/?)*? AS t, sum(b_up), sum(b_down) FROM ` + tbl + ` WHERE ts>=?`
+	u, d, w := ownCols(tbl, mac, own)
+	q := `SELECT (ts/?)*? AS t, sum(` + u + `), sum(` + d + `) FROM ` + tbl + ` WHERE ts>=?` + w
 	args := []any{bucket, bucket, since / al * al}
 	if mac != "" {
 		q += ` AND mac=?`
@@ -288,9 +313,25 @@ type Overview struct {
 	AlertsOpen              int
 }
 
-func (s *Store) Totals(since int64) (up, down, flows int64) {
+func (s *Store) Totals(since int64) (up, down, flows int64) { return s.TotalsOwn(since, false) }
+
+// ownCols returns the up/down expressions and the extra WHERE of a series table that leave mtmon's own traffic out
+// (own=false) or keep it (own=true); mac != "" never filters (see TopByOwn).
+func ownCols(tbl, mac string, own bool) (up, down, where string) {
+	switch {
+	case mac != "" || own:
+		return `b_up`, `b_down`, ``
+	case tbl == "rollup_1h_client":
+		return `(b_up-o_up)`, `(b_down-o_down)`, ``
+	}
+	return `b_up`, `b_down`, ` AND coalesce(svc,'') NOT IN ` + ownSvcs
+}
+
+// TotalsOwn is Totals; own=true counts mtmon's own traffic (speed tests, monitoring of the routers) too.
+func (s *Store) TotalsOwn(since int64, own bool) (up, down, flows int64) {
 	tbl, al := seriesTable(since, "")
-	s.DB.QueryRow(`SELECT coalesce(sum(b_up),0),coalesce(sum(b_down),0),coalesce(sum(flows),0) FROM `+tbl+` WHERE ts>=?`, since/al*al).Scan(&up, &down, &flows)
+	u, d, w := ownCols(tbl, "", own)
+	s.DB.QueryRow(`SELECT coalesce(sum(`+u+`),0),coalesce(sum(`+d+`),0),coalesce(sum(flows),0) FROM `+tbl+` WHERE ts>=?`+w, since/al*al).Scan(&up, &down, &flows)
 	return
 }
 

@@ -17,7 +17,7 @@ import (
 
 // Every suggestion title, "why" text, step and note (Limits) a rule can produce must have a German text, or the
 // German Suggestions page shows English sentences (#195). The rule sources are read with go/ast: string literals and
-// fmt.Sprintf formats assigned to Title / Why / Limits / Steps are matched against the dictionaries in
+// fmt.Sprintf formats assigned to Title / Why / Limits / Steps / Evidence are matched against the dictionaries in
 // web/src/lib/i18n (a placeholder such as %s or %d matches a {name} placeholder of the key).
 func TestSuggestionTextsHaveGerman(t *testing.T) {
 	dictFiles, _ := filepath.Glob("../../web/src/lib/i18n/*.js")
@@ -73,7 +73,8 @@ func TestSuggestionTextsHaveGerman(t *testing.T) {
 			missing[s] = true
 		}
 	}
-	steps := func(e ast.Expr) {
+	var steps func(e ast.Expr)
+	steps = func(e ast.Expr) {
 		switch x := e.(type) {
 		case *ast.CompositeLit:
 			for _, el := range x.Elts {
@@ -81,7 +82,11 @@ func TestSuggestionTextsHaveGerman(t *testing.T) {
 			}
 		case *ast.CallExpr: // append(steps, "…")
 			if id, ok := x.Fun.(*ast.Ident); ok && id.Name == "append" {
-				for _, a := range x.Args[1:] {
+				for i, a := range x.Args {
+					if i == 0 {
+						steps(a) // append([]string{"first line"}, rest...)
+						continue
+					}
 					check(a)
 				}
 			}
@@ -91,7 +96,7 @@ func TestSuggestionTextsHaveGerman(t *testing.T) {
 		switch name {
 		case "Title", "Why", "Limits":
 			check(v)
-		case "Steps":
+		case "Steps", "Evidence":
 			steps(v)
 		}
 	}

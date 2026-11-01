@@ -10,7 +10,7 @@
   import { modeText, labelText } from '../lib/upstream.js'
 
   const d = poll(() => api('/topology'), 5000)
-  const CW = 168, RH = 52, PAD = 16, GP = 12 // client cell width / row height, outer padding, container padding
+  const CW = 168, RH = 52, SH = 22, PAD = 16, GP = 12 // client cell width / row height, outer padding, container padding
   let W = $state(900)
 
   // collapsed groups survive reloads
@@ -75,11 +75,22 @@
       if (dv === root) kids = kids.concat(orphans)
       kids.sort(sortKids)
       const isCollapsed = !!collapsed[dv.id]
-      const cols = Math.max(1, Math.min(maxCols, Math.ceil(kids.length / 5))) // about 5 rows per group, wider only when needed
-      const rows = isCollapsed ? 0 : Math.ceil(kids.length / cols)
+      // sections inside the group: wired clients by port / bridge host, Wi-Fi by network, VPN peers on their own (#280)
+      const secs = []
+      for (const k of kids) {
+        const vpn = k.vendor === 'WireGuard VPN' || k.id.startsWith('c:VPN:')
+        const key = vpn ? 'vpn' : k.wifi ? 'w:' + (k.ssid || '') : 'p:' + (k.port || '')
+        let sc = secs.find(x => x.key === key)
+        if (!sc) secs.push(sc = { key, rank: vpn ? 2 : k.wifi ? 1 : 0, label: vpn ? 'VPN' : k.wifi ? ['Wi-Fi', k.ssid].filter(Boolean).join(' · ') : (k.port || t('other port')), kids: [] })
+        sc.kids.push(k)
+      }
+      secs.sort((a, b) => a.rank - b.rank)
+      const cols = Math.max(1, Math.min(maxCols, Math.ceil(Math.max(0, ...secs.map(x => x.kids.length)) / 5))) // about 5 rows per section, wider only when needed
+      let off = 0
+      for (const sc of secs) { sc.off = off; sc.rows = Math.ceil(sc.kids.length / cols); off += SH + sc.rows * RH }
       const cw = Math.max(isCollapsed ? 170 : cols * CW + 2 * GP, 176)
-      const ch = kids.length ? 34 + (isCollapsed ? 0 : rows * RH + 6) : 0
-      return { dv, kids, cols, rows, cw, ch, isCollapsed, bps: kids.reduce((s, k) => s + k.bps, 0) }
+      const ch = kids.length ? 34 + (isCollapsed ? 0 : off + 6) : 0
+      return { dv, kids, secs, cols, cw, ch, isCollapsed, bps: kids.reduce((s, k) => s + k.bps, 0) }
     })
     const pos = new Map()
     // the ISP modem / router in front of the gateway is drawn above it
@@ -106,7 +117,7 @@
         g.nodeH = isRoot ? 0 : 76 // device node sits above its container
         if (!isRoot) pos.set(g.dv.id, { x: x + g.cw / 2, y: y + 28 })
         g.cx = x; g.cy = y + g.nodeH // container top-left
-        g.kids.forEach((k, i) => pos.set(k.id, { x: x + GP + (i % g.cols) * CW + CW / 2, y: g.cy + 34 + Math.floor(i / g.cols) * RH + 22 }))
+        for (const sc of g.secs) sc.kids.forEach((k, i) => pos.set(k.id, { x: x + GP + (i % g.cols) * CW + CW / 2, y: g.cy + 34 + sc.off + SH + Math.floor(i / g.cols) * RH + 22 }))
         bandH = Math.max(bandH, g.nodeH + g.ch)
         x += g.cw + 16
       }
@@ -190,6 +201,9 @@
               <path d={g.isCollapsed ? 'M9 6l6 6-6 6' : 'M6 9l6 6 6-6'} transform="translate({g.cx + 8},{g.cy + 3}) scale(.8)" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
               <text x={g.cx + 28} y={g.cy + 19} font-size="12" font-weight="600" fill="var(--muted)">{g.kids.length} {g.kids.length === 1 ? t('device') : t('devices')}{g.isCollapsed ? ' · ' + t('click to expand') : ''}</text>
             </g>
+            {#if !g.isCollapsed}{#each g.secs as sc (sc.key)}
+              <text x={g.cx + GP} y={g.cy + 34 + sc.off + 15} font-size="11" font-weight="600" fill="var(--muted)">{sc.label} · {sc.kids.length} {sc.kids.length === 1 ? t('device') : t('devices')}</text>
+            {/each}{/if}
           </g>
         {/if}
       {/each}

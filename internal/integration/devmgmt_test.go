@@ -491,18 +491,48 @@ func TestDeviceFeaturesAllowLog(t *testing.T) {
 		}
 		return n
 	}
-	// allow logging alone: the syslog target is pulled in, the drop rules stay quiet
+	prefixed := func(prefix string) int {
+		n := 0
+		for _, f := range r.rt.Lists("/ip/firewall/filter") {
+			if strings.HasPrefix(f["log-prefix"], prefix) {
+				n++
+			}
+		}
+		return n
+	}
+	// allow rules are counted, not logged (#278): the syslog target is pulled in, the rule gets its prefix, log stays off
+	// and the rule is registered as counter based
+	rctr := func() bool {
+		rs, _ := r.st.FwRules()
+		return len(rs) == 1 && rs[0].Counter
+	}
 	if code := r.call("POST", "/api/devices/gw-ro/features", req(map[string]any{"enable": []string{"allow_log"}, "allow_rules": []string{accept}}), &out); code != 200 || out["ok"] != true {
 		t.Fatalf("enable allow_log: %d %v", code, out)
 	}
-	if len(r.rt.Lists("/system/logging")) != 1 || logging("MTM-") != 1 || !on("allow_log") {
-		t.Fatalf("logging=%d rules=%d allow=%v", len(r.rt.Lists("/system/logging")), logging("MTM-"), on("allow_log"))
+	if len(r.rt.Lists("/system/logging")) != 1 || logging("MTM-") != 0 || prefixed("MTM-") != 1 || !on("allow_log") || !rctr() {
+		t.Fatalf("logging=%d rules=%d prefixed=%d allow=%v", len(r.rt.Lists("/system/logging")), logging("MTM-"), prefixed("MTM-"), on("allow_log"))
+	}
+	// a rule that an earlier version made log every packet is offered for conversion and switched to counting
+	r.rt.Patch("/ip/firewall/filter", accept, map[string]string{"log": "yes"})
+	r.st.SaveFwRules([]store.FwRule{{Device: "gw-ro", Prefix: "MTM-" + strings.TrimPrefix(accept, "*"), Chain: "forward", Action: "accept", Managed: true}})
+	var cv struct {
+		Convertible []string `json:"convertible_allow"`
+	}
+	r.call("GET", "/api/devices/gw-ro/features", nil, &cv)
+	if len(cv.Convertible) != 1 || cv.Convertible[0] != accept {
+		t.Fatalf("convertible: %v", cv.Convertible)
+	}
+	if code := r.call("POST", "/api/devices/gw-ro/features", req(map[string]any{"convert": true}), &out); code != 200 || out["ok"] != true {
+		t.Fatalf("convert: %d %v", code, out)
+	}
+	if logging("MTM-") != 0 || prefixed("MTM-") != 1 || !rctr() {
+		t.Fatalf("after convert: logging=%d prefixed=%d", logging("MTM-"), prefixed("MTM-"))
 	}
 	// only the allow logging off: target and the rest stay
 	if code := r.call("POST", "/api/devices/gw-ro/features", req(map[string]any{"disable": []string{"allow_log"}}), &out); code != 200 || out["ok"] != true {
 		t.Fatalf("disable allow_log: %d %v", code, out)
 	}
-	if logging("MTM-") != 0 || len(r.rt.Lists("/system/logging")) != 1 || on("allow_log") || !on("firewall_logs") {
+	if prefixed("MTM-") != 0 || len(r.rt.Lists("/system/logging")) != 1 || on("allow_log") || !on("firewall_logs") {
 		t.Fatalf("rules=%d logging=%d", logging("MTM-"), len(r.rt.Lists("/system/logging")))
 	}
 	// new-connection logging, then the firewall log off: it takes the dependent feature with it

@@ -36,6 +36,7 @@ type Pipeline struct {
 	Hub               *Hub
 	Cls               *enrich.Classifier
 	Owns              func(ip string) bool   // a managed device owns this address (any interface, polling address); optional
+	HostAddr          func(ip string) bool   // an address of the machine mtmon runs on; optional
 	SelfMAC           func(ip string) string // own interface MAC of the managed device that has this address, "" = none; optional
 	mu                sync.Mutex
 	seen              map[dkey]int64
@@ -184,6 +185,8 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 		}
 		if speedtest.Traffic.Match(row.CIP, row.RIP) { // mtmon's own speed test: visible, but not client behaviour
 			row.Svc = store.SpeedtestSvc
+		} else if p.monitoring(r, src, dst) {
+			row.Svc = store.MonitorSvc
 		}
 		rows = append(rows, row)
 		p.Hub.AddFlow(row)
@@ -192,6 +195,20 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 		p.St.Enqueue(rows...)
 	}
 	p.St.NoteGhostDNS(ghosts, now.Unix())
+}
+
+// monitorPorts are the ports mtmon talks to its routers on: SSH, REST/API (HTTP, HTTPS, 8728, 8729), SNMP, syslog and
+// the flow exports (NetFlow 2055, IPFIX 4739).
+var monitorPorts = map[uint16]bool{22: true, 80: true, 161: true, 162: true, 443: true, 514: true, 2055: true, 4739: true, 8728: true, 8729: true}
+
+// monitoring reports whether r is traffic between the machine mtmon runs on and a managed router (polling, flow export,
+// syslog, SNMP): mtmon's own traffic, not client behaviour.
+func (p *Pipeline) monitoring(r flow.Record, src, dst netip.Addr) bool {
+	if p.HostAddr == nil || p.Owns == nil || !(monitorPorts[r.SrcPort] || monitorPorts[r.DstPort]) {
+		return false
+	}
+	s, d := src.Unmap().String(), dst.Unmap().String()
+	return p.HostAddr(s) && p.Owns(d) || p.HostAddr(d) && p.Owns(s)
 }
 
 // macOf resolves a local address to a client or router MAC the same way flow rows are attributed ("" = nobody).

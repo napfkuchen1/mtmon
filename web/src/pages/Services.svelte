@@ -27,6 +27,18 @@
   const cats = $derived([...new Set(services.map(s => s.category))].sort())
   const shown = $derived(services.filter(s => (!cat || s.category === cat) && (!q || s.name.toLowerCase().includes(q.toLowerCase()))))
   const tot = s => s.up + s.down + s.internal
+  // sortable columns; the arrow always shows the key the rows are really ordered by
+  let sk = $state('down'), sdir = $state(-1)
+  const sortBy = k => { if (sk === k) sdir = -sdir; else { sk = k; sdir = k === 'name' || k === 'category' ? 1 : -1 } }
+  const val = (s, k) => (k === 'name' ? label(s.name) : k === 'category' ? tr(s.category) : s[k])
+  const sorted = $derived([...shown].sort((a, b) => { const x = val(a, sk), y = val(b, sk); return (typeof x === 'string' ? x.localeCompare(y) : x - y) * sdir || label(a.name).localeCompare(label(b.name)) }))
+  const arrow = k => (sk === k ? (sdir < 0 ? ' ▼' : ' ▲') : '')
+  const IPPROTO = { 1: 'ICMP', 2: 'IGMP', 6: 'TCP', 17: 'UDP', 41: 'IPv6-in-IP', 47: 'GRE', 50: 'ESP', 51: 'AH', 58: 'ICMPv6', 89: 'OSPF', 112: 'VRRP' }
+  function label(n) { // "proto-<n>" is the raw name of traffic without a port service
+    const m = /^proto-(\d+)$/.exec(n || '')
+    if (!m) return tr(n)
+    return IPPROTO[m[1]] ? t('IP protocol {n} ({name})', { n: m[1], name: IPPROTO[m[1]] }) : t('IP protocol {n}', { n: m[1] })
+  }
   const max = $derived(shown.reduce((m, s) => Math.max(m, tot(s)), 0) || 1)
   const d = $derived(det.data?.detail)
   const bucket = $derived({ '1h': 60, '24h': 900, '7d': 3600, '30d': 14400 }[rg()] || 60)
@@ -88,11 +100,11 @@
       <input class="input" placeholder={t('Search service …')} bind:value={q} aria-label={t('Search service')} />
     </div>
     <div class="scroll"><table>
-      <thead><tr><th>{t('Service')}</th><th>{t('Category')}</th><th class="r">{t('Clients')}</th><th class="r">{t('Destinations')}</th><th class="r">{t('↓ Down')}</th><th class="r">{t('↑ Up')}</th><th style="width:150px">{t('Share')}</th><th class="r">{t('Flows')}</th></tr></thead>
-      <tbody>{#each shown as s (s.name)}
+      <thead><tr><th class=""><button class="sorth" onclick={() => sortBy('name')}>{t('Service')}{arrow('name')}</button></th><th class=""><button class="sorth" onclick={() => sortBy('category')}>{t('Category')}{arrow('category')}</button></th><th class="r"><button class="sorth" onclick={() => sortBy('clients')}>{t('Clients')}{arrow('clients')}</button></th><th class="r"><button class="sorth" onclick={() => sortBy('dests')}>{t('Destinations')}{arrow('dests')}</button></th><th class="r"><button class="sorth" onclick={() => sortBy('down')}>{t('↓ Down')}{arrow('down')}</button></th><th class="r"><button class="sorth" onclick={() => sortBy('up')}>{t('↑ Up')}{arrow('up')}</button></th><th class="r"><button class="sorth" onclick={() => sortBy('internal')}>{t('⇄ LAN')}{arrow('internal')}</button></th><th style="width:150px">{t('Share')}</th><th class="r"><button class="sorth" onclick={() => sortBy('flows')}>{t('Flows')}{arrow('flows')}</button></th></tr></thead>
+      <tbody>{#each sorted as s (s.name)}
         <tr class="click" onclick={() => go('services/' + encodeURIComponent(s.name))}>
-          <td><b>{tr(s.name)}</b></td><td><span class="badge">{tr(s.category)}</span></td><td class="r num" title={app.range === '30d' ? t('Clients of the last 48 h') : ''}>{num(s.clients)}</td><td class="r num">{num(s.dests)}</td>
-          <td class="r num">{bytes(s.down)}</td><td class="r num">{bytes(s.up)}</td><td><div class="bar"><i style="width:{(tot(s) / max) * 100}%"></i></div></td><td class="r num muted">{num(s.flows)}</td></tr>
+          <td><b>{label(s.name)}</b></td><td><span class="badge">{tr(s.category)}</span></td><td class="r num" title={app.range === '30d' ? t('Clients of the last 48 h') : ''}>{num(s.clients)}</td><td class="r num">{num(s.dests)}</td>
+          <td class="r num">{bytes(s.down)}</td><td class="r num">{bytes(s.up)}</td><td class="r num">{s.internal ? bytes(s.internal) : '—'}</td><td><div class="bar"><i style="width:{(tot(s) / max) * 100}%"></i></div></td><td class="r num muted">{num(s.flows)}</td></tr>
       {/each}</tbody></table>
       {#if !shown.length}<div class="empty">{list.loading ? t('Loading…') : t('No services with traffic in this range')}</div>{/if}
     </div>
@@ -100,7 +112,7 @@
   {/if}
 
 {:else}
-  <div class="head"><a href="#/services">{t('← Services')}</a><h1>{tr(name)}</h1>{#if det.data}<span class="badge">{tr(det.data.category)}</span>{/if}</div>
+  <div class="head"><a href="#/services">{t('← Services')}</a><h1>{label(name)}</h1>{#if det.data}<span class="badge">{tr(det.data.category)}</span>{/if}</div>
   {#if det.error}<div class="warnbox">{tr(det.error)}</div>{/if}
   {#if d}
     <div class="grid g4" style="margin-bottom:16px">
@@ -110,7 +122,7 @@
       <div class="card card-b kpi"><div class="l">{t('↑ Upload')}</div><div class="v num">{bytes(d.up)}</div><div class="l">{t('{n} flows', { n: num(d.flows) })}</div></div>
     </div>
 
-    <div class="card"><div class="card-h"><h2>{t('Who uses “{name}”?', { name: tr(name) })}</h2><span class="muted" style="font-size:12.5px">{d.clients_since ? t('Clients: last 48 h only (long ranges have no client detail) · ') : ''}{t('Click opens the client')}</span></div>
+    <div class="card"><div class="card-h"><h2>{t('Who uses “{name}”?', { name: label(name) })}</h2><span class="muted" style="font-size:12.5px">{d.clients_since ? t('Clients: last 48 h only (long ranges have no client detail) · ') : ''}{t('Click opens the client')}</span></div>
       <div class="scroll"><table>
         <thead><tr><th>{t('Client')}</th><th>{t('Connected to')}</th><th class="r">{t('Destinations')}</th><th class="r">{t('↓ Down')}</th><th class="r">{t('↑ Up')}</th><th class="r">{t('Flows')}</th></tr></thead>
         <tbody>{#each d.clients as c (c.mac)}
@@ -146,5 +158,7 @@
   .seg button.on { border-color: var(--accent); background: var(--accent-bg); box-shadow: inset 0 0 0 1px var(--accent); }
   .seg button.on b { color: var(--accent-strong); }
   @media (max-width: 560px) { .seg { grid-template-columns: 1fr; } }
+  .sorth { all: unset; cursor: pointer; font-weight: inherit; }
+  .sorth:focus-visible { outline: 2px solid var(--accent); }
   .head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
 </style>

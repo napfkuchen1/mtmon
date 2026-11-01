@@ -49,6 +49,8 @@ export default {
   "every hour": "stündlich",
   "every 3 hours": "alle 3 Stunden",
   "every 6 hours": "alle 6 Stunden",
+  "every 12 hours": "alle 12 Stunden",
+  "up to ~{run} per run · ~{day} per day at this interval": "bis zu ~{run} pro Lauf · ~{day} pro Tag bei diesem Intervall",
   "daily": "täglich",
   "Only between (local time, empty = any time)": "Nur zwischen (Ortszeit, leer = jederzeit)",
   "Random delay up to (minutes)": "Zufällige Verzögerung bis zu (Minuten)",

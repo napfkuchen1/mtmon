@@ -2,7 +2,7 @@
 <script>
   import Flag from '../lib/Flag.svelte'
   import { api, download } from '../lib/api.js'
-  import { app, go } from '../lib/state.svelte.js'
+  import { app, go, setOwn } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
   import { bytes, num, countryName } from '../lib/format.js'
   import { t, tr, i18n } from '../lib/i18n.svelte.js'
@@ -19,7 +19,7 @@
   const rg = () => (app.range === 'live' ? '1h' : app.range)
   let grp = $state('')
   const gl = poll(() => api('/groups'), 60000)
-  const d = poll(() => api(`/top/${what}?range=${rg()}&limit=100` + (grp && (what === 'clients' || what === 'internal') ? '&group=' + encodeURIComponent(grp) : '')), 8000)
+  const d = poll(() => api(`/top/${what}?range=${rg()}&limit=100` + (app.own ? '&own=1' : '') + (grp && (what === 'clients' || what === 'internal') ? '&group=' + encodeURIComponent(grp) : '')), 8000)
   // the ranking is by bytes and would re-rank on every poll; keep the order for 30 s unless tab, range or group change
   let ord = null
   const rows = $derived.by(() => {
@@ -39,7 +39,7 @@
   const nameOf = r => what === 'protocols' ? protoName(+r.key) : what === 'asn' ? (r.label || 'AS' + r.key) : tr(r.label)
 </script>
 
-<div class="head"><h1>{t('Insights')}</h1><span class="muted">{t('Aggregated from flow rollups · last {range}', { range: rg() })}</span></div>
+<div class="head"><h1>{t('Insights')}</h1><span class="muted">{t('Aggregated from flow rollups · last {range}', { range: rg() })}</span><label class="chk" style="margin-left:auto"><input type="checkbox" checked={app.own} onchange={e => setOwn(e.currentTarget.checked)} /> {t("Show mtmon's own traffic")}</label></div>
 <div class="card">
   <div class="card-h">
     <div class="tabs" role="tablist" style="flex-wrap:wrap">
@@ -47,7 +47,7 @@
       <button role="tab" aria-selected="false" title={t('Opens the Services page')} onclick={() => go('services')}>{t('Services')} →</button>
     </div>
     <span style="display:flex;gap:8px">{#if (what === 'clients' || what === 'internal') && (gl.data?.groups || []).length}<select class="input" style="width:auto" bind:value={grp} aria-label={t('Group')}><option value="">{t('All groups')}</option><option value="none">{t('No group')}</option>{#each gl.data.groups as g}<option value={g.name}>{g.name}</option>{/each}</select>{/if}<button class="btn" onclick={() => download(`/export/top/${what}?range=${rg()}&format=xlsx`)}>{t('Export Excel')}</button>
-    <button class="btn" onclick={() => download(`/export/top/${what}?range=${rg()}`)}>{t('Export CSV')}</button></span>
+    <button class="btn" onclick={() => download(`/export/top/${what}?range=${rg()}` + (app.own ? '&own=1' : ''))}>{t('Export CSV')}</button></span>
   </div>
   <div class="scroll"><table>
     <thead><tr><th style="width:36px">#</th><th>{tabs.find(tb => tb[0] === what)[1]}</th><th>{t('Detail')}</th><th class="r">{t('↓ Down')}</th><th class="r">{t('↑ Up')}</th>{#if what === 'internal' || what === 'clients'}<th class="r">{t('⇄ LAN')}</th>{/if}<th style="width:160px">{t('Share')}</th><th class="r">{t('Flows')}</th>{#if canClassify}<th></th>{/if}</tr></thead>

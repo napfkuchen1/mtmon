@@ -41,7 +41,7 @@
   const sum = $derived(x?.summary)
   const last = $derived(x?.last)
   const lastUp = $derived(ok.find(i => i.up_bps > 0))
-  const intervals = [[0, 'off'], [60, 'every hour'], [180, 'every 3 hours'], [360, 'every 6 hours'], [1440, 'daily']]
+  const intervals = [[0, 'off'], [60, 'every hour'], [180, 'every 3 hours'], [360, 'every 6 hours'], [720, 'every 12 hours'], [1440, 'daily']]
   const famLabel = f => (f === '4' ? 'IPv4' : f === '6' ? 'IPv6' : 'auto')
 
   // settings form: a copy of the stored settings; every section saves only its own keys
@@ -74,6 +74,13 @@
   const isOpen = id => openSet[id] ?? (store(id) != null ? store(id) === '1' : id === 'all' ? !st?.enabled : id === 'sched')
   const onToggle = (id, e) => { openSet[id] = e.currentTarget.open; store(id, e.currentTarget.open ? '1' : '0') }
   const provLabel = { cloudflare: 'Cloudflare', hetzner: 'Hetzner', ndt7: 'NDT7', ookla: 'Ookla' }
+  // upper estimate of what the schedule moves: download + upload up to the per-test limit, per provider and IP version
+  const volume = $derived.by(() => {
+    const f = form
+    if (!f || !f.interval_min || !f.max_mb) return ''
+    const per = f.max_mb * 1048576 * 2 * Math.max(1, (f.providers || []).length) * Math.max(1, (f.families || []).length)
+    return t('up to ~{run} per run · ~{day} per day at this interval', { run: bytes(per), day: bytes(per * 1440 / f.interval_min) })
+  })
   const intervalText = $derived(intervals.find(i => i[0] === st?.interval_min)?.[1])
   const summary = $derived.by(() => {
     if (!st) return ''
@@ -188,7 +195,7 @@
               <span class="muted" style="font-weight:400">{t('Cloudflare, NDT7 and Ookla measure download, upload and latency; Hetzner download only. Licences and server choice: see Providers and licences.')}</span></div>
             <div class="fld"><span>{t('IP version')}</span>
               <span class="inl">{#each [['', 'auto'], ['4', 'IPv4'], ['6', 'IPv6']] as [v, label]}<label class="chk"><input type="checkbox" checked={form.families.includes(v)} onchange={() => (form.families = toggle(form.families, v))} /> {label}</label>{/each}</span></div>
-            <label class="fld"><span>{t('Interval')}</span><select class="input" bind:value={form.interval_min}>{#each intervals as [v, label]}<option value={v}>{t(label)}</option>{/each}</select></label>
+            <label class="fld"><span>{t('Interval')}</span><select class="input" bind:value={form.interval_min}>{#each intervals as [v, label]}<option value={v}>{t(label)}</option>{/each}</select>{#if volume}<span class="muted" style="font-weight:400">{volume}</span>{/if}</label>
             <div class="fld"><span>{t('Only between (local time, empty = any time)')}</span>
               <span class="inl"><input class="input sm" type="time" bind:value={form.window_from} /> – <input class="input sm" type="time" bind:value={form.window_to} /> <span class="muted">{tzName}</span></span></div>
             <label class="fld"><span>{t('Start time (runs land on this time + n × interval, empty = interval after the last test)')}</span><input class="input sm" type="time" bind:value={form.start_at} /> <span class="muted">{tzName}</span></label>

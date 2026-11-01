@@ -10,6 +10,7 @@ import (
 	"math"
 	"net/netip"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -206,6 +207,9 @@ func (m *Manager) runDevice(ctx context.Context, d config.Device) {
 		}
 		if err == nil && (run(30) || tick == 1) {
 			w.dnsCache(ctx)
+		}
+		if err == nil && (run(30) || tick == 1) {
+			w.fwCounters(ctx)
 		}
 		if err == nil && (run(60) || tick == 1) {
 			w.neighbors(ctx)
@@ -502,6 +506,34 @@ func (w *worker) dnsCache(ctx context.Context) {
 			ttl = 10 * time.Minute
 		}
 		w.m.En.SetName(ip, r["name"], ttl)
+	}
+}
+
+// fwCounters books the hits of accept rules that mtmon counts instead of logging (#278): the rule's packet counter is
+// read, only the difference to the last value goes to the firewall statistics (a reset, e.g. after a reboot or a
+// rule edit, starts over). Rules that log on the router are skipped, their hits already arrive as syslog lines.
+func (w *worker) fwCounters(ctx context.Context) {
+	want := w.m.St.FwCounterPrefixes(w.d.Name)
+	if len(want) == 0 {
+		return
+	}
+	rows, err := w.c.Get(ctx, "/ip/firewall/filter")
+	if err != nil {
+		return
+	}
+	cur := map[string]int64{}
+	for _, r := range rows {
+		p := r["log-prefix"]
+		if !want[p] || r.Bool("dynamic") || r.Bool("log") || r["action"] != "accept" {
+			continue
+		}
+		if _, err := strconv.ParseInt(r["packets"], 10, 64); err != nil {
+			continue
+		}
+		cur[p] += r.Int("packets")
+	}
+	if len(cur) > 0 {
+		w.m.St.AddFwCounters(w.d.Name, time.Now().Unix(), cur)
 	}
 }
 

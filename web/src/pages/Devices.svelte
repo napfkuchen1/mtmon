@@ -9,6 +9,7 @@
   import RouterSetup from './RouterSetup.svelte'
   import EditDeviceDialog from '../lib/EditDeviceDialog.svelte'
   import OffboardDialog from '../lib/OffboardDialog.svelte'
+  import MoreMenu from '../lib/MoreMenu.svelte'
   const d = poll(() => api('/devices'), 5000)
   const liveOf = name => app.live.devices.find(x => x.name === name)
   let adding = $state(false), editing = $state(null), removing = $state(null)
@@ -49,7 +50,7 @@
         <div class="acts" role="group" aria-label={t('Device actions')}>
           {#if x.source === 'ui'}
             <button class="btn sm" onclick={e => { e.stopPropagation(); editing = x }}>{t('Edit')}</button>
-            <button class="btn sm danger" onclick={e => { e.stopPropagation(); removing = x }}>{x.managed ? t('Remove & undo …') : t('Remove …')}</button>
+            <MoreMenu><button class="btn sm danger" onclick={e => { e.stopPropagation(); removing = x }}>{x.managed ? t('Remove & undo …') : t('Remove …')}</button></MoreMenu>
           {:else}<span class="muted" style="font-size:12px">{t('Defined in config.json – edit it there')}</span>{/if}
         </div>
         <div class="chips">

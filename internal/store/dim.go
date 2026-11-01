@@ -65,17 +65,23 @@ func writeDims(tx *sql.Tx, d1 map[aggKey]*aggVal) error {
 		}
 	}
 	for k, v := range d1 {
+		// mtmon's own traffic goes to "o_<dim>" rows (the service list keeps its label, lists filter it by name), so the
+		// country, AS, port and protocol lists do not count it unless asked to
+		pre := ""
+		if IsOwnSvc(v.svc) {
+			pre = "o_"
+		}
 		if v.svc != "" {
 			add(k.ts, "svc", v.svc, v.svc, v)
 		}
 		if v.cc != "" {
-			add(k.ts, "cc", v.cc, v.cc, v)
+			add(k.ts, pre+"cc", v.cc, v.cc, v)
 		}
 		if v.asn > 0 {
-			add(k.ts, "asn", strconv.FormatUint(uint64(v.asn), 10), v.org, v)
+			add(k.ts, pre+"asn", strconv.FormatUint(uint64(v.asn), 10), v.org, v)
 		}
-		add(k.ts, "port", strconv.Itoa(int(k.proto))+"/"+strconv.Itoa(int(k.rport)), v.svc, v)
-		add(k.ts, "proto", strconv.Itoa(int(k.proto)), "", v)
+		add(k.ts, pre+"port", strconv.Itoa(int(k.proto))+"/"+strconv.Itoa(int(k.rport)), v.svc, v)
+		add(k.ts, pre+"proto", strconv.Itoa(int(k.proto)), "", v)
 	}
 	st, err := tx.Prepare(`INSERT INTO rollup_1d_dim(ts,dim,k,label,b_up,b_down,b_int,flows) VALUES(?,?,?,?,?,?,?,?)
 		ON CONFLICT DO UPDATE SET b_up=b_up+excluded.b_up, b_down=b_down+excluded.b_down, b_int=b_int+excluded.b_int,
@@ -93,10 +99,16 @@ func writeDims(tx *sql.Tx, d1 map[aggKey]*aggVal) error {
 }
 
 // topByDim answers TopBy for services/country/asn/ports/protocols over day-aligned windows of 8 days and more.
-func (s *Store) topByDim(what string, since int64, limit int) ([]TopRow, error) {
+func (s *Store) topByDim(what string, since int64, limit int, own bool) ([]TopRow, error) {
+	dims, skip := `dim=?1`, ``
+	if own {
+		dims = `dim IN (?1,'o_'||?1)`
+	} else if what == "services" {
+		skip = ` AND k NOT IN ` + ownSvcs
+	}
 	rows, err := s.DB.Query(`SELECT k, CASE WHEN ?1='asn' THEN coalesce(nullif(max(label),''),'AS'||k) WHEN ?1='port' THEN k ELSE k END,
 		CASE WHEN ?1='port' THEN coalesce(max(label),'') ELSE '' END, sum(b_up), sum(b_down), sum(b_int), sum(flows)
-		FROM rollup_1d_dim WHERE dim=?1 AND ts>=?2 GROUP BY k ORDER BY sum(b_up)+sum(b_down)+sum(b_int) DESC LIMIT ?3`,
+		FROM rollup_1d_dim WHERE `+dims+` AND ts>=?2`+skip+` GROUP BY k ORDER BY sum(b_up)+sum(b_down)+sum(b_int) DESC LIMIT ?3`,
 		dimOf[what], since/86400*86400, limit)
 	if err != nil {
 		return nil, err

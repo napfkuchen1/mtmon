@@ -352,7 +352,7 @@ func (s *Server) provision(w http.ResponseWriter, r *http.Request) {
 	}
 	var metas []store.FwRule
 	for _, m := range res.FwMeta {
-		metas = append(metas, store.FwRule{Device: o.Name, Prefix: m.Prefix, Chain: m.Chain, Action: m.Action, Descr: m.Descr, Managed: m.Managed})
+		metas = append(metas, store.FwRule{Device: o.Name, Prefix: m.Prefix, Chain: m.Chain, Action: m.Action, Descr: m.Descr, Managed: m.Managed, Counter: m.Counter})
 	}
 	s.St.SaveFwRules(metas)
 	s.LoadDevices()

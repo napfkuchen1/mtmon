@@ -2,7 +2,11 @@
 
 package main
 
-import "net"
+import (
+	"net"
+	"sync"
+	"time"
+)
 
 // localAddrFor returns the address of this host that routes towards `host` ("" if unknown): what a router sees as the
 // source of mtmon's API logins. A UDP "connect" only picks the route, nothing is sent.
@@ -19,4 +23,29 @@ func localAddrFor(host string) string {
 		return a.IP.String()
 	}
 	return ""
+}
+
+// hostAddrs answers "is this one of the addresses of the machine mtmon runs on", from a list that is refreshed once a minute.
+func hostAddrs() func(ip string) bool {
+	var (
+		mu   sync.Mutex
+		set  map[string]bool
+		when time.Time
+	)
+	return func(ip string) bool {
+		mu.Lock()
+		defer mu.Unlock()
+		if set == nil || time.Since(when) > time.Minute {
+			set = map[string]bool{}
+			when = time.Now()
+			if as, err := net.InterfaceAddrs(); err == nil {
+				for _, a := range as {
+					if n, ok := a.(*net.IPNet); ok {
+						set[n.IP.String()] = true
+					}
+				}
+			}
+		}
+		return set[ip]
+	}
 }

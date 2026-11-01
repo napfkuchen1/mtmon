@@ -1,0 +1,9 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// German translations – counting hits on allow rules (#278)
+export default {
+  "Counts the hits of the accept rules you pick with the router's own rule counters, so the Firewall page also shows what was allowed and by which rule – without a log line per packet. Rules that mtmon made log every packet earlier can be switched to counting.": "Zählt die Treffer der gewählten Accept-Regeln mit den Regelzählern des Routers, damit die Firewall-Seite auch zeigt, was durchgelassen wurde und von welcher Regel – ohne Logzeile pro Paket. Regeln, die mtmon früher pro Paket loggen ließ, lassen sich auf Zählen umstellen.",
+  "Count hits on {n} allow rules": "Treffer auf {n} Allow-Regeln zählen",
+  "Only 'log-prefix' of these accept rules is set; 'log' stays off (conditions, action and order stay unchanged). mtmon reads the rule's hit counter on every poll and shows the difference as 'allowed', so nothing is written to the router log and no syslog line is sent per packet.": "Nur 'log-prefix' dieser Accept-Regeln wird gesetzt; 'log' bleibt aus (Bedingungen, Aktion und Reihenfolge bleiben unverändert). mtmon liest bei jeder Abfrage den Trefferzähler der Regel und zeigt die Differenz als 'durchgelassen' – ins Router-Log wird nichts geschrieben und pro Paket geht keine Syslog-Zeile raus.",
+  "Switch {n} allow rules from logging to counting": "{n} Allow-Regeln von Logging auf Zählen umstellen",
+  "These accept rules were set to log every packet by an earlier mtmon version. Only 'log' is switched off; the log prefix stays. mtmon then reads the rule's hit counter instead, so the Firewall page keeps its numbers while the router log and the syslog traffic shrink.": "Diese Accept-Regeln ließ eine frühere mtmon-Version jedes Paket loggen. Nur 'log' wird abgeschaltet; das Log-Präfix bleibt. mtmon liest dann stattdessen den Trefferzähler, die Firewall-Seite behält ihre Zahlen, Router-Log und Syslog-Verkehr schrumpfen.",
+}

@@ -210,6 +210,12 @@ func (r *runner) fwLog(ctx context.Context, k *Caps, ids []string, allow bool) e
 			if err := r.modify(ctx, "/ip/firewall/filter", id, map[string]string{"log-prefix": meta.Prefix}, pre+"Log prefix "+meta.Prefix+" for "+f.Chain+"/"+f.Action); err != nil {
 				return err
 			}
+		case allow:
+			// accept rules are counted from the router's rule counter: the prefix names the rule, log stays off (#278)
+			meta.Prefix, meta.Counter = prefixFor(id), true
+			if err := r.modify(ctx, "/ip/firewall/filter", id, map[string]string{"log-prefix": meta.Prefix}, pre+"Counting hits: "+f.Chain+"/"+f.Action+" "+f.Comment); err != nil {
+				return err
+			}
 		default:
 			meta.Prefix = prefixFor(id)
 			if err := r.modify(ctx, "/ip/firewall/filter", id, map[string]string{"log": "yes", "log-prefix": meta.Prefix}, pre+"Logging enabled: "+f.Chain+"/"+f.Action+" "+f.Comment); err != nil {
@@ -217,6 +223,28 @@ func (r *runner) fwLog(ctx context.Context, k *Caps, ids []string, allow bool) e
 			}
 		}
 		r.res.FwMeta = append(r.res.FwMeta, meta)
+	}
+	return nil
+}
+
+// fwCount switches accept rules that mtmon made log every packet to counter mode: log=no, the prefix stays.
+func (r *runner) fwCount(ctx context.Context, k *Caps, ids []string) error {
+	for _, id := range ids {
+		f := k.rule(id)
+		if f == nil {
+			return fmt.Errorf("filter rule %s no longer exists", id)
+		}
+		if f.Action != "accept" || f.LogPrefix != prefixFor(id) {
+			return fmt.Errorf("filter rule %s is not one of mtmon's logging rules", id)
+		}
+		descr := strings.TrimSpace(f.Comment)
+		if descr == "" {
+			descr = f.Summary
+		}
+		if err := r.modify(ctx, "/ip/firewall/filter", id, map[string]string{"log": "no"}, "Allow rule switched to counting: "+f.Chain+"/"+f.Action+" "+f.Comment); err != nil {
+			return err
+		}
+		r.res.FwMeta = append(r.res.FwMeta, FwMeta{Prefix: f.LogPrefix, Chain: f.Chain, Action: f.Action, Descr: descr, Managed: true, Counter: true})
 	}
 	return nil
 }

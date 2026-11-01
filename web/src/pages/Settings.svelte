@@ -2,7 +2,7 @@
 <script>
   import { api } from '../lib/api.js'
   import { t, tr } from '../lib/i18n.svelte.js'
-  import { app, toast, setPref, ACCENTS } from '../lib/state.svelte.js'
+  import { app, go, toast, setPref, ACCENTS } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
   import { sourceURL } from '../lib/source.js'
   import { bytes, dur, num, ago, datetime } from '../lib/format.js'
@@ -15,7 +15,22 @@
   import SecurityCard from '../lib/SecurityCard.svelte'
   import ViewerCard from '../lib/ViewerCard.svelte'
   import ResetDialog from '../lib/ResetDialog.svelte'
+  import MoreMenu from '../lib/MoreMenu.svelte'
   let reset = $state(null) // null | 'data' | 'full'
+  // sub-navigation (#280): deep-linkable as #/settings/<id>; the search box looks through all groups
+  const TABS = [['system', 'System'], ['devices', 'Devices'], ['alerts', 'Alerts & notifications'], ['network', 'Network'], ['security', 'Security'], ['updates', 'Updates & reset']]
+  const tab = $derived(TABS.some(x => x[0] === app.route.params.id) ? app.route.params.id : 'system')
+  let q = $state('')
+  let wrap = $state(null)
+  $effect(() => {
+    if (!wrap) return
+    const needle = q.trim().toLowerCase()
+    const apply = () => { for (const el of wrap.querySelectorAll(':scope > .sec')) el.hidden = needle ? !el.textContent.toLowerCase().includes(needle) : el.dataset.sec !== tab }
+    apply()
+    const mo = new MutationObserver(apply) // the cards fill in while they load
+    mo.observe(wrap, { childList: true, subtree: true, characterData: true })
+    return () => mo.disconnect()
+  })
   const sys = poll(() => api('/system'), 5000)
   const dev = poll(() => api('/devices'), 0)
   const s = $derived(sys.data)
@@ -132,6 +147,15 @@
 
 <div class="head"><h1>{t('Settings & setup')}</h1></div>
 
+<div class="settings-nav">
+  <div class="tabs" role="tablist" style="flex-wrap:wrap">
+    {#each TABS as [id, l]}<button role="tab" class:on={!q.trim() && tab === id} aria-selected={!q.trim() && tab === id} onclick={() => { q = ''; go('settings/' + id) }}>{t(l)}</button>{/each}
+  </div>
+  <input class="input" type="search" style="max-width:240px" placeholder={t('Search settings…')} aria-label={t('Search settings…')} bind:value={q} />
+</div>
+
+<div bind:this={wrap}>
+<div class="sec" data-sec="system">
 <div class="grid g2">
   <div class="card"><div class="card-h"><h2>{t('System')}</h2></div>
     <table><tbody>
@@ -225,28 +249,6 @@
       {/if}
     </div></div>
 
-  <div class="card"><div class="card-h"><h2>{t('API tokens')}</h2></div>
-    <div class="card-b" style="display:flex;flex-direction:column;gap:12px">
-      <div class="muted" style="font-size:13px">{t('Read-only access for scripts and other tools (for example Home Assistant). A token can read data but never change anything, and it is shown only once.')}</div>
-      <div class="muted" style="font-size:12px">{t('A token is read-only (scope: read). GET /api/me with the token shows its name; paths that do not exist answer 404 as JSON.')}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><input class="input" style="flex:1;min-width:160px" maxlength="40" placeholder={t('Name, e.g. Home Assistant')} bind:value={tokName} onkeydown={e => e.key === 'Enter' && tokName && createToken()} />
-        <button class="btn primary" disabled={!tokName.trim()} onclick={createToken}>{t('Create token')}</button></div>
-      {#if tokErr}<div class="warnbox">{tr(tokErr)}</div>{/if}
-      {#if newTok}
-        <div class="warnbox" style="background:var(--ok-bg)"><b>{t('Copy the token now – it is not shown again:')}</b>
-          <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap"><code class="mono" style="word-break:break-all">{newTok}</code><button class="btn sm" onclick={() => copyText(newTok)}>{t('Copy')}</button></div>
-          <div class="muted" style="font-size:12px;margin-top:6px">curl -H "Authorization: Bearer {newTok.slice(0, 8)}…" {location.origin}/api/overview</div></div>
-      {/if}
-      {#if tokens.length}
-        <table><tbody>
-          {#each tokens as tk (tk.id)}
-            <tr><td><b>{tk.name}</b><div class="muted mono" style="font-size:11.5px">{tk.prefix}…</div></td>
-              <td class="muted" style="font-size:12.5px">{t('created')} {datetime(tk.created)}<br>{tk.last_used ? t('last used {t}', { t: ago(tk.last_used) }) : t('never used')}</td>
-              <td class="r"><button class="btn sm" onclick={() => revoke(tk)}>{t('Revoke')}</button></td></tr>
-          {/each}
-        </tbody></table>
-      {:else}<div class="muted" style="font-size:13px">{t('No tokens yet.')}</div>{/if}
-    </div></div>
 </div>
 
 <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Time zone')}</h2></div>
@@ -261,12 +263,17 @@
       {#if tz?.restart_required}<div style="font-size:12px">{t('Takes effect after a restart.')} <button class="btn sm" onclick={restartForTz}>{t('Restart now')}</button></div>{/if}</td></tr>
   </tbody></table></div>
 
-<div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Alerts')}</h2></div>
+</div>
+<div class="sec" data-sec="alerts">
+<div class="card"><div class="card-h"><h2>{t('Alerts')}</h2></div>
   <table><tbody>
     <tr><td>{t('Alert for new clients')}<div class="muted" style="font-size:12px">{t('Every new client is listed under New devices. Only the ones worth a look raise an alert by default: no known manufacturer, or a randomised (private) MAC address.')}</div></td><td class="r"><div class="tabs">
       {#each [['unknown', t('Only unknown')], ['all', t('All')], ['off', t('Off')]] as [id, l]}<button class:on={newClient === id} onclick={() => saveNewClient(id)}>{l}</button>{/each}</div></td></tr>
   </tbody></table></div>
 
+<NotifyCard />
+</div>
+<div class="sec" data-sec="system">
 <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Appearance')}</h2></div>
   <table><tbody>
     <tr><td>{t('Density')}<div class="muted" style="font-size:12px">{t('Compact fits more rows on the screen')}</div></td><td class="r"><div class="tabs">
@@ -277,34 +284,65 @@
       {#each [['modern', t('Modern')], ['classic', t('Classic')]] as [id, l]}<button class:on={app.chart === id} onclick={() => setPref('chart', id)}>{l}</button>{/each}</div></td></tr>
   </tbody></table></div>
 
+</div>
+<div class="sec" data-sec="network">
 <GroupsCard />
 
 <DNSBypassCard />
 <InternetTargetsCard />
-
-<NotifyCard />
-
+</div>
+<div class="sec" data-sec="security">
+<div style="margin-bottom:16px">
+  <div class="card"><div class="card-h"><h2>{t('API tokens')}</h2></div>
+  <div class="card-b" style="display:flex;flex-direction:column;gap:12px">
+    <div class="muted" style="font-size:13px">{t('Read-only access for scripts and other tools (for example Home Assistant). A token can read data but never change anything, and it is shown only once.')}</div>
+    <div class="muted" style="font-size:12px">{t('A token is read-only (scope: read). GET /api/me with the token shows its name; paths that do not exist answer 404 as JSON.')}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><input class="input" style="flex:1;min-width:160px" maxlength="40" placeholder={t('Name, e.g. Home Assistant')} bind:value={tokName} onkeydown={e => e.key === 'Enter' && tokName && createToken()} />
+      <button class="btn primary" disabled={!tokName.trim()} onclick={createToken}>{t('Create token')}</button></div>
+    {#if tokErr}<div class="warnbox">{tr(tokErr)}</div>{/if}
+    {#if newTok}
+      <div class="warnbox" style="background:var(--ok-bg)"><b>{t('Copy the token now – it is not shown again:')}</b>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap"><code class="mono" style="word-break:break-all">{newTok}</code><button class="btn sm" onclick={() => copyText(newTok)}>{t('Copy')}</button></div>
+        <div class="muted" style="font-size:12px;margin-top:6px">curl -H "Authorization: Bearer {newTok.slice(0, 8)}…" {location.origin}/api/overview</div></div>
+    {/if}
+    {#if tokens.length}
+      <table><tbody>
+        {#each tokens as tk (tk.id)}
+          <tr><td><b>{tk.name}</b><div class="muted mono" style="font-size:11.5px">{tk.prefix}…</div></td>
+            <td class="muted" style="font-size:12.5px">{t('created')} {datetime(tk.created)}<br>{tk.last_used ? t('last used {t}', { t: ago(tk.last_used) }) : t('never used')}</td>
+            <td class="r"><button class="btn sm" onclick={() => revoke(tk)}>{t('Revoke')}</button></td></tr>
+        {/each}
+      </tbody></table>
+    {:else}<div class="muted" style="font-size:13px">{t('No tokens yet.')}</div>{/if}
+  </div></div>
+</div>
 <SecurityCard />
 
 <ViewerCard />
 
 <AuditCard />
-
+</div>
+<div class="sec" data-sec="updates">
 <UpdateCard />
 
 <div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Reset')}</h2></div>
   <table><tbody>
-    <tr><td>{t('Reset baselines only')}<div class="muted" style="font-size:12px">{t('Forgets the learned traffic level and recurring patterns and starts a 24 h learning period (alerts about spikes are only recorded as info). Flows, clients, alerts and dismissed suggestions stay.')}</div></td><td class="r"><button class="btn" onclick={resetBaselines}>{t('Reset baselines…')}</button></td></tr>
-    <tr><td>{t('Reset history')}<div class="muted" style="font-size:12px">{t('Start clean: traffic, clients, alerts, firewall log and metrics are emptied. Devices and settings stay.')}</div></td><td class="r"><button class="btn" onclick={() => (reset = 'data')}>{t('Reset history…')}</button></td></tr>
-    <tr><td>{t('Full reset (including devices)')}<div class="muted" style="font-size:12px">{t('Also removes the devices added in the web UI. Settings and API tokens stay.')}</div></td><td class="r"><button class="btn" onclick={() => (reset = 'full')}>{t('Full reset…')}</button></td></tr>
+    <tr><td>{t('Reset baselines only')}<div class="muted" style="font-size:12px">{t('Forgets the learned traffic level and recurring patterns and starts a 24 h learning period (alerts about spikes are only recorded as info). Flows, clients, alerts and dismissed suggestions stay.')}</div></td><td class="r"><MoreMenu><button class="btn" onclick={resetBaselines}>{t('Reset baselines…')}</button></MoreMenu></td></tr>
+    <tr><td>{t('Reset history')}<div class="muted" style="font-size:12px">{t('Start clean: traffic, clients, alerts, firewall log and metrics are emptied. Devices and settings stay.')}</div></td><td class="r"><MoreMenu><button class="btn" onclick={() => (reset = 'data')}>{t('Reset history…')}</button></MoreMenu></td></tr>
+    <tr><td>{t('Full reset (including devices)')}<div class="muted" style="font-size:12px">{t('Also removes the devices added in the web UI. Settings and API tokens stay.')}</div></td><td class="r"><MoreMenu><button class="btn" onclick={() => (reset = 'full')}>{t('Full reset…')}</button></MoreMenu></td></tr>
   </tbody></table></div>
 {#if reset}<ResetDialog full={reset === 'full'} onclose={() => (reset = null)} ondone={async () => { try { dev.data = await api('/devices') } catch {} }} />{/if}
 
-<div class="card" style="margin-top:16px"><div class="card-h"><h2>{t('Configured devices')}</h2><span class="muted">{t('edit')} <span class="mono">/etc/mtmon/config.json</span>, {t('then')} <span class="mono">systemctl restart mtmon</span></span></div>
+</div>
+<div class="sec" data-sec="devices">
+<div class="card"><div class="card-h"><h2>{t('Configured devices')}</h2><span class="muted">{t('edit')} <span class="mono">/etc/mtmon/config.json</span>, {t('then')} <span class="mono">systemctl restart mtmon</span></span></div>
   <table><thead><tr><th>{t('Name')}</th><th>{t('Address')}</th><th>{t('Role')}</th><th>{t('Site')}</th></tr></thead><tbody>
     {#each dev.data || [] as x}<tr><td><b>{x.name}</b></td><td class="mono">{x.addr}</td><td>{x.role}</td><td class="muted">{x.site || '—'}</td></tr>{/each}
   </tbody></table></div>
+</div>
+</div>
 <style>
+  .settings-nav { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: space-between; margin-bottom: 16px; }
   .head { margin-bottom: 18px; }
   .fld { display: grid; gap: 4px; font-weight: 500; font-size: 13px; }
   .chk-box { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; background: var(--card-2); font-size: 13px; }

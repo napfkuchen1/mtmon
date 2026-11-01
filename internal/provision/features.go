@@ -52,7 +52,7 @@ func FeatureOf(e store.ManifestEntry) string {
 }
 
 // stepKeys maps a feature to the steps (see buildActions) that implement it.
-var stepKeys = map[string][]string{FeatFlow: {"flow"}, FeatFwLog: {"syslog", "fwlog"}, FeatAllowLog: {"allowlog"}, FeatLogNew: {"lognew"}, FeatEventLogs: {"evlog"}, FeatFasttrack: {"fasttrack"}}
+var stepKeys = map[string][]string{FeatFlow: {"flow"}, FeatFwLog: {"syslog", "fwlog"}, FeatAllowLog: {"allowlog", "allowcount"}, FeatLogNew: {"lognew"}, FeatEventLogs: {"evlog"}, FeatFasttrack: {"fasttrack"}}
 
 // featureOptions narrows o to the requested features.
 func featureOptions(o Options, feats map[string]bool) Options {
@@ -64,7 +64,7 @@ func featureOptions(o Options, feats map[string]bool) Options {
 		o.FwRules = nil
 	}
 	if !feats[FeatAllowLog] {
-		o.AllowRules = nil
+		o.AllowRules, o.ConvertAllow = nil, nil
 	}
 	o.LogNew = feats[FeatLogNew]
 	o.DisableFasttrack = feats[FeatFasttrack]

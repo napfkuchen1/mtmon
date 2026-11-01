@@ -310,6 +310,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	since, bucket, rn := parseRange(r)
+	own := wantOwn(r)
 	// The queries are independent reads (WAL): run them side by side, the page takes as long as the slowest one.
 	var (
 		wg                                          sync.WaitGroup
@@ -319,21 +320,21 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 		topClients, topHosts, topServices, topCntry []store.TopRow
 	)
 	run := func(f func()) { wg.Add(1); go func() { defer wg.Done(); f() }() }
-	run(func() { up, down, flows = s.St.Totals(since) })
-	run(func() { series, _ = s.St.Series(since, bucket, "") })
+	run(func() { up, down, flows = s.St.TotalsOwn(since, own) })
+	run(func() { series, _ = s.St.SeriesOwn(since, bucket, "", own) })
 	// the equally long period before, for "+x %" deltas; nil when retention no longer covers it
 	if rn != "live" {
 		run(func() {
 			now := time.Now().Unix()
-			if pu, pd, pf, ok := s.St.TotalsBetween(since-(now-since), since); ok {
+			if pu, pd, pf, ok := s.St.TotalsBetweenOwn(since-(now-since), since, own); ok {
 				prev = map[string]int64{"bytes_up": pu, "bytes_down": pd, "flows": pf}
 			}
 		})
 	}
-	run(func() { topClients = must(s.topBy("clients", since, 5, "")) })
-	run(func() { topHosts = must(s.St.TopBy("hosts", since, 5, "")) })
-	run(func() { topServices = must(s.St.TopBy("services", since, 5, "")) })
-	run(func() { topCntry = must(s.St.TopBy("country", since, 5, "")) })
+	run(func() { topClients = must(s.topByOwn("clients", since, 5, "", own)) })
+	run(func() { topHosts = must(s.St.TopByOwn("hosts", since, 5, "", own)) })
+	run(func() { topServices = must(s.St.TopByOwn("services", since, 5, "", own)) })
+	run(func() { topCntry = must(s.St.TopByOwn("country", since, 5, "", own)) })
 	on, total := s.St.ClientCounts()
 	watched, watchedOn := s.St.WatchCounts()
 	devs := s.Hub.Devices()
@@ -516,10 +517,11 @@ func (s *Server) setLabel(w http.ResponseWriter, r *http.Request) {
 	jsonOut(w, map[string]bool{"ok": true})
 }
 
-// topBy is Store.TopBy plus naming: traffic of a managed router/AP itself (DNS, syslog, flow export, ...) is booked on its
-// own interface MAC, which is no client - show the device name instead of a bare MAC and say which device it is.
-func (s *Server) topBy(what string, since int64, limit int, mac string) ([]store.TopRow, error) {
-	rows, err := s.St.TopBy(what, since, limit, mac)
+// wantOwn: ?own=1 asks for mtmon's own traffic (speed tests, monitoring of the routers) to be counted too.
+func wantOwn(r *http.Request) bool { return r.URL.Query().Get("own") == "1" }
+
+func (s *Server) topByOwn(what string, since int64, limit int, mac string, own bool) ([]store.TopRow, error) {
+	rows, err := s.St.TopByOwn(what, since, limit, mac, own)
 	if err != nil || s.Mgr == nil || (what != "clients" && what != "internal") {
 		return rows, err
 	}
@@ -549,7 +551,7 @@ func (s *Server) top(w http.ResponseWriter, r *http.Request) {
 	if group != "" && (r.PathValue("what") == "clients" || r.PathValue("what") == "internal") {
 		limit = 500 // filter first, then cut
 	}
-	rows, err := s.topBy(r.PathValue("what"), since, limit, r.URL.Query().Get("mac"))
+	rows, err := s.topByOwn(r.PathValue("what"), since, limit, r.URL.Query().Get("mac"), wantOwn(r))
 	if err != nil {
 		jerr(w, 400, err.Error())
 		return
@@ -575,7 +577,7 @@ func (s *Server) top(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) series(w http.ResponseWriter, r *http.Request) {
 	since, bucket, _ := parseRange(r)
-	p, err := s.St.Series(since, bucket, r.URL.Query().Get("mac"))
+	p, err := s.St.SeriesOwn(since, bucket, r.URL.Query().Get("mac"), wantOwn(r))
 	if err != nil {
 		jerr(w, 500, err.Error())
 		return
@@ -894,7 +896,7 @@ func (s *Server) system(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) exportTop(w http.ResponseWriter, r *http.Request) {
 	since, _, rn := parseRange(r)
-	rows, err := s.St.TopBy(r.PathValue("what"), since, 10000, r.URL.Query().Get("mac"))
+	rows, err := s.St.TopByOwn(r.PathValue("what"), since, 10000, r.URL.Query().Get("mac"), wantOwn(r))
 	if err != nil {
 		jerr(w, 400, err.Error())
 		return

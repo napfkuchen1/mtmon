@@ -43,6 +43,7 @@ type FwRule struct {
 	Action  string `json:"action"`
 	Descr   string `json:"descr"`
 	Managed bool   `json:"managed"`
+	Counter bool   `json:"counter,omitempty"` // hits come from the router's rule counter, not from log lines (#278)
 }
 
 const maxFwQueue = 100000
@@ -101,14 +102,14 @@ func (s *Store) FlushFw() error {
 // SaveFwRules registers the prefix→rule meaning for a device (replaces earlier entries of the same prefixes).
 func (s *Store) SaveFwRules(rs []FwRule) {
 	for _, r := range rs {
-		s.DB.Exec(`INSERT INTO fw_rules(device,prefix,chain,action,descr,managed) VALUES(?,?,?,?,?,?)
-			ON CONFLICT(device,prefix) DO UPDATE SET chain=excluded.chain, action=excluded.action, descr=excluded.descr, managed=excluded.managed`,
-			r.Device, r.Prefix, r.Chain, r.Action, r.Descr, b2i(r.Managed))
+		s.DB.Exec(`INSERT INTO fw_rules(device,prefix,chain,action,descr,managed,counter) VALUES(?,?,?,?,?,?,?)
+			ON CONFLICT(device,prefix) DO UPDATE SET chain=excluded.chain, action=excluded.action, descr=excluded.descr, managed=excluded.managed, counter=excluded.counter`,
+			r.Device, r.Prefix, r.Chain, r.Action, r.Descr, b2i(r.Managed), b2i(r.Counter))
 	}
 }
 
 func (s *Store) FwRules() ([]FwRule, error) {
-	rows, err := s.DB.Query(`SELECT device,prefix,chain,action,coalesce(descr,''),managed FROM fw_rules ORDER BY device,prefix`)
+	rows, err := s.DB.Query(`SELECT device,prefix,chain,action,coalesce(descr,''),managed,counter FROM fw_rules ORDER BY device,prefix`)
 	if err != nil {
 		return nil, err
 	}
@@ -116,9 +117,9 @@ func (s *Store) FwRules() ([]FwRule, error) {
 	out := []FwRule{}
 	for rows.Next() {
 		var r FwRule
-		var m int
-		rows.Scan(&r.Device, &r.Prefix, &r.Chain, &r.Action, &r.Descr, &m)
-		r.Managed = m == 1
+		var m, c int
+		rows.Scan(&r.Device, &r.Prefix, &r.Chain, &r.Action, &r.Descr, &m, &c)
+		r.Managed, r.Counter = m == 1, c == 1
 		out = append(out, r)
 	}
 	return out, rows.Err()
@@ -236,6 +237,8 @@ type FwSummary struct {
 	Allowed int64        `json:"allowed"`
 	Logged  int64        `json:"logged"`
 	OwnHits int64        `json:"own_hits"` // hits of rules that only log mtmon's own access (not in the totals)
+	// AllowedCounted is the part of Allowed taken from router rule counters instead of log lines (#278).
+	AllowedCounted int64 `json:"allowed_counted"`
 }
 
 type FwRuleHits struct {
@@ -244,7 +247,8 @@ type FwRuleHits struct {
 	Rule    string `json:"rule"`
 	Verdict string `json:"verdict"`
 	Hits    int64  `json:"hits"`
-	Own     bool   `json:"own,omitempty"` // rule only logs mtmon's own management traffic
+	Own     bool   `json:"own,omitempty"`     // rule only logs mtmon's own management traffic
+	Counter bool   `json:"counter,omitempty"` // hits come from the router's rule counter
 }
 
 // IsOwnRule reports whether a rule label belongs to mtmon's own access (e.g. "input accept - mtmon REST").
@@ -282,6 +286,7 @@ func (s *Store) FwSummary(since int64) (*FwSummary, error) {
 		s.annotate(&fe, idx)
 		h.Rule, h.Verdict = fe.Rule, fe.Verdict
 		h.Own = IsOwnRule(h.Rule)
+		h.Counter = idx[[2]string{h.Device, h.Prefix}].Counter
 		sum.Rules = append(sum.Rules, h)
 		if h.Own {
 			sum.OwnHits += h.Hits
@@ -292,6 +297,9 @@ func (s *Store) FwSummary(since int64) (*FwSummary, error) {
 			sum.Blocked += h.Hits
 		case "allowed":
 			sum.Allowed += h.Hits
+			if h.Counter {
+				sum.AllowedCounted += h.Hits
+			}
 		default:
 			sum.Logged += h.Hits
 		}
@@ -384,6 +392,7 @@ func (s *Store) cleanupFw(rawCut, cut int64) {
 		s.DB.Exec(`DELETE FROM fw_events WHERE rowid <= (SELECT max(rowid) FROM fw_events) - ?`, FwRowCap)
 	}
 	s.DB.Exec(`DELETE FROM fw_hourly WHERE ts < ?`, cut)
+	s.DB.Exec(`DELETE FROM fw_ctr WHERE device||prefix NOT IN (SELECT device||prefix FROM fw_rules)`)
 	s.DB.Exec(`DELETE FROM fw_src_hourly WHERE ts < ?`, rawCut)
 	s.DB.Exec(`DELETE FROM fw_dst_hourly WHERE ts < ?`, rawCut)
 }
