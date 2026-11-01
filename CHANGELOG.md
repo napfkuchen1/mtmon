@@ -8,6 +8,19 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.20.11] - 2026-11-01
+
+### New
+- Settings (#280): tabs with a search box and deep links; destructive actions (resets, removing a device) moved into an overflow menu ("More"). Services page: sortable columns and a "⇄ LAN" column; Topology: sections by port, Wi-Fi and VPN; Overview: one status line.
+- Firewall (#278): hits of allow rules are counted from the router's own rule counters instead of logging every accepted connection.
+
+### Changed
+- Own traffic (#279): mtmon's own traffic (speed tests, monitoring of the routers) is left out of top lists and totals. `?own=1` on the API counts it again.
+- The old `#/reports` address opens the page that replaced it.
+
+### Fixed
+- German evidence lines of suggestions (#195) are translated; the suggestion test now also reads the Evidence lines.
+
 ## [0.20.10] - 2026-11-01
 
 ### Fixed
