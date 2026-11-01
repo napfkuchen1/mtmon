@@ -46,12 +46,14 @@ export async function checkSession() {
 export function onAuthError(e) { if (e instanceof AuthError) { app.user = false; closeLive(); return true } return false }
 
 // ---- routing (hash based) ----
+const RENAMED = { reports: 'insights', report: 'insights', auswertungen: 'insights' }
 export function parseHash() {
   // deep link like /devices or /devices/gw: the app routes by hash, so move the path there
   const p = location.pathname.replace(/^\/+|\/+$/g, '')
   if (p && !location.hash && !p.startsWith('api/') && !p.includes('.')) history.replaceState(null, '', '/#/' + p)
   const h = location.hash.replace(/^#\/?/, '') || 'overview'
-  const [name, ...rest] = h.split('/')
+  const [name0, ...rest] = h.split('/')
+  const name = RENAMED[name0] || name0 // links of renamed pages keep working
   app.route = { name, params: { id: rest.length ? decodeURIComponent(rest.join('/')) : '' } }
 }
 export function go(path) { location.hash = '#/' + path }
