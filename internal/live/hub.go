@@ -224,7 +224,7 @@ func (h *Hub) AddFlow(r store.FlowRow) {
 		e.down = r.Bytes
 		h.totalUp = append(h.totalUp, ev{t: now, down: r.Bytes})
 	}
-	if r.Svc != store.SpeedtestSvc { // mtmon's own speed test is no client behaviour: it must not trigger spike or chatty alerts
+	if !store.IsOwnSvc(r.Svc) { // mtmon's own speed test is no client behaviour: it must not trigger spike or chatty alerts
 		c.events = append(c.events, e)
 	}
 	h.seq++

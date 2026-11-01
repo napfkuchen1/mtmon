@@ -52,9 +52,9 @@ var HetznerServers = map[string]string{
 
 var validProviders = map[string]bool{"cloudflare": true, "hetzner": true, "ndt7": true, "ookla": true}
 
-// DefaultSettings is conservative on purpose: off, hourly when switched on, small tests, 50 % busy guard.
+// DefaultSettings is conservative on purpose: off, twice a day when switched on, small tests, 50 % busy guard.
 func DefaultSettings() Settings {
-	return Settings{Providers: []string{"cloudflare"}, Families: []string{""}, Hetzner: "fsn1", IntervalMin: 360, JitterMin: 10,
+	return Settings{Providers: []string{"cloudflare"}, Families: []string{""}, Hetzner: "fsn1", IntervalMin: 720, JitterMin: 10,
 		MaxMB: 100, MaxSec: 10, Streams: 4, SkipBusyPct: 50, AlertBelow: 70, AlertCount: 3}
 }
 

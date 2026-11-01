@@ -126,6 +126,7 @@ func run(args []string) error {
 	pm := poller.NewManager(cfg, st, hub, en, al, log)
 	pipe.SelfMAC = pm.SelfMACByAddr
 	pipe.Owns = pm.OwnsAddr
+	pipe.HostAddr = hostAddrs()
 	al.SelfName = pm.SelfDevice
 	al.Depths = pm.Depths
 	al.AccessList = pm.AccessList

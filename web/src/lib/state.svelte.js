@@ -9,6 +9,7 @@ export const app = $state({
   density: localStorage.getItem('mtmon.density') || 'comfortable', // comfortable | compact
   chart: localStorage.getItem('mtmon.chart') || 'modern',          // modern | classic
   accent: localStorage.getItem('mtmon.accent') || 'orange',        // colour style, see ACCENTS
+  own: localStorage.getItem('mtmon.own') === '1',                  // count mtmon's own traffic (speedtest, monitoring) in top lists and totals
   route: { name: 'overview', params: {} },
   live: { connected: false, up_bps: 0, down_bps: 0, clients: [], devices: [], ifaces: [], flows_ps: 0 },
   history: [],         // rolling live totals [{t, up, down}]
@@ -30,6 +31,7 @@ export function setPref(key, val) { // key: density | chart | accent
   try { localStorage.setItem('mtmon.' + key, val) } catch {}
   applyTheme()
 }
+export function setOwn(on) { app.own = on; try { localStorage.setItem('mtmon.own', on ? '1' : '0') } catch {} }
 export function applyTheme() {
   document.documentElement.setAttribute('data-density', app.density)
   if (app.accent === 'orange') document.documentElement.removeAttribute('data-accent'); else document.documentElement.setAttribute('data-accent', app.accent)

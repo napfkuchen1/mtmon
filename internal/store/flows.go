@@ -71,6 +71,7 @@ type aggKey struct {
 
 type aggVal struct {
 	up, down, internal uint64
+	ownUp, ownDown     uint64 // part of up/down that is mtmon's own traffic
 	flows              int64
 	svc, host, cc, org string
 	asn                uint32
@@ -80,8 +81,14 @@ func (v *aggVal) add(r FlowRow) {
 	switch r.Dir {
 	case "u":
 		v.up += r.Bytes
+		if IsOwnSvc(r.Svc) {
+			v.ownUp += r.Bytes
+		}
 	case "d":
 		v.down += r.Bytes
+		if IsOwnSvc(r.Svc) {
+			v.ownDown += r.Bytes
+		}
 	default:
 		v.internal += r.Bytes
 	}
@@ -132,7 +139,7 @@ func (s *Store) Flush() error {
 		agg(h1, aggKey{r.TS / 3600 * 3600, key, r.RIP, r.RPort, r.Proto}, r)
 		agg(hc, aggKey{ts: r.TS / 3600 * 3600, mac: key}, r)
 		agg(d1, aggKey{ts: r.TS / 86400 * 86400, rip: r.RIP, rport: r.RPort, proto: r.Proto}, r)
-		if r.Dir == "u" && r.Svc != SpeedtestSvc {
+		if r.Dir == "u" && !IsOwnSvc(r.Svc) {
 			if _, ok := seen[sk{key, r.RIP}]; !ok {
 				seen[sk{key, r.RIP}] = r.TS
 			}
@@ -176,13 +183,14 @@ func (s *Store) Flush() error {
 	if err := full("rollup_1h", h1); err != nil {
 		return fail(err)
 	}
-	stc, err := tx.Prepare(`INSERT INTO rollup_1h_client(ts,mac,b_up,b_down,b_int,flows) VALUES(?,?,?,?,?,?)` + upsertTail)
+	stc, err := tx.Prepare(`INSERT INTO rollup_1h_client(ts,mac,b_up,b_down,b_int,flows,o_up,o_down) VALUES(?,?,?,?,?,?,?,?)` + upsertTail +
+		`, o_up=o_up+excluded.o_up, o_down=o_down+excluded.o_down`)
 	if err != nil {
 		return fail(err)
 	}
 	defer stc.Close()
 	for k, v := range hc {
-		if _, err := stc.Exec(k.ts, k.mac, v.up, v.down, v.internal, v.flows); err != nil {
+		if _, err := stc.Exec(k.ts, k.mac, v.up, v.down, v.internal, v.flows, v.ownUp, v.ownDown); err != nil {
 			return fail(err)
 		}
 	}
