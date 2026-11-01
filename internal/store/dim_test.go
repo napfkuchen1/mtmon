@@ -107,3 +107,31 @@ func TestDBGrowthSurvivesRestartDip(t *testing.T) {
 		t.Errorf("growth %d ok=%v span=%dh", g, ok, h)
 	}
 }
+
+// Growth from before retention reached its steady state must not drive the forecast (#278): ten days of fast growth,
+// then two flat days – the figure follows the flat part, and it stays an estimate until the samples span retention.
+func TestDBGrowthFollowsRecentTrend(t *testing.T) {
+	st, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	now := time.Now().Unix()
+	for h := int64(7 * 24); h >= 0; h-- {
+		b := int64(1_000_000_000)
+		if h > 60 {
+			b -= (h - 60) * 5_000_000
+		}
+		st.DB.Exec(`INSERT INTO db_size_log VALUES(?,?)`, now-h*3600, b)
+	}
+	g, ok, _, est := st.DBGrowthEstimate(30)
+	if !ok || g > 1_000_000 {
+		t.Errorf("growth %d ok=%v: the flat last days must win", g, ok)
+	}
+	if !est {
+		t.Error("7 days of samples are no steady state for 30 days of retention")
+	}
+	if _, _, _, est := st.DBGrowthEstimate(7); est {
+		t.Error("samples span the retention: not an estimate any more")
+	}
+}

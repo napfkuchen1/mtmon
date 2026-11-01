@@ -149,6 +149,9 @@ type ifCounter struct {
 
 type ifAgg struct{ rx, tx float64 }
 
+// staticEvery: the rarely changing tables (routes, addresses, static DNS) are read on every n-th run only.
+const staticEvery = 4
+
 type worker struct {
 	m         *Manager
 	d         config.Device
@@ -163,11 +166,13 @@ type worker struct {
 	wifiCount int
 	cpu, temp float64
 	retryAt   time.Time
+	since     time.Time // polling of this device started
+	l3n, dnsn int       // runs of l3Poll / dnsCache: the rarely changing tables are read only every few runs
 }
 
 func (m *Manager) runDevice(ctx context.Context, d config.Device) {
 	w := &worker{m: m, d: d, c: NewClient(d), slow: 1, counters: map[string]ifCounter{}, running: map[string]bool{},
-		agg: map[string]*ifAgg{}, aggAt: time.Now()}
+		agg: map[string]*ifAgg{}, aggAt: time.Now(), since: time.Now()}
 	m.mu.Lock()
 	m.snaps[d.Name] = &devSnap{role: d.Role}
 	m.mu.Unlock()
@@ -246,7 +251,7 @@ func (w *worker) report(err error) {
 	}
 	w.m.Log.Warn("poll failed", "device", name, "err", msg, "fails", w.fails)
 	w.m.St.SaveDeviceState(store.DeviceState{Name: name, LastErr: msg})
-	w.m.Hub.SetDevice(live.DevLive{Name: name, Up: false, Err: msg})
+	w.m.Hub.SetDevice(live.DevLive{Name: name, Up: false, Err: msg, RestBytes: w.c.Bytes(), RestSince: w.since.Unix()})
 	if w.fails >= 3 {
 		w.m.Ev.DeviceState(name, false, msg, 0, 0)
 	}
@@ -304,7 +309,7 @@ func (w *worker) system(ctx context.Context) error {
 	}
 	now := time.Now()
 	w.m.Hub.SetDevice(live.DevLive{Name: w.d.Name, Up: true, CPU: cpu, MemPct: memPct, Temp: temp, Uptime: up,
-		Clients: w.wifiCount, LastOK: now.Unix()})
+		Clients: w.wifiCount, LastOK: now.Unix(), RestBytes: w.c.Bytes(), RestSince: w.since.Unix()})
 	w.m.St.SaveDeviceState(store.DeviceState{Name: w.d.Name, Version: r["version"], Model: r["board-name"], LastOK: now.Unix()})
 	w.m.Ev.DeviceState(w.d.Name, true, "", cpu, temp)
 	if b, ok := w.m.Ev.(interface {
@@ -350,7 +355,7 @@ func parseTemp(rows []Row) float64 {
 }
 
 func (w *worker) interfaces(ctx context.Context) error {
-	rows, err := w.c.Get(ctx, "/interface")
+	rows, err := w.c.GetProps(ctx, "/interface", "name", "type", "disabled", "running", "rx-byte", "tx-byte", "mac-address")
 	if err != nil {
 		return err
 	}
@@ -424,6 +429,10 @@ func (w *worker) l3Poll(ctx context.Context) {
 	if rows, err := w.c.Get(ctx, "/interface/wireguard/peers"); err == nil {
 		w.m.setSnap(w.d.Name, func(s *devSnap) { s.peers = rows })
 	}
+	w.l3n++
+	if w.l3n%staticEvery != 1 { // interface lists, routes, addresses and pools change rarely: every few runs only
+		return
+	}
 	members, merr := w.c.Get(ctx, "/interface/list/member")
 	routes, rerr := w.c.Get(ctx, "/ip/route")
 	addrs, _ := w.c.Get(ctx, "/ip/address")
@@ -478,17 +487,20 @@ func wanInterfaces(members, routes []Row) map[string]bool {
 
 func (w *worker) dnsCache(ctx context.Context) {
 	// static entries name local devices (A records); useful as reverse names for clients without a DHCP host-name
-	if st, err := w.c.Get(ctx, "/ip/dns/static"); err == nil {
-		for _, r := range st {
-			if r.Bool("disabled") || (r["type"] != "" && r["type"] != "A" && r["type"] != "AAAA") {
-				continue
-			}
-			if ip, err := netip.ParseAddr(r["address"]); err == nil && r["name"] != "" {
-				w.m.En.SetName(ip, r["name"], time.Hour)
-			}
+	w.dnsn++
+	var st []Row
+	if w.dnsn%staticEvery == 1 { // the static entries hardly ever change; their names live for an hour in the enricher
+		st, _ = w.c.GetProps(ctx, "/ip/dns/static", "name", "address", "type", "disabled")
+	}
+	for _, r := range st {
+		if r.Bool("disabled") || (r["type"] != "" && r["type"] != "A" && r["type"] != "AAAA") {
+			continue
+		}
+		if ip, err := netip.ParseAddr(r["address"]); err == nil && r["name"] != "" {
+			w.m.En.SetName(ip, r["name"], time.Hour)
 		}
 	}
-	rows, err := w.c.Get(ctx, "/ip/dns/cache")
+	rows, err := w.c.GetProps(ctx, "/ip/dns/cache", "name", "type", "data", "ttl")
 	if err != nil {
 		return
 	}
@@ -517,7 +529,7 @@ func (w *worker) fwCounters(ctx context.Context) {
 	if len(want) == 0 {
 		return
 	}
-	rows, err := w.c.Get(ctx, "/ip/firewall/filter")
+	rows, err := w.c.GetProps(ctx, "/ip/firewall/filter", "log-prefix", "dynamic", "log", "action", "packets")
 	if err != nil {
 		return
 	}

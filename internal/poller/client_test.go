@@ -3,6 +3,8 @@
 package poller
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 )
@@ -33,5 +35,25 @@ func TestParseRows(t *testing.T) {
 	r, err = parseRows([]byte(`{"uptime":"5s"}`))
 	if err != nil || len(r) != 1 || r[0]["uptime"] != "5s" {
 		t.Fatalf("%v %v", r, err)
+	}
+}
+
+func TestGetPropsAsksForPropertiesAndCountsBytes(t *testing.T) {
+	var query string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.RawQuery
+		w.Write([]byte(`[{"name":"ether1"}]`))
+	}))
+	defer srv.Close()
+	c := &Client{base: srv.URL + "/rest", hc: srv.Client()}
+	rows, err := c.GetProps(t.Context(), "/interface", "name", "running")
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("%v %v", rows, err)
+	}
+	if query != ".proplist=name,running" {
+		t.Errorf("query %q", query)
+	}
+	if c.Bytes() != int64(len(`[{"name":"ether1"}]`)) {
+		t.Errorf("bytes %d", c.Bytes())
 	}
 }

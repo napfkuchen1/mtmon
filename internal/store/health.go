@@ -43,9 +43,18 @@ func (s *Store) DBGrowthPerDay() (perDay int64, ok bool) {
 
 // DBGrowthInfo is DBGrowthPerDay plus the span of the samples in hours.
 func (s *Store) DBGrowthInfo() (perDay int64, ok bool, spanH int) {
+	perDay, ok, spanH, _ = s.DBGrowthEstimate(0)
+	return
+}
+
+// DBGrowthEstimate is DBGrowthInfo for the current trend: with at least 24 h of samples inside the last 48 h only those
+// count, so growth from before retention reached its steady state does not inflate the forecast. estimate is true while
+// that steady state is not reached – less than a day of samples, or the samples do not yet span the retention period
+// (retentionDays, capped at the 30 days the samples allow) – and the forecast is only a rough guess.
+func (s *Store) DBGrowthEstimate(retentionDays int) (perDay int64, ok bool, spanH int, estimate bool) {
 	rows, err := s.DB.Query(`SELECT ts,bytes FROM db_size_log WHERE ts>=? ORDER BY ts`, time.Now().Unix()-7*86400)
 	if err != nil {
-		return 0, false, 0
+		return 0, false, 0, true
 	}
 	defer rows.Close()
 	var ts, bs []float64
@@ -56,13 +65,24 @@ func (s *Store) DBGrowthInfo() (perDay int64, ok bool, spanH int) {
 		}
 	}
 	if len(ts) == 0 {
-		return 0, false, 0
+		return 0, false, 0, true
 	}
 	span := ts[len(ts)-1] - ts[0]
 	spanH = int(span / 3600)
 	if len(ts) < 2 || span < 6*3600 {
-		return 0, false, spanH
+		return 0, false, spanH, true
 	}
+	steady := span >= float64(min(max(retentionDays, 1), 30))*86400
+	if cut := ts[len(ts)-1] - 48*3600; ts[0] < cut { // the recent two days, if they hold a day of samples
+		i := 0
+		for ts[i] < cut {
+			i++
+		}
+		if ts[len(ts)-1]-ts[i] >= 24*3600 {
+			ts, bs = ts[i:], bs[i:]
+		}
+	}
+	estimate = !steady || ts[len(ts)-1]-ts[0] < 24*3600
 	var mt, mb float64
 	for i := range ts {
 		mt += ts[i]
@@ -76,7 +96,7 @@ func (s *Store) DBGrowthInfo() (perDay int64, ok bool, spanH int) {
 		den += (ts[i] - mt) * (ts[i] - mt)
 	}
 	if den == 0 || num <= 0 {
-		return 0, true, spanH
+		return 0, true, spanH, estimate
 	}
-	return int64(num / den * 86400), true, spanH
+	return int64(num / den * 86400), true, spanH, estimate
 }

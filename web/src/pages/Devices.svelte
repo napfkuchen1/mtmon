@@ -4,7 +4,7 @@
   import { t, tr } from '../lib/i18n.svelte.js'
   import { app, go } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
-  import { dur, ago } from '../lib/format.js'
+  import { dur, ago, bytes } from '../lib/format.js'
   import AddDevice from './AddDevice.svelte'
   import RouterSetup from './RouterSetup.svelte'
   import EditDeviceDialog from '../lib/EditDeviceDialog.svelte'
@@ -15,6 +15,8 @@
   let adding = $state(false), editing = $state(null), removing = $state(null)
   const reload = async () => { try { d.data = await api('/devices') } catch {} }
   const flowState = x => !x.caps?.traffic_flow?.enabled && x.source === 'ui' && !x.flows_last ? null : x.flows_last ? (Date.now() / 1000 - x.flows_last < 120 ? 'ok' : 'stale') : 'wait'
+  // REST polling volume per day, extrapolated from the time since polling started (needs ten minutes of data)
+  const perDay = l => { const s = Math.floor(Date.now() / 1000) - (l?.rest_since || 0); return l?.rest_bytes && s >= 600 ? l.rest_bytes / s * 86400 : 0 }
 </script>
 
 <div class="head"><h1>{t('Devices')}</h1><span class="muted">{t('{n} managed via RouterOS REST', { n: d.data ? d.data.length : 0 })}</span>
@@ -42,7 +44,7 @@
         {#if l?.up}
           <div class="m"><span>CPU</span><div class="bar"><i style="width:{l.cpu}%;background:{l.cpu > 80 ? 'var(--bad)' : 'var(--accent)'}"></i></div><b class="num">{l.cpu.toFixed(0)}%</b></div>
           <div class="m"><span>RAM</span><div class="bar"><i style="width:{l.mem_pct}%;background:{l.mem_pct >= 95 ? 'var(--bad)' : l.mem_pct >= 85 ? 'var(--warn)' : 'var(--accent)'}"></i></div><b class="num">{l.mem_pct.toFixed(0)}%</b></div>
-          <div class="foot muted"><span>{t('Up {t}', { t: dur(l.uptime) })}</span>{#if l.temp}<span>{l.temp.toFixed(0)} °C</span>{/if}{#if x.state?.version}<span>ROS {x.state.version.split(' ')[0]}</span>{/if}</div>
+          <div class="foot muted"><span>{t('Up {t}', { t: dur(l.uptime) })}</span>{#if l.temp}<span>{l.temp.toFixed(0)} °C</span>{/if}{#if x.state?.version}<span>ROS {x.state.version.split(' ')[0]}</span>{/if}{#if perDay(l)}<span title={t('What mtmon reads from this device over the REST API, extrapolated from the time since polling started')}>{t('Polling {size} per day', { size: bytes(perDay(l)) })}</span>{/if}</div>
         {:else}
           <div class="badge bad" style="white-space:normal">{tr(l?.err || x.state?.last_err) || t('unreachable')}</div>
           <div class="muted" style="margin-top:8px">{t('last seen {t}', { t: ago(x.state?.last_ok) })}</div>

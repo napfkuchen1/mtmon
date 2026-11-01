@@ -60,6 +60,9 @@ type DevLive struct {
 	Clients int     `json:"clients"`
 	LastOK  int64   `json:"last_ok"`
 	Err     string  `json:"err,omitempty"`
+	// volume of mtmon's REST polling of this device since mtmon started polling it (#279)
+	RestBytes int64 `json:"rest_bytes"`
+	RestSince int64 `json:"rest_since"`
 }
 
 type Hub struct {
