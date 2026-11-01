@@ -158,12 +158,13 @@ func (e *Engine) storyOpen(kind, subject string) bool {
 const (
 	keyWifiDiscOpen   = "Client {who} keeps disconnecting from {where}: {n} times between {first} and {last}"
 	keyWifiDiscClosed = "Client {who}: {n} disconnects {first}–{last} at {where}"
+	tailNoLoop        = "the access-list rule for this client did not match during the burst: no reject loop, the cause is more likely the client"
 	tailGoodSignal    = "the signal is good, so this is probably not a coverage problem; check access-list reject rules for this client and roaming settings"
 )
 
 // wifiDiscText is the story text of a client that keeps disconnecting: the count and time span, the last reason,
-// the failed DHCP offers that followed its reconnects, and the hint when the signal was good.
-func wifiDiscText(who, where, why string, good bool, rej aclRule, rejected bool) storyText {
+// the failed DHCP offers that followed its reconnects, and the hint when the signal was good (or that an existing reject rule did not match).
+func wifiDiscText(who, where, why string, good bool, rej aclRule, rejected, miss bool) storyText {
 	return func(n, extra int, first, last time.Time, closed bool) (string, map[string]string, string) {
 		key := keyWifiDiscOpen
 		if closed {
@@ -181,7 +182,10 @@ func wifiDiscText(who, where, why string, good bool, rej aclRule, rejected bool)
 		if rejected {
 			tail += rejectTail(rej)
 		}
-		if good {
+		if miss && !rejected {
+			// a reject rule exists but did not count: say so instead of sending the reader to the access-list again
+			tail += " – " + tailNoLoop
+		} else if good {
 			tail += " – " + tailGoodSignal
 		}
 		return key, params, tail

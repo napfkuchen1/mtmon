@@ -57,6 +57,14 @@ func TestRejectLoopNoHint(t *testing.T) {
 		as := storyAlerts(t, e, "wifi_disconnects")
 		if len(as) != 1 || strings.Contains(as[0].Msg, "rejected on") {
 			t.Errorf("%s: %+v", name, as)
+			continue
+		}
+		// a reject rule exists but did not count: say so instead of the generic access-list hint (#211)
+		if got := strings.Contains(as[0].Msg, tailNoLoop); got != (name == "unchanged") {
+			t.Errorf("%s: no-loop tail = %v: %s", name, got, as[0].Msg)
+		}
+		if name == "unchanged" && strings.Contains(as[0].Msg, "check access-list reject rules") {
+			t.Errorf("generic hint must be replaced: %s", as[0].Msg)
 		}
 	}
 }

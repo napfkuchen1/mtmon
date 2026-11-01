@@ -33,7 +33,16 @@ func newUpdater(cfg *config.Config, st *store.Store, hub *live.Hub, speed *speed
 	o := update.Options{
 		Repo: cfg.UpdateRepo, Current: version, Dir: filepath.Join(cfg.DataDir, "update"), Meta: st,
 		HelperPath: update.HelperPath, Log: log, OnRestart: restart,
-		Health:     func() error { return updateHealth(cfg, st, hub) },
+		Health: func() error { return updateHealth(cfg, st, hub) },
+		OnResult: func(v string, ok bool) {
+			action, detail := "update.ok", "v"+v+": health check passed, update confirmed"
+			if !ok {
+				action, detail = "update.rollback", "v"+v+": health check failed, rolling back to the previous version"
+			}
+			if err := st.AddAudit(store.AuditEntry{TS: time.Now().Unix(), User: "system", Action: action, Detail: detail}); err != nil {
+				log.Warn("audit entry for update failed", "err", err)
+			}
+		},
 		PreRestart: func() error { return st.Backup(filepath.Join(cfg.DataDir, "backups", "pre-update"), 2) },
 		Busy: func() string {
 			if n := st.OpenCritical(); n > 0 {

@@ -8,10 +8,16 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
-## [Unreleased]
+## [0.20.10] - 2026-11-01
 
 ### Fixed
+- German Suggestions page (#195): the DNS-bypass step ("block port 853"), the roam-pin suggestion (title, reason, steps) and the other suggestions that were still English now have German texts. A test (`internal/advice/i18n_test.go`) reads all titles, reasons, steps and notes of the suggestion rules and fails when one has no German text.
+- Wi-Fi disconnect alert (#211): when an access-list reject rule exists for the client but did not match during the burst, the alert says so ("the access-list rule did not match, so no reject loop") instead of the general check hint.
+- Own internet targets (#194): a name that does not exist (NXDOMAIN) raises one warning per target, not one for IPv4 and one for IPv6.
 - German alert texts (#195): alerts stored by older versions (config changes, repeated Wi-Fi disconnects, devices behind an unreachable uplink) are no longer shown as a mix of English and German; the router's own reason is quoted on its own and mtmon's hint is translated.
+
+### Changed
+- Audit log (#189, #192): an update is logged with its health check ("update.ok" when the new version passed it, "update.rollback" when it did not). The card now says that API token use is logged once per token and hour.
 
 ## [0.20.9] - 2026-10-31
 

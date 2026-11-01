@@ -2,7 +2,10 @@
 
 package alert
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 // targetFails is the number of failed checks in a row after which an own internet target is reported (#194).
 const targetFails = 3
@@ -15,22 +18,47 @@ func (e *Engine) TargetResult(target string, ok bool, why string) {
 	if e.tgtFails == nil {
 		e.tgtFails = map[string]int{}
 	}
+	if e.tgtNX == nil {
+		e.tgtNX = map[string]bool{}
+	}
 	n := e.tgtFails[target]
+	nx := e.tgtNX[target]
 	switch {
 	case !ok:
 		e.tgtFails[target] = n + 1
 		n++
+		nx = why == "NXDOMAIN"
+		e.tgtNX[target] = nx
 	default:
 		delete(e.tgtFails, target)
+		delete(e.tgtNX, target)
 	}
 	e.mu.Unlock()
-	name := targetLabel(target)
+	name, subject, cooldown := targetLabel(target), target, time.Duration(0)
+	if shared := sharedSubject(target); nx && shared != "" {
+		// a name that does not exist fails IPv4 and IPv6 alike: one alert for the target, raised by the IPv4 check
+		if !ok && strings.HasPrefix(target, "http6:") {
+			return
+		}
+		name, subject, cooldown = strings.TrimPrefix(shared, "http:"), shared, time.Minute
+	}
 	if !ok && n == targetFails {
-		e.RaiseP("target_down", target, "warning", "Internet target {t} did not answer 3 checks in a row", map[string]string{"t": name}, " – "+why, 0)
+		e.RaiseP("target_down", subject, "warning", "Internet target {t} did not answer 3 checks in a row", map[string]string{"t": name}, " – "+why, cooldown)
 	}
 	if ok && n >= targetFails {
-		e.RaiseP("target_up", target, "info", "Internet target {t} answers again", map[string]string{"t": name}, "", 0)
+		e.RaiseP("target_up", subject, "info", "Internet target {t} answers again", map[string]string{"t": name}, "", cooldown)
 	}
+}
+
+// sharedSubject is the alert subject of an HTTP target without the address family ("http:https://host/"), or "" for
+// other probe keys.
+func sharedSubject(k string) string {
+	for _, p := range []string{"http4:", "http6:"} {
+		if strings.HasPrefix(k, p) {
+			return "http:" + strings.TrimPrefix(k, p)
+		}
+	}
+	return ""
 }
 
 // TargetRemoved closes what is open for a target the operator took out of the list: the failure counter starts over
@@ -38,8 +66,12 @@ func (e *Engine) TargetResult(target string, ok bool, why string) {
 func (e *Engine) TargetRemoved(target string) {
 	e.mu.Lock()
 	delete(e.tgtFails, target)
+	delete(e.tgtNX, target)
 	e.mu.Unlock()
 	e.St.ResolveAlerts("target_down", target, " – target removed")
+	if shared := sharedSubject(target); shared != "" {
+		e.St.ResolveAlerts("target_down", shared, " – target removed")
+	}
 }
 
 // targetLabel is the target as the operator typed it: "http6:https://host/" shows as "https://host/ (IPv6)".

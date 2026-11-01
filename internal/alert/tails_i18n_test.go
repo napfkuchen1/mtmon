@@ -43,8 +43,10 @@ func TestOptionalTailSegmentsHaveGerman(t *testing.T) {
 			for _, rej := range []aclRule{{}, {Comment: "pin-ap2", Iface: "cap-wifi1"}, {Comment: "x"}} {
 				for _, rejected := range []bool{false, true} {
 					for _, good := range []bool{false, true} {
-						_, _, tail := wifiDiscText("AA:BB:CC:00:11:22", "ap1", why, good, rej, rejected)(6, extra, time.Now(), time.Now(), false)
-						tails = append(tails, tail)
+						for _, miss := range []bool{false, true} {
+							_, _, tail := wifiDiscText("AA:BB:CC:00:11:22", "ap1", why, good, rej, rejected, miss)(6, extra, time.Now(), time.Now(), false)
+							tails = append(tails, tail)
+						}
 					}
 				}
 			}

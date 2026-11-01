@@ -114,9 +114,10 @@ func (e *Engine) LogEvent(ev store.LogEvent) {
 			subject := ap + "/" + mac
 			c := e.burstCount("wifi|"+dev+"|"+mac, 5*time.Minute)
 			var rej aclRule
-			var rejected bool
+			var rejected, miss bool
 			if c >= 3 {
 				rej, rejected = e.rejectLoop(dev, mac, time.Unix(ev.TS, 0))
+				miss = e.rejectMiss(dev, mac)
 			}
 			if c >= 6 || e.storyOpen("wifi_disconnects", subject) {
 				who := mac
@@ -138,7 +139,7 @@ func (e *Engine) LogEvent(ev store.LogEvent) {
 						good = true
 					}
 				}
-				e.storyEvent("wifi_disconnects", subject, "warning", time.Unix(ev.TS, 0), c, wifiDiscText(who, where, why, good, rej, rejected))
+				e.storyEvent("wifi_disconnects", subject, "warning", time.Unix(ev.TS, 0), c, wifiDiscText(who, where, why, good, rej, rejected, miss))
 			}
 		}
 	}

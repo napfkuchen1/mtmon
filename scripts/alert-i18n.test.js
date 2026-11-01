@@ -28,7 +28,7 @@ tmps.push(deTmp, tmp)
 ;(async () => {
   global.document = { documentElement: {} }
   try {
-    const { i18n, trAlert } = await import(require('node:url').pathToFileURL(tmp).href)
+    const { i18n, trAlert, tr } = await import(require('node:url').pathToFileURL(tmp).href)
     i18n.set('de')
     const cc1 = '{dev}: configuration changed (1 entry) – see the device page, Config history'
     const down = '{root} is unreachable ({r}); {deps} unreachable too because their uplink runs through {root}'
@@ -53,6 +53,19 @@ tmps.push(deTmp, tmp)
       assert.notStrictEqual(out, c.msg, 'not translated: ' + c.msg)
       assert(!/\b(runs through|probably|changed by|via SSH|reject rules|unreachable too)\b/.test(out), 'English left in: ' + out)
       assert(!/läuft mit through|per SSH von .*(via|from)/.test(out), 'mixed text: ' + out)
+      console.log('ok  ' + out)
+    }
+    // suggestion texts (#195): rendered sentences with names and numbers must translate through the templates
+    const sugg = [
+      ['Living-TV keeps hopping although ap-eg is clearly stronger', 'wechselt ständig'],
+      ['Living-TV stays on two access points and ap-eg is 18 dB stronger on average, yet it keeps switching. A fixed device like this is best pinned to ap-eg.', 'ist im Mittel 18 dB stärker'],
+      ['Pin the device to ap-eg: add an access-list rule that rejects it on the ap-og Wi-Fi interface (or set a minimum signal strength there).', 'Gerät an ap-eg binden'],
+      ['Optional: block port 853 so devices fall back to plain DNS, which the router can redirect. Put the rule above any FastTrack or accept-all rules.', 'Port 853 sperren'],
+      ['3 rules on ap1 point to deleted interfaces', 'verweisen auf gelöschte'],
+    ]
+    for (const [en, de] of sugg) {
+      const out = tr(en)
+      assert(out.includes(de), 'suggestion not translated: ' + en + ' -> ' + out)
       console.log('ok  ' + out)
     }
   } finally {

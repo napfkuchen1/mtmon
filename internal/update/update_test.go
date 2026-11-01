@@ -600,6 +600,42 @@ func TestPendingBlocksApplyAndConfirm(t *testing.T) {
 	}
 }
 
+// The outcome of the post-update check reaches OnResult (audit log, #189): healthy -> ok, too long unhealthy -> rollback.
+func TestConfirmReportsResult(t *testing.T) {
+	for _, healthy := range []bool{true, false} {
+		f := newFake(t, "v0.7.0", goodTar(t, "v0.7.0"))
+		got := make(chan bool, 1)
+		m, _ := f.mgr(t, "v0.7.0", func(o *Options) {
+			o.Confirm = 5 * time.Millisecond
+			o.RollbackAfter = -time.Second
+			o.Health = func() error {
+				if healthy {
+					return nil
+				}
+				return fmt.Errorf("down")
+			}
+			o.OnResult = func(v string, ok bool) {
+				if v != "v0.7.0" {
+					t.Errorf("version %q", v)
+				}
+				got <- ok
+			}
+			o.OnRestart = func() {}
+		})
+		os.MkdirAll(m.o.Dir, 0o750)
+		os.WriteFile(filepath.Join(m.o.Dir, "confirm-pending"), []byte("version=v0.7.0\n"), 0o640)
+		go m.confirmLoop(context.Background())
+		select {
+		case ok := <-got:
+			if ok != healthy {
+				t.Errorf("healthy=%v reported ok=%v", healthy, ok)
+			}
+		case <-time.After(15 * time.Second):
+			t.Fatalf("healthy=%v: no result", healthy)
+		}
+	}
+}
+
 func TestStaleStagedFileReported(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "mtmon.new"), []byte("x"), 0o755)
