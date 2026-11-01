@@ -18,13 +18,45 @@ func TestMetaDiffMasksSecretsAndSkipsBookkeeping(t *testing.T) {
 	before := map[string]string{"timezone": "", "notify": "a", "cfgid:gw": "1", "last_run_version": "x"}
 	after := map[string]string{"timezone": "Europe/Berlin", "notify": "b", "cfgid:gw": "2", "last_run_version": "y", "smtp_pass": "hunter2"}
 	got := metaDiff(before, after)
-	if !strings.Contains(got, "timezone: – → Europe/Berlin") || !strings.Contains(got, "notify: changed (value hidden)") || !strings.Contains(got, "smtp_pass: changed (value hidden)") {
+	if !strings.Contains(got, "timezone: – → Europe/Berlin") || !strings.Contains(got, "notify: •••") || !strings.Contains(got, "smtp_pass: •••") {
 		t.Fatalf("diff: %q", got)
 	}
 	for _, bad := range []string{"hunter2", "cfgid", "last_run_version"} {
 		if strings.Contains(got, bad) {
 			t.Errorf("diff leaks %q: %q", bad, got)
 		}
+	}
+}
+
+// #192: every kind of secret is written as ••• – the value is in neither the old nor the new half of the entry.
+func TestMetaDiffMasksEverySecret(t *testing.T) {
+	secrets := map[string]string{
+		"notify":          `{"smtp":{"pass":"smtp-S3CRET"},"webhook":{"secret":"hook-S3CRET"}}`, // SMTP password + webhook signature secret
+		"totp_secret":     "TOTP-S3CRET",                                                        // 2FA secret
+		"totp_pending":    "TOTP-PENDING",
+		"totp_recovery":   "RECOVERY-S3CRET",
+		"viewer_hash":     "viewer-HASH",
+		"api_token":       "tok-S3CRET",
+		"router_password": "router-S3CRET",
+		"admin_pass":      "admin-S3CRET",
+	}
+	before := map[string]string{"timezone": ""}
+	after := map[string]string{"timezone": "Europe/Berlin"}
+	for k, v := range secrets {
+		before[k] = "old-" + v
+		after[k] = v
+	}
+	got := metaDiff(before, after)
+	for k, v := range secrets {
+		if !strings.Contains(got, k+": •••") {
+			t.Errorf("%s not masked in %q", k, got)
+		}
+		if strings.Contains(got, v) || strings.Contains(got, "old-"+v) {
+			t.Errorf("diff leaks the value of %s: %q", k, got)
+		}
+	}
+	if !strings.Contains(got, "timezone: – → Europe/Berlin") {
+		t.Errorf("a plain setting must stay readable: %q", got)
 	}
 }
 
