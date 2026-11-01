@@ -8,7 +8,7 @@
   let { name, onchanged, preset = [] } = $props()
   let data = $state(null), want = $state({}), err = $state(''), loading = $state(true)
   let user = $state('admin'), pass = $state(''), busy = $state(false), prev = $state(null), res = $state(null)
-  let fwRules = $state([]), allowRules = $state([])
+  let fwRules = $state([]), allowRules = $state([]), convert = $state(false)
 
   async function load() {
     loading = true
@@ -22,19 +22,19 @@
 
   const enable = $derived(data ? data.features.filter(f => want[f.key] && !f.on).map(f => f.key) : [])
   const disable = $derived(data ? data.features.filter(f => !want[f.key] && f.on).map(f => f.key) : [])
-  const changed = $derived(enable.length + disable.length > 0)
+  const changed = $derived(enable.length + disable.length > 0 || convert)
   const dropRules = $derived((data?.filter_rules || []).filter(r => !r.disabled && !r.managed && (r.action === 'drop' || r.action === 'reject')))
   // accept rules that match every packet of an established connection would flood the log: listed, but not preselected
   const noisy = r => /established|related|untracked/.test(r.summary || '')
   const allowList = $derived((data?.filter_rules || []).filter(r => !r.disabled && !r.managed && r.action === 'accept'))
-  const body = dryRun => ({ user, pass, enable, disable, fw_rules: fwRules, allow_rules: allowRules, dry_run: dryRun })
+  const body = dryRun => ({ user, pass, enable, disable, fw_rules: fwRules, allow_rules: allowRules, convert, dry_run: dryRun })
   // switching the firewall log off also switches off what builds on its log target
   function toggle(k) {
     want[k] = !want[k]
     if (k === 'firewall_logs' && !want[k]) { want.allow_log = false; want.log_new = false }
   }
   const pick = (list, id) => (list.includes(id) ? list.filter(x => x !== id) : [...list, id])
-  $effect(() => { enable.length; disable.length; prev = null; res = null })  // a changed selection invalidates the preview
+  $effect(() => { enable.length; disable.length; convert; prev = null; res = null })  // a changed selection invalidates the preview
   $effect(() => { if (enable.includes('firewall_logs') && !fwRules.length) fwRules = dropRules.map(r => r.id) })
   $effect(() => { if (enable.includes('allow_log') && !allowRules.length) allowRules = allowList.filter(r => !r.log && !noisy(r)).map(r => r.id) })
 
@@ -77,16 +77,23 @@
         {/if}
         {#if f.key === 'allow_log' && want[f.key] && !f.on}
           <div class="sub">
-            <div class="muted" style="font-size:12.5px;margin-bottom:6px">{t('Log on these allow rules:')}</div>
+            <div class="muted" style="font-size:12.5px;margin-bottom:6px">{t('Count hits on these allow rules:')}</div>
             {#each allowList as r (r.id)}
               <label class="chk"><input type="checkbox" checked={allowRules.includes(r.id)} onchange={() => (allowRules = pick(allowRules, r.id))} />
                 <span><b>{r.chain}/{r.action}</b> <span class="muted">{r.comment || r.summary}</span>{#if noisy(r)} <span class="badge warn">{t('noisy')}</span>{/if}{#if r.log} <span class="badge">{t('already logs')}</span>{/if}</span></label>
             {:else}<div class="muted" style="font-size:12.5px">{t('No allow rules found.')}</div>{/each}
-            <div class="muted" style="font-size:12px;margin-top:6px">{t('The firewall log target is set up as well if it is missing. “Noisy” rules match every packet of established connections.')}</div>
+            <div class="muted" style="font-size:12px;margin-top:6px">{t('Accept rules are not logged: mtmon reads their packet counters, so the log stays small. The firewall log target is set up as well if it is missing.')}</div>
           </div>
         {/if}
       </div>
     {/each}
+    {#if data.convertible_allow?.length}
+      <div class="feat">
+        <label class="chk"><input type="checkbox" bind:checked={convert} disabled={busy} />
+          <span><b>{t('Switch {n} logged allow rule(s) to counting', { n: data.convertible_allow.length })}</b></span></label>
+        <div class="muted fw">{t('These accept rules set up by mtmon still write every packet to the log. Counting keeps the same numbers on the Firewall page without the log volume. Undo restores logging.')}</div>
+      </div>
+    {/if}
   </div>
 
   {#if changed}

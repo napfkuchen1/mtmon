@@ -184,6 +184,9 @@ func Open(dir string) (*Store, error) {
 	if err := migrateFwTop(db); err != nil {
 		return nil, fmt.Errorf("firewall schema: %w", err)
 	}
+	if err := migrateFwCounter(db); err != nil {
+		return nil, fmt.Errorf("firewall counter schema: %w", err)
+	}
 	if err := migrateTokens(db); err != nil {
 		return nil, fmt.Errorf("token schema: %w", err)
 	}

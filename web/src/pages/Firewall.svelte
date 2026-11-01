@@ -45,7 +45,7 @@
 {:else if x}
   <div class="grid g4" style="margin-bottom:16px">
     <div class="card card-b kpi"><div class="l">{t('Blocked')}</div><div class="v num" style="color:var(--bad)">{num(sm.blocked)}</div><div class="l">{t('Packets/connections in {range}', { range: rg() })}</div></div>
-    <div class="card card-b kpi"><div class="l">{t('Allowed (logged)')}</div><div class="v num" style="color:var(--ok)">{num(sm.allowed)}</div><div class="l">{t('Rules with accept/passthrough log')}</div></div>
+    <div class="card card-b kpi"><div class="l">{t('Allowed (logged)')}</div><div class="v num" style="color:var(--ok)">{num(sm.allowed)}</div><div class="l">{(sm.allowed_counted ? t('{n} of them from rule counters (accept rules are not logged)', { n: num(sm.allowed_counted) }) : t('Rules with accept/passthrough log'))}</div></div>
     <div class="card card-b kpi"><div class="l">{t('Syslog received')}</div><div class="v num">{num(x.syslog.parsed)}</div><div class="l">{t('{a} unreadable · {b} unknown sender', { a: num(x.syslog.unparsed), b: num(x.syslog.dropped_unknown_source) })}</div></div>
     <div class="card card-b kpi"><div class="l">{t('Logged rules')}</div><div class="v num">{x.rules.length}</div><div class="l">{t('across {n} device(s)', { n: new Set(x.rules.map(r => r.device)).size })}</div></div>
   </div>

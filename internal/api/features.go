@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -39,7 +40,7 @@ var featureText = map[string][2]string{
 	provision.FeatFwLog: {"Firewall log (who was blocked)",
 		"The router sends firewall log lines to mtmon and logs on the drop rules you pick, so blocked connections – which Traffic Flow never sees – show up in the Firewall page."},
 	provision.FeatAllowLog: {"Log allowed traffic (which rule let it through)",
-		"Turns on logging for the accept rules you pick, so the Firewall page also shows what was allowed and by which rule. Needs the firewall log target; it is set up with it if missing. Rules that match every packet of a connection are noisy: pick with care."},
+		"Counts the hits of the accept rules you pick with the router's own rule counters, so the Firewall page also shows what was allowed and by which rule – without a log line per packet. Rules that mtmon made log every packet earlier can be switched to counting."},
 	provision.FeatLogNew: {"Log every new connection (proof of 'allowed')",
 		"Adds one rule at the end of the forward chain that logs each new connection that passed all drop rules. Complete picture of allowed connections, but more router CPU and log volume."},
 	provision.FeatEventLogs: {"Router event log (logins, DHCP, Wi-Fi, errors)",
@@ -105,10 +106,11 @@ func (s *Server) deviceFeaturesGet(w http.ResponseWriter, r *http.Request) {
 		}
 		cancel()
 	}
-	out := map[string]any{"features": deviceFeatures(entries, caps), "managed": row.Managed}
+	out := map[string]any{"features": deviceFeatures(entries, caps), "managed": row.Managed, "convertible_allow": []string{}}
 	if caps != nil {
 		out["filter_rules"] = caps.Filter
 		out["role"] = caps.Role
+		out["convertible_allow"] = s.convertibleAllow(name, caps)
 	} else {
 		out["filter_rules"] = []provision.FilterRule{}
 	}
@@ -123,6 +125,8 @@ type featuresReq struct {
 	FwRules []string `json:"fw_rules"` // .id of drop rules to log on (empty = suggested drop rules)
 	// AllowRules: .id of accept rules to log on (empty = the enabled accept rules that are not "established/related")
 	AllowRules []string `json:"allow_rules"`
+	// Convert switches the accept rules mtmon made log every packet to counter mode (log=no, #278).
+	Convert bool     `json:"convert"`
 	LogNew     bool     `json:"log_new"` // legacy: together with enabling firewall_logs it enables log_new as well
 	DryRun     bool     `json:"dry_run"`
 }
@@ -137,6 +141,24 @@ func defaultAllowRules(caps *provision.Caps) []string {
 			continue
 		}
 		out = append(out, f.ID)
+	}
+	return out
+}
+
+// convertibleAllow: accept rules that mtmon itself set to log every packet (registered as its own, with its prefix).
+func (s *Server) convertibleAllow(name string, caps *provision.Caps) []string {
+	own := map[string]bool{}
+	rs, _ := s.St.FwRules()
+	for _, r := range rs {
+		if r.Device == name && r.Managed && !r.Counter {
+			own[r.Prefix] = true
+		}
+	}
+	out := []string{}
+	for _, id := range provision.ConvertibleAllow(caps) {
+		if own["MTM-"+strings.TrimPrefix(id, "*")] {
+			out = append(out, id)
+		}
 	}
 	return out
 }
@@ -165,6 +187,9 @@ func featureSelection(in featuresReq, state map[string]bool) (enable, disable ma
 		if state[k] {
 			disable[k] = true
 		}
+	}
+	if in.Convert {
+		enable[provision.FeatAllowLog] = true // the conversion is a step of allow_log, also when it is on already
 	}
 	if in.LogNew && enable[provision.FeatFwLog] {
 		enable[provision.FeatLogNew] = true
@@ -204,6 +229,12 @@ func (s *Server) featureOptions(row *store.DeviceRow, caps *provision.Caps, in f
 	opt.AllowRules = in.AllowRules
 	if len(opt.AllowRules) == 0 {
 		opt.AllowRules = defaultAllowRules(caps)
+	}
+	if in.Convert {
+		opt.ConvertAllow = s.convertibleAllow(row.Name, caps)
+		if !slices.Contains(in.Enable, provision.FeatAllowLog) {
+			opt.AllowRules = nil // conversion only: no new rules
+		}
 	}
 	return opt
 }
@@ -269,7 +300,7 @@ func (s *Server) featureEnable(ctx context.Context, admin *poller.Client, name s
 	}
 	var metas []store.FwRule
 	for _, m := range res.FwMeta {
-		metas = append(metas, store.FwRule{Device: name, Prefix: m.Prefix, Chain: m.Chain, Action: m.Action, Descr: m.Descr, Managed: m.Managed})
+		metas = append(metas, store.FwRule{Device: name, Prefix: m.Prefix, Chain: m.Chain, Action: m.Action, Descr: m.Descr, Managed: m.Managed, Counter: m.Counter})
 	}
 	s.St.SaveFwRules(metas)
 	return true
@@ -292,7 +323,7 @@ func (s *Server) deviceFeaturesApply(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if len(in.Enable)+len(in.Disable) == 0 {
+	if len(in.Enable)+len(in.Disable) == 0 && !in.Convert {
 		jerr(w, 400, "nothing selected")
 		return
 	}
@@ -341,7 +372,7 @@ func (s *Server) deviceFeaturesApply(w http.ResponseWriter, r *http.Request) {
 		if plan == nil {
 			plan = []provision.Step{}
 		}
-		jsonOut(w, map[string]any{"plan": plan, "will_undo": descrs, "fw_rules": opt.FwRules, "allow_rules": opt.AllowRules, "filter_rules": caps.Filter})
+		jsonOut(w, map[string]any{"plan": plan, "will_undo": descrs, "fw_rules": opt.FwRules, "allow_rules": opt.AllowRules, "convert_allow": opt.ConvertAllow, "filter_rules": caps.Filter})
 		return
 	}
 

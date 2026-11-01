@@ -23,6 +23,7 @@ type Options struct {
 	Syslog           bool     `json:"syslog"`
 	FwRules          []string `json:"fw_rules"`    // .id of filter rules to enable logging on
 	AllowRules       []string `json:"allow_rules"` // .id of accept rules to enable logging on
+	ConvertAllow     []string `json:"convert_allow"` // .id of accept rules mtmon logged earlier: switch them to counter mode (log=no)
 	LogNew           bool     `json:"log_new"`
 	DisableFasttrack bool     `json:"disable_fasttrack"`
 	SkipBackup       bool     `json:"skip_backup"`
@@ -46,6 +47,7 @@ type Step struct {
 type FwMeta struct {
 	Prefix, Chain, Action, Descr string
 	Managed                      bool
+	Counter                      bool // accept rule counted via the router's rule counter, not logged (#278)
 }
 
 // action couples a Step with its executor, so the plan shown to the user can never drift from what runs.
@@ -121,9 +123,14 @@ func buildActions(k *Caps, o Options) []action {
 				run: func(ctx context.Context, r *runner) error { return r.fwLog(ctx, k, o.FwRules, false) }})
 		}
 		if len(o.AllowRules) > 0 {
-			a = append(a, action{Step: logRulesStep(k, "allowlog", o.AllowRules, fmt.Sprintf("Enable logging on %d allow rules", len(o.AllowRules)),
-				"Only 'log' and 'log-prefix' of these accept rules are set (conditions, action and order stay unchanged). mtmon then shows which rule let a connection through. Every matching packet is logged, so pick rules for new connections or rare traffic, not a broad 'established' rule: that costs router CPU and log volume."),
+			a = append(a, action{Step: countRulesStep(k, "allowlog", o.AllowRules, fmt.Sprintf("Count hits on %d allow rules", len(o.AllowRules)),
+				"Only 'log-prefix' of these accept rules is set; 'log' stays off (conditions, action and order stay unchanged). mtmon reads the rule's hit counter on every poll and shows the difference as 'allowed', so nothing is written to the router log and no syslog line is sent per packet."),
 				run: func(ctx context.Context, r *runner) error { return r.fwLog(ctx, k, o.AllowRules, true) }})
+		}
+		if len(o.ConvertAllow) > 0 {
+			a = append(a, action{Step: countRulesStep(k, "allowcount", o.ConvertAllow, fmt.Sprintf("Switch %d allow rules from logging to counting", len(o.ConvertAllow)),
+				"These accept rules were set to log every packet by an earlier mtmon version. Only 'log' is switched off; the log prefix stays. mtmon then reads the rule's hit counter instead, so the Firewall page keeps its numbers while the router log and the syslog traffic shrink."),
+				run: func(ctx context.Context, r *runner) error { return r.fwCount(ctx, k, o.ConvertAllow) }})
 		}
 		if o.EventLogs {
 			var cmds []string
@@ -166,6 +173,29 @@ func logRulesStep(k *Caps, key string, ids []string, title, why string) Step {
 		}
 	}
 	return Step{Key: key, Title: title, Why: why, Commands: cmds, Undo: "log and log-prefix of each rule are reset to their previous values", Risk: "medium"}
+}
+
+// countRulesStep describes "set the log prefix, keep log off" for accept rules (hits come from the rule counter).
+func countRulesStep(k *Caps, key string, ids []string, title, why string) Step {
+	var cmds []string
+	for _, id := range ids {
+		if f := k.rule(id); f != nil {
+			cmds = append(cmds, fmt.Sprintf("/ip firewall filter set %s log=no log-prefix=%s   # %s %s %s", id, prefixFor(id), f.Chain, f.Action, f.Comment))
+		}
+	}
+	return Step{Key: key, Title: title, Why: why, Commands: cmds, Undo: "log and log-prefix of each rule are reset to their previous values", Risk: "low"}
+}
+
+// ConvertibleAllow lists the accept rules that carry mtmon's own log prefix and still log every packet (set up by
+// mtmon versions before 0.20.11). Rules with any other prefix, and rules that are not plain accept, are never touched.
+func ConvertibleAllow(k *Caps) []string {
+	var out []string
+	for _, f := range k.Filter {
+		if f.Action == "accept" && f.Log && !f.Managed && f.LogPrefix == prefixFor(f.ID) {
+			out = append(out, f.ID)
+		}
+	}
+	return out
 }
 
 func (k *Caps) rule(id string) *FilterRule {

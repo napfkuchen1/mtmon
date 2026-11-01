@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -225,6 +226,11 @@ func (s *Server) dynamic(w http.ResponseWriter, r *http.Request, canWrite bool) 
 	case r.Method == "GET" && list && id == "":
 		out := []obj{}
 		for _, o := range s.lists[menu] {
+			if menu == "/ip/firewall/filter" && str(o["action"]) == "accept" && str(o["disabled"]) != "true" {
+				// like the real rule counters: they count whether the rule logs or not
+				n, _ := strconv.Atoi(str(o["packets"]))
+				o["packets"] = strconv.Itoa(n + 10)
+			}
 			c := strMap(o)
 			delete(c, "password")
 			out = append(out, c)
@@ -339,4 +345,17 @@ func validTopics(list string) bool {
 		}
 	}
 	return true
+}
+
+// Patch changes fields of one record, as a router admin would outside mtmon (tests).
+func (s *Server) Patch(menu, id string, kv map[string]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, o := range s.lists[menu] {
+		if str(o[".id"]) == id {
+			for k, v := range kv {
+				o[k] = v
+			}
+		}
+	}
 }
