@@ -10,8 +10,10 @@ import (
 )
 
 func TestSourceIP(t *testing.T) {
+	withProxies(t, "10.0.0.0/8") // the operator listed the proxy network in Settings → Reverse proxy
 	for _, c := range []struct{ peer, xff, real, want string }{
 		{"203.0.113.9:1000", "198.51.100.1", "", "203.0.113.9"},         // untrusted peer: headers ignored
+		{"192.168.1.50:1000", "198.51.100.1", "", "192.168.1.50"},       // private but not listed: headers ignored
 		{"127.0.0.1:1000", "198.51.100.7", "", "198.51.100.7"},          // proxy appends the client
 		{"10.0.0.2:1000", "6.6.6.6, 198.51.100.7", "", "198.51.100.7"},  // spoofed leftmost entry ignored
 		{"10.0.0.2:1000", "198.51.100.7, 10.0.0.3", "", "198.51.100.7"}, // second local hop skipped

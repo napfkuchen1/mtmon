@@ -76,6 +76,7 @@ type Server struct {
 func New(s *Server) http.Handler {
 	s.sess = newSessions()
 	s.sess.st = s.St
+	s.loadTrustedProxies()
 	s.Started = time.Now()
 	s.up = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
 		return s.originOK(r)
@@ -238,42 +239,61 @@ func (s *Server) auth(h http.HandlerFunc) http.HandlerFunc {
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	ip := "login|" + sourceIP(r) // own bucket: failing API tokens must not block interactive logins
-	if !s.sess.allow(ip) {
-		jerr(w, 429, "too many attempts, wait a minute")
-		return
-	}
 	var in struct{ User, Password, Code string }
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in); err != nil {
 		jerr(w, 400, "bad request")
 		return
 	}
-	if s.viewerLoginOK(in.User, in.Password) {
+	// The attempt is counted before the password check and handed back on success, so parallel requests cannot
+	// all slip through before the first failure is recorded.
+	if !s.sess.reserve(ip) {
+		jerr(w, 429, "too many attempts, wait a minute")
+		return
+	}
+	viewerOK, err := s.viewerLogin(r, in.User, in.Password)
+	if err != nil {
+		s.sess.release(ip) // not the client's fault: do not count it
+		jerr(w, 503, "server busy, try again in a moment")
+		return
+	}
+	if viewerOK {
+		s.sess.release(ip)
 		s.audit(in.User, sourceIP(r), "login.ok", "viewer")
 		http.SetCookie(w, &http.Cookie{Name: "mtmon_session", Value: s.sess.createRole(roleViewer), Path: "/", HttpOnly: true,
 			Secure: s.secureRequest(r), SameSite: http.SameSiteStrictMode, MaxAge: 12 * 3600})
 		jsonOut(w, map[string]string{"user": in.User, "role": roleViewer})
 		return
 	}
-	if s.Cfg.AdminHash == "" || in.User != s.Cfg.AdminUser || !CheckPassword(in.Password, s.Cfg.AdminHash) {
-		s.sess.fail(ip)
+	adminOK := false
+	if s.Cfg.AdminHash != "" && in.User == s.Cfg.AdminUser {
+		ok, err := checkPasswordLimited(r, in.Password, s.Cfg.AdminHash)
+		if err != nil {
+			s.sess.release(ip)
+			jerr(w, 503, "server busy, try again in a moment")
+			return
+		}
+		adminOK = ok
+	}
+	if !adminOK { // the reserved attempt stays counted
 		s.audit(auditUser(in.User), sourceIP(r), "login.fail", "")
 		jerr(w, 401, "invalid credentials")
 		return
 	}
 	if s.totpEnabled() {
 		if strings.TrimSpace(in.Code) == "" {
+			s.sess.release(ip) // right password, second step still to come
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(401)
 			json.NewEncoder(w).Encode(map[string]any{"error": "two-factor code required", "totp_required": true})
 			return
 		}
-		if !s.totpCheck(in.Code, time.Now()) {
-			s.sess.fail(ip)
+		if !s.totpCheck(in.Code, time.Now()) { // the reserved attempt stays counted
 			s.audit(in.User, sourceIP(r), "login.fail", "two-factor code wrong")
 			jerr(w, 401, "invalid credentials")
 			return
 		}
 	}
+	s.sess.release(ip)
 	s.audit(in.User, sourceIP(r), "login.ok", "")
 	http.SetCookie(w, &http.Cookie{Name: "mtmon_session", Value: s.sess.create(), Path: "/", HttpOnly: true,
 		Secure: s.secureRequest(r), SameSite: http.SameSiteStrictMode, MaxAge: 12 * 3600})

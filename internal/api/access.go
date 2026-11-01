@@ -6,24 +6,98 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"net"
 	"net/http"
 	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
 // ---- reverse-proxy friendliness ----------------------------------------------------------------------------------
 // Behind nginx & co. the browser's Origin names the public host while r.Host is whatever the proxy forwards. An
-// origin is accepted when it equals the request Host, the X-Forwarded-Host of a proxy on a private address, or the
-// "public URL" the operator entered in Settings. Everything else (a foreign site) is still refused.
+// origin is accepted when it equals the request Host, the X-Forwarded-Host of a trusted proxy, or the "public URL"
+// the operator entered in Settings. Everything else (a foreign site) is still refused.
+//
+// Trusted proxies are loopback (a proxy in the same container) plus the addresses/networks the operator lists in
+// Settings → Reverse proxy (meta "trusted_proxies"). Being on a private network is NOT enough: on a LAN every client
+// has a private address and could otherwise choose its own rate-limit bucket via X-Forwarded-For.
 
-// proxyTrusted: forwarded-* headers are only honoured from loopback / private peers (a proxy in front of mtmon).
+const metaTrustedProxies = "trusted_proxies"
+
+var loopbackProxies = []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("::1/128")}
+
+// operatorProxies holds the networks from Settings (process-wide: proxyTrusted is called from plain functions).
+var operatorProxies atomic.Pointer[[]netip.Prefix]
+
+func setTrustedProxies(p []netip.Prefix) { operatorProxies.Store(&p) }
+
+// isTrustedProxy reports whether a may set X-Forwarded-* headers.
+func isTrustedProxy(a netip.Addr) bool {
+	a = a.Unmap()
+	for _, p := range loopbackProxies {
+		if p.Contains(a) {
+			return true
+		}
+	}
+	if l := operatorProxies.Load(); l != nil {
+		for _, p := range *l {
+			if p.Contains(a) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// parseTrustedProxies reads a list of IP addresses or CIDR networks separated by commas, spaces or new lines.
+// A bare address means exactly that host. "Everything" (/0) is refused.
+func parseTrustedProxies(s string) ([]netip.Prefix, error) {
+	out := []netip.Prefix{}
+	for _, f := range strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ';' || r == ' ' || r == '\n' || r == '\r' || r == '\t' }) {
+		var p netip.Prefix
+		if strings.Contains(f, "/") {
+			q, err := netip.ParsePrefix(f)
+			if err != nil {
+				return nil, fmt.Errorf("%q is not an IP address or network", f)
+			}
+			p = q.Masked()
+		} else {
+			a, err := netip.ParseAddr(f)
+			if err != nil {
+				return nil, fmt.Errorf("%q is not an IP address or network", f)
+			}
+			a = a.Unmap()
+			p = netip.PrefixFrom(a, a.BitLen())
+		}
+		if p.Bits() == 0 {
+			return nil, fmt.Errorf("%q would trust every address", f)
+		}
+		out = append(out, p)
+	}
+	return out, nil
+}
+
+// loadTrustedProxies applies the stored list (invalid stored text: only loopback stays trusted).
+func (s *Server) loadTrustedProxies() {
+	if s.St == nil {
+		setTrustedProxies(nil)
+		return
+	}
+	p, err := parseTrustedProxies(s.St.GetMeta(metaTrustedProxies))
+	if err != nil {
+		p = nil
+	}
+	setTrustedProxies(p)
+}
+
+// proxyTrusted: forwarded-* headers are only honoured from a trusted proxy (see above).
 func proxyTrusted(r *http.Request) bool {
 	a, err := netip.ParseAddr(clientIP(r))
-	return err == nil && isLocalAddr(a)
+	return err == nil && isTrustedProxy(a)
 }
 
 func (s *Server) publicHost() string {
@@ -66,7 +140,8 @@ func (s *Server) accessInfo(w http.ResponseWriter, r *http.Request) {
 	jsonOut(w, map[string]any{
 		"listen": s.Cfg.Listen, "port": port, "tls": s.TLS,
 		"public_url": s.St.GetMeta("public_url"), "port_override": s.St.GetMeta("listen_port"),
-		"can_restart": s.Restart != nil,
+		"trusted_proxies": s.St.GetMeta(metaTrustedProxies),
+		"can_restart":     s.Restart != nil,
 		"request": map[string]any{
 			"remote": clientIP(r), "host": r.Host, "origin": r.Header.Get("Origin"),
 			"forwarded_host": fh, "forwarded_proto": r.Header.Get("X-Forwarded-Proto"), "forwarded_for": r.Header.Get("X-Forwarded-For"),
@@ -76,14 +151,25 @@ func (s *Server) accessInfo(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// accessSave: PUT /api/access {public_url, listen_port}
+// accessSave: PUT /api/access {public_url, listen_port, trusted_proxies}. trusted_proxies is optional: a client that
+// does not send it keeps the stored list.
 func (s *Server) accessSave(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		PublicURL  string `json:"public_url"`
-		ListenPort int    `json:"listen_port"`
+		PublicURL      string  `json:"public_url"`
+		ListenPort     int     `json:"listen_port"`
+		TrustedProxies *string `json:"trusted_proxies"`
 	}
 	if !readJSON(w, r, &in) {
 		return
+	}
+	var proxies []netip.Prefix
+	if in.TrustedProxies != nil {
+		p, err := parseTrustedProxies(*in.TrustedProxies)
+		if err != nil {
+			jerr(w, 400, "trusted proxies: "+err.Error())
+			return
+		}
+		proxies = p
 	}
 	pu := strings.TrimRight(strings.TrimSpace(in.PublicURL), "/")
 	if pu != "" {
@@ -108,6 +194,17 @@ func (s *Server) accessSave(w http.ResponseWriter, r *http.Request) {
 	if err := s.St.SetMeta("listen_port", port); err != nil {
 		jerr(w, 500, err.Error())
 		return
+	}
+	if in.TrustedProxies != nil {
+		txt := make([]string, len(proxies))
+		for i, p := range proxies {
+			txt[i] = p.String()
+		}
+		if err := s.St.SetMeta(metaTrustedProxies, strings.Join(txt, ", ")); err != nil {
+			jerr(w, 500, err.Error())
+			return
+		}
+		setTrustedProxies(proxies)
 	}
 	s.accessInfo(w, r)
 }

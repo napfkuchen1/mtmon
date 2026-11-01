@@ -223,7 +223,12 @@ func (s *Server) totpDisable(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	if !CheckPassword(in.Password, s.Cfg.AdminHash) || !s.totpCheck(in.Code, time.Now()) {
+	pwOK, err := checkPasswordLimited(r, in.Password, s.Cfg.AdminHash)
+	if err != nil {
+		jerr(w, http.StatusServiceUnavailable, "server busy, try again in a moment")
+		return
+	}
+	if !pwOK || !s.totpCheck(in.Code, time.Now()) {
 		jerr(w, http.StatusForbidden, "password or code wrong")
 		return
 	}

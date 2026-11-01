@@ -38,7 +38,36 @@ func HashPassword(pw string) (string, error) {
 		base64.RawStdEncoding.EncodeToString(salt), base64.RawStdEncoding.EncodeToString(key)), nil
 }
 
-// CheckPassword verifies pw against a hash from HashPassword (constant time).
+// Each argon2 check allocates aMemory (32 MiB). Unbounded parallel logins would let anyone who reaches the UI drive
+// the process into its memory limit, so at most hashSlots checks run at once; the rest wait up to hashWait.
+const (
+	hashSlots = 2
+	hashWait  = 10 * time.Second
+)
+
+var hashSem = make(chan struct{}, hashSlots)
+
+// errBusy: all password-check slots stayed taken for hashWait.
+var errBusy = errors.New("busy")
+
+// checkPasswordLimited is CheckPassword behind the hashSem semaphore. It returns errBusy (and false) when no slot
+// became free within hashWait or the request was cancelled meanwhile.
+func checkPasswordLimited(r *http.Request, pw, enc string) (bool, error) {
+	t := time.NewTimer(hashWait)
+	defer t.Stop()
+	select {
+	case hashSem <- struct{}{}:
+	case <-t.C:
+		return false, errBusy
+	case <-r.Context().Done():
+		return false, errBusy
+	}
+	defer func() { <-hashSem }()
+	return CheckPassword(pw, enc), nil
+}
+
+// CheckPassword verifies pw against a hash from HashPassword (constant time). Request handlers use
+// checkPasswordLimited instead.
 func CheckPassword(pw, enc string) bool {
 	p := strings.Split(enc, "$")
 	if len(p) != 6 || p[0] != "argon2id" {
@@ -122,6 +151,38 @@ func (s *sessions) fail(ip string) {
 	s.mu.Lock()
 	s.fails[ip] = append(s.fails[ip], s.now())
 	s.mu.Unlock()
+}
+
+// reserve counts an attempt for ip before the (slow) credential check runs and reports whether it may go ahead.
+// Check and count happen under one lock, so parallel requests cannot all pass before the first failure is recorded.
+// A successful attempt hands its slot back with release.
+func (s *sessions) reserve(ip string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cut := s.now().Add(-failWindow)
+	if len(s.fails) > 256 {
+		for k := range s.fails {
+			s.prune(k, cut)
+		}
+	}
+	if len(s.prune(ip, cut)) >= failLimit {
+		return false
+	}
+	s.fails[ip] = append(s.fails[ip], s.now())
+	return true
+}
+
+// release gives back one attempt counted by reserve (the check succeeded).
+func (s *sessions) release(ip string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	f := s.fails[ip]
+	switch {
+	case len(f) > 1:
+		s.fails[ip] = f[:len(f)-1]
+	case len(f) == 1:
+		delete(s.fails, ip)
+	}
 }
 
 func (s *sessions) create() string {
@@ -216,9 +277,10 @@ func sameOrigin(origin, host string) bool {
 	return strings.EqualFold(u.Host, host)
 }
 
-// sourceIP is the address the request really comes from: the peer itself, or – behind a trusted (private) proxy –
-// the last address in X-Forwarded-For that is not itself a local proxy hop (X-Real-IP as fallback). Rate limits use
-// it so one noisy client does not lock out everybody behind the same proxy.
+// sourceIP is the address the request really comes from: the peer itself, or – behind a trusted proxy (loopback or
+// Settings → Reverse proxy → trusted proxies) – the last address in X-Forwarded-For that is not itself a trusted
+// proxy hop (X-Real-IP as fallback). Rate limits use it so one noisy client does not lock out everybody behind the
+// same proxy. Any other peer is used as is: a LAN client must not pick its own rate-limit bucket via headers.
 func sourceIP(r *http.Request) string {
 	peer := clientIP(r)
 	if !proxyTrusted(r) {
@@ -237,7 +299,7 @@ func sourceIP(r *http.Request) string {
 	}
 	for i := len(hops) - 1; i >= 0; i-- {
 		a, err := netip.ParseAddr(hops[i])
-		if err == nil && !isLocalAddr(a) {
+		if err == nil && !isTrustedProxy(a) {
 			return a.String()
 		}
 	}

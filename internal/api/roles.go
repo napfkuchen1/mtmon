@@ -51,9 +51,13 @@ func (s *Server) sessionUser(tok string) string {
 	return s.Cfg.AdminUser
 }
 
-func (s *Server) viewerLoginOK(user, password string) bool {
+// viewerLogin reports whether user/password match the viewer account. errBusy: no password-check slot was free.
+func (s *Server) viewerLogin(r *http.Request, user, password string) (bool, error) {
 	u, h := s.St.GetMeta(metaViewerUser), s.St.GetMeta(metaViewerHash)
-	return u != "" && h != "" && user == u && CheckPassword(password, h)
+	if u == "" || h == "" || user != u {
+		return false, nil
+	}
+	return checkPasswordLimited(r, password, h)
 }
 
 func (s *Server) viewerGet(w http.ResponseWriter, r *http.Request) {
