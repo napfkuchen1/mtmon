@@ -39,7 +39,7 @@ type FilterRule struct {
 	Managed   bool   `json:"managed"`
 	Proto     string `json:"proto,omitempty"`
 	DPort     string `json:"dport,omitempty"`
-	Packets   int64  `json:"packets,omitempty"`
+	Packets   int64  `json:"packets"`
 	Counted   bool   `json:"counted,omitempty"` // Packets was read from the router (older stored probes have no counter)
 }
 

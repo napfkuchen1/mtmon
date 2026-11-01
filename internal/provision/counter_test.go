@@ -4,6 +4,8 @@ package provision
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/napfkuchen1/mtmon/internal/poller"
@@ -94,5 +96,13 @@ func TestConvertLoggedAllowRules(t *testing.T) {
 	k, _ = Probe(ctx, cl)
 	if got := ConvertibleAllow(k); len(got) != 0 {
 		t.Fatalf("foreign rule offered: %v", got)
+	}
+}
+
+// #278: a counted rule without traffic reports packets 0, not a missing field (null in the client).
+func TestFilterRulePacketsZeroIsSerialised(t *testing.T) {
+	b, _ := json.Marshal(FilterRule{ID: "*1", Counted: true})
+	if !strings.Contains(string(b), `"packets":0`) {
+		t.Fatalf("packets missing: %s", b)
 	}
 }
