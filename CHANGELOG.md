@@ -8,6 +8,16 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [Unreleased]
+
+### Security
+- Login rate limit: a device on your network could choose its own rate-limit bucket by sending an `X-Forwarded-For` header, and parallel requests could all slip past the limit. Forwarded headers are now only honoured from trusted proxies, and every attempt is counted before the password is checked.
+- Password checks run at most two at a time (each needs 32 MiB), so a flood of login requests can no longer push mtmon into its memory limit. Busy answers say "server busy" and do not count as failed attempts.
+- mtmon reads the memory limit of its container/service (cgroup) and tells the Go runtime to stay below 85 % of it, unless `GOMEMLIMIT` is set.
+
+### Changed
+- **Reverse proxy on another machine: action needed.** Only a proxy on the same machine as mtmon (loopback) is trusted by default. If your proxy runs elsewhere, enter its address under *Settings → Access & reverse proxy → Trusted reverse proxies* (or set *Public URL*). Until then all visitors share the proxy's login rate limit and, without a public URL, changes are refused as cross-origin. The connection check on that page shows whether the proxy is trusted.
+
 ## [0.20.13] - 2026-11-02
 
 ### Fixed
