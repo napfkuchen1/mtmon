@@ -810,6 +810,16 @@ func TestRuleTransitAttached(t *testing.T) {
 	expect(t, d, "transit-attached", 1)
 }
 
+// #294: a lossy flow export is suggested only with enough packets and above the limit.
+func TestRuleFlowLoss(t *testing.T) {
+	d := base()
+	skipped(t, d, "flow-loss")
+	d.Loss = LossStat{Expected: 100000, Lost: 200, Worst: "r1"}
+	expect(t, d, "flow-loss", 0)
+	d.Loss.Lost = 3000
+	expect(t, d, "flow-loss", 1)
+}
+
 // #296: commands match the address family of the evidence; an IPv6 literal never ends up in an /ip command.
 func TestBlockOriginIPv6Commands(t *testing.T) {
 	d := base()

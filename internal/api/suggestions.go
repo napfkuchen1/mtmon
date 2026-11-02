@@ -59,6 +59,18 @@ func (s *Server) adviceResult(force bool) advice.Result {
 		}
 	}
 	if s.Col != nil {
+		l.Loss = func() advice.LossStat {
+			var out advice.LossStat
+			worst := -1.0
+			for _, ls := range s.Col.Loss() {
+				out.Expected += int64(ls.Expected1h)
+				out.Lost += int64(ls.Lost1h)
+				if p := ls.Pct1h(); ls.Lost1h > 0 && p > worst {
+					worst, out.Worst = p, ls.Exporter.String()
+				}
+			}
+			return out
+		}
 		l.ExporterLast = func(addr string) (time.Time, bool) {
 			ip, err := netip.ParseAddr(addr)
 			if err != nil {

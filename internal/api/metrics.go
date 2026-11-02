@@ -16,6 +16,21 @@ func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
 	g := func(name, help string) {
 		fmt.Fprintf(&b, "# HELP %s %s\n# TYPE %s gauge\n", name, help, name)
 	}
+	if s.Col != nil {
+		ls := s.Col.Loss()
+		g("mtmon_flow_lost_total", "Flow export units (v9 packets, IPFIX records) lost before reaching mtmon, by sequence number.")
+		for _, l := range ls {
+			fmt.Fprintf(&b, "mtmon_flow_lost_total{exporter=%s} %d\n", lbl(l.Exporter.String()), l.Lost)
+		}
+		g("mtmon_flow_expected_total", "Flow export units expected (received plus lost).")
+		for _, l := range ls {
+			fmt.Fprintf(&b, "mtmon_flow_expected_total{exporter=%s} %d\n", lbl(l.Exporter.String()), l.Expected)
+		}
+		g("mtmon_flow_queue_dropped_total", "Flow datagrams dropped because decoding fell behind the socket.")
+		fmt.Fprintf(&b, "mtmon_flow_queue_dropped_total %d\n", s.Col.QueueDropped.Load())
+		g("mtmon_flow_rcvbuf_bytes", "Effective UDP receive buffer of the flow collector.")
+		fmt.Fprintf(&b, "mtmon_flow_rcvbuf_bytes %d\n", s.Col.RcvBuf())
+	}
 	g("mtmon_device_up", "1 when the last poll of the device succeeded.")
 	devs := s.Hub.Devices()
 	for _, d := range devs {
