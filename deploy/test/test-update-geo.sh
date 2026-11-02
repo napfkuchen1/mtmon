@@ -9,6 +9,9 @@ T=$(cd "$(dirname "$0")" && pwd); D=$(dirname "$T")
 G=$D/update-geo.sh
 WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
 chmod 0755 "$WORK"
+# run an installed-like copy (0755 in a world-readable dir): the script re-runs itself as the service user, which
+# cannot read a checkout under a private home directory (CI runner)
+cp "$G" "$WORK/mtmon-update-geo"; chmod 0755 "$WORK/mtmon-update-geo"; G=$WORK/mtmon-update-geo
 pass=0; fail=0
 ok() { pass=$((pass+1)); echo "PASS  $1"; }
 no() { fail=$((fail+1)); echo "FAIL  $1"; [ -z "${2:-}" ] || echo "$2" | tail -12 | sed 's/^/        /'; }
