@@ -104,14 +104,27 @@ func (s *Server) viewerSave(w http.ResponseWriter, r *http.Request) {
 			jerr(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		s.St.SetMeta(metaViewerUser, in.User)
-		s.St.SetMeta(metaViewerHash, h)
+		if err := s.St.SetMeta(metaViewerHash, h); err != nil {
+			jerr(w, http.StatusInternalServerError, "could not store the viewer: "+err.Error())
+			return
+		}
+		if err := s.St.SetMeta(metaViewerUser, in.User); err != nil {
+			jerr(w, http.StatusInternalServerError, "could not store the viewer: "+err.Error())
+			return
+		}
 		jsonOut(w, map[string]any{"enabled": true, "user": in.User})
 	}
 }
 
 func (s *Server) viewerDelete(w http.ResponseWriter, r *http.Request) {
-	s.St.SetMeta(metaViewerUser, "")
-	s.St.SetMeta(metaViewerHash, "")
+	// the hash goes first: without it nobody can log in as the viewer, even if the second write fails
+	if err := s.St.SetMeta(metaViewerHash, ""); err != nil {
+		jerr(w, http.StatusInternalServerError, "could not remove the viewer: "+err.Error())
+		return
+	}
+	if err := s.St.SetMeta(metaViewerUser, ""); err != nil {
+		jerr(w, http.StatusInternalServerError, "could not remove the viewer: "+err.Error())
+		return
+	}
 	jsonOut(w, map[string]bool{"enabled": false})
 }
