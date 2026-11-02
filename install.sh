@@ -14,7 +14,8 @@
 #
 # Env: MTMON_REPO (owner/name, default napfkuchen1/mtmon) - MTMON_VERSION (tag, default latest)
 #      MTMON_BASE_URL (override download location, for tests)
-#      MTMON_ALLOW_UNVERIFIED=1 (install a signed release without minisign installed; default: abort)
+#      MTMON_ALLOW_UNVERIFIED=1 (install without a signature check: minisign not installed or no .minisig found;
+#      default: abort. Releases older than v0.8.0, chosen with MTMON_VERSION, have no signature and are allowed)
 set -Eeuo pipefail
 REPO=${MTMON_REPO:-napfkuchen1/mtmon}
 VER=${MTMON_VERSION:-latest}
@@ -205,6 +206,14 @@ want=$(awk '{print $1}' "$T/$ASSET.sha256"); got=$(sha256sum "$T/$ASSET" | awk '
 if [ -z "$want" ] || [ "$want" != "$got" ]; then die "checksum mismatch - aborting (expected $want, got $got)"; fi
 printf '  %s✔%s checksum verified\n' "$C_GR" "$C_RS"
 # Release signature (minisign). The checksum only proves the download is intact; the signature proves it was built by the maintainer.
+# pre_signing TAG: an explicitly chosen release older than v0.8.0 (published before releases were signed)
+pre_signing() {
+  local v=${1#v} maj min
+  [ "$1" != latest ] || return 1
+  IFS=. read -r maj min _ <<<"$v"
+  [[ "$maj" =~ ^[0-9]+$ && "$min" =~ ^[0-9]+$ ]] || return 1
+  [ "$maj" = 0 ] && [ "$min" -lt 8 ]
+}
 MTMON_PUBKEY=RWSj18U8+XTlXnicS+OIExn6YF3O9+RC4U9VIaDLVtPFeMkp75YhedSK
 if curl -fsSL --retry 3 -o "$T/$ASSET.minisig" "$BASE/$ASSET.minisig" 2>/dev/null; then
   if command -v minisign >/dev/null; then
@@ -214,8 +223,13 @@ if curl -fsSL --retry 3 -o "$T/$ASSET.minisig" "$BASE/$ASSET.minisig" 2>/dev/nul
     [ "${MTMON_ALLOW_UNVERIFIED:-}" = 1 ] || die "release is signed but minisign is not installed - aborting (apt install minisign, or set MTMON_ALLOW_UNVERIFIED=1 to install with the checksum only)"
     printf '  %s!%s minisign is not installed: signature NOT checked (MTMON_ALLOW_UNVERIFIED=1)\n' "$C_YL" "$C_RS"
   fi
+elif pre_signing "$VER"; then
+  printf '  %s!%s %s is older than v0.8.0 and has no signature: only the checksum was verified\n' "$C_YL" "$C_RS" "$VER"
+elif [ "${MTMON_ALLOW_UNVERIFIED:-}" = 1 ]; then
+  printf '  %s!%s no signature found: only the checksum was verified (MTMON_ALLOW_UNVERIFIED=1)\n' "$C_YL" "$C_RS"
 else
-  printf '  %s!%s this release has no signature (older than v0.8.0): only the checksum was verified\n' "$C_YL" "$C_RS"
+  # every release since v0.8.0 is signed; a missing signature means a broken or tampered download location
+  die "release signature ($ASSET.minisig) could not be downloaded - aborting. Releases since v0.8.0 are always signed; check the network or the download location (set MTMON_ALLOW_UNVERIFIED=1 to install with the checksum only)"
 fi
 tar xzf "$T/$ASSET" -C "$T"
 [ -x "$T/mtmon/install-mtmon.sh" ] || die "unexpected archive layout"
