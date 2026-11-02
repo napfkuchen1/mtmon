@@ -8,11 +8,12 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
-## [Unreleased]
+## [0.20.15] - 2026-11-02
 
 ### Security
 - In-app updates: the root helper that installs a downloaded update now checks the release signature itself, with the binary that is already installed, and installs the binary from the verified archive. Before, only the unprivileged service checked it, so code running as the service user could have swapped in its own binary. Older releases are refused (no downgrade), and the previous binary for a rollback is kept in a root-only folder (`/usr/local/lib/mtmon`).
 - GeoIP/OUI update (`mtmon-update-geo`): downloads run as the service user, never as root, so links placed in the geo folder can no longer redirect root's writes.
+- Diagnostics (`/api/diagnostics`, Topology → Diagnostics): secret fields (passwords, keys, pre-shared keys, tokens) are now removed from every router table, as already done for config snapshots. Before, a router account with the `sensitive` policy could expose the PPPoE password to the viewer role and read-only API tokens. The wizard's own account was not affected. If you added a device with a full/admin account, use the account the wizard creates, or rotate the PPPoE password if viewers or tokens were not fully trusted.
 
 ### Changed
 - **Run the installer's *update* once** to get the new update helper. Until then, in-app updates keep working with the old helper.
