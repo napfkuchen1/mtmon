@@ -231,10 +231,8 @@ func (s *sessions) open(role string) (string, error) {
 	return tok, nil
 }
 
-// create / createRole: open for tests and callers that cannot fail (memory-only sessions).
+// create: an admin session for tests of the session mechanics (memory or a store that cannot fail).
 func (s *sessions) create() string { tok, _ := s.open(""); return tok }
-
-func (s *sessions) createRole(role string) string { tok, _ := s.open(role); return tok }
 
 // roleOf is the role of a (valid) session.
 func (s *sessions) roleOf(tok string) string {
