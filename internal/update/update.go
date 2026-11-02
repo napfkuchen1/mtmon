@@ -255,8 +255,9 @@ func (m *Manager) initStale() {
 }
 
 func (m *Manager) clearStaged() {
-	os.Remove(filepath.Join(m.o.Dir, "mtmon.new"))
-	os.Remove(filepath.Join(m.o.Dir, "pending"))
+	for _, n := range []string{"mtmon.new", "pending", StagedArchive, StagedSig} {
+		os.Remove(filepath.Join(m.o.Dir, n))
+	}
 }
 
 // ---- policy ----
@@ -630,7 +631,35 @@ func (m *Manager) stage(ctx context.Context, rel *release) error {
 	if err != nil {
 		return err
 	}
-	return m.writeStaged(ctx, bin, rel.Tag, want)
+	return m.writeStaged(ctx, bin, data, sigData, rel.Tag, want)
+}
+
+// Files next to mtmon.new: the signed archive and its signature. The root helper verifies these with the installed
+// binary (`mtmon verify-staged`) and installs the binary from the archive, never mtmon.new itself.
+const (
+	StagedArchive = "release.tar.gz"
+	StagedSig     = "release.minisig"
+)
+
+// writeFileAtomic writes data to dir/name via a temp file and rename (never through a planted link).
+func writeFileAtomic(dir, name string, data []byte, perm os.FileMode) error {
+	tmp, err := os.CreateTemp(dir, "."+name+".*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(perm); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), filepath.Join(dir, name))
 }
 
 func parseSum(b []byte) (string, error) {
@@ -673,7 +702,7 @@ func (m *Manager) download(ctx context.Context, u string, max int64) ([]byte, er
 	return b, nil
 }
 
-func (m *Manager) writeStaged(ctx context.Context, bin []byte, tag, sum string) error {
+func (m *Manager) writeStaged(ctx context.Context, bin, archive, sig []byte, tag, sum string) error {
 	if err := os.MkdirAll(m.o.Dir, 0o750); err != nil {
 		return err
 	}
@@ -711,7 +740,13 @@ func (m *Manager) writeStaged(ctx context.Context, bin []byte, tag, sum string) 
 	if v := strings.TrimSpace(out.String()); v != tag {
 		return fmt.Errorf("the downloaded binary reports version %q, expected %q", v, tag)
 	}
-	// marker first, then the binary: the helper acts on mtmon.new
+	// archive + signature and the marker first, then the binary: the helper acts on mtmon.new
+	if err := writeFileAtomic(m.o.Dir, StagedArchive, archive, 0o640); err != nil {
+		return err
+	}
+	if err := writeFileAtomic(m.o.Dir, StagedSig, sig, 0o640); err != nil {
+		return err
+	}
 	pend := fmt.Sprintf("version=%s\nsha256=%s\nts=%d\n", tag, sum, m.o.Now().Unix())
 	if err := os.WriteFile(filepath.Join(m.o.Dir, "pending"), []byte(pend), 0o640); err != nil {
 		return err
