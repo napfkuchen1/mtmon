@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/napfkuchen1/mtmon/internal/store"
@@ -54,6 +55,21 @@ var errBusy = errors.New("busy")
 
 // checkPasswordLimited is CheckPassword behind the hashSem semaphore. It returns errBusy (and false) when no slot
 // became free within hashWait or the request was cancelled meanwhile.
+var (
+	dummyOnce  sync.Once
+	dummyHash  string
+	dummyCount atomic.Int64 // failed logins that were answered against the dummy hash (tests)
+)
+
+// burnPasswordCheck costs a failed login with an unknown user name the same argon2 run as one with a known name, so
+// the response time does not tell which user names exist (#301).
+func burnPasswordCheck(r *http.Request, pw string) error {
+	dummyOnce.Do(func() { dummyHash, _ = HashPassword("mtmon-dummy-password") })
+	dummyCount.Add(1)
+	_, err := checkPasswordLimited(r, pw, dummyHash)
+	return err
+}
+
 func checkPasswordLimited(r *http.Request, pw, enc string) (bool, error) {
 	t := time.NewTimer(hashWait)
 	defer t.Stop()

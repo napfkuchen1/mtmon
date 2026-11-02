@@ -76,18 +76,15 @@ func (s *Server) LoadDevices() error {
 	return nil
 }
 
-// metadataAddrs are cloud instance-metadata endpoints; never a router.
-var metadataAddrs = []netip.Addr{
-	netip.MustParseAddr("169.254.169.254"), netip.MustParseAddr("fd00:ec2::254"), netip.MustParseAddr("100.100.100.200"),
-}
-
-// addrAllowed is the policy of the setup wizard: private / loopback / link-local / CGNAT addresses and the configured
+// addrAllowed is the policy of the setup wizard: private / loopback / CGNAT addresses and the configured
 // local networks only, so it cannot be abused to probe the internet or cloud metadata endpoints. It is enforced
 // when a connection is made (see poller.NewGuardedClient), not only once up front.
 func (s *Server) addrAllowed(a netip.Addr) error {
 	a = a.Unmap()
-	for _, m := range metadataAddrs {
-		if a == m {
+	// One outbound policy (internal/addr): no metadata, multicast, unspecified or link-local targets. Link-local
+	// is allowed only when the operator listed it in local_nets.
+	if err := addr.OutboundDenied(a, true); err != nil {
+		if addr.IsMetadata(a) || addr.Classify(a) != addr.LinkLocal || !s.Cfg.IsLocal(a) {
 			return errors.New("address not allowed")
 		}
 	}

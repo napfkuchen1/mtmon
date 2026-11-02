@@ -6,12 +6,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/smtp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/napfkuchen1/mtmon/internal/addr"
 	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
@@ -361,6 +363,21 @@ func (e *Engine) postNtfy(n NtfyCh, title, body, severity string) error {
 		req.Header.Set("Priority", p)
 	}
 	return e.do(req)
+}
+
+// allowLoopback is false in production: webhook and ntfy targets are on the LAN or the internet, never on this
+// host. Tests that serve a hook from httptest set it.
+var allowLoopback = false
+
+// AllowLoopbackForTests lets tests in other packages use an httptest hook; call it before alert.New.
+func AllowLoopbackForTests() { allowLoopback = true }
+
+// newHC is the HTTP client for webhook and ntfy: the shared outbound address policy is enforced when connecting,
+// and a redirect is not followed, so a payload with client names cannot be bounced to an internal address (#301).
+func newHC() *http.Client {
+	tr := &http.Transport{DialContext: (&net.Dialer{Timeout: 5 * time.Second, Control: addr.GuardControl(allowLoopback)}).DialContext}
+	return &http.Client{Timeout: 8 * time.Second, Transport: tr,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 }
 
 func (e *Engine) do(req *http.Request) error {

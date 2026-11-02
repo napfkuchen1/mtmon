@@ -280,6 +280,13 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		}
 		adminOK = ok
 	}
+	if !adminOK && !s.hashRan(in.User) {
+		if err := burnPasswordCheck(r, in.Password); err != nil {
+			s.sess.release(ip)
+			jerr(w, 503, "server busy, try again in a moment")
+			return
+		}
+	}
 	if !adminOK { // the reserved attempt stays counted
 		s.audit(auditUser(in.User), sourceIP(r), "login.fail", "")
 		jerr(w, 401, "invalid credentials")

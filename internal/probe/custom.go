@@ -13,7 +13,12 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/napfkuchen1/mtmon/internal/addr"
 )
+
+// allowLoopback is false in production (a probe target on this host is never meant); tests set it.
+var allowLoopback = false
 
 // MaxCustom is the number of own targets (Settings -> Internet).
 const MaxCustom = 10
@@ -169,7 +174,7 @@ func fetch(ctx context.Context, rawURL string, insecure bool, fam int) error {
 	if port == "" {
 		port = map[string]string{"http": "80", "https": "443"}[u.Scheme]
 	}
-	d := net.Dialer{Timeout: 5 * time.Second}
+	d := net.Dialer{Timeout: 5 * time.Second, Control: addr.GuardControl(allowLoopback)} // no metadata, link-local or loopback targets (#301)
 	tr := &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			var last error

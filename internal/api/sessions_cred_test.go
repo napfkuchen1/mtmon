@@ -164,3 +164,30 @@ func TestTokenNotBroaderThanViewer(t *testing.T) {
 		}
 	}
 }
+
+// #301: a failed login with an unknown user name is answered against the dummy hash, a known name is not.
+func TestUnknownUserLoginCostsAHash(t *testing.T) {
+	ts, _ := newTestServer(t)
+	post := func(user string) int {
+		r, err := http.Post(ts.URL+"/api/login", "application/json", strings.NewReader(`{"user":"`+user+`","password":"wrong-password"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.Body.Close()
+		return r.StatusCode
+	}
+	before := dummyCount.Load()
+	if code := post("nobody"); code != 401 {
+		t.Fatalf("unknown user: %d", code)
+	}
+	if dummyCount.Load() != before+1 {
+		t.Error("unknown user must run the dummy hash")
+	}
+	before = dummyCount.Load()
+	if code := post("admin"); code != 401 {
+		t.Fatalf("known user, wrong password: %d", code)
+	}
+	if dummyCount.Load() != before {
+		t.Error("known user already costs a hash; no dummy run")
+	}
+}
