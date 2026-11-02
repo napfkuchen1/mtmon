@@ -6,6 +6,7 @@
   import { poll } from '../lib/Poll.svelte.js'
   import { ago } from '../lib/format.js'
   import Modal from '../lib/Modal.svelte'
+  import ActionBanner from '../lib/ActionBanner.svelte'
 
   const st = poll(() => api('/update'), 6000)
   const s = $derived(st.data)
@@ -69,6 +70,7 @@
   }
 </script>
 
+<ActionBanner />
 <div class="card" id="updates" bind:this={root} style="margin-top:16px">
   <div class="card-h"><h2>{t('Updates')}</h2>
     {#if s}

@@ -28,7 +28,7 @@ func init() {
 // viewerDenied are read endpoints a viewer must not see: configuration, access, audit, tokens, updates, snapshots.
 var viewerDenied = []string{
 	"/api/audit", "/api/tokens", "/api/access", "/api/totp", "/api/viewer", "/api/notify", "/api/update",
-	"/api/settings", "/api/config-history", "/api/enrich", "/api/timezone", "/api/system", "/api/alert-settings",
+	"/api/settings", "/api/config-history", "/api/enrich", "/api/timezone", "/api/actions", "/api/alert-settings",
 }
 
 func viewerAllowed(r *http.Request) bool {
