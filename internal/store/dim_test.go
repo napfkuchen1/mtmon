@@ -151,7 +151,7 @@ func TestDBGrowthSteadyAfterFullRetention(t *testing.T) {
 	if g, ok, _, est := st.DBGrowthEstimate(30); !ok || est || g <= 0 {
 		t.Errorf("31 days of samples, retention 30: growth %d ok=%v estimate=%v", g, ok, est)
 	}
-	if _, _, _, est := st.DBGrowthEstimate(40); !est {
-		t.Error("retention is capped at 30 days of samples")
+	if _, _, _, est := st.DBGrowthEstimate(40); est {
+		t.Error("a longer retention is capped at the 30 days the samples allow: 31 days of samples are steady")
 	}
 }
