@@ -36,9 +36,9 @@ type Pipeline struct {
 	En                *enrich.Enricher
 	Hub               *Hub
 	Cls               *enrich.Classifier
-	Owns              func(ip string) bool   // a managed device owns this address (any interface, polling address); optional
-	HostAddr          func(ip string) bool   // an address of the machine mtmon runs on; optional
-	SelfMAC           func(ip string) string // own interface MAC of the managed device that has this address, "" = none; optional
+	Owns              func(ip string) bool              // a managed device owns this address (any interface, polling address); optional
+	HostAddr          func(ip string) bool              // an address of the machine mtmon runs on; optional
+	SelfMAC           func(ip string) string            // own interface MAC of the managed device that has this address, "" = none; optional
 	TunnelPort        func(ip string, port uint16) bool // ip is a managed router and port a WireGuard listen-port of it: tunnel transport, optional
 	mu                sync.Mutex
 	seen              map[dkey]int64
