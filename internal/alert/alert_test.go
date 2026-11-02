@@ -32,6 +32,7 @@ func newEngine(t *testing.T) (*Engine, *[]store.Alert) {
 	}
 	t.Cleanup(func() { st.Close() })
 	e := New(cfg, st, live.NewHub(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	t.Cleanup(e.WaitDeliveries) // runs before st.Close (cleanups run last-in first-out)
 	e.start = time.Now().Add(-10 * time.Minute)
 	e.rebootGrace = 0
 	e.offGroupDelay = 0 // report offline devices at once (grouping has its own test)
