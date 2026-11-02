@@ -49,7 +49,7 @@ func TestStoredSessionExpires(t *testing.T) {
 	if b.valid(tok) {
 		t.Fatal("idle-expired session accepted")
 	}
-	if _, _, ok := st.LoadSession(hashToken(tok)); ok {
+	if _, ok := st.LoadSession(hashToken(tok)); ok {
 		t.Fatal("expired session not removed")
 	}
 }

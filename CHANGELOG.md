@@ -8,6 +8,16 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [Unreleased]
+
+### Security
+- Sessions end when the password behind them changes: changing or removing the viewer account, or a new admin password (`mtmon passwd`, then restart), signs out every browser that used the old one – also sessions kept across a restart. Before, they stayed valid for up to 7 days.
+- A viewer session can no longer turn into an admin session after a failed database write: role and session are now stored together, and sessions without this binding are refused.
+- Read-only API tokens can no longer read what the viewer role may not (router config history, offboarding script, change manifest, settings).
+
+### Changed
+- Everybody signs in once more after this update (older sessions carry no password binding).
+
 ## [0.20.15] - 2026-11-02
 
 ### Security

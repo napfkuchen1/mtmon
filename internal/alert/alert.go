@@ -24,10 +24,11 @@ type bootInfo struct {
 }
 
 type Engine struct {
-	Cfg *config.Config
-	St  *store.Store
-	Hub *live.Hub
-	Log *slog.Logger
+	deliveries inflight // notifications being sent in the background (WaitDeliveries)
+	Cfg        *config.Config
+	St         *store.Store
+	Hub        *live.Hub
+	Log        *slog.Logger
 	// SelfName names the managed router/AP that owns a MAC; its traffic is reported under the device name
 	SelfName func(mac string) (string, bool)
 	// Depths gives the hops of every managed device from the gateway; with the stored neighbours it names the
@@ -152,7 +153,7 @@ func (e *Engine) raiseID(kind, subject, severity, msg, key string, params map[st
 	if e.Notify != nil {
 		e.Notify(a)
 	}
-	go e.deliver(a)
+	e.deliverAsync(a)
 	return id, true
 }
 
@@ -413,4 +414,51 @@ func (e *Engine) outageRoot(pend map[string]string) (string, []string, bool) {
 	}
 	sort.Strings(deps)
 	return root, deps, true
+}
+
+// deliverAsync sends a notification in the background and tracks it, so shutdown and tests can wait for it.
+func (e *Engine) deliverAsync(a store.Alert) {
+	e.deliveries.add()
+	go func() {
+		defer e.deliveries.done()
+		e.deliver(a)
+	}()
+}
+
+// WaitDeliveries blocks until every background notification has finished (shutdown, tests: before the store
+// closes, so no delivery reads a closed database or writes into a directory that is being removed).
+func (e *Engine) WaitDeliveries() { e.deliveries.wait() }
+
+// inflight counts running deliveries. Unlike sync.WaitGroup it may be incremented while somebody waits (held
+// alerts are raised from timers at any time).
+type inflight struct {
+	mu   sync.Mutex
+	n    int
+	cond *sync.Cond
+}
+
+func (f *inflight) c() *sync.Cond {
+	if f.cond == nil {
+		f.cond = sync.NewCond(&f.mu)
+	}
+	return f.cond
+}
+
+func (f *inflight) add() { f.mu.Lock(); f.n++; f.mu.Unlock() }
+
+func (f *inflight) done() {
+	f.mu.Lock()
+	f.n--
+	if f.n == 0 {
+		f.c().Broadcast()
+	}
+	f.mu.Unlock()
+}
+
+func (f *inflight) wait() {
+	f.mu.Lock()
+	for f.n > 0 {
+		f.c().Wait()
+	}
+	f.mu.Unlock()
 }

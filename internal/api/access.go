@@ -229,7 +229,8 @@ func (s *Server) bearerOK(r *http.Request) bool {
 	if !strings.HasPrefix(h, "Bearer ") || (r.Method != "GET" && r.Method != "HEAD") {
 		return false
 	}
-	if strings.HasPrefix(r.URL.Path, "/api/tokens") || strings.HasPrefix(r.URL.Path, "/api/access") || strings.HasPrefix(r.URL.Path, "/api/audit") {
+	// a read-only token never reaches more than the viewer role (configuration, scripts, snapshots, settings)
+	if !viewerAllowed(r) || strings.HasPrefix(r.URL.Path, "/api/tokens") || strings.HasPrefix(r.URL.Path, "/api/access") || strings.HasPrefix(r.URL.Path, "/api/audit") {
 		return false
 	}
 	ip := "token|" + sourceIP(r)

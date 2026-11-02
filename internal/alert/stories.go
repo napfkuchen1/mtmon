@@ -144,7 +144,7 @@ func (e *Engine) closeStale(now time.Time) {
 		if e.Notify != nil {
 			e.Notify(n)
 		}
-		go e.deliver(n)
+		e.deliverAsync(n)
 	}
 }
 
