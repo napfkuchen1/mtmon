@@ -91,6 +91,50 @@ func TestTunnelOuterNotCounted(t *testing.T) {
 	}
 }
 
+// WireGuard / Back to Home / IPsec: the transport packets that end on a managed router are not usage, the inner
+// flows are. A client's own WireGuard or IPsec (not router-owned) stays counted.
+func TestTunnelTransportUDPNotCounted(t *testing.T) {
+	p := dnsPipe(t)
+	p.Cfg.LocalNets = append(p.Cfg.LocalNets, "2001:db8:1::/64")
+	if err := p.Cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	p.SelfMAC = func(ip string) string {
+		if ip == "2001:db8:1::1" {
+			return "aa:bb:cc:00:00:01"
+		}
+		return ""
+	}
+	p.TunnelPort = func(ip string, port uint16) bool { return ip == "2001:db8:1::1" && port == 13231 }
+	udp := func(src, dst string, sp, dp uint16, bytes uint64) flow.Record {
+		r := tunnelRec(17, src, dst, bytes)
+		r.SrcPort, r.DstPort = sp, dp
+		return r
+	}
+	inner := tunnelRec(6, "192.168.0.50", "93.184.216.34", 1000)
+	p.Handle([]flow.Record{
+		inner,
+		udp("2001:db8:1::1", "2001:db8:ffff::1", 13231, 40000, 1100), // WireGuard outer, router sends
+		udp("2001:db8:ffff::1", "2001:db8:1::1", 40000, 13231, 5000), // ... and receives
+		udp("2001:db8:1::1", "203.0.113.9", 4500, 4500, 700),         // NAT-T of the router
+		tunnelRec(50, "203.0.113.9", "2001:db8:1::1", 900),           // ESP to the router
+	})
+	if n := p.St.QueueLen(); n != 1 {
+		t.Fatalf("rows %d, want only the inner flow", n)
+	}
+	if p.IgnoredCount() != 4 {
+		t.Errorf("ignored %d, want 4", p.IgnoredCount())
+	}
+	p.Handle([]flow.Record{
+		udp("192.168.0.50", "203.0.113.9", 51820, 51820, 800), // a client's own WireGuard
+		udp("192.168.0.50", "203.0.113.9", 4500, 4500, 600),   // a client's own IPsec
+		tunnelRec(50, "192.168.0.50", "203.0.113.9", 500),
+	})
+	if n := p.St.QueueLen(); n != 4 {
+		t.Fatalf("client tunnels dropped: %d rows, want 4", n)
+	}
+}
+
 // A client with a DNS server that does not exist: the redirect answers with the imaginary address as source.
 // That address is no client; the sighting is remembered for the suggestion.
 func TestGhostDNSReplyIsNoClient(t *testing.T) {

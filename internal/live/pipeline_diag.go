@@ -33,6 +33,7 @@ type diagIgnored struct {
 	SrcPort  uint16 `json:"sport"`
 	DstPort  uint16 `json:"dport"`
 	Proto    uint8  `json:"proto"`
+	Why      string `json:"why,omitempty"` // reason when it is not plain transit, e.g. "tunnel outer"
 	Bytes    uint64 `json:"bytes"`
 	InIf     uint32 `json:"in_if"`
 	OutIf    uint32 `json:"out_if"`
@@ -55,7 +56,7 @@ type pipeDiag struct {
 	next    int
 }
 
-func (d *pipeDiag) note(r flow.Record, dir string) {
+func (d *pipeDiag) note(r flow.Record, dir string, why ...string) {
 	k := diagKey{r.Exporter, r.InIf, r.OutIf, dir}
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -72,6 +73,9 @@ func (d *pipeDiag) note(r flow.Record, dir string) {
 	}
 	e := diagIgnored{At: time.Now().Unix(), Exporter: r.Exporter.String(), Src: r.Src.Unmap().String(), Dst: r.Dst.Unmap().String(),
 		SrcPort: r.SrcPort, DstPort: r.DstPort, Proto: r.Proto, Bytes: r.Bytes, InIf: r.InIf, OutIf: r.OutIf}
+	if len(why) > 0 {
+		e.Why = why[0]
+	}
 	if len(d.ignored) < diagIgnoredKeep {
 		d.ignored = append(d.ignored, e)
 		return
