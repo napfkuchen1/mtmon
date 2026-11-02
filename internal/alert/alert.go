@@ -83,7 +83,7 @@ type Engine struct {
 
 func New(c *config.Config, s *store.Store, h *live.Hub, log *slog.Logger) *Engine {
 	return &Engine{Cfg: c, St: s, Hub: h, Log: log, start: time.Now(), last: map[string]time.Time{},
-		devUp: map[string]bool{}, pendingOff: map[string]string{}, offGroupDelay: 5 * time.Second, rebootGrace: 90 * time.Second, boot: map[string]bootInfo{}, downAt: map[string]time.Time{}, ifPending: map[string]bool{}, spikeDay: map[string]string{}, watchDown: map[string]time.Time{}, resolved: map[string]bool{}, ifFolded: map[string]bool{}, ifDown: map[string]time.Time{}, wan: map[string]*wanState{}, cpuHigh: map[string]int{}, hc: &http.Client{Timeout: 8 * time.Second}}
+		devUp: map[string]bool{}, pendingOff: map[string]string{}, offGroupDelay: 5 * time.Second, rebootGrace: 90 * time.Second, boot: map[string]bootInfo{}, downAt: map[string]time.Time{}, ifPending: map[string]bool{}, spikeDay: map[string]string{}, watchDown: map[string]time.Time{}, resolved: map[string]bool{}, ifFolded: map[string]bool{}, ifDown: map[string]time.Time{}, wan: map[string]*wanState{}, cpuHigh: map[string]int{}, hc: newHC()}
 }
 
 // SetDelays changes how long offline alerts wait for companions and for a reboot to finish (tests use short ones).

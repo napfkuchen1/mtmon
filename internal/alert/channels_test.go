@@ -182,3 +182,38 @@ func TestSummaryTextCapsList(t *testing.T) {
 		t.Errorf("lines: %d", n)
 	}
 }
+
+// #301: a webhook answer that redirects is not followed, and metadata or link-local targets are refused at dial time.
+func TestWebhookNoRedirectNoInternalTargets(t *testing.T) {
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/final" {
+			hits++
+			return
+		}
+		http.Redirect(w, r, "/final", http.StatusFound)
+	}))
+	defer srv.Close()
+	hc := newHC()
+	req, _ := http.NewRequest("POST", srv.URL+"/hook", strings.NewReader("{}"))
+	resp, err := hc.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusFound || hits != 0 {
+		t.Errorf("redirect must not be followed: status %d, hits %d", resp.StatusCode, hits)
+	}
+	for _, u := range []string{"http://169.254.169.254/latest", "http://169.254.170.2/", "http://[fe80::1]:9/"} {
+		if r, err := hc.Get(u); err == nil {
+			r.Body.Close()
+			t.Errorf("%s must be refused", u)
+		}
+	}
+	allowLoopback = false
+	defer func() { allowLoopback = true }()
+	if r, err := newHC().Get(srv.URL); err == nil {
+		r.Body.Close()
+		t.Error("loopback must be refused when not allowed")
+	}
+}

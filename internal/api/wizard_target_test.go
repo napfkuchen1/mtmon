@@ -13,14 +13,14 @@ import (
 )
 
 func TestAddrAllowed(t *testing.T) {
-	cfg := &config.Config{LocalNets: []string{"203.0.113.0/24"}}
+	cfg := &config.Config{LocalNets: []string{"203.0.113.0/24", "169.254.20.0/24"}}
 	if err := cfg.Validate(); err != nil {
 		t.Fatal(err)
 	}
 	s := &Server{Cfg: cfg}
 	for ip, ok := range map[string]bool{
-		"192.168.88.1": true, "10.0.0.5": true, "172.16.1.1": true, "127.0.0.1": true, "169.254.10.10": true,
-		"100.64.0.7": true, "fd12:3456::1": true, "fe80::1": true, "::1": true,
+		"192.168.88.1": true, "10.0.0.5": true, "172.16.1.1": true, "127.0.0.1": true, "169.254.20.20": true, "169.254.10.10": false,
+		"100.64.0.7": true, "fd12:3456::1": true, "fe80::1": false, "::1": true, "224.0.0.1": false, "169.254.170.2": false,
 		"203.0.113.50":       true, // configured local network
 		"::ffff:192.168.1.5": true,
 		"8.8.8.8":            false, "1.1.1.1": false, "2001:4860:4860::8888": false, "172.32.0.1": false,

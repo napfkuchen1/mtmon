@@ -61,6 +61,15 @@ func (s *Server) credOf(role string) string {
 	return credFingerprint(s.Cfg.AdminHash)
 }
 
+// hashRan reports whether a login attempt for user already cost a password hash (known viewer or admin name).
+func (s *Server) hashRan(user string) bool {
+	if s.Cfg.AdminHash != "" && user == s.Cfg.AdminUser {
+		return true
+	}
+	u, h := s.St.GetMeta(metaViewerUser), s.St.GetMeta(metaViewerHash)
+	return u != "" && h != "" && user == u
+}
+
 // viewerLogin reports whether user/password match the viewer account. errBusy: no password-check slot was free.
 func (s *Server) viewerLogin(r *http.Request, user, password string) (bool, error) {
 	u, h := s.St.GetMeta(metaViewerUser), s.St.GetMeta(metaViewerHash)
