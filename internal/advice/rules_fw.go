@@ -224,7 +224,7 @@ func ruleMgmtOpen(s Snapshot) ([]Suggestion, string) {
 				"Restrict the management services to your LAN and to the address where mtmon runs (keep mtmon's address in the list, otherwise monitoring stops).",
 				"Make sure the input chain ends with a drop rule for everything from the WAN side.",
 			},
-			Commands: "/ip service print\n# example: replace with your LAN and the mtmon host\n/ip service set www-ssl address=192.168.88.0/24\n/ip service disable [find name=telnet]\n/ip service disable [find name=ftp]\n/ip service disable [find name=www]",
+			Commands: "/ip service print\n# <mtmon-IP> = the address mtmon reaches this router from; the list replaces the old one\n" + serviceRestrictCmd(d, "www-ssl") + "\n/ip service disable [find name=telnet]\n/ip service disable [find name=ftp]\n/ip service disable [find name=www]",
 			Limits:   "Based on the capabilities stored when the device was set up. It cannot tell whether the router is reachable from the internet at all.",
 		})
 	}

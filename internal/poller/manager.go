@@ -533,20 +533,22 @@ func (w *worker) fwCounters(ctx context.Context) {
 	if len(want) == 0 {
 		return
 	}
-	rows, err := w.c.GetProps(ctx, "/ip/firewall/filter", "log-prefix", "dynamic", "log", "action", "packets")
-	if err != nil {
-		return
-	}
 	cur := map[string]int64{}
-	for _, r := range rows {
-		p := r["log-prefix"]
-		if !want[p] || r.Bool("dynamic") || r.Bool("log") || r["action"] != "accept" {
+	for _, menu := range []string{"/ip/firewall/filter", "/ipv6/firewall/filter"} { // IPv6 rules carry MTM6- prefixes (#298)
+		rows, err := w.c.GetProps(ctx, menu, "log-prefix", "dynamic", "log", "action", "packets")
+		if err != nil {
 			continue
 		}
-		if _, err := strconv.ParseInt(r["packets"], 10, 64); err != nil {
-			continue
+		for _, r := range rows {
+			p := r["log-prefix"]
+			if !want[p] || r.Bool("dynamic") || r.Bool("log") || r["action"] != "accept" {
+				continue
+			}
+			if _, err := strconv.ParseInt(r["packets"], 10, 64); err != nil {
+				continue
+			}
+			cur[p] += r.Int("packets")
 		}
-		cur[p] += r.Int("packets")
 	}
 	if len(cur) > 0 {
 		w.m.St.AddFwCounters(w.d.Name, time.Now().Unix(), cur)

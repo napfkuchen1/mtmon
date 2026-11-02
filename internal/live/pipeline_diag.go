@@ -52,8 +52,21 @@ type pipeDiag struct {
 	mu      sync.Mutex
 	counts  map[diagKey]int64
 	bytes   map[diagKey]uint64
-	ignored []diagIgnored // ring, oldest first once full
+	dedup   map[netip.Addr]int64 // flows dropped as a second copy of another exporter's flow, per exporter (#286)
+	ignored []diagIgnored        // ring, oldest first once full
 	next    int
+}
+
+// dedupDrop counts a flow of exporter that another router already reported (#286).
+func (d *pipeDiag) dedupDrop(exp netip.Addr) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.dedup == nil {
+		d.dedup = map[netip.Addr]int64{}
+	}
+	if _, ok := d.dedup[exp]; ok || len(d.dedup) < diagMaxKeys {
+		d.dedup[exp]++
+	}
 }
 
 func (d *pipeDiag) note(r flow.Record, dir string, why ...string) {
@@ -115,5 +128,9 @@ func (p *Pipeline) Diagnostics() map[string]any {
 		nets = append(nets, p.Cfg.LocalNets...)
 		nets = append(nets, p.Cfg.LearnedNets()...) // the routers' own delegated IPv6 prefixes, learned automatically
 	}
-	return map[string]any{"local_nets": nets, "by_interface": rows, "ignored_recent": ign, "note": "in_if/out_if are the router's interface indexes (since boot); dir x = dropped because neither address is in local_nets"}
+	dd := map[string]int64{}
+	for a, n := range d.dedup {
+		dd[a.String()] = n
+	}
+	return map[string]any{"local_nets": nets, "by_interface": rows, "dedup_dropped": dd, "ignored_recent": ign, "note": "in_if/out_if are the router's interface indexes (since boot); dir x = dropped because neither address is in local_nets"}
 }

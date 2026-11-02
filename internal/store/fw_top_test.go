@@ -51,3 +51,24 @@ func TestFwSummaryTopListsFromHourlyAggregates(t *testing.T) {
 	defer st.Close()
 	check(st)
 }
+
+func TestPurgeBadFwAddrs(t *testing.T) {
+	st, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	now := time.Now().Unix()
+	st.EnqueueFw(
+		FwEvent{TS: now, Device: "gw", Prefix: "drop", Src: "2001:db8::7", Dst: "203.0.113.2", DPort: 22},
+		FwEvent{TS: now, Device: "gw", Prefix: "drop", Src: "[2001:db8::8", Dst: "203.0.113.2", DPort: 22})
+	if err := st.FlushFw(); err != nil {
+		t.Fatal(err)
+	}
+	purgeBadFwAddrs(st.DB)
+	var n int
+	st.DB.QueryRow(`SELECT COUNT(*) FROM fw_events`).Scan(&n)
+	if n != 1 {
+		t.Errorf("events after purge: %d, want 1", n)
+	}
+}

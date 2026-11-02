@@ -12,6 +12,10 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ### Fixed
 - Traffic totals (#287): WireGuard (including Back to Home) and IPsec (ESP, UDP 500/4500) packets that end on a managed router are no longer counted next to the traffic inside the tunnel. mtmon reads the `listen-port` of every WireGuard interface from the router. Only new flow data is corrected; earlier rows stay as they were. Diagnostics shows these drops with the reason "tunnel outer".
+- Traffic Flow (#286): when two routers on one path both export flow, the second copy of a connection is no longer counted (first exporter wins, 120 s window; a double-NAT router is never mistaken for a client). `/api/diagnostics` shows `dedup_dropped` per exporter, and the device features page tells you when another router already exports flow. Not done: preferring the WAN-side interface as the one to keep.
+- Suggestions (#295): the commands that restrict management services (SSH, Winbox, API, web) use `available-from` on RouterOS 7 (`address` only below 7), keep the entries already in the list and add the real LAN of the device plus a placeholder for the mtmon address. The web interface example no longer uses a made-up network.
+- Firewall log (#289): IPv6 addresses in firewall log lines are parsed completely (with and without brackets, with and without port, link-local and multicast). Entries stored cut off or in brackets by earlier versions are removed on start, so IPv6 sources can be matched to clients and looked up for country and network.
+- Firewall (#298): IPv6 filter rules are now covered like IPv4 ones. The device features probe `/ipv6/firewall/filter`, set the log prefix `MTM6-<id>` on drop rules (logging) and accept rules (hit counter), and roll them back with the rest. On the connection list, IPv6 flows only get the verdict "allowed" when IPv6 logging is active on that router; before, IPv4 logging made every IPv6 flow look "allowed".
 - German texts with a version number: a version containing the letter "s" (e.g. `7.15.3-testing`) stayed English, and two words were taken as one version. Found by code scanning.
 
 ## [0.20.17] - 2026-11-02

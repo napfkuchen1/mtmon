@@ -16,9 +16,14 @@ type obj = map[string]any
 
 // listMenus are collection menus ("print" returns many records with .id); singles hold one record.
 var listMenus = []string{"/user", "/user/group", "/ip/traffic-flow/target", "/system/logging", "/system/logging/action",
-	"/ip/firewall/filter", "/ip/firewall/nat", "/ip/service", "/system/package", "/interface/wifi", "/interface/wifi/configuration",
+	"/ip/firewall/filter", "/ipv6/firewall/filter", "/ip/firewall/nat", "/ip/service", "/system/package", "/interface/wifi", "/interface/wifi/configuration",
 	"/interface/bridge", "/interface/bridge/port", "/ip/address", "/ip/dhcp-server"}
 var singleMenus = []string{"/ip/traffic-flow", "/interface/wifi/cap", "/interface/wifi/capsman"}
+
+// isFilterMenu: the IPv4 and IPv6 filter menus behave alike (counters, defaults).
+func isFilterMenu(menu string) bool {
+	return menu == "/ip/firewall/filter" || menu == "/ipv6/firewall/filter"
+}
 
 func (s *Server) initState() {
 	s.lists = map[string][]obj{}
@@ -51,6 +56,9 @@ func (s *Server) initState() {
 		add("/ip/firewall/filter", obj{"chain": "forward", "action": "drop", "connection-state": "new", "connection-nat-state": "!dstnat", "in-interface-list": "WAN", "log": "false", "disabled": "false", "comment": "defconf: drop all from WAN not DSTNATed"})
 		add("/ip/firewall/filter", obj{"chain": "forward", "action": "passthrough", "dynamic": "true", "log": "false", "disabled": "false", "comment": "special dummy rule to show fasttrack counters"})
 		add("/ip/firewall/filter", obj{"chain": "input", "action": "drop", "in-interface-list": "!LAN", "log": "false", "disabled": "false", "comment": "defconf: drop all not coming from LAN"})
+		add("/ipv6/firewall/filter", obj{"chain": "forward", "action": "accept", "connection-state": "established,related,untracked", "log": "false", "disabled": "false", "comment": "defconf: accept established"})
+		add("/ipv6/firewall/filter", obj{"chain": "forward", "action": "accept", "protocol": "tcp", "dst-port": "443", "in-interface-list": "WAN", "log": "false", "disabled": "false", "comment": "allow https to server"})
+		add("/ipv6/firewall/filter", obj{"chain": "forward", "action": "drop", "in-interface-list": "WAN", "log": "false", "disabled": "false", "comment": "defconf: drop everything else from WAN"})
 	}
 }
 
@@ -226,7 +234,7 @@ func (s *Server) dynamic(w http.ResponseWriter, r *http.Request, canWrite bool) 
 	case r.Method == "GET" && list && id == "":
 		out := []obj{}
 		for _, o := range s.lists[menu] {
-			if menu == "/ip/firewall/filter" && str(o["action"]) == "accept" && str(o["disabled"]) != "true" {
+			if isFilterMenu(menu) && str(o["action"]) == "accept" && str(o["disabled"]) != "true" {
 				// like the real rule counters: they count whether the rule logs or not
 				n, _ := strconv.Atoi(str(o["packets"]))
 				o["packets"] = strconv.Itoa(n + 10)
@@ -271,7 +279,7 @@ func (s *Server) dynamic(w http.ResponseWriter, r *http.Request, canWrite bool) 
 		for k, v := range in {
 			o[k] = str(v)
 		}
-		if menu == "/ip/firewall/filter" {
+		if isFilterMenu(menu) {
 			for k, v := range map[string]string{"log": "false", "disabled": "false", "log-prefix": ""} {
 				if _, ok := o[k]; !ok {
 					o[k] = v

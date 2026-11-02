@@ -206,7 +206,7 @@ func ruleOpenMgmt(s Snapshot) ([]Suggestion, string) {
 		}
 		var cmds []string
 		for _, n := range d.Caps.OpenMgmt {
-			cmds = append(cmds, fmt.Sprintf("/ip service set [find name=%s] address=<management network, e.g. 192.168.88.0/24>", n))
+			cmds = append(cmds, serviceRestrictCmd(d, n))
 		}
 		out = append(out, Suggestion{
 			Subject: d.Name, Severity: sev, Category: CatSecurity, Link: "device/" + d.Name, Confidence: "high",

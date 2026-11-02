@@ -106,3 +106,48 @@ func TestFilterRulePacketsZeroIsSerialised(t *testing.T) {
 		t.Fatalf("packets missing: %s", b)
 	}
 }
+
+// IPv6 accept rules are counted like IPv4 ones, with their own MTM6- prefix, and rolled back from the IPv6 menu (#298).
+func TestAllowRulesIPv6AreCounted(t *testing.T) {
+	m, _, d := setup(t, "router")
+	cl := poller.NewClient(d)
+	ctx := context.Background()
+	k, _ := Probe(ctx, cl)
+	id := ""
+	for _, f := range k.Filter6 {
+		if f.Action == "accept" && strings.Contains(f.Comment, "https") {
+			id = f.ID
+		}
+	}
+	if !strings.HasPrefix(id, "v6:") {
+		t.Fatalf("IPv6 accept rule not probed: %+v", k.Filter6)
+	}
+	if p := prefixFor(id); !strings.HasPrefix(p, "MTM6-") || strings.Contains(p, "v6:") {
+		t.Fatalf("prefix %q", p)
+	}
+	o := DefaultOptions(k, "127.0.0.1")
+	o.SyslogReady, o.AllowRules = true, []string{id}
+	var entries []store.ManifestEntry
+	res := ApplyFeatures(ctx, cl, k, o, map[string]bool{FeatAllowLog: true}, 0, func(e store.ManifestEntry) { entries = append(entries, e) })
+	if !res.OK {
+		t.Fatalf("apply: %s", res.Error)
+	}
+	var f map[string]string
+	for _, r := range m.Lists("/ipv6/firewall/filter") {
+		if "v6:"+r[".id"] == id {
+			f = r
+		}
+	}
+	if f["log"] == "yes" || f["log-prefix"] != prefixFor(id) {
+		t.Fatalf("IPv6 rule must keep log off and carry the prefix: %v", f)
+	}
+	if len(res.FwMeta) != 1 || !res.FwMeta[0].Counter || !strings.HasPrefix(res.FwMeta[0].Prefix, "MTM6-") || FeatureOf(entries[0]) != FeatAllowLog {
+		t.Fatalf("meta %+v entry %+v", res.FwMeta, entries)
+	}
+	Rollback(ctx, cl, entries, nil)
+	for _, r := range m.Lists("/ipv6/firewall/filter") {
+		if r["log-prefix"] != "" {
+			t.Fatalf("prefix not restored: %v", r)
+		}
+	}
+}

@@ -172,3 +172,52 @@ func TestGhostDNSOwnedAddressIsNoGhost(t *testing.T) {
 		t.Fatalf("ghost sightings: %v %v", g, err)
 	}
 }
+
+func expRec(exp, src, dst string, bytes uint64) flow.Record {
+	now := time.Now()
+	return flow.Record{Exporter: netip.MustParseAddr(exp), Src: netip.MustParseAddr(src), Dst: netip.MustParseAddr(dst),
+		SrcPort: 40000, DstPort: 443, Proto: 6, Bytes: bytes, Packets: 5, Start: now, End: now}
+}
+
+// Two routers on the same path export the same 5-tuple (upload and download): only the first copy is booked (#286).
+func TestSecondExporterCopyNotCounted(t *testing.T) {
+	p := dnsPipe(t)
+	p.Handle([]flow.Record{expRec("192.168.0.1", "192.168.0.50", "1.1.1.1", 1000), expRec("192.168.0.2", "192.168.0.50", "1.1.1.1", 1000)})
+	if n := p.St.QueueLen(); n != 1 {
+		t.Fatalf("upload: %d rows, want 1", n)
+	}
+	p.Handle([]flow.Record{expRec("192.168.0.1", "1.1.1.1", "192.168.0.50", 5000), expRec("192.168.0.2", "1.1.1.1", "192.168.0.50", 5100)})
+	if n := p.St.QueueLen(); n != 2 {
+		t.Fatalf("download: %d rows, want 2", n)
+	}
+	// the same exporter reporting the tuple again (next active-timeout record) still counts
+	p.Handle([]flow.Record{expRec("192.168.0.1", "192.168.0.50", "1.1.1.1", 700)})
+	if n := p.St.QueueLen(); n != 3 {
+		t.Fatalf("same exporter again: %d rows, want 3", n)
+	}
+	if got := p.Diagnostics()["dedup_dropped"].(map[string]int64)["192.168.0.2"]; got != 2 {
+		t.Errorf("dedup counter: %d, want 2", got)
+	}
+}
+
+// Double NAT: the upstream gateway sees the downstream router's transfer address as client of the same traffic.
+func TestDoubleNATRouterNotClient(t *testing.T) {
+	p := dnsPipe(t)
+	macs := map[string]string{"192.168.0.1": "aa:00:00:00:00:01", "192.168.1.2": "aa:00:00:00:00:02", "192.168.0.2": "aa:00:00:00:00:02"}
+	p.SelfMAC = func(ip string) string { return macs[ip] }
+	// downstream router (192.168.0.2 = its address towards the gateway) exports its client's flow
+	p.Handle([]flow.Record{expRec("192.168.0.2", "192.168.1.50", "1.1.1.1", 1000)})
+	before := p.St.QueueLen()
+	// the gateway reports the same bytes with the downstream router's address as source
+	p.Handle([]flow.Record{expRec("192.168.0.1", "192.168.0.2", "1.1.1.1", 1000)})
+	if n := p.St.QueueLen(); n != before {
+		t.Fatalf("gateway copy booked: %d rows, was %d", n, before)
+	}
+	// a router that does not export itself stays a normal client of the gateway
+	p2 := dnsPipe(t)
+	p2.SelfMAC = func(ip string) string { return macs[ip] }
+	p2.Handle([]flow.Record{expRec("192.168.0.1", "192.168.0.2", "1.1.1.1", 1000)})
+	if n := p2.St.QueueLen(); n != 1 {
+		t.Fatalf("silent router: %d rows, want 1", n)
+	}
+}

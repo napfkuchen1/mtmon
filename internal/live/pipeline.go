@@ -43,9 +43,28 @@ type Pipeline struct {
 	mu                sync.Mutex
 	seen              map[dkey]int64
 	dnsSeen           map[rkey]int64
+	xseen             map[xkey]xval    // 5-tuples already booked, per exporting router (#286)
+	expSeen           map[string]int64 // MAC of a managed router -> last time it exported flows
 	Ignored, Internal uint64
 	diag              pipeDiag
 }
+
+// xkey is a flow's 5-tuple, xval the exporter that booked it first and when it last reported it.
+type xkey struct {
+	s, d   netip.Addr
+	sp, dp uint16
+	proto  uint8
+}
+
+type xval struct {
+	exp netip.Addr
+	ts  int64
+}
+
+const (
+	xWindow   = 120 // seconds a second exporter's copy of a booked flow counts as a duplicate
+	expActive = 600 // seconds a router counts as "exports flows" after its last record
+)
 
 type dkey struct {
 	s, d        netip.Addr
@@ -63,7 +82,7 @@ type rkey struct {
 }
 
 func NewPipeline(c *config.Config, s *store.Store, e *enrich.Enricher, h *Hub) *Pipeline {
-	return &Pipeline{Cfg: c, St: s, En: e, Hub: h, seen: map[dkey]int64{}, dnsSeen: map[rkey]int64{}}
+	return &Pipeline{Cfg: c, St: s, En: e, Hub: h, seen: map[dkey]int64{}, dnsSeen: map[rkey]int64{}, xseen: map[xkey]xval{}, expSeen: map[string]int64{}}
 }
 
 // dnsRedirected reports whether r is the original-destination copy of a DNS query that the router redirected to
@@ -114,6 +133,7 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 			continue
 		}
 		sl, dl := p.Cfg.IsLocal(src), p.Cfg.IsLocal(dst)
+		p.noteExporter(r, now.Unix())
 		if p.tunnelOuter(r, src, dst, sl, dl) {
 			p.mu.Lock()
 			p.Ignored++
@@ -131,9 +151,23 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 		row.TS = ts.Unix()
 		switch {
 		case sl && !dl:
+			if p.crossExporterDup(r, src, row.TS) {
+				p.mu.Lock()
+				p.Ignored++
+				p.mu.Unlock()
+				p.diag.note(r, "x")
+				continue
+			}
 			p.diag.note(r, "u")
 			row.Dir, row.CIP, row.RIP, row.CPort, row.RPort = "u", src.String(), dst.String(), r.SrcPort, r.DstPort
 		case dl && !sl:
+			if p.crossExporterDup(r, dst, row.TS) {
+				p.mu.Lock()
+				p.Ignored++
+				p.mu.Unlock()
+				p.diag.note(r, "x")
+				continue
+			}
 			p.diag.note(r, "d")
 			row.Dir, row.CIP, row.RIP, row.CPort, row.RPort = "d", dst.String(), src.String(), r.DstPort, r.SrcPort
 		case sl && dl:
@@ -291,6 +325,49 @@ func (p *Pipeline) tunnelOuter(r flow.Record, src, dst netip.Addr, sl, dl bool) 
 
 // ikePort is IKE (500) and IPsec NAT traversal (4500).
 func ikePort(port uint16) bool { return port == 500 || port == 4500 }
+
+// noteExporter remembers that the managed router behind the exporting address sends flows.
+func (p *Pipeline) noteExporter(r flow.Record, now int64) {
+	if p.SelfMAC == nil {
+		return
+	}
+	if m := p.SelfMAC(r.Exporter.Unmap().String()); m != "" {
+		p.mu.Lock()
+		p.expSeen[m] = now
+		p.mu.Unlock()
+	}
+}
+
+// crossExporterDup reports whether a client flow (client = the local end) is a second copy of bytes that another
+// exporter already booked (#286): cascaded routers export the same 5-tuple, and behind a double NAT the upstream
+// gateway sees the downstream router's transfer address as client of the very same traffic. The first exporter wins;
+// its copy and the bytes are identical, only the interface attribution differs. The drop is counted per exporter.
+func (p *Pipeline) crossExporterDup(r flow.Record, client netip.Addr, ts int64) bool {
+	exp := r.Exporter.Unmap()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.SelfMAC != nil {
+		// double NAT: the client is another managed router that exports on its own, so its flows are booked there
+		if m := p.SelfMAC(client.String()); m != "" && m != p.SelfMAC(exp.String()) && ts-p.expSeen[m] <= expActive && p.expSeen[m] > 0 {
+			p.diag.dedupDrop(exp)
+			return true
+		}
+	}
+	k := xkey{r.Src, r.Dst, r.SrcPort, r.DstPort, r.Proto}
+	if v, ok := p.xseen[k]; ok && v.exp != exp && ts-v.ts <= xWindow {
+		p.diag.dedupDrop(exp)
+		return true
+	}
+	p.xseen[k] = xval{exp, ts}
+	if len(p.xseen) > 100000 {
+		for kk, v := range p.xseen {
+			if ts-v.ts > xWindow {
+				delete(p.xseen, kk)
+			}
+		}
+	}
+	return false
+}
 
 func (p *Pipeline) dupInternal(r flow.Record, ts int64) bool {
 	k := dkey{r.Src, r.Dst, r.SrcPort, r.DstPort, r.Proto, r.Bytes, r.Packets, ts / 5}

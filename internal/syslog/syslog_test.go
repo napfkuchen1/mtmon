@@ -21,6 +21,15 @@ func TestParse(t *testing.T) {
 			"MTM-34", "input", "192.168.0.100", "192.168.0.1", "UDP", "", 59194, 53, "02:00:5E:10:20:30", "198.51.100.53:53->192.168.0.1:53", "new,dnat", "bridge", "(unknown 0)"},
 		{"gw firewall,info MTM-NEW forward: in:bridge out:ether1, connection-state:new proto TCP (SYN), 10.0.0.2:1->1.1.1.1:853, len 52",
 			"MTM-NEW", "forward", "10.0.0.2", "1.1.1.1", "TCP", "SYN", 1, 853, "", "", "new", "bridge", "ether1"},
+		// IPv6 (#289): portless ICMPv6, link-local/multicast, bracketed and bare with ports
+		{"firewall,info MTM6-4 input: in:ether1 out:(unknown 0), proto ICMP (type 128, code 0), 2001:db8:5::7->2001:db8:1:ad00:200:ff:fe00:0, len 64",
+			"MTM6-4", "input", "2001:db8:5::7", "2001:db8:1:ad00:200:ff:fe00:0", "ICMP", "type 128, code 0", 0, 0, "", "", "", "ether1", "(unknown 0)"},
+		{"firewall,info MTM6-4 input: in:ether1 out:(unknown 0), proto ICMP (type 135, code 0), fe80::1:2->ff02::1:2, len 96",
+			"MTM6-4", "input", "fe80::1:2", "ff02::1:2", "ICMP", "type 135, code 0", 0, 0, "", "", "", "ether1", "(unknown 0)"},
+		{"firewall,info MTM6-5 forward: in:ether1 out:bridge, connection-state:new proto TCP (SYN), [2001:db8::7]:51000->[2001:db8:1::10]:22, len 60",
+			"MTM6-5", "forward", "2001:db8::7", "2001:db8:1::10", "TCP", "SYN", 51000, 22, "", "", "new", "ether1", "bridge"},
+		{"firewall,info MTM6-5 forward: in:ether1 out:bridge, connection-state:new proto TCP (SYN), 2001:db8::7:51000->2001:db8:1::10:443, len 60",
+			"MTM6-5", "forward", "2001:db8::7", "2001:db8:1::10", "TCP", "SYN", 51000, 443, "", "", "new", "ether1", "bridge"},
 	}
 	for i, c := range cases {
 		e, ok := ParseFirewall(c.in)
@@ -32,7 +41,8 @@ func TestParse(t *testing.T) {
 			t.Fatalf("case %d: %+v", i, e)
 		}
 	}
-	for _, bad := range []string{"", "system,info,account user admin logged in", "firewall,info garbage", "dhcp,info lease"} {
+	for _, bad := range []string{"", "firewall,info MTM-1 forward: in:a out:b, proto TCP (SYN), [2001:db8::7:5->2.2.2.2:2, len 5",
+		"firewall,info MTM-1 forward: in:a out:b, proto TCP (SYN), 999.1.1.1:5->2.2.2.2:2, len 5", "system,info,account user admin logged in", "firewall,info garbage", "dhcp,info lease"} {
 		if _, ok := ParseFirewall(bad); ok {
 			t.Fatalf("should not parse %q", bad)
 		}
@@ -41,6 +51,8 @@ func TestParse(t *testing.T) {
 
 func FuzzParse(f *testing.F) {
 	f.Add("firewall,info MTM-1 forward: in:a out:b, proto TCP (SYN), 1.1.1.1:1->2.2.2.2:2, len 5")
+	f.Add("firewall,info MTM6-1 forward: in:a out:b, proto TCP (SYN), [2001:db8::7]:51000->[2001:db8:1::10]:22, len 60")
+	f.Add("firewall,info MTM6-1 input: in:a out:b, proto ICMP (type 128, code 0), 2001:db8:5::7->fe80::1, len 64")
 	f.Fuzz(func(t *testing.T, s string) { ParseFirewall(s) })
 }
 

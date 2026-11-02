@@ -71,15 +71,17 @@ type Caps struct {
 		Ifaces    string   `json:"interfaces"`
 		Targets   []string `json:"targets"`
 	} `json:"traffic_flow"`
-	WwwSSL     bool         `json:"www_ssl"`
-	WwwSSLAddr string       `json:"www_ssl_address"`
-	Cleartext  []string     `json:"cleartext_services"`    // enabled telnet / ftp (baseline check)
-	APIOn      []string     `json:"api_on,omitempty"`      // enabled api / api-ssl services (an AP rarely needs them)
-	OpenMgmt   []string     `json:"open_mgmt,omitempty"`   // enabled api/ssh/winbox/www services without an address restriction
-	NTPOff     bool         `json:"ntp_off,omitempty"`     // the NTP client exists but is disabled (baseline check)
-	PinnedMACs []string     `json:"pinned_macs,omitempty"` // clients named by a Wi-Fi access-list rule (intentional pin)
-	LogActions []string     `json:"log_actions"`
-	Filter     []FilterRule `json:"filter_rules"`
+	WwwSSL      bool              `json:"www_ssl"`
+	WwwSSLAddr  string            `json:"www_ssl_address"`
+	ServiceFrom map[string]string `json:"service_from,omitempty"` // management service -> its source list (#295)
+	Cleartext   []string          `json:"cleartext_services"`     // enabled telnet / ftp (baseline check)
+	APIOn       []string          `json:"api_on,omitempty"`       // enabled api / api-ssl services (an AP rarely needs them)
+	OpenMgmt    []string          `json:"open_mgmt,omitempty"`    // enabled api/ssh/winbox/www services without an address restriction
+	NTPOff      bool              `json:"ntp_off,omitempty"`      // the NTP client exists but is disabled (baseline check)
+	PinnedMACs  []string          `json:"pinned_macs,omitempty"`  // clients named by a Wi-Fi access-list rule (intentional pin)
+	LogActions  []string          `json:"log_actions"`
+	Filter      []FilterRule      `json:"filter_rules"`
+	Filter6     []FilterRule      `json:"filter_rules6"` // /ipv6/firewall/filter, IDs carry the "v6:" prefix (#298)
 	// DNSRedirect: active dst-nat/redirect rules that send port-53 traffic to the router (hit counters from the probe).
 	DNSRedirect  DNSRedirectInfo `json:"dns_redirect"`
 	DNSRedirect6 DNSRedirectInfo `json:"dns_redirect6"` // the same for IPv6 (/ipv6/firewall/nat): a v4 redirect does not cover v6
@@ -258,6 +260,9 @@ func Probe(ctx context.Context, c *poller.Client) (*Caps, error) {
 	if k.Filter == nil {
 		k.Filter = []FilterRule{}
 	}
+	if k.Filter6 == nil {
+		k.Filter6 = []FilterRule{}
+	}
 	k.suggestRole()
 	return k, nil
 }
@@ -341,18 +346,8 @@ func (k *Caps) probeFirewall(ctx context.Context, c *poller.Client) {
 	for _, n := range get(ctx, c, "/ipv6/firewall/nat") {
 		k.DNSRedirect6.note(n, k.isBridge)
 	}
-	for _, f := range get(ctx, c, "/ip/firewall/filter") {
-		if f["dynamic"] == "true" || f["dynamic"] == "yes" { // RouterOS: "can't edit dynamic object"
-			continue
-		}
-		fr := FilterRule{ID: f[".id"], Chain: f["chain"], Action: f["action"], Comment: f["comment"],
-			Log: f["log"] == "true" || f["log"] == "yes", LogPrefix: f["log-prefix"], Disabled: f["disabled"] == "true"}
-		fr.Managed = strings.HasPrefix(fr.Comment, ManagedTag)
-		fr.Summary = ruleSummary(f)
-		fr.Proto, fr.DPort = f["protocol"], f["dst-port"]
-		if n, err := strconv.ParseInt(f["packets"], 10, 64); err == nil {
-			fr.Packets, fr.Counted = n, true
-		}
+	k.Filter6 = append(k.Filter6, readFilter(get(ctx, c, "/ipv6/firewall/filter"), v6Prefix)...)
+	for _, fr := range readFilter(get(ctx, c, "/ip/firewall/filter"), "") {
 		if fr.Action == "fasttrack-connection" && !fr.Disabled {
 			k.Fasttrack = true
 		}
@@ -361,6 +356,31 @@ func (k *Caps) probeFirewall(ctx context.Context, c *poller.Client) {
 		}
 		k.Filter = append(k.Filter, fr)
 	}
+	for _, fr := range k.Filter6 {
+		if fr.Managed {
+			k.Managed = true
+		}
+	}
+}
+
+// readFilter turns filter rows into FilterRules; idPrefix is put in front of each .id ("v6:" for the IPv6 menu).
+func readFilter(rows []poller.Row, idPrefix string) []FilterRule {
+	var out []FilterRule
+	for _, f := range rows {
+		if f["dynamic"] == "true" || f["dynamic"] == "yes" { // RouterOS: "can't edit dynamic object"
+			continue
+		}
+		fr := FilterRule{ID: idPrefix + f[".id"], Chain: f["chain"], Action: f["action"], Comment: f["comment"],
+			Log: f["log"] == "true" || f["log"] == "yes", LogPrefix: f["log-prefix"], Disabled: f["disabled"] == "true"}
+		fr.Managed = strings.HasPrefix(fr.Comment, ManagedTag)
+		fr.Summary = ruleSummary(f)
+		fr.Proto, fr.DPort = f["protocol"], f["dst-port"]
+		if n, err := strconv.ParseInt(f["packets"], 10, 64); err == nil {
+			fr.Packets, fr.Counted = n, true
+		}
+		out = append(out, fr)
+	}
+	return out
 }
 
 // probeServices reads Traffic Flow, the API/web services and their certificates, updates, remote logging and managed users (best effort).
@@ -377,10 +397,14 @@ func (k *Caps) probeServices(ctx context.Context, c *poller.Client) {
 	svcCert := map[string]string{} // service -> certificate name
 	k.Cleartext, k.OpenMgmt, k.APIOn, k.NTPOff = nil, nil, nil, false
 	svcRows := get(ctx, c, "/ip/service")
+	k.ServiceFrom = map[string]string{}
 	k.OpenMgmt = openMgmtNames(svcRows)
 	for _, s := range svcRows {
 		if s["dynamic"] == "true" || s["connection"] == "true" {
 			continue // active sessions, not configuration
+		}
+		if mgmtServices[s["name"]] {
+			k.ServiceFrom[s["name"]] = serviceFrom(s)
 		}
 		if (s["name"] == "api" || s["name"] == "api-ssl") && s["disabled"] != "true" {
 			k.APIOn = append(k.APIOn, s["name"])

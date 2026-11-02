@@ -63,7 +63,7 @@ func TestApplyAndRollback(t *testing.T) {
 	k, _ := Probe(ctx, cl)
 	o := DefaultOptions(k, "127.0.0.1")
 	o.LogNew, o.DisableFasttrack = true, true
-	if len(o.FwRules) != 3 { // 3 drop rules
+	if len(o.FwRules) != 4 { // 3 IPv4 drop rules + 1 IPv6 drop rule (#298)
 		t.Fatalf("default fw rules %v", o.FwRules)
 	}
 	steps := BuildPlan(k, o)
@@ -82,7 +82,7 @@ func TestApplyAndRollback(t *testing.T) {
 	if got := m.Single("/ip/traffic-flow"); got["enabled"] != "yes" || got["active-flow-timeout"] != "30s" {
 		t.Fatalf("flow %v", got)
 	}
-	if len(m.Lists("/ip/traffic-flow/target")) != 1 || len(m.Lists("/system/logging")) != 1 || len(res.FwMeta) != 4 {
+	if len(m.Lists("/ip/traffic-flow/target")) != 1 || len(m.Lists("/system/logging")) != 1 || len(res.FwMeta) != 5 {
 		t.Fatalf("objects missing; meta=%v", res.FwMeta)
 	}
 	logged := 0
@@ -97,6 +97,18 @@ func TestApplyAndRollback(t *testing.T) {
 	if logged != 4 { // 3 drops + MTM-NEW
 		t.Fatalf("logged=%d", logged)
 	}
+	logged6 := 0
+	for _, f := range m.Lists("/ipv6/firewall/filter") {
+		if f["log"] == "yes" {
+			logged6++
+			if !strings.HasPrefix(f["log-prefix"], "MTM6-") {
+				t.Fatalf("IPv6 prefix %q", f["log-prefix"])
+			}
+		}
+	}
+	if logged6 != 1 {
+		t.Fatalf("logged6=%d", logged6)
+	}
 	// the read-only user really is read-only
 	rc := ro(d)(res.MonUser, res.MonPass)
 	if _, err := rc.Get(ctx, "/system/resource"); err != nil {
@@ -105,7 +117,7 @@ func TestApplyAndRollback(t *testing.T) {
 	if _, err := rc.Do(ctx, "PUT", "/user", map[string]string{"name": "x", "group": "full"}); err == nil {
 		t.Fatal("read-only user could write")
 	}
-	if script := ManualScript(entries); !strings.Contains(script, "/ip firewall filter set") || !strings.Contains(script, "remove") {
+	if script := ManualScript(entries); !strings.Contains(script, "/ip firewall filter set") || !strings.Contains(script, "/ipv6 firewall filter set") || !strings.Contains(script, "remove") {
 		t.Fatalf("script:\n%s", script)
 	}
 	// offboard
@@ -124,7 +136,7 @@ func TestApplyAndRollback(t *testing.T) {
 	if len(m.Lists("/user")) != 1 || len(m.Lists("/user/group")) != 1 {
 		t.Fatal("user/group left behind")
 	}
-	for _, f := range m.Lists("/ip/firewall/filter") {
+	for _, f := range append(m.Lists("/ip/firewall/filter"), m.Lists("/ipv6/firewall/filter")...) {
 		if f["log"] == "yes" || f["disabled"] == "yes" || strings.HasPrefix(f["comment"], ManagedTag) {
 			t.Fatalf("filter rule not restored: %v", f)
 		}
