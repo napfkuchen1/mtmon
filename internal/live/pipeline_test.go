@@ -15,7 +15,12 @@ import (
 
 func dnsPipe(t *testing.T) *Pipeline {
 	t.Helper()
-	cfg := &config.Config{DataDir: t.TempDir(), NoTLS: true, LocalNets: []string{"192.168.0.0/16"}}
+	return netPipe(t, "192.168.0.0/16")
+}
+
+func netPipe(t *testing.T, nets ...string) *Pipeline {
+	t.Helper()
+	cfg := &config.Config{DataDir: t.TempDir(), NoTLS: true, LocalNets: nets}
 	cfg.Defaults()
 	if err := cfg.Validate(); err != nil {
 		t.Fatal(err)
@@ -219,5 +224,22 @@ func TestDoubleNATRouterNotClient(t *testing.T) {
 	p2.Handle([]flow.Record{expRec("192.168.0.1", "192.168.0.2", "1.1.1.1", 1000)})
 	if n := p2.St.QueueLen(); n != 1 {
 		t.Fatalf("silent router: %d rows, want 1", n)
+	}
+}
+
+// Multicast and limited broadcast never become internet traffic (#290).
+func TestMulticastIsNotInternet(t *testing.T) {
+	p := netPipe(t, "192.168.0.0/16", "fe80::/10")
+	now := time.Now()
+	mk := func(src, dst string, dport uint16) flow.Record {
+		return flow.Record{Src: netip.MustParseAddr(src), Dst: netip.MustParseAddr(dst), SrcPort: 5353, DstPort: dport,
+			Proto: 17, Bytes: 200, Packets: 2, Start: now, End: now}
+	}
+	p.Handle([]flow.Record{mk("192.168.0.20", "224.0.0.251", 5353), mk("192.168.0.20", "239.255.255.250", 1900),
+		mk("192.168.0.20", "255.255.255.255", 2021), mk("fe80::1", "ff02::1:2", 547)})
+	for _, r := range p.Diagnostics()["by_interface"].([]diagRow) {
+		if r.Dir == "u" || r.Dir == "d" {
+			t.Errorf("multicast flow booked as %q", r.Dir)
+		}
 	}
 }
