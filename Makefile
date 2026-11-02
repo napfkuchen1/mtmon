@@ -20,7 +20,7 @@ test:                     ## unit + integration tests (race detector on)
 
 lint:                     ## static analysis + shell checks
 	staticcheck ./...
-	cd deploy && shellcheck -x -s bash lib.sh install-mtmon.sh update-mtmon.sh uninstall-mtmon.sh test/test-deploy.sh test/test-tui.sh test/test-apply-update.sh && shellcheck -s sh update-geo.sh apply-update.sh
+	cd deploy && shellcheck -x -s bash lib.sh install-mtmon.sh update-mtmon.sh uninstall-mtmon.sh test/test-deploy.sh test/test-tui.sh test/test-apply-update.sh test/test-update-geo.sh && shellcheck -s sh update-geo.sh apply-update.sh
 	gofmt -l . | (! grep .)
 
 licenses:                 ## SPDX line on every source file, dependency licences allowed (needs `make ui` once)
@@ -41,6 +41,7 @@ deploy-test: build        ## install/update/uninstall scripts against fake Proxm
 	deploy/test/test-deploy.sh bin/mtmon
 	deploy/test/test-tui.sh
 	deploy/test/test-apply-update.sh
+	deploy/test/test-update-geo.sh
 
 release: build            ## dist/mtmon-<version>-linux-amd64.tar.gz with checksums
 	rm -rf dist && mkdir -p dist/mtmon

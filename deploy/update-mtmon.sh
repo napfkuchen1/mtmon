@@ -64,7 +64,7 @@ ct_exec "$CTID" mv -f /usr/local/bin/mtmon.new /usr/local/bin/mtmon
 # cannot swap a stale staged binary over the one we just installed
 run pct push "$CTID" "$HERE/apply-update.sh" /usr/local/bin/mtmon-apply-update --perms 0755
 run pct push "$CTID" "$HERE/mtmon.service" /etc/systemd/system/mtmon.service --perms 0644
-ct_exec "$CTID" rm -f /var/lib/mtmon/update/mtmon.new /var/lib/mtmon/update/pending /var/lib/mtmon/update/confirm-pending /var/lib/mtmon/update/last-rollback
+ct_exec "$CTID" rm -f /var/lib/mtmon/update/mtmon.new /var/lib/mtmon/update/release.tar.gz /var/lib/mtmon/update/release.minisig /var/lib/mtmon/update/mtmon.prev /var/lib/mtmon/update/pending /var/lib/mtmon/update/confirm-pending /var/lib/mtmon/update/last-rollback
 ct_exec "$CTID" systemctl daemon-reload
 ct_exec "$CTID" systemctl start mtmon
 if [ "$DRY_RUN" != 1 ]; then

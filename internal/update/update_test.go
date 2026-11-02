@@ -359,6 +359,65 @@ func TestApplyStagesBinary(t *testing.T) {
 	if tag, res := m.attempted(); tag != "v0.7.0" || res != "staged" {
 		t.Errorf("attempt record %q %q", tag, res)
 	}
+	// the root helper gets the signed archive + signature, and they verify against the installed version
+	arch, err1 := os.ReadFile(filepath.Join(m.o.Dir, StagedArchive))
+	sig, err2 := os.ReadFile(filepath.Join(m.o.Dir, StagedSig))
+	if err1 != nil || err2 != nil {
+		t.Fatalf("staged archive/signature missing: %v %v", err1, err2)
+	}
+	bin, tag, err := VerifyStaged(testPubB64(), arch, sig, "v0.6.0")
+	if err != nil || tag != "v0.7.0" || len(bin) == 0 {
+		t.Fatalf("staged files must verify: %v %q", err, tag)
+	}
+	staged, _ := os.ReadFile(filepath.Join(m.o.Dir, "mtmon.new"))
+	if !bytes.Equal(bin, staged) {
+		t.Error("binary from the verified archive must equal mtmon.new")
+	}
+}
+
+func TestVerifyStaged(t *testing.T) {
+	arch := goodTar(t, "v0.7.0")
+	good := signMinisign(testPriv, arch, "mtmon v0.7.0", true)
+	if _, tag, err := VerifyStaged(testPubB64(), arch, good, "v0.6.0"); err != nil || tag != "v0.7.0" {
+		t.Fatalf("valid newer release: %v %q", err, tag)
+	}
+	_, otherPriv, _ := ed25519.GenerateKey(nil)
+	noBin := mkTar(t, tarEntry{name: "mtmon/README.md", body: "x"})
+	for name, c := range map[string]struct {
+		sig     []byte
+		arch    []byte
+		current string
+		want    string
+	}{
+		"same version (no reinstall)":   {good, arch, "v0.7.0", "not newer"},
+		"downgrade to an older release": {good, arch, "v0.8.0", "not newer"},
+		"installed dev build":           {good, arch, "dev", "not a release"},
+		"signed by another key":         {signMinisign(otherPriv, arch, "mtmon v0.7.0", true), arch, "v0.6.0", "different key"},
+		"archive swapped after signing": {good, goodTar(t, "v0.9.0"), "v0.6.0", "does not match"},
+		"trusted comment not mtmon":     {signMinisign(testPriv, arch, "other v0.7.0", true), arch, "v0.6.0", "unexpected trusted comment"},
+		"trusted comment not a version": {signMinisign(testPriv, arch, "mtmon latest", true), arch, "v0.6.0", "not a release version"},
+		"empty signature file":          {nil, arch, "v0.6.0", "malformed"},
+		"valid signature, no binary":    {signMinisign(testPriv, noBin, "mtmon v0.7.0", true), noBin, "v0.6.0", "does not contain"},
+	} {
+		if _, _, err := VerifyStaged(testPubB64(), c.arch, c.sig, c.current); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: got %v, want error containing %q", name, err, c.want)
+		}
+	}
+}
+
+func TestClearStagedRemovesArchive(t *testing.T) {
+	dir := t.TempDir()
+	for _, n := range []string{"mtmon.new", "pending", StagedArchive, StagedSig} {
+		os.WriteFile(filepath.Join(dir, n), []byte("x"), 0o640)
+	}
+	if _, err := New(Options{Dir: dir, Current: "v0.6.0"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range []string{"mtmon.new", "pending", StagedArchive, StagedSig} {
+		if _, err := os.Stat(filepath.Join(dir, n)); err == nil {
+			t.Errorf("%s must be removed with a stale staged update", n)
+		}
+	}
 }
 
 func TestApplyRejections(t *testing.T) {

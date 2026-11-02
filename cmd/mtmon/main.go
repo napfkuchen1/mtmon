@@ -66,6 +66,8 @@ func main() {
 		err = selftest(args)
 	case "version":
 		fmt.Println(version)
+	case "verify-staged":
+		err = verifyStaged(args)
 	default:
 		usage()
 		os.Exit(2)
@@ -87,6 +89,7 @@ func usage() {
   selftest    [-c ...]                      verify the running service (UI, /healthz, flow port)
   passwd      [-c ...] [-u admin] [--reset-2fa]  set the UI password / switch 2FA off (reads MTMON_PASSWORD env or stdin)
   fingerprint <host:port>                   print TLS cert SHA-256 of a router (for pinning)
+  verify-staged <archive> <sig> <out>       (used by mtmon-apply-update) verify a staged release, extract its binary
   version
 `)
 }
