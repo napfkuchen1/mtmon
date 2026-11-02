@@ -110,7 +110,7 @@ func ruleDNSBypass(s Snapshot) ([]Suggestion, string) {
 				"Redirect all other DNS traffic from the LAN to the router (dst-nat); devices with a fixed DNS server then still end up at the router without noticing.",
 			},
 			Commands: fmt.Sprintf("/ip dns set allow-remote-requests=yes\n/ip firewall nat add chain=dstnat action=dst-nat protocol=udp dst-port=53 in-interface-list=LAN dst-address=!%[1]s to-addresses=%[1]s to-ports=53 comment=\"redirect DNS to router\"\n/ip firewall nat add chain=dstnat action=dst-nat protocol=tcp dst-port=53 in-interface-list=LAN dst-address=!%[1]s to-addresses=%[1]s to-ports=53 comment=\"redirect DNS to router\"", rip),
-			Limits:   "The router address in the commands is taken from your device list; adjust it if your LAN gateway is different. The redirect needs the interface list LAN.",
+			Limits:   "The router address in the commands is taken from your device list; adjust it if your LAN gateway is different. The redirect needs the interface list LAN. The commands cover IPv4 only: IPv6 clients with a fixed DNS server are not redirected.",
 		})
 	}
 	if n, ev := redir.evidence(idx, "DNS connections"); n > 0 {
@@ -132,8 +132,8 @@ func ruleDNSBypass(s Snapshot) ([]Suggestion, string) {
 			Steps: []string{
 				"Optional: block port 853 so devices fall back to plain DNS, which the router can redirect. Put the rule above any FastTrack or accept-all rules.",
 			},
-			Commands: "/ip firewall filter add chain=forward action=reject reject-with=icmp-admin-prohibited protocol=tcp dst-port=853 in-interface-list=LAN comment=\"block DNS-over-TLS\"",
-			Limits:   "The rule assumes the interface list LAN. DNS-over-HTTPS (port 443) is covered by a separate suggestion.",
+			Commands: "/ip firewall filter add chain=forward action=reject reject-with=icmp-admin-prohibited protocol=tcp dst-port=853 in-interface-list=LAN comment=\"block DNS-over-TLS\"\n/ipv6 firewall filter add chain=forward action=reject reject-with=icmp-admin-prohibited protocol=tcp dst-port=853 in-interface-list=LAN comment=\"block DNS-over-TLS\"",
+			Limits:   "The rules assume the interface list LAN. The /ipv6 rule needs the ipv6 package; leave it out on a router without IPv6. DNS-over-HTTPS (port 443) is covered by a separate suggestion.",
 		})
 	}
 	return out, ""

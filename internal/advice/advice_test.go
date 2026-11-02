@@ -3,6 +3,7 @@
 package advice
 
 import (
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -807,4 +808,48 @@ func TestRuleTransitAttached(t *testing.T) {
 	expect(t, d, "transit-attached", 0)
 	d.Transit.Dropped = 200
 	expect(t, d, "transit-attached", 1)
+}
+
+// #296: commands match the address family of the evidence; an IPv6 literal never ends up in an /ip command.
+func TestBlockOriginIPv6Commands(t *testing.T) {
+	d := base()
+	d.Blocked = []BlockedSrc{
+		{IP: "203.0.113.1", Hits: 400, CC: "XX", ASN: 64500, ASOrg: "Badnet"},
+		{IP: "2001:db8::bad", Hits: 400, CC: "XX", ASN: 64500, ASOrg: "Badnet"},
+		{IP: "198.51.100.1", Hits: 100, CC: "YY", ASN: 64501},
+		{IP: "198.51.100.2", Hits: 100, CC: "ZZ", ASN: 64502},
+	}
+	out := expect(t, d, "fw-origin", 2)
+	n := 0
+	for _, s := range out {
+		for _, line := range strings.Split(s.Commands, "\n") {
+			if strings.HasPrefix(line, "/ip ") && strings.Contains(line, ":") && strings.Contains(line, "address=") {
+				t.Errorf("IPv6 literal in an IPv4 command: %s", line)
+			}
+			if strings.HasPrefix(line, "/ipv6 firewall address-list") && strings.Contains(line, "2001:db8::bad") {
+				n++
+			}
+		}
+		if s.Commands != "" && !strings.Contains(s.Commands, "/ipv6 firewall raw add") {
+			t.Errorf("no IPv6 raw rule: %s", s.Commands)
+		}
+	}
+	if n != 1 {
+		t.Errorf("IPv6 source must get an /ipv6 address-list entry, got %d", n)
+	}
+	// every command of every rule: an /ip command never carries an IPv6 address literal
+	res := Evaluate(d)
+	for _, s := range res.Items {
+		for _, line := range strings.Split(s.Commands, "\n") {
+			if strings.HasPrefix(line, "/ip ") {
+				for _, f := range strings.Fields(line) {
+					if _, v, ok := strings.Cut(f, "="); ok {
+						if a, err := netip.ParseAddr(strings.TrimPrefix(v, "!")); err == nil && a.Is6() {
+							t.Errorf("IPv6 literal in %q", line)
+						}
+					}
+				}
+			}
+		}
+	}
 }

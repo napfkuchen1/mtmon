@@ -4,6 +4,7 @@ package advice
 
 import (
 	"fmt"
+	"net/netip"
 	"sort"
 	"strconv"
 	"strings"
@@ -141,12 +142,20 @@ func originSuggestions(out []Suggestion, bs []BlockedSrc) ([]Suggestion, string)
 	mk := func(kind string, g *grp, share float64) Suggestion {
 		sort.Slice(g.ips, func(i, j int) bool { return g.ips[i].Hits > g.ips[j].Hits })
 		var tops, cmds []string
+		var has4, has6 bool
 		single := len(g.ips) > 0 && float64(g.ips[0].Hits) >= 0.8*float64(g.hits)
 		for i, b := range g.ips {
 			if i >= 5 {
 				break
 			}
 			tops = append(tops, fmt.Sprintf("%s (%d)", b.IP, b.Hits))
+			// the address family of the source decides the menu: RouterOS rejects an IPv6 address in /ip firewall (#296)
+			if a, err := netip.ParseAddr(b.IP); err == nil && a.Unmap().Is6() {
+				has6 = true
+				cmds = append(cmds, fmt.Sprintf("/ipv6 firewall address-list add list=blocked-scanners address=%s timeout=7d comment=\"mtmon suggestion\"", b.IP))
+				continue
+			}
+			has4 = true
 			cmds = append(cmds, fmt.Sprintf("/ip firewall address-list add list=blocked-scanners address=%s timeout=7d comment=\"mtmon suggestion\"", b.IP))
 		}
 		steps := []string{
@@ -157,7 +166,12 @@ func originSuggestions(out []Suggestion, bs []BlockedSrc) ([]Suggestion, string)
 			// A country is a poor filter criterion (CDNs and clouds sit in the same country as scanners), so no commands.
 			cmds, steps = nil, []string{"Nothing to do: the firewall already blocks these. RouterOS has no built-in country filter, and dropping a whole country would also cut off legitimate services hosted there."}
 		} else {
-			cmds = append(cmds, "/ip firewall raw add chain=prerouting action=drop src-address-list=blocked-scanners in-interface-list=WAN comment=\"drop known scanners early\"")
+			if has4 {
+				cmds = append(cmds, "/ip firewall raw add chain=prerouting action=drop src-address-list=blocked-scanners in-interface-list=WAN comment=\"drop known scanners early\"")
+			}
+			if has6 {
+				cmds = append(cmds, "/ipv6 firewall raw add chain=prerouting action=drop src-address-list=blocked-scanners in-interface-list=WAN comment=\"drop known scanners early\"")
+			}
 		}
 		title := fmt.Sprintf("Most blocked attempts come from %s", g.label)
 		why := "Your firewall already blocks these attempts, so this is not an emergency. But a large share from one place means automated scanning, and dropping known sources very early (in the raw table) saves router CPU and keeps the logs readable."
