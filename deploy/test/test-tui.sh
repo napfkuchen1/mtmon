@@ -6,7 +6,8 @@
 set -uo pipefail
 T=$(cd "$(dirname "$0")" && pwd); D=$(dirname "$T"); R=$(dirname "$D")
 WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
-export FAKE_STATE=$WORK/state PATH="$T/stubs:$PATH" MTMON_FORCE_TUI=1 MTMON_BASE_URL="file://$WORK/rel"
+# the fake release is not signed: the dialog tests accept that explicitly; the signature rules are tested below
+export FAKE_STATE=$WORK/state PATH="$T/stubs:$PATH" MTMON_FORCE_TUI=1 MTMON_BASE_URL="file://$WORK/rel" MTMON_ALLOW_UNVERIFIED=1
 # fake release: scripts from this checkout + shell-wrapper "binary"
 mkdir -p "$WORK/rel/mtmon" && cp "$D"/*.sh "$D"/*.service "$D"/*.conf "$WORK/rel/mtmon/"
 # shellcheck disable=SC2016
@@ -54,4 +55,26 @@ echo "== non-interactive =="
 reset; run install --dry-run --yes; [ $RC = 0 ] && ok "args pass through" || no "rc=$RC" "$OUT"; notcalled "pct create"
 reset; unset MTMON_FORCE_TUI; run; [ $RC != 0 ] && ok "no tty + no args refuses" || no "should refuse"; has "no terminal"
 run bogus; [ $RC != 0 ] && ok "unknown action refused" || no "should refuse"
+
+echo "== release signature =="
+reset; MTMON_ALLOW_UNVERIFIED='' run install --dry-run --yes
+[ $RC != 0 ] && ok "unsigned release refused by default" || no "unsigned release must be refused" "$OUT"
+has "signature"; notcalled "pct create"
+reset; MTMON_ALLOW_UNVERIFIED='' MTMON_VERSION=v0.7.3 run install --dry-run --yes
+[ $RC = 0 ] && ok "explicitly chosen pre-v0.8.0 release (unsigned era) allowed" || no "rc=$RC" "$OUT"; has "older than v0.8.0"
+reset; MTMON_ALLOW_UNVERIFIED='' MTMON_VERSION=v0.8.0 run install --dry-run --yes
+[ $RC != 0 ] && ok "v0.8.0 without signature refused" || no "v0.8.0 must be signed" "$OUT"
+reset; MTMON_ALLOW_UNVERIFIED='' MTMON_VERSION=v1.2.0 run install --dry-run --yes
+[ $RC != 0 ] && ok "v1.x without signature refused" || no "v1.x must be signed" "$OUT"
+reset; run install --dry-run --yes
+[ $RC = 0 ] && ok "MTMON_ALLOW_UNVERIFIED=1 installs with checksum only" || no "rc=$RC" "$OUT"; has "only the checksum was verified"
+printf 'untrusted comment: x\n' > "$WORK/rel/mtmon-linux-amd64.tar.gz.minisig"
+if ! command -v minisign >/dev/null; then
+  reset; MTMON_ALLOW_UNVERIFIED='' run install --dry-run --yes
+  [ $RC != 0 ] && ok "signed release without minisign installed refused" || no "rc=$RC" "$OUT"; has "minisign is not installed"
+else
+  reset; MTMON_ALLOW_UNVERIFIED='' run install --dry-run --yes
+  [ $RC != 0 ] && ok "bad signature refused" || no "rc=$RC" "$OUT"; has "signature check FAILED"
+fi
+rm -f "$WORK/rel/mtmon-linux-amd64.tar.gz.minisig"
 echo; echo "passed=$pass failed=$fail"; [ "$fail" = 0 ]
