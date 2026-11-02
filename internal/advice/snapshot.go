@@ -152,6 +152,8 @@ type Device struct {
 	Firmware, FirmwareUpg    string
 	FlowKnown                bool     // collector could be asked about this device
 	FlowLast                 int64    // last flow packet (unix), 0 = never since mtmon started
+	ClockSkewS               float64  // router clock behind (+) or ahead (-) of mtmon, seconds, from the flow export header
+	ClockSkewKnown           bool     // ClockSkewS was measured (flow packets arrived)
 	FwLogging                bool     // firewall log rules are registered for the device
 	DebugPerHour             int      // debug log lines per hour the router sends for chatty topics (dropped on ingest)
 	DebugTopics              []string // those topics, busiest first

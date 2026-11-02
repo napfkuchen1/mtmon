@@ -31,6 +31,8 @@ type Live struct {
 	ExporterLast func(addr string) (last time.Time, ok bool)
 	// IsSelf reports whether a MAC belongs to a managed router/AP itself; its own traffic is no client behaviour.
 	IsSelf func(mac string) bool
+	// ExporterSkew returns the clock offset of an exporter (this host minus router, from the flow export header).
+	ExporterSkew func(addr string) (skew time.Duration, ok bool)
 	// OwnsAddr reports whether an address belongs to a managed device (shared address-ownership answer); sightings
 	// stored before the pipeline knew this address are filtered here, so old findings vanish without manual action.
 	OwnsAddr func(ip string) bool
@@ -108,6 +110,14 @@ func (l *Live) Devices() []Device {
 					if t.Unix() > d.FlowLast {
 						d.FlowLast = t.Unix()
 					}
+				}
+			}
+		}
+		if l.ExporterSkew != nil {
+			for _, a := range append([]string{c.Addr}, c.FlowSources...) {
+				if sk, ok := l.ExporterSkew(a); ok {
+					d.ClockSkewS, d.ClockSkewKnown = sk.Seconds(), true
+					break
 				}
 			}
 		}

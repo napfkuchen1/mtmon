@@ -252,6 +252,42 @@ func ruleNTPOff(s Snapshot) ([]Suggestion, string) {
 	return out, ""
 }
 
+// ClockSkewLimit: from this offset on (seconds) a router clock is reported. mtmon corrects the flow times itself (#292).
+const ClockSkewLimit = 120
+
+// ruleClockSkew (#292): the router clock differs from mtmon's, measured from the flow export header.
+func ruleClockSkew(s Snapshot) ([]Suggestion, string) {
+	var out []Suggestion
+	seen := false
+	for _, d := range s.Devices() {
+		if !d.ClockSkewKnown {
+			continue
+		}
+		seen = true
+		sk := d.ClockSkewS
+		if sk > -ClockSkewLimit && sk < ClockSkewLimit {
+			continue
+		}
+		why := "The router clock is behind the clock of mtmon. mtmon corrects the times of its flows, but log entries, certificate checks and other tools on the router still use the wrong time."
+		if sk < 0 {
+			why, sk = "The router clock is ahead of the clock of mtmon. mtmon corrects the times of its flows, but log entries, certificate checks and other tools on the router still use the wrong time.", -sk
+		}
+		out = append(out, Suggestion{
+			Subject: d.Name, Severity: SevWarning, Category: CatSecurity, Link: "device/" + d.Name, Confidence: "high",
+			Title:    fmt.Sprintf("%s: router clock is off by %d min - enable NTP", d.Name, int(sk/60+0.5)),
+			Why:      why,
+			Evidence: []string{fmt.Sprintf("Flow export header time differs by %d s from the receive time", int(sk))},
+			Steps:    []string{"Enable the NTP client with a server you trust (or the router's gateway)."},
+			Commands: "/system/ntp/client set enabled=yes servers=pool.ntp.org",
+			Limits:   "Measured from the last flow packet of this router; a router that just rebooted may need a few minutes to sync.",
+		})
+	}
+	if !seen {
+		return nil, "no flow packets from any router yet"
+	}
+	return out, ""
+}
+
 // ruleAPOnAP (#190 baseline): the API service on an access point. mtmon talks REST (www), so the binary API is only
 // attack surface unless a script of yours uses it.
 func ruleAPOnAP(s Snapshot) ([]Suggestion, string) {

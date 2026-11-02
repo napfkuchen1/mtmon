@@ -60,6 +60,14 @@ func (s *Server) adviceResult(force bool) advice.Result {
 			}
 			return s.Col.Exporter(ip).Last, true
 		}
+		l.ExporterSkew = func(addr string) (time.Duration, bool) {
+			ip, err := netip.ParseAddr(addr)
+			if err != nil || s.Col.Dec == nil {
+				return 0, false
+			}
+			sk, ok := s.Col.Dec.Skews()[ip]
+			return sk, ok
+		}
 	}
 	s.adv.res = advice.Evaluate(l)
 	if s.St.LearningUntil() > 0 { // judged against baselines that are still filling up: record, do not alarm
