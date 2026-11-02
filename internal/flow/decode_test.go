@@ -3,6 +3,7 @@
 package flow
 
 import (
+	"encoding/binary"
 	"net/netip"
 	"testing"
 	"time"
@@ -114,5 +115,98 @@ func TestRouterClockSkewIsCorrected(t *testing.T) {
 		if dt := now.Sub(recs[0].End); dt < 0 || dt > 3*time.Second {
 			t.Errorf("ipfix=%v: correct clock moved by %v", ipfix, dt)
 		}
+	}
+}
+
+func ipfixMsg(export time.Time, sets ...[]byte) []byte {
+	var body []byte
+	for _, s := range sets {
+		body = append(body, s...)
+	}
+	h := make([]byte, 16)
+	binary.BigEndian.PutUint16(h, 10)
+	binary.BigEndian.PutUint16(h[2:], uint16(16+len(body)))
+	binary.BigEndian.PutUint32(h[4:], uint32(export.Unix()))
+	return append(h, body...)
+}
+
+func ipfixSet(id uint16, body []byte) []byte {
+	h := make([]byte, 4)
+	binary.BigEndian.PutUint16(h, id)
+	binary.BigEndian.PutUint16(h[2:], uint16(4+len(body)))
+	return append(h, body...)
+}
+
+func u16(v ...uint16) []byte {
+	var b []byte
+	for _, x := range v {
+		b = binary.BigEndian.AppendUint16(b, x)
+	}
+	return b
+}
+
+// flowTemplate: src, dst, sport, dport, proto and one 8-byte counter (field cnt: 1 delta or 85 total).
+func flowTemplate(tid, cnt uint16) []byte {
+	return ipfixSet(2, u16(tid, 6, 8, 4, 12, 4, 7, 2, 11, 2, 4, 1, cnt, 8))
+}
+
+func flowData(tid uint16, bytes uint64) []byte {
+	b := []byte{192, 168, 0, 5, 1, 1, 1, 1}
+	b = binary.BigEndian.AppendUint16(b, 40000)
+	b = binary.BigEndian.AppendUint16(b, 443)
+	b = append(b, 6)
+	b = binary.BigEndian.AppendUint64(b, bytes)
+	return ipfixSet(tid, b)
+}
+
+// Packet sampling announced in options data scales the volumes (#293).
+func TestSamplingRateScalesVolumes(t *testing.T) {
+	d := NewDecoder()
+	exp := netip.MustParseAddr("10.0.0.1")
+	now := time.Now()
+	// options template 257: scope observationDomainId (149), samplingPacketInterval (305), samplingPacketSpace (306)
+	opt := ipfixSet(3, append(u16(257, 3, 1, 149, 4, 305, 4, 306, 4)))
+	d.Decode(exp, ipfixMsg(now, flowTemplate(256, 1), opt))
+	rec := binary.BigEndian.AppendUint32(nil, 0)
+	rec = binary.BigEndian.AppendUint32(rec, 1)
+	rec = binary.BigEndian.AppendUint32(rec, 99) // keep 1, skip 99: 1 out of 100
+	d.Decode(exp, ipfixMsg(now, ipfixSet(257, rec)))
+	recs, err := d.Decode(exp, ipfixMsg(now, flowData(256, 1500)))
+	if err != nil || len(recs) != 1 {
+		t.Fatalf("%v %d", err, len(recs))
+	}
+	if recs[0].Bytes != 150000 {
+		t.Errorf("bytes %d, want 150000", recs[0].Bytes)
+	}
+	if d.Sampling()[exp] != 100 {
+		t.Errorf("sampling %v", d.Sampling())
+	}
+	// an exporter without options data stays unscaled
+	other := netip.MustParseAddr("10.0.0.2")
+	d.Decode(other, ipfixMsg(now, flowTemplate(256, 1)))
+	if r, _ := d.Decode(other, ipfixMsg(now, flowData(256, 1500))); len(r) != 1 || r[0].Bytes != 1500 {
+		t.Errorf("unsampled exporter: %+v", r)
+	}
+}
+
+// An exporter that sends running totals (field 85) is counted by delta, not once per export (#293).
+func TestTotalCountersBecomeDeltas(t *testing.T) {
+	d := NewDecoder()
+	exp := netip.MustParseAddr("10.0.0.1")
+	now := time.Now()
+	d.Decode(exp, ipfixMsg(now, flowTemplate(256, 85)))
+	var got []uint64
+	for _, total := range []uint64{1000, 1500, 1600} {
+		r, _ := d.Decode(exp, ipfixMsg(now, flowData(256, total)))
+		if len(r) != 1 {
+			t.Fatalf("records %d", len(r))
+		}
+		got = append(got, r[0].Bytes)
+	}
+	if got[0] != 1000 || got[1] != 500 || got[2] != 100 {
+		t.Errorf("deltas %v", got)
+	}
+	if d.TotalsConverted != 3 {
+		t.Errorf("counter %d", d.TotalsConverted)
 	}
 }
