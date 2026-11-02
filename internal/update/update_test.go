@@ -392,7 +392,7 @@ func TestVerifyStaged(t *testing.T) {
 		"same version (no reinstall)":   {good, arch, "v0.7.0", "not newer"},
 		"downgrade to an older release": {good, arch, "v0.8.0", "not newer"},
 		"installed dev build":           {good, arch, "dev", "not a release"},
-		"signed by another key":         {signMinisign(otherPriv, arch, "mtmon v0.7.0", true), arch, "v0.6.0", "different key"},
+		"signed by another key":         {signMinisign(otherPriv, arch, "mtmon v0.7.0", true), arch, "v0.6.0", "does not match"}, // test signer reuses the key ID
 		"archive swapped after signing": {good, goodTar(t, "v0.9.0"), "v0.6.0", "does not match"},
 		"trusted comment not mtmon":     {signMinisign(testPriv, arch, "other v0.7.0", true), arch, "v0.6.0", "unexpected trusted comment"},
 		"trusted comment not a version": {signMinisign(testPriv, arch, "mtmon latest", true), arch, "v0.6.0", "not a release version"},
