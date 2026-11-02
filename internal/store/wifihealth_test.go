@@ -126,8 +126,10 @@ func TestWifiDisconnectBurstsCountAndSurviveRestart(t *testing.T) {
 	ts := now / wifiBucket * wifiBucket
 	mac := "AA:00:00:00:01:01"
 	st.DB.Exec(`INSERT INTO wifi_hist(ts,mac,device,band,n,sig_sum,sig_min,sig_max,weak,tx_sum,rx_sum) VALUES(?,?,?,?,4,-240,-60,-60,0,400,400)`, ts, mac, "ap1", "5ghz")
-	// two bursts of six within 24 h, written to the stored device log only (as before the wifi_disc table existed)
-	for _, base := range []int64{now - 20*3600, now - 10*3600} {
+	// two bursts of six within 24 h, written to the stored device log only (as before the wifi_disc table existed).
+	// Each burst starts just after a full hour, so its 200 s never straddle two hour buckets (that made the test fail
+	// whenever it ran in the last minutes of an hour).
+	for _, base := range []int64{(now-20*3600)/3600*3600 + 60, (now-10*3600)/3600*3600 + 60} {
 		for i := int64(0); i < 6; i++ {
 			st.DB.Exec(`INSERT INTO log_events(ts,device,topics,level,msg) VALUES(?,?,?,?,?)`, base+i*40, "ap1", "wireless,info", "info", mac+"@wlan1: disconnected, extensive data loss")
 		}
