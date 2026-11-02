@@ -1,59 +1,115 @@
 name: ci
+# Parallel jobs; the aggregate job "test" is the required status check (ruleset on main) and fails unless every
+# job it needs succeeded. Measured before the split: one serial job, ~3.5 min (go test -race 92 s, deploy tests 48 s,
+# build 20 s, lint 20 s). Now the longest job (go-test shard with api + alert) sets the pace.
 on:
   push: { branches: [main] }
   pull_request:
 permissions:
   contents: read
+concurrency:
+  # a new push to the same PR cancels the run that is still going; runs on main are never cancelled
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  test:
+  go-test:
+    name: go test (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # api and alert take ~35 s each under -race; everything else together about as long
+        shard: [api-alert, rest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: { go-version-file: go.mod }
+      - run: mkdir -p web/dist && touch web/dist/.gitkeep # go:embed needs the directory; API tests use their own FS
+      - name: go test -race
+        run: |
+          if [ "${{ matrix.shard }}" = api-alert ]; then pkgs=$(go list ./internal/api/... ./internal/alert/...)
+          else pkgs=$(go list ./... | grep -vE '/internal/(api|alert)(/|$)'); fi
+          go test -race -count=1 $pkgs
+
+  lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with: { go-version-file: go.mod }
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
-      - run: cd web && npm ci --no-audit --no-fund && npm run build
+      - run: cd web && npm ci --no-audit --no-fund && npm run build # the UI must build
       - run: node scripts/spdx.js # every source file carries its SPDX licence line
       - run: node scripts/licenses.js --check # dependency licences stay AGPL-compatible
       - run: node scripts/alert-i18n.test.js # stored alert texts render fully German or fully English
+      - run: go vet ./...
       - run: go install honnef.co/go/tools/cmd/staticcheck@v0.8.1 # pinned: a new staticcheck release must not turn CI red on its own
-      - run: sudo apt-get install -y shellcheck
-      - run: make test
       - run: staticcheck ./...
+      - run: test -z "$(gofmt -l .)"
+      - run: sudo apt-get install -y shellcheck
       - run: cd deploy && shellcheck -x -s bash lib.sh install-mtmon.sh update-mtmon.sh uninstall-mtmon.sh
       - run: cd deploy && shellcheck -s sh update-geo.sh apply-update.sh
       - run: shellcheck install.sh deploy/test/test-tui.sh deploy/test/test-apply-update.sh deploy/test/test-update-geo.sh
-      - run: test -z "$(gofmt -l .)"
-      - run: make build
+      - name: script tests (no binary needed)
+        run: |
+          { sudo deploy/test/test-tui.sh && deploy/test/test-apply-update.sh && sudo deploy/test/test-update-geo.sh; } > /tmp/st.log 2>&1 || { m=$(grep -v '^PASS' /tmp/st.log | tail -15 | sed ':a;N;$!ba;s/\n/%0A/g'); echo "::error::$m"; exit 1; }
+
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: { go-version-file: go.mod }
+      # the install/update/uninstall scripts only need a runnable binary, not the UI
+      - run: mkdir -p web/dist && touch web/dist/.gitkeep && CGO_ENABLED=0 go build -trimpath -o bin/mtmon ./cmd/mtmon
       - name: deploy tests
         run: |
-          { sudo deploy/test/test-deploy.sh bin/mtmon && sudo deploy/test/test-tui.sh && deploy/test/test-apply-update.sh && sudo deploy/test/test-update-geo.sh; } > /tmp/dt.log 2>&1 || { m=$(grep -v '^PASS' /tmp/dt.log | tail -15 | sed ':a;N;$!ba;s/\n/%0A/g'); echo "::error::$m"; exit 1; }
-  # Known-vulnerability scan of the Go dependencies and standard library. Reports only (does not block) so that a newly
-  # published advisory cannot stop unrelated work; read the log and bump go.mod / dependencies when it lists something.
+          sudo deploy/test/test-deploy.sh bin/mtmon > /tmp/dt.log 2>&1 || { m=$(grep -v '^PASS' /tmp/dt.log | tail -15 | sed ':a;N;$!ba;s/\n/%0A/g'); echo "::error::$m"; exit 1; }
+
+  # Known-vulnerability scan. govulncheck fails only when the code really calls a vulnerable function, so it blocks;
+  # npm audit stays informational (the UI bundle has few dependencies, advisories there are mostly dev-only).
   vuln:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with: { go-version-file: go.mod }
-      - run: mkdir -p web/dist && touch web/dist/.gitkeep   # go:embed needs the directory to exist
+      - run: mkdir -p web/dist && touch web/dist/.gitkeep # go:embed needs the directory to exist
       - run: go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
       - run: govulncheck ./...
-      - uses: actions/setup-node@v7
+      - name: modules with known vulnerabilities (not called by mtmon, informational)
+        run: govulncheck -show verbose ./... | sed -n '/Module Results/,$p' >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
-      - run: cd web && npm audit --omit=dev --audit-level=high   # npm dependencies shipped in the UI bundle
+      - run: cd web && npm audit --omit=dev --audit-level=high # npm dependencies shipped in the UI bundle
+        continue-on-error: true
+
+  # Required check. "skipped" would count as passed for a required check, so this job always runs and fails
+  # unless every needed job succeeded.
+  test:
+    if: always()
+    needs: [go-test, lint, deploy, vuln]
+    runs-on: ubuntu-latest
+    steps:
+      - name: all jobs passed
+        env: { RESULTS: "${{ join(needs.*.result, ' ') }}" }
+        run: |
+          echo "results: $RESULTS"
+          for r in $RESULTS; do [ "$r" = success ] || { echo "::error::a required job did not succeed ($RESULTS)"; exit 1; }; done
+
   # Code-health info (does not block): functions above cyclomatic complexity 25 and copy-pasted blocks of 100+ tokens.
   # Use the list to pick the next function to split; tighten or drop the thresholds on purpose.
   health:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with: { go-version-file: go.mod }
       - run: go install github.com/fzipp/gocyclo/cmd/gocyclo@v0.6.0
       - run: go install github.com/mibk/dupl@v1.0.0
-      - run: gocyclo -over 25 $(git ls-files '*.go' | grep -v _test.go) | tee /dev/stderr | wc -l
-      - run: dupl -threshold 100 -plumbing $(git ls-files '*.go' | grep -v _test.go) | head -40
+      - name: report
+        run: |
+          { echo "### Functions with cyclomatic complexity > 25"; echo '```'; gocyclo -over 25 $(git ls-files '*.go' | grep -v _test.go) || true; echo '```'
+            echo "### Duplicated blocks (≥ 100 tokens)"; echo '```'; dupl -threshold 100 -plumbing $(git ls-files '*.go' | grep -v _test.go) | head -40 || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
