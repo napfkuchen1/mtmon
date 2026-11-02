@@ -72,7 +72,12 @@ func (s *Store) DBGrowthEstimate(retentionDays int) (perDay int64, ok bool, span
 	if len(ts) < 2 || span < 6*3600 {
 		return 0, false, spanH, true
 	}
-	steady := span >= float64(min(max(retentionDays, 1), 30))*86400
+	// steady state: the stored samples (kept 35 days) reach back over the retention period. Measured from the oldest
+	// stored sample, not from the 7-day window above (that window made a 30-day retention an estimate forever), with
+	// one sampling interval of slack.
+	var oldest int64
+	s.DB.QueryRow(`SELECT coalesce(min(ts),0) FROM db_size_log`).Scan(&oldest)
+	steady := oldest > 0 && ts[len(ts)-1]-float64(oldest) >= float64(min(max(retentionDays, 1), 30))*86400-3600
 	if cut := ts[len(ts)-1] - 48*3600; ts[0] < cut { // the recent two days, if they hold a day of samples
 		i := 0
 		for ts[i] < cut {

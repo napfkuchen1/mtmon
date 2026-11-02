@@ -16,6 +16,9 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Read-only API tokens can no longer read what the viewer role may not (router config history, offboarding script, change manifest, settings).
 - Installer (`install.sh`): a release without signature file is refused. Every release since v0.8.0 is signed, so a missing `.minisig` means a broken or tampered download location. Before, the installer went on with the checksum only. An older release chosen on purpose with `MTMON_VERSION` (before v0.8.0) and `MTMON_ALLOW_UNVERIFIED=1` still work.
 
+### Fixed
+- Database growth: the forecast is no longer marked as an estimate forever with the default 30-day retention; it counts as steady once the stored samples reach back over the retention period.
+
 ### Changed
 - Everybody signs in once more after this update (older sessions carry no password binding).
 
