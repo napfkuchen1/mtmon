@@ -195,6 +195,9 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 			p.Ignored++
 			p.mu.Unlock()
 			p.diag.note(r, "x")
+			if p.Cfg.InAttached(src) || p.Cfg.InAttached(dst) {
+				p.diag.attachedDrop()
+			}
 			continue
 		}
 		if p.SelfMAC != nil {

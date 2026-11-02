@@ -43,6 +43,15 @@ type Snapshot interface {
 	SelfHealth() SelfHealth
 	// GhostDNS7d: clients that sent DNS to a local address no device owns (answered only by the redirect of the router).
 	GhostDNS7d() []GhostDNS
+	// TransitDrops: flows dropped as transit that touch a network a router has on its WAN side (#297).
+	TransitDrops() TransitStat
+}
+
+// TransitStat counts flows dropped as transit (both sides remote) against all flows seen; Nets lists the router
+// networks (WAN side, not learned as internal) those flows touched.
+type TransitStat struct {
+	Dropped, Total int64
+	Nets           []string
 }
 
 // GhostDNS is one client that uses a DNS server that does not exist.
