@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-only
-# shellcheck disable=SC2016
+# shellcheck disable=SC2016,SC2034
 # Tests deploy/update-geo.sh with a fake curl (no network). As root it also checks that the downloads run as the
 # service user and never write through links planted in the geo directory.
 # Usage: deploy/test/test-update-geo.sh
