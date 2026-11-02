@@ -76,6 +76,7 @@ type Hub struct {
 	ipmac    map[string]string // ip → mac
 	names    map[string]string // mac → display name
 	totalUp  []ev
+	ownTotal []ev // the part of totalUp that is mtmon's own traffic (speed test, probes), kept apart for the spike check (#288)
 	FlowsIn  uint64
 	FlowsPS  float64
 	lastCnt  uint64
@@ -223,9 +224,15 @@ func (h *Hub) AddFlow(r store.FlowRow) {
 	case "u":
 		e.up = r.Bytes
 		h.totalUp = append(h.totalUp, ev{t: now, up: r.Bytes})
+		if store.IsOwnSvc(r.Svc) {
+			h.ownTotal = append(h.ownTotal, ev{t: now, up: r.Bytes})
+		}
 	case "d":
 		e.down = r.Bytes
 		h.totalUp = append(h.totalUp, ev{t: now, down: r.Bytes})
+		if store.IsOwnSvc(r.Svc) {
+			h.ownTotal = append(h.ownTotal, ev{t: now, down: r.Bytes})
+		}
 	}
 	if !store.IsOwnSvc(r.Svc) { // mtmon's own speed test is no client behaviour: it must not trigger spike or chatty alerts
 		c.events = append(c.events, e)
@@ -259,6 +266,7 @@ type Snapshot struct {
 	Devices []DevLive    `json:"devices"`
 	Ifaces  []IfRate     `json:"ifaces"`
 	FlowsPS float64      `json:"flows_ps"`
+	OwnBps  float64      `json:"own_bps"` // part of up+down that is mtmon's own traffic (speed test, probes)
 }
 
 func sumWin(evs []ev, cut time.Time) (up, down uint64, kept []ev) {
@@ -301,6 +309,9 @@ func (h *Hub) Snapshot(sinceSeq uint64, topN int) Snapshot {
 	tu, td, kept := sumWin(h.totalUp, cut)
 	h.totalUp = kept
 	s.UpBps, s.DownBps = float64(tu)*8/w, float64(td)*8/w
+	ou, od, okept := sumWin(h.ownTotal, cut)
+	h.ownTotal = okept
+	s.OwnBps = float64(ou+od) * 8 / w
 	sort.Slice(s.Clients, func(i, j int) bool {
 		return s.Clients[i].UpBps+s.Clients[i].DownBps > s.Clients[j].UpBps+s.Clients[j].DownBps
 	})
@@ -347,4 +358,5 @@ func (h *Hub) Reset() {
 	h.clients = map[string]*clientLive{}
 	h.conns = nil
 	h.totalUp = nil
+	h.ownTotal = nil
 }
