@@ -135,3 +135,23 @@ func TestDBGrowthFollowsRecentTrend(t *testing.T) {
 		t.Error("samples span the retention: not an estimate any more")
 	}
 }
+
+// With the default retention of 30 days the forecast must stop being an estimate once 30 days of samples exist
+// (it used to look at the last 7 days only and stayed an estimate forever).
+func TestDBGrowthSteadyAfterFullRetention(t *testing.T) {
+	st, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	now := time.Now().Unix()
+	for h := int64(31 * 24); h >= 0; h-- {
+		st.DB.Exec(`INSERT INTO db_size_log VALUES(?,?)`, now-h*3600, 1_000_000_000+(31*24-h)*100_000)
+	}
+	if g, ok, _, est := st.DBGrowthEstimate(30); !ok || est || g <= 0 {
+		t.Errorf("31 days of samples, retention 30: growth %d ok=%v estimate=%v", g, ok, est)
+	}
+	if _, _, _, est := st.DBGrowthEstimate(40); est {
+		t.Error("a longer retention is capped at the 30 days the samples allow: 31 days of samples are steady")
+	}
+}
