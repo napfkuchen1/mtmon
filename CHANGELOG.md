@@ -8,6 +8,11 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [Unreleased]
+
+### Fixed
+- German texts with a version number: a version containing the letter "s" (e.g. `7.15.3-testing`) stayed English, and two words were taken as one version. Found by code scanning.
+
 ## [0.20.17] - 2026-11-02
 
 ### Security
