@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/netip"
 	"sync"
 	"time"
@@ -48,14 +49,23 @@ type tkey struct {
 
 // Decoder keeps the per-exporter template cache. Safe for concurrent use.
 type Decoder struct {
-	mu   sync.RWMutex
-	tmpl map[tkey]*template
-	now  func() time.Time             // test clock; nil = time.Now
-	skew map[netip.Addr]time.Duration // receive time minus the exporter header time, per exporter (#292)
+	mu    sync.RWMutex
+	tmpl  map[tkey]*template
+	order []tkey                       // insertion order, oldest first, for eviction
+	now   func() time.Time             // test clock; nil = time.Now
+	skew  map[netip.Addr]time.Duration // receive time minus the exporter header time, per exporter (#292)
 
 	// Counters (read with atomic-free best effort; guarded by mu for writes).
 	Packets, Records, Errors, NoTemplate uint64
+	Panics                               uint64 // packets whose decoding panicked (recovered, dropped)
 }
+
+// Template cache bounds (#284): template ids are 16 bit and the observation domain 32 bit, so a spoofed or buggy
+// exporter could otherwise grow the cache without limit. The oldest template is evicted first.
+const (
+	maxTemplatesPerDomain = 256
+	maxTemplatesTotal     = 4096
+)
 
 func NewDecoder() *Decoder { return &Decoder{tmpl: make(map[tkey]*template)} }
 
@@ -65,7 +75,20 @@ var (
 )
 
 // Decode parses one UDP payload from exporter and returns the flow records.
-func (d *Decoder) Decode(exp netip.Addr, b []byte) ([]Record, error) {
+func (d *Decoder) Decode(exp netip.Addr, b []byte) (recs []Record, err error) {
+	defer func() {
+		if p := recover(); p != nil { // unauthenticated input must never end the process
+			d.mu.Lock()
+			d.Panics++
+			n := d.Panics
+			d.Errors++
+			d.mu.Unlock()
+			if n <= 5 {
+				slog.Error("flow decoder panic, packet dropped", "exporter", exp.String(), "panic", p, "len", len(b))
+			}
+			recs, err = nil, errors.New("flow: decoder panic")
+		}
+	}()
 	if len(b) < 4 {
 		d.bump(&d.Errors)
 		return nil, ErrShort
@@ -268,9 +291,46 @@ func (d *Decoder) parseTemplates(exp netip.Addr, domain uint32, b []byte, ipfix,
 }
 
 func (d *Decoder) store(exp netip.Addr, domain uint32, id uint16, t *template) {
+	k := tkey{exp, domain, id}
 	d.mu.Lock()
-	d.tmpl[tkey{exp, domain, id}] = t
-	d.mu.Unlock()
+	defer d.mu.Unlock()
+	if _, ok := d.tmpl[k]; ok {
+		d.tmpl[k] = t // refresh in place
+		return
+	}
+	per := 0
+	for _, o := range d.order {
+		if o.exp == exp && o.domain == domain {
+			per++
+		}
+	}
+	for per >= maxTemplatesPerDomain { // evict this domain's oldest
+		for i, o := range d.order {
+			if o.exp == exp && o.domain == domain {
+				d.evict(i)
+				per--
+				break
+			}
+		}
+	}
+	for len(d.order) >= maxTemplatesTotal {
+		d.evict(0)
+	}
+	d.tmpl[k] = t
+	d.order = append(d.order, k)
+}
+
+// evict removes d.order[i] from the cache; the caller holds d.mu.
+func (d *Decoder) evict(i int) {
+	delete(d.tmpl, d.order[i])
+	d.order = append(d.order[:i], d.order[i+1:]...)
+}
+
+// templateCount is the number of cached templates (tests).
+func (d *Decoder) templateCount() int {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return len(d.tmpl)
 }
 
 func uintOf(b []byte) uint64 {

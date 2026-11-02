@@ -209,10 +209,12 @@ func (s *Server) totpEnable(w http.ResponseWriter, r *http.Request) {
 		hashes[i] = hashToken(plain)
 	}
 	hb, _ := json.Marshal(hashes)
-	s.St.SetMeta(metaRecov, string(hb))
-	s.St.SetMeta(metaLast, fmt.Sprint(step))
-	s.St.SetMeta(metaSecret2, s.St.GetMeta(metaPending))
-	s.St.SetMeta(metaPending, "")
+	for _, kv := range [][2]string{{metaRecov, string(hb)}, {metaLast, fmt.Sprint(step)}, {metaSecret2, s.St.GetMeta(metaPending)}, {metaPending, ""}} {
+		if err := s.St.SetMeta(kv[0], kv[1]); err != nil { // 2FA must not look enabled when it is not stored
+			jerr(w, http.StatusInternalServerError, "could not store the 2FA setup: "+err.Error())
+			return
+		}
+	}
 	s.audit(s.Cfg.AdminUser, sourceIP(r), "security.2fa-on", "")
 	jsonOut(w, map[string]any{"recovery": codes})
 }
