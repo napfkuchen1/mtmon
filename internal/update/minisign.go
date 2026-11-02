@@ -63,6 +63,37 @@ func verifyMinisign(pubB64 string, sig, data []byte) (trusted string, err error)
 	return trusted, nil
 }
 
+// VerifyStaged is the root-side check of a staged update (`mtmon verify-staged`, called by mtmon-apply-update).
+// The staging directory belongs to the unprivileged service user, so nothing in it is trusted: the archive must be
+// signed by key, its trusted comment names the tag, the tag must be a release strictly newer than current (no
+// downgrade to an older signed release with known bugs), and the binary is taken from the verified archive itself.
+func VerifyStaged(key string, archive, sig []byte, current string) (bin []byte, tag string, err error) {
+	tc, err := verifyMinisign(key, sig, archive)
+	if err != nil {
+		return nil, "", err
+	}
+	tag, ok := strings.CutPrefix(tc, "mtmon ")
+	if !ok {
+		return nil, "", fmt.Errorf("unexpected trusted comment %q", tc)
+	}
+	nv, ok := ParseVersion(tag)
+	if !ok {
+		return nil, "", fmt.Errorf("signed tag %q is not a release version", tag)
+	}
+	cv, ok := ParseVersion(current)
+	if !ok {
+		return nil, "", fmt.Errorf("installed version %q is not a release; refusing to replace it", current)
+	}
+	if Compare(nv, cv) <= 0 {
+		return nil, "", fmt.Errorf("%s is not newer than the installed %s", tag, current)
+	}
+	bin, err = extractBinary(archive)
+	if err != nil {
+		return nil, "", err
+	}
+	return bin, tag, nil
+}
+
 // verifyRelease requires a valid signature by key over the archive and a trusted comment naming exactly this tag,
 // so a signed archive of another release cannot be passed off as this one.
 func verifyRelease(key string, sig, archive []byte, tag string) error {
