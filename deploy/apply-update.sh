@@ -1,5 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-only
+# mtmon-helper-version: 2
+# (the service reads the line above to detect an outdated installed helper; bump it with update.RequiredHelperVersion)
 # mtmon-apply-update - installed as /usr/local/bin/mtmon-apply-update and run by systemd as root before every
 # start of mtmon.service (ExecStartPre=-+/usr/local/bin/mtmon-apply-update).
 #

@@ -62,7 +62,7 @@ func TestViewerRole(t *testing.T) {
 	if code, _ := call(v, "GET", "/api/devices", ""); code != 200 {
 		t.Errorf("viewer cannot read devices: %d", code)
 	}
-	for _, p := range []string{"/api/audit", "/api/tokens", "/api/access", "/api/totp", "/api/viewer", "/api/notify", "/api/system", "/api/alert-settings", "/api/update"} {
+	for _, p := range []string{"/api/audit", "/api/tokens", "/api/access", "/api/totp", "/api/viewer", "/api/notify", "/api/actions", "/api/alert-settings", "/api/update"} {
 		if code, _ := call(v, "GET", p, ""); code != 403 {
 			t.Errorf("viewer GET %s: %d, want 403", p, code)
 		}
