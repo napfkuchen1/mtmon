@@ -253,3 +253,37 @@ func TestSharedPortPrefersGatewayNearestDevice(t *testing.T) {
 		st.Close()
 	}
 }
+
+func TestDiagnosticsDropsSecrets(t *testing.T) {
+	st, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	m := NewManager(&config.Config{Devices: []config.Device{{Name: "gw", Role: "router", Addr: "10.0.0.1"}}},
+		st, live.NewHub(), enrich.New("", "", "", false), nopEvents{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	m.snaps["gw"] = &devSnap{role: "router", at: time.Now(),
+		pppoe: []Row{{"name": "pppoe-out1", "user": "isp-user", "password": "hunter2", "running": "true"}},
+		wifi:  []Row{{"mac-address": "02:00:00:00:00:0B", "passphrase": "x", "pre-shared-key": "y"}}}
+	devs := m.Diagnostics()["devices"].(map[string]any)["gw"].(map[string]any)
+	pp := devs["pppoe_clients"].([]Row)
+	if len(pp) != 1 || pp[0]["name"] != "pppoe-out1" || pp[0]["user"] != "isp-user" {
+		t.Errorf("non-secret fields must stay: %+v", pp)
+	}
+	for table, v := range devs {
+		rows, ok := v.([]Row)
+		if !ok {
+			continue
+		}
+		for _, r := range rows {
+			for k := range r {
+				if secretKey(k) {
+					t.Errorf("%s leaks %q", table, k)
+				}
+			}
+		}
+	}
+	if len(devs["arp"].([]Row)) != 0 {
+		t.Error("empty tables must stay [] not null")
+	}
+}

@@ -8,6 +8,11 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [0.20.15] - 2026-11-02
+
+### Security
+- Diagnostics (`/api/diagnostics`, Topology → Diagnostics): secret fields (passwords, keys, pre-shared keys, tokens) are now removed from every router table, as already done for config snapshots. Before, a router account with the `sensitive` policy could expose the PPPoE password to the viewer role and read-only API tokens. The wizard's own account was not affected. If you added a device with a full/admin account, use the account the wizard creates, or rotate the PPPoE password if viewers or tokens were not fully trusted.
+
 ## [0.20.14] - 2026-11-02
 
 ### Security

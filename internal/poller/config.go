@@ -71,6 +71,18 @@ func secretKey(k string) bool {
 		strings.Contains(k, "pre-shared-key") || strings.Contains(k, "passphrase") || strings.Contains(k, "token") || k == "preshared-key"
 }
 
+// ScrubSecrets returns a copy of r without secret fields. Everything that leaves the poller for a reader
+// (diagnostics, snapshots) goes through secretKey, whatever the router's policy lets the login read.
+func ScrubSecrets(r Row) Row {
+	out := make(Row, len(r))
+	for k, v := range r {
+		if !secretKey(k) {
+			out[k] = v
+		}
+	}
+	return out
+}
+
 // ScrubRow drops secrets and volatile fields. ok=false for rows the router creates by itself (dynamic ones),
 // because they come and go without a configuration change.
 func ScrubRow(r Row) (Row, bool) { return ScrubRowIn("", r) }

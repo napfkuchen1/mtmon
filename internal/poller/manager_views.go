@@ -110,7 +110,8 @@ func nearer(depth map[string]int, a, b string) bool {
 }
 
 // Diagnostics returns the raw tables the last poll cycle got from every device plus the derived uplink ports, so a
-// wrong location or presence can be explained from real data. No credentials are involved.
+// wrong location or presence can be explained from real data. Secret fields are dropped from every row (the
+// diagnostics reach the viewer role and read-only tokens), even if the polling account was allowed to read them.
 func (m *Manager) Diagnostics() map[string]any {
 	up := []string{}
 	for k, v := range m.uplinkPorts() {
@@ -136,10 +137,11 @@ func (m *Manager) Diagnostics() map[string]any {
 }
 
 func rowsOrEmpty(r []Row) []Row {
-	if r == nil {
-		return []Row{}
+	out := make([]Row, len(r))
+	for i, row := range r {
+		out[i] = ScrubSecrets(row)
 	}
-	return r
+	return out
 }
 
 // capHint finds a managed device named in a registration row, e.g. the CAP a controller-side row belongs to.
