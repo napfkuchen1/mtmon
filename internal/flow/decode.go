@@ -50,6 +50,8 @@ type tkey struct {
 type Decoder struct {
 	mu   sync.RWMutex
 	tmpl map[tkey]*template
+	now  func() time.Time             // test clock; nil = time.Now
+	skew map[netip.Addr]time.Duration // receive time minus the exporter header time, per exporter (#292)
 
 	// Counters (read with atomic-free best effort; guarded by mu for writes).
 	Packets, Records, Errors, NoTemplate uint64
@@ -80,6 +82,46 @@ func (d *Decoder) Decode(exp netip.Addr, b []byte) ([]Record, error) {
 	}
 }
 
+// Skews reports, per exporter, how far its clock is behind (positive) or ahead (negative) of this host, measured
+// from the export header time of the last packet. Flow times are corrected by it (#292).
+func (d *Decoder) Skews() map[netip.Addr]time.Duration {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	out := make(map[netip.Addr]time.Duration, len(d.skew))
+	for k, v := range d.skew {
+		out[k] = v
+	}
+	return out
+}
+
+// minSkew is the offset that is treated as real: the header carries whole seconds and the packet needs time to arrive.
+const minSkew = 3 * time.Second
+
+// correct moves the flow times of one packet from the router clock to this host's clock. A router without working
+// NTP would otherwise book every flow minutes or hours off, and client-to-IP lookups by time would go wrong.
+func (d *Decoder) correct(exp netip.Addr, export time.Time, recs []Record) {
+	now := time.Now
+	if d.now != nil {
+		now = d.now
+	}
+	skew := now().Sub(export)
+	d.mu.Lock()
+	if d.skew == nil {
+		d.skew = map[netip.Addr]time.Duration{}
+	}
+	if _, ok := d.skew[exp]; ok || len(d.skew) < 1000 {
+		d.skew[exp] = skew
+	}
+	d.mu.Unlock()
+	if skew > -minSkew && skew < minSkew {
+		return
+	}
+	for i := range recs {
+		recs[i].Start = recs[i].Start.Add(skew)
+		recs[i].End = recs[i].End.Add(skew)
+	}
+}
+
 func (d *Decoder) bump(c *uint64) { d.mu.Lock(); *c++; d.mu.Unlock() }
 
 func (d *Decoder) decodeV9(exp netip.Addr, b []byte) ([]Record, error) {
@@ -91,7 +133,9 @@ func (d *Decoder) decodeV9(exp netip.Addr, b []byte) ([]Record, error) {
 	secs := binary.BigEndian.Uint32(b[8:])
 	domain := binary.BigEndian.Uint32(b[16:])
 	ctx := timeCtx{export: time.Unix(int64(secs), 0), uptimeMs: uptime, v9: true}
-	return d.sets(exp, domain, b[20:], ctx, false)
+	recs, err := d.sets(exp, domain, b[20:], ctx, false)
+	d.correct(exp, ctx.export, recs)
+	return recs, err
 }
 
 func (d *Decoder) decodeIPFIX(exp netip.Addr, b []byte) ([]Record, error) {
@@ -107,7 +151,9 @@ func (d *Decoder) decodeIPFIX(exp netip.Addr, b []byte) ([]Record, error) {
 	secs := binary.BigEndian.Uint32(b[4:])
 	domain := binary.BigEndian.Uint32(b[12:])
 	ctx := timeCtx{export: time.Unix(int64(secs), 0)}
-	return d.sets(exp, domain, b[16:l], ctx, true)
+	recs, err := d.sets(exp, domain, b[16:l], ctx, true)
+	d.correct(exp, ctx.export, recs)
+	return recs, err
 }
 
 type timeCtx struct {
@@ -247,7 +293,7 @@ func (d *Decoder) parseData(exp netip.Addr, t *template, b []byte, ctx timeCtx) 
 		r := Record{Exporter: exp, Start: ctx.export, End: ctx.export}
 		var first, last uint32
 		var haveFL bool
-		var startMs, endMs uint64
+		var startMs, endMs, sysInitMs uint64
 		pos := 0
 		ok := true
 		for _, f := range t.fields {
@@ -316,6 +362,8 @@ func (d *Decoder) parseData(exp netip.Addr, t *template, b []byte, ctx timeCtx) 
 			case 22:
 				first = uint32(uintOf(v))
 				haveFL = true
+			case 160: // systemInitTimeMilliseconds: the base of 21/22 in IPFIX
+				sysInitMs = uintOf(v)
 			case 152:
 				startMs = uintOf(v)
 			case 153:
@@ -329,6 +377,10 @@ func (d *Decoder) parseData(exp netip.Addr, t *template, b []byte, ctx timeCtx) 
 		if ctx.v9 && haveFL {
 			r.Start = ctx.export.Add(-time.Duration(int64(ctx.uptimeMs)-int64(first)) * time.Millisecond)
 			r.End = ctx.export.Add(-time.Duration(int64(ctx.uptimeMs)-int64(last)) * time.Millisecond)
+		}
+		if !ctx.v9 && haveFL && sysInitMs > 0 {
+			r.Start = time.UnixMilli(int64(sysInitMs) + int64(first))
+			r.End = time.UnixMilli(int64(sysInitMs) + int64(last))
 		}
 		if startMs > 0 {
 			r.Start = time.UnixMilli(int64(startMs))

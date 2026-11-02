@@ -52,3 +52,19 @@ func TestAPOnAPRule(t *testing.T) {
 		t.Fatal("no devices must be skipped")
 	}
 }
+
+func TestClockSkewSuggestion(t *testing.T) {
+	d := &Data{Devs: []Device{
+		{Name: "late", ClockSkewKnown: true, ClockSkewS: 2400},
+		{Name: "early", ClockSkewKnown: true, ClockSkewS: -600},
+		{Name: "ok", ClockSkewKnown: true, ClockSkewS: 1},
+		{Name: "silent"},
+	}}
+	got, _ := ruleClockSkew(d)
+	if len(got) != 2 || got[0].Subject != "late" || got[1].Subject != "early" {
+		t.Fatalf("skew: %+v", got)
+	}
+	if _, why := ruleClockSkew(&Data{Devs: []Device{{Name: "x"}}}); why == "" {
+		t.Fatal("no flow data must be skipped")
+	}
+}

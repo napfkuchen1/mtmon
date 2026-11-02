@@ -88,3 +88,31 @@ func BenchmarkDecode(b *testing.B) {
 		d.Decode(exp, p)
 	}
 }
+
+// A router clock that is 40 minutes behind must not shift the flows: times follow the receive time (#292).
+func TestRouterClockSkewIsCorrected(t *testing.T) {
+	for _, ipfix := range []bool{true, false} {
+		e := NewEncoder(ipfix)
+		d := NewDecoder()
+		exp := netip.MustParseAddr("10.0.0.1")
+		now := time.Now()
+		d.now = func() time.Time { return now }
+		behind := now.Add(-40 * time.Minute)
+		d.Decode(exp, e.Template(behind))
+		recs, err := d.Decode(exp, e.Data(behind, sample()))
+		if err != nil || len(recs) != 2 {
+			t.Fatalf("ipfix=%v: %v %d", ipfix, err, len(recs))
+		}
+		if dt := now.Sub(recs[0].End); dt < -2*time.Second || dt > 2*time.Second {
+			t.Errorf("ipfix=%v: end is %v off from receive time", ipfix, dt)
+		}
+		if s := d.Skews()[exp]; s < 39*time.Minute || s > 41*time.Minute {
+			t.Errorf("ipfix=%v: skew %v", ipfix, s)
+		}
+		// a correct clock is left alone
+		recs, _ = d.Decode(exp, e.Data(now.Add(-time.Second), sample()))
+		if dt := now.Sub(recs[0].End); dt < 0 || dt > 3*time.Second {
+			t.Errorf("ipfix=%v: correct clock moved by %v", ipfix, dt)
+		}
+	}
+}

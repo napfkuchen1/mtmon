@@ -167,6 +167,13 @@ func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
 	if s.Pipe != nil {
 		out["flow_pipeline"] = s.Pipe.Diagnostics()
 	}
+	skews := map[string]float64{}
+	if s.Col != nil && s.Col.Dec != nil {
+		for a, d := range s.Col.Dec.Skews() {
+			skews[a.String()] = d.Seconds()
+		}
+	}
+	out["clock_skew_s"] = skews
 	ns, _ := s.St.Neighbors()
 	out["neighbors"] = ns
 	cl, _ := s.St.Clients()
