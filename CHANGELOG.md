@@ -8,6 +8,11 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
+## [Unreleased]
+
+### Security
+- Flow storage: one flow record with an impossible byte or packet counter (from a broken exporter, or spoofed on the LAN with a router's address) could stop all traffic storage until a restart. Such records are now refused and counted (`db_implausible` in Diagnostics), and a write batch that keeps failing is dropped after three attempts instead of blocking every later write.
+
 ## [0.20.16] - 2026-11-02
 
 ### Security

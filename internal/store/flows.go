@@ -26,19 +26,37 @@ type FlowRow struct {
 	ASN      uint32
 	ASOrg    string
 	Svc      string
+	tries    uint8 // failed flushes this row was part of (requeue)
 }
 
-const maxQueue = 200000
+const (
+	maxQueue = 200000
+	// One flow record never carries more than this: 2^44 bytes (~17.6 TB) would be ~78 Gbit/s for a whole 30 min
+	// active timeout. Larger values come from a broken or spoofed exporter and would overflow the 64-bit sums.
+	maxRowBytes = 1 << 44
+	maxRowPkts  = 1 << 40
+	// A batch that keeps failing is dropped after this many attempts instead of blocking all later writes.
+	maxTries = 3
+)
 
-// Enqueue adds rows to the write queue (non-blocking; drops when overloaded).
+// Enqueue adds rows to the write queue (non-blocking; drops when overloaded). Implausible rows are counted and
+// discarded here, so they can never make a flush fail.
 func (s *Store) Enqueue(rows ...FlowRow) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if len(s.flowQ)+len(rows) > maxQueue {
-		s.Dropped += uint64(len(rows))
+	ok := rows[:0:0]
+	for _, r := range rows {
+		if r.Bytes > maxRowBytes || r.Pkts > maxRowPkts {
+			s.Implausible++
+			continue
+		}
+		ok = append(ok, r)
+	}
+	if len(s.flowQ)+len(ok) > maxQueue {
+		s.Dropped += uint64(len(ok))
 		return
 	}
-	s.flowQ = append(s.flowQ, rows...)
+	s.flowQ = append(s.flowQ, ok...)
 }
 
 // QueueLen is exported for self-monitoring.
@@ -227,12 +245,25 @@ func (s *Store) Flush() error {
 	return nil
 }
 
+// requeue puts the rows of a failed flush back at the head of the queue for the next attempt. Rows that already
+// failed maxTries times are dropped (and counted): a batch that fails for good must not block every later write.
 func (s *Store) requeue(rows []FlowRow) {
+	keep := rows[:0]
+	var gaveUp uint64
+	for _, r := range rows {
+		r.tries++
+		if r.tries >= maxTries {
+			gaveUp++
+			continue
+		}
+		keep = append(keep, r)
+	}
 	s.mu.Lock()
-	if len(s.flowQ)+len(rows) <= maxQueue {
-		s.flowQ = append(rows, s.flowQ...)
+	s.Dropped += gaveUp
+	if len(s.flowQ)+len(keep) <= maxQueue {
+		s.flowQ = append(keep, s.flowQ...)
 	} else {
-		s.Dropped += uint64(len(rows))
+		s.Dropped += uint64(len(keep))
 	}
 	s.mu.Unlock()
 }
