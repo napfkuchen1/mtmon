@@ -19,6 +19,7 @@ type Group struct {
 	SpikeInfo    bool    `json:"spike_info"`    // traffic spikes caused by its clients are info, not a warning
 	IgnoreWeak   bool    `json:"ignore_weak"`   // weak Wi-Fi signal is normal (battery gadgets around -75 dBm)
 	WatchDefault bool    `json:"watch_default"` // clients put into the group are watched ("must be online")
+	Scanner      bool    `json:"scanner"`       // its clients scan on purpose (NMS, Home Assistant): no port_scan alert (#291)
 }
 
 var groupNameRe = regexp.MustCompile(`^[\p{L}\p{N}][\p{L}\p{N} ._-]{0,31}$`)
@@ -36,7 +37,7 @@ var GroupPresets = []Group{
 }
 
 func (s *Store) Groups() ([]Group, error) {
-	rows, err := s.DB.Query(`SELECT name,new_alert,chatty_mult,spike_info,ignore_weak,watch_default FROM client_groups ORDER BY lower(name)`)
+	rows, err := s.DB.Query(`SELECT name,new_alert,chatty_mult,spike_info,ignore_weak,watch_default,scanner FROM client_groups ORDER BY lower(name)`)
 	if err != nil {
 		return nil, err
 	}
@@ -44,11 +45,11 @@ func (s *Store) Groups() ([]Group, error) {
 	out := []Group{}
 	for rows.Next() {
 		var g Group
-		var na, si, iw, wd int
-		if err := rows.Scan(&g.Name, &na, &g.ChattyMult, &si, &iw, &wd); err != nil {
+		var na, si, iw, wd, sc int
+		if err := rows.Scan(&g.Name, &na, &g.ChattyMult, &si, &iw, &wd, &sc); err != nil {
 			return nil, err
 		}
-		g.NewAlert, g.SpikeInfo, g.IgnoreWeak, g.WatchDefault = na == 1, si == 1, iw == 1, wd == 1
+		g.NewAlert, g.SpikeInfo, g.IgnoreWeak, g.WatchDefault, g.Scanner = na == 1, si == 1, iw == 1, wd == 1, sc == 1
 		out = append(out, g)
 	}
 	return out, rows.Err()
@@ -63,10 +64,10 @@ func (s *Store) SaveGroup(g Group) error {
 	if g.ChattyMult <= 0 || g.ChattyMult > 1000 {
 		g.ChattyMult = 1
 	}
-	_, err := s.DB.Exec(`INSERT INTO client_groups(name,new_alert,chatty_mult,spike_info,ignore_weak,watch_default) VALUES(?,?,?,?,?,?)
+	_, err := s.DB.Exec(`INSERT INTO client_groups(name,new_alert,chatty_mult,spike_info,ignore_weak,watch_default,scanner) VALUES(?,?,?,?,?,?,?)
 		ON CONFLICT(name) DO UPDATE SET new_alert=excluded.new_alert, chatty_mult=excluded.chatty_mult, spike_info=excluded.spike_info,
-		ignore_weak=excluded.ignore_weak, watch_default=excluded.watch_default`,
-		g.Name, b2i(g.NewAlert), g.ChattyMult, b2i(g.SpikeInfo), b2i(g.IgnoreWeak), b2i(g.WatchDefault))
+		ignore_weak=excluded.ignore_weak, watch_default=excluded.watch_default, scanner=excluded.scanner`,
+		g.Name, b2i(g.NewAlert), g.ChattyMult, b2i(g.SpikeInfo), b2i(g.IgnoreWeak), b2i(g.WatchDefault), b2i(g.Scanner))
 	return err
 }
 

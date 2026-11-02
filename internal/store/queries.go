@@ -343,7 +343,8 @@ func (s *Store) ClientCounts() (online, total int) {
 // ScanSuspect describes a client whose recent connections look like a scan.
 type ScanSuspect struct {
 	MAC      string
-	Kind     string // "ports" (many ports on one host) or "hosts" (one port on many hosts)
+	Kind     string // "ports" (many ports on one host), "hosts" (one port on many hosts) or "ping" (ICMP echo to many hosts)
+	Internal bool   // the scan targets addresses inside the network (inter-VLAN), not the internet
 	Pairs    int    // distinct ip:port pairs
 	IPs      int    // distinct remote addresses
 	Ports    int    // distinct remote ports
@@ -355,11 +356,20 @@ type ScanSuspect struct {
 // to hundreds of different servers on them is browsing, not scanning.
 var webPorts = map[int]bool{80: true, 443: true, 8080: true, 8443: true, 53: true, 853: true, 123: true, 5222: true, 5228: true, 993: true, 587: true, 465: true}
 
+// isICMPEcho reports whether a flow row is an ICMP/ICMPv6 echo request. RouterOS exports type and code in the
+// destination-port field as type<<8|code (#291), so it is no port: 2048 is "echo", not a service.
+func isICMPEcho(proto, rport int) bool {
+	return proto == 1 && rport>>8 == 8 || proto == 58 && rport>>8 == 128
+}
+
 // PortScanDetails finds clients that, within window seconds, either probed >=minPorts different ports on a
-// single remote host ("ports") or opened connections to >=minHosts different hosts on one non-web port ("hosts").
-// Many different servers on 443 or random high ports (browsing, torrents, CDNs) is deliberately not a match.
+// single remote host ("ports"), opened connections to >=minHosts different hosts on one non-web port ("hosts") or
+// sent ICMP echo to >=minHosts hosts ("ping"). Internet-bound (dir u) and inter-VLAN (dir i) traffic are judged
+// separately (Internal). Traffic of mtmon's own monitoring is left out. Many different servers on 443 or random
+// high ports (browsing, torrents, CDNs) is deliberately not a match.
 func (s *Store) PortScanDetails(window int64, minPorts, minHosts int) ([]ScanSuspect, error) {
-	rows, err := s.DB.Query(`SELECT mac, rip, rport FROM flows WHERE ts>=? AND dir='u' AND mac<>'' GROUP BY mac, rip, rport`, time.Now().Unix()-window)
+	rows, err := s.DB.Query(`SELECT mac, rip, rport, proto, dir FROM flows WHERE ts>=? AND dir IN ('u','i') AND mac<>''
+		AND coalesce(svc,'') NOT IN `+ownSvcs+` AND NOT `+multicastRIP+` GROUP BY mac, rip, rport, proto, dir`, time.Now().Unix()-window)
 	if err != nil {
 		return nil, err
 	}
@@ -367,19 +377,31 @@ func (s *Store) PortScanDetails(window int64, minPorts, minHosts int) ([]ScanSus
 	type acc struct {
 		perIP   map[string]map[int]bool
 		perPort map[int]map[string]bool
+		pings   map[string]bool
 		pairs   int
 	}
-	by := map[string]*acc{}
+	type key struct {
+		mac      string
+		internal bool
+	}
+	by := map[key]*acc{}
 	for rows.Next() {
-		var mac, ip string
-		var port int
-		if rows.Scan(&mac, &ip, &port) != nil {
+		var mac, ip, dir string
+		var port, proto int
+		if rows.Scan(&mac, &ip, &port, &proto, &dir) != nil {
 			continue
 		}
-		a := by[mac]
+		k := key{mac, dir == "i"}
+		a := by[k]
 		if a == nil {
-			a = &acc{perIP: map[string]map[int]bool{}, perPort: map[int]map[string]bool{}}
-			by[mac] = a
+			a = &acc{perIP: map[string]map[int]bool{}, perPort: map[int]map[string]bool{}, pings: map[string]bool{}}
+			by[k] = a
+		}
+		if proto == 1 || proto == 58 { // ICMP carries type/code, not a port
+			if isICMPEcho(proto, port) {
+				a.pings[ip] = true
+			}
+			continue
 		}
 		if a.perIP[ip] == nil {
 			a.perIP[ip] = map[int]bool{}
@@ -392,8 +414,8 @@ func (s *Store) PortScanDetails(window int64, minPorts, minHosts int) ([]ScanSus
 		a.pairs++
 	}
 	var out []ScanSuspect
-	for mac, a := range by {
-		sus := ScanSuspect{MAC: mac, Pairs: a.pairs, IPs: len(a.perIP), Ports: len(a.perPort)}
+	for k, a := range by {
+		sus := ScanSuspect{MAC: k.mac, Internal: k.internal, Pairs: a.pairs, IPs: len(a.perIP), Ports: len(a.perPort)}
 		topIP, topN := "", 0
 		for ip, ps := range a.perIP {
 			if len(ps) > topN || (len(ps) == topN && ip < topIP) {
@@ -417,6 +439,11 @@ func (s *Store) PortScanDetails(window int64, minPorts, minHosts int) ([]ScanSus
 			for ip := range a.perPort[portN] {
 				sus.Targets = append(sus.Targets, ip)
 			}
+		case minHosts > 0 && len(a.pings) >= minHosts:
+			sus.Kind, sus.IPs, sus.Ports = "ping", len(a.pings), 0
+			for ip := range a.pings {
+				sus.Targets = append(sus.Targets, ip)
+			}
 		default:
 			continue
 		}
@@ -430,7 +457,12 @@ func (s *Store) PortScanDetails(window int64, minPorts, minHosts int) ([]ScanSus
 		}
 		out = append(out, sus)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].MAC < out[j].MAC })
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].MAC != out[j].MAC {
+			return out[i].MAC < out[j].MAC
+		}
+		return !out[i].Internal && out[j].Internal
+	})
 	return out, nil
 }
 

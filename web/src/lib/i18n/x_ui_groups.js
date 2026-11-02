@@ -11,6 +11,7 @@ export default {
   "Connections limit ×": "Verbindungs-Limit ×", "Multiplies the limit for “unusually many connections”": "Multipliziert die Grenze für „ungewöhnlich viele Verbindungen“",
   "Spikes as info": "Spitzen als Info", "Traffic spikes caused by its clients are recorded as info": "Verkehrsspitzen ihrer Clients werden nur als Info festgehalten",
   "Ignore weak signal": "Schwaches Signal ignorieren", "A weak Wi-Fi signal is normal for these devices": "Ein schwaches WLAN-Signal ist für diese Geräte normal",
+  "Scanners": "Scanner", "Clients of this group scan on purpose (network monitor, Home Assistant): no port-scan alert": "Clients dieser Gruppe scannen absichtlich (Netzwerkmonitor, Home Assistant): kein Portscan-Alarm",
   "Watch members": "Mitglieder überwachen", "Clients put into the group are watched (alert when offline)": "In die Gruppe gelegte Clients werden überwacht (Alarm bei Offline)",
   "New group name": "Name der neuen Gruppe", "Add group": "Gruppe hinzufügen",
   "Add standard groups (IoT, Family, Servers, Guests, Lab)": "Standardgruppen hinzufügen (IoT, Familie, Server, Gäste, Labor)",
