@@ -8,7 +8,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
-## [Unreleased]
+## [0.20.16] - 2026-11-02
 
 ### Security
 - Sessions end when the password behind them changes: changing or removing the viewer account, or a new admin password (`mtmon passwd`, then restart), signs out every browser that used the old one – also sessions kept across a restart. Before, they stayed valid for up to 7 days.
