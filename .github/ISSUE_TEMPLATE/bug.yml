@@ -1,0 +1,29 @@
+name: Bug report
+description: Something in mtmon does not work as expected.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens
+      description: What you did, what you expected, what you got. No MACs, public IPs or hostnames, please.
+    validations:
+      required: true
+  - type: input
+    id: mtmon
+    attributes:
+      label: mtmon version
+      placeholder: v0.20.17
+    validations:
+      required: true
+  - type: input
+    id: routeros
+    attributes:
+      label: RouterOS version and device model
+      placeholder: "7.24, hAP ax3"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Diagnostics or log excerpt
+      description: Topology → Diagnostics export or `journalctl -u mtmon`, with private data removed.
+      render: text
