@@ -1,0 +1,23 @@
+name: changelog
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-changelog') && github.actor != 'dependabot[bot]' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: CHANGELOG changes with the code
+        run: |
+          base="origin/${{ github.event.pull_request.base.ref }}"
+          files=$(git diff --name-only "$base"...HEAD)
+          if echo "$files" | grep -Eq '^(internal/|cmd/|web/src/|deploy/)' && ! echo "$files" | grep -qx 'CHANGELOG.md'; then
+            echo "::error::This PR changes code but not CHANGELOG.md (## [Unreleased]). Add an entry or label the PR no-changelog."
+            exit 1
+          fi

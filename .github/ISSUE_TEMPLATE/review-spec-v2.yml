@@ -1,0 +1,49 @@
+name: Review finding (Spec v2)
+description: A review finding in the Spec v2 format (see #237).
+labels: ["review"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+    validations:
+      required: true
+  - type: textarea
+    id: must
+    attributes:
+      label: MUST
+      description: Numbered, testable. Every requested point is a MUST.
+      placeholder: "1. ...\n2. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: should
+    attributes:
+      label: SHOULD
+  - type: textarea
+    id: out
+    attributes:
+      label: Out of scope / decided
+  - type: textarea
+    id: edge
+    attributes:
+      label: Edge cases
+      description: Own and infra addresses, existing data and installs, unset settings, restart and counter reset, no CAPsMAN / no IPv6 / several routers.
+  - type: textarea
+    id: surfaces
+    attributes:
+      label: Surfaces
+      description: API, page, suggestion, alert text, overview status, metrics, notifications.
+  - type: textarea
+    id: fixtures
+    attributes:
+      label: Fixtures
+      description: Real, sanitised RouterOS data where the change relies on a field or log format.
+  - type: textarea
+    id: selfcheck
+    attributes:
+      label: Code self-check
+  - type: textarea
+    id: live
+    attributes:
+      label: Cowork live check
