@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // v0.14: texts produced by the backend (alerts, suggestions)
 export default {
+  "Client {who} scans your LAN: {n} ports on {targets} within 60 s (e.g. {ports})": "Client {who} scannt dein LAN: {n} Ports auf {targets} innerhalb von 60 s (z. B. {ports})",
+  "Client {who} scans your LAN: {n} hosts on port {port} within 60 s (e.g. {targets})": "Client {who} scannt dein LAN: {n} Hosts auf Port {port} innerhalb von 60 s (z. B. {targets})",
+  "Client {who} scans your LAN: ICMP echo to {n} hosts within 60 s (e.g. {targets}) – looks like a ping sweep": "Client {who} scannt dein LAN: ICMP-Echo an {n} Hosts innerhalb von 60 s (z. B. {targets}) – sieht nach einem Ping-Sweep aus",
+  "Client {who} sent ICMP echo to {n} hosts within 60 s (e.g. {targets}) – looks like a ping sweep": "Client {who} hat innerhalb von 60 s ICMP-Echo an {n} Hosts gesendet (z. B. {targets}) – sieht nach einem Ping-Sweep aus",
   "Client {who} probed {n} ports on {targets} within 60 s (e.g. {ports}) – looks like a port scan": "Client {who} hat innerhalb von 60 s {n} Ports auf {targets} abgefragt (z. B. {ports}) – sieht nach einem Portscan aus",
   "Client {who} contacted {n} hosts on port {port} within 60 s (e.g. {targets}) – looks like a network sweep": "Client {who} hat innerhalb von 60 s {n} Hosts auf Port {port} kontaktiert (z. B. {targets}) – sieht nach einem Netzwerk-Sweep aus",
   "Traffic spike: {cur} Mbit/s (baseline {base})": "Datenspitze: {cur} Mbit/s (Normalwert {base})",

@@ -120,11 +120,41 @@ func portList(ps []int) string {
 	return strings.Join(s, ", ")
 }
 
-func (e *Engine) scanMsg(s store.ScanSuspect) string {
-	if s.Kind == "ports" {
-		return fmt.Sprintf("Client %s probed %d ports on %s within 60 s (e.g. %s) – looks like a port scan", e.who(s.MAC), s.Ports, strings.Join(s.Targets, ", "), portList(s.TopPorts))
+// scanMsg returns the message key (English template) and parameters of a scan alert. A scan inside the network
+// says so ("scans your LAN"): a compromised device moving sideways matters more than noise from the internet (#291).
+func (e *Engine) scanMsg(s store.ScanSuspect) (string, map[string]string) {
+	p := map[string]string{"who": e.who(s.MAC), "targets": strings.Join(s.Targets, ", "), "ports": portList(s.TopPorts), "port": portList(s.TopPorts)}
+	switch {
+	case s.Kind == "ports" && s.Internal:
+		p["n"] = strconv.Itoa(s.Ports)
+		return "Client {who} scans your LAN: {n} ports on {targets} within 60 s (e.g. {ports})", p
+	case s.Kind == "ports":
+		p["n"] = strconv.Itoa(s.Ports)
+		return "Client {who} probed {n} ports on {targets} within 60 s (e.g. {ports}) – looks like a port scan", p
+	case s.Kind == "ping" && s.Internal:
+		p["n"] = strconv.Itoa(s.IPs)
+		return "Client {who} scans your LAN: ICMP echo to {n} hosts within 60 s (e.g. {targets}) – looks like a ping sweep", p
+	case s.Kind == "ping":
+		p["n"] = strconv.Itoa(s.IPs)
+		return "Client {who} sent ICMP echo to {n} hosts within 60 s (e.g. {targets}) – looks like a ping sweep", p
+	case s.Internal:
+		p["n"] = strconv.Itoa(s.IPs)
+		return "Client {who} scans your LAN: {n} hosts on port {port} within 60 s (e.g. {targets})", p
 	}
-	return fmt.Sprintf("Client %s contacted %d hosts on port %s within 60 s (e.g. %s) – looks like a network sweep", e.who(s.MAC), s.IPs, portList(s.TopPorts), strings.Join(s.Targets, ", "))
+	p["n"] = strconv.Itoa(s.IPs)
+	return "Client {who} contacted {n} hosts on port {port} within 60 s (e.g. {targets}) – looks like a network sweep", p
+}
+
+// scanExempt: clients that scan on purpose or are infrastructure – managed routers/APs and clients of a group
+// marked "scanner" (Home Assistant, an NMS). mtmon's own probes are left out in the query already (#291).
+func (e *Engine) scanExempt(mac string) bool {
+	if e.SelfName != nil {
+		if _, ok := e.SelfName(mac); ok {
+			return true
+		}
+	}
+	g, ok := e.clientGroup(mac)
+	return ok && g.Scanner
 }
 
 // spike raises the traffic-spike alert with the client and destination that cause it. A spike caused by an
@@ -218,10 +248,11 @@ func (e *Engine) Checks() {
 	}
 	if sus, err := e.St.PortScanDetails(60, ports, hosts); err == nil {
 		for _, s := range sus {
-			if e.ignored(s.MAC) {
+			if e.ignored(s.MAC) || e.scanExempt(s.MAC) {
 				continue
 			}
-			e.Raise("port_scan", s.MAC, "warning", e.scanMsg(s), time.Hour)
+			key, params := e.scanMsg(s)
+			e.RaiseP("port_scan", s.MAC, "warning", key, params, "", time.Hour)
 		}
 	}
 	e.wanQualityChecks()

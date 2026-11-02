@@ -55,7 +55,33 @@ func migrateClients(db *sql.DB) error {
 			return err
 		}
 	}
-	return nil
+	return migrateGroupScanner(db)
+}
+
+// migrateGroupScanner adds client_groups.scanner (#291): clients of such a group may scan without an alert.
+func migrateGroupScanner(db *sql.DB) error {
+	rows, err := db.Query(`PRAGMA table_info(client_groups)`)
+	if err != nil {
+		return err
+	}
+	found := false
+	for rows.Next() {
+		var cid, nn, pk int
+		var name, typ string
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &typ, &nn, &dflt, &pk); err != nil {
+			rows.Close()
+			return err
+		}
+		if name == "scanner" {
+			found = true
+		}
+	}
+	rows.Close()
+	if !found {
+		_, err = db.Exec(`ALTER TABLE client_groups ADD COLUMN scanner INTEGER NOT NULL DEFAULT 0`)
+	}
+	return err
 }
 
 // InboxClient is one row of the "new / unnamed devices" inbox.
