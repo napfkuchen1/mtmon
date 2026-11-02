@@ -964,7 +964,7 @@ func (s *Server) system(w http.ResponseWriter, r *http.Request) {
 		"version": s.Version, "uptime_s": int64(time.Since(s.Started).Seconds()),
 		"flow_packets": pk, "flow_records": rec, "flow_errors": er, "flow_no_template": nt,
 		"flow_dropped_unknown_exporter": s.Col.Dropped.Load(),
-		"flows_ps":                      s.Hub.FlowsPS, "queue": s.St.QueueLen(), "db_dropped": s.St.Dropped,
+		"flows_ps":                      s.Hub.FlowsPS, "queue": s.St.QueueLen(), "db_dropped": s.St.Dropped, "db_implausible": s.St.Implausible,
 		"ignored_transit": s.Pipe.IgnoredCount(), "db_bytes": dbSize, "enrich": s.En.Status(), "store_debug_logs": s.St.StoreDebugLogs(),
 		"retention_days": s.Cfg.Retention, "raw_retention_days": s.Cfg.RawRetention,
 		"learning_until": s.St.LearningUntil(), "learning_reason": s.St.LearningReason(),

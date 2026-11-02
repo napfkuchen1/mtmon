@@ -138,11 +138,13 @@ type Store struct {
 	wanStMu sync.Mutex
 	wanSt   map[string]WANStatus // latest probe result per target (wanstatus.go)
 
-	mu        sync.Mutex
-	flowQ     []FlowRow
-	Dropped   uint64
-	fwQ       []FwEvent
-	FwDropped uint64
+	mu      sync.Mutex
+	flowQ   []FlowRow
+	Dropped uint64
+	// Implausible counts flow rows refused for impossible byte/packet counts (broken or spoofed exporter).
+	Implausible uint64
+	fwQ         []FwEvent
+	FwDropped   uint64
 
 	memo memoCache
 	dir  string
