@@ -39,7 +39,7 @@ var (
 	reMsg   = regexp.MustCompile(`^(?:(.*?)\s+)?([\w-]+): in:([^\s,]+) out:([^,]+),\s*` +
 		`(?:connection-state:(\S+)\s+)?(?:src-mac ([0-9A-Fa-f:]{17}),\s*)?` +
 		`proto ([\w-]+)(?: \(([^)]*)\))?,\s*` +
-		`(\S+?)(?::(\d+))?->(\S+?)(?::(\d+))?(?:,\s*NAT (?:\(([^)]*)\)->\S+|\S+?->\(([^)]*)\)))?,\s*len (\d+)`)
+		`(\S+?)->(\S+?)(?:,\s*NAT (?:\(([^)]*)\)->\S+|\S+?->\(([^)]*)\)))?,\s*len (\d+)`)
 )
 
 // ParseFirewall extracts a firewall log event from one syslog payload (any RouterOS syslog flavour:
@@ -55,14 +55,58 @@ func ParseFirewall(msg string) (Event, bool) {
 		return Event{}, false
 	}
 	e := Event{Prefix: strings.TrimSpace(m[1]), Chain: m[2], InIf: m[3], OutIf: strings.TrimSpace(m[4]), CState: m[5],
-		MAC: strings.ToUpper(m[6]), Proto: m[7], Flags: m[8], Src: m[9], Dst: m[11], NAT: m[13]}
+		MAC: strings.ToUpper(m[6]), Proto: m[7], Flags: m[8], NAT: m[11]}
 	if e.NAT == "" {
-		e.NAT = m[14] // dst-nat lines read "NAT src->(translated dst->original dst)"
+		e.NAT = m[12] // dst-nat lines read "NAT src->(translated dst->original dst)"
 	}
-	e.SPort, _ = strconv.Atoi(m[10])
-	e.DPort, _ = strconv.Atoi(m[12])
-	e.Len, _ = strconv.Atoi(m[15])
+	var ok bool
+	if e.Src, e.SPort, ok = splitEndpoint(m[9], e.Proto); !ok {
+		return Event{}, false
+	}
+	if e.Dst, e.DPort, ok = splitEndpoint(m[10], e.Proto); !ok {
+		return Event{}, false
+	}
+	e.Len, _ = strconv.Atoi(m[13])
 	return e, true
+}
+
+// splitEndpoint turns "addr", "addr:port", "[v6]" or "[v6]:port" into a validated address (no brackets) and port.
+// Portless protocols (ICMP, ESP, …) carry no port. A bare IPv6 address with a port is ambiguous ("fe80::1:2" is one
+// address or fe80::1 port 2): for TCP/UDP the last colon is tried as port separator first, otherwise the whole token
+// is the address. An address that does not validate fails the line (#289).
+func splitEndpoint(tok, proto string) (addr string, port int, ok bool) {
+	if strings.HasPrefix(tok, "[") {
+		end := strings.IndexByte(tok, ']')
+		if end < 0 {
+			return "", 0, false
+		}
+		a, err := netip.ParseAddr(tok[1:end])
+		if err != nil {
+			return "", 0, false
+		}
+		rest := tok[end+1:]
+		if rest == "" {
+			return a.String(), 0, true
+		}
+		p, err := strconv.Atoi(strings.TrimPrefix(rest, ":"))
+		if !strings.HasPrefix(rest, ":") || err != nil || p < 0 || p > 65535 {
+			return "", 0, false
+		}
+		return a.String(), p, true
+	}
+	whole, wholeErr := netip.ParseAddr(tok)
+	portProto := proto == "TCP" || proto == "UDP" || proto == "UDP-Lite" || proto == "SCTP"
+	if i := strings.LastIndexByte(tok, ':'); i > 0 && (wholeErr != nil || (portProto && whole.Is6())) {
+		if a, err := netip.ParseAddr(tok[:i]); err == nil && (a.Is4() || portProto) {
+			if p, err := strconv.Atoi(tok[i+1:]); err == nil && p >= 0 && p <= 65535 {
+				return a.String(), p, true
+			}
+		}
+	}
+	if wholeErr != nil {
+		return "", 0, false
+	}
+	return whole.String(), 0, true
 }
 
 // Server listens for syslog datagrams.

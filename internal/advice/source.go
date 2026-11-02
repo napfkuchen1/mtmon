@@ -128,6 +128,7 @@ func convCaps(k provision.Caps) *Caps {
 		FlowTargets: k.Flow.Targets, LogActions: len(k.LogActions), WwwSSL: k.WwwSSL, WwwSSLAddr: k.WwwSSLAddr, Cleartext: k.Cleartext,
 		OpenMgmt: k.OpenMgmt, APIOn: k.APIOn, PinnedMACs: k.PinnedMACs, NTPOff: k.NTPOff, Role: k.Role}
 	c.Addresses = k.Addresses
+	c.ServiceFrom = k.ServiceFrom
 	c.ProbedAt = k.ProbedAt
 	c.FilesReadable, c.NewestBackup, c.NewestExport = k.Files.Readable, k.Files.NewestBackup, k.Files.NewestExport
 	c.UpdateInstalled, c.UpdateLatest, c.UpdateChannel = k.Update.Installed, k.Update.Latest, k.Update.Channel

@@ -84,12 +84,13 @@ type Caps struct {
 	LogActions                 int // remote logging actions
 	WwwSSL                     bool
 	WwwSSLAddr                 string
-	Cleartext                  []string // enabled telnet / ftp services
-	APIOn                      []string // enabled api / api-ssl services
-	OpenMgmt                   []string // enabled management services open to every address
-	PinnedMACs                 []string // clients named by a Wi-Fi access-list rule on this device
-	NTPOff                     bool     // NTP client disabled
-	Role                       string   // router | ap | switch (suggested by the probe)
+	ServiceFrom                map[string]string // management service -> its current source list (available-from)
+	Cleartext                  []string          // enabled telnet / ftp services
+	APIOn                      []string          // enabled api / api-ssl services
+	OpenMgmt                   []string          // enabled management services open to every address
+	PinnedMACs                 []string          // clients named by a Wi-Fi access-list rule on this device
+	NTPOff                     bool              // NTP client disabled
+	Role                       string            // router | ap | switch (suggested by the probe)
 	Filter                     []FilterRule
 	DNSRedirectUDP             bool // active dst-nat rule sends UDP/53 to the router (rule existence counts, not its packet counter)
 	DNSRedirectTCP             bool

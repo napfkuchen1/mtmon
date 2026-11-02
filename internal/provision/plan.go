@@ -70,6 +70,11 @@ func DefaultOptions(k *Caps, mtmonIP string) Options {
 			o.FwRules = append(o.FwRules, f.ID)
 		}
 	}
+	for _, f := range k.Filter6 {
+		if o.Syslog && !f.Disabled && !f.Managed && (f.Action == "drop" || f.Action == "reject") {
+			o.FwRules = append(o.FwRules, f.ID)
+		}
+	}
 	return o
 }
 
@@ -80,7 +85,24 @@ func srcArg(o Options) string {
 	return ""
 }
 
-func prefixFor(id string) string { return "MTM-" + strings.TrimPrefix(id, "*") }
+// v6Prefix marks rule IDs of /ipv6/firewall/filter inside the shared ID lists (Options, requests); the router never sees it.
+const v6Prefix = "v6:"
+
+// prefixFor is the log prefix of a rule: MTM-<id> for IPv4, MTM6-<id> for IPv6 (#298).
+func prefixFor(id string) string {
+	if raw, ok := strings.CutPrefix(id, v6Prefix); ok {
+		return "MTM6-" + strings.TrimPrefix(raw, "*")
+	}
+	return "MTM-" + strings.TrimPrefix(id, "*")
+}
+
+// ruleMenu splits a rule ID into its REST menu, the CLI form of the menu and the router's own .id.
+func ruleMenu(id string) (menu, cli, raw string) {
+	if raw, ok := strings.CutPrefix(id, v6Prefix); ok {
+		return "/ipv6/firewall/filter", "/ipv6 firewall filter", raw
+	}
+	return "/ip/firewall/filter", "/ip firewall filter", id
+}
 
 func buildActions(k *Caps, o Options) []action {
 	var a []action
@@ -169,7 +191,8 @@ func logRulesStep(k *Caps, key string, ids []string, title, why string) Step {
 	var cmds []string
 	for _, id := range ids {
 		if f := k.rule(id); f != nil {
-			cmds = append(cmds, fmt.Sprintf("/ip firewall filter set %s log=yes log-prefix=%s   # %s %s %s", id, prefixFor(id), f.Chain, f.Action, f.Comment))
+			_, cli, raw := ruleMenu(id)
+			cmds = append(cmds, fmt.Sprintf("%s set %s log=yes log-prefix=%s   # %s %s %s", cli, raw, prefixFor(id), f.Chain, f.Action, f.Comment))
 		}
 	}
 	return Step{Key: key, Title: title, Why: why, Commands: cmds, Undo: "log and log-prefix of each rule are reset to their previous values", Risk: "medium"}
@@ -180,7 +203,8 @@ func countRulesStep(k *Caps, key string, ids []string, title, why string) Step {
 	var cmds []string
 	for _, id := range ids {
 		if f := k.rule(id); f != nil {
-			cmds = append(cmds, fmt.Sprintf("/ip firewall filter set %s log=no log-prefix=%s   # %s %s %s", id, prefixFor(id), f.Chain, f.Action, f.Comment))
+			_, cli, raw := ruleMenu(id)
+			cmds = append(cmds, fmt.Sprintf("%s set %s log=no log-prefix=%s   # %s %s %s", cli, raw, prefixFor(id), f.Chain, f.Action, f.Comment))
 		}
 	}
 	return Step{Key: key, Title: title, Why: why, Commands: cmds, Undo: "log and log-prefix of each rule are reset to their previous values", Risk: "low"}
@@ -199,9 +223,13 @@ func ConvertibleAllow(k *Caps) []string {
 }
 
 func (k *Caps) rule(id string) *FilterRule {
-	for i := range k.Filter {
-		if k.Filter[i].ID == id {
-			return &k.Filter[i]
+	list := k.Filter
+	if strings.HasPrefix(id, v6Prefix) {
+		list = k.Filter6
+	}
+	for i := range list {
+		if list[i].ID == id {
+			return &list[i]
 		}
 	}
 	return nil

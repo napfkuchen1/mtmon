@@ -162,16 +162,20 @@ func (s *Server) annotateConns(mac string, conns []store.Conn, since int64) {
 		return
 	}
 	rules, _ := s.St.FwRules()
-	fwDev := map[string]bool{}
+	fwDev, fwDev6 := map[string]bool{}, map[string]bool{}
 	for _, r := range rules {
-		fwDev[r.Device] = true
+		if strings.HasPrefix(r.Prefix, "MTM6-") {
+			fwDev6[r.Device] = true
+		} else {
+			fwDev[r.Device] = true
+		}
 	}
 	for i := range conns {
 		if a, err := netip.ParseAddr(conns[i].Exporter); err == nil {
 			conns[i].Device = s.Cfg.SourceDevice(a)
 		}
 	}
-	if len(fwDev) == 0 {
+	if len(fwDev) == 0 && len(fwDev6) == 0 {
 		return
 	}
 	c, err := s.St.Client(mac)
@@ -224,10 +228,21 @@ func (s *Server) annotateConns(mac string, conns []store.Conn, since int64) {
 		switch {
 		case best.Verdict != "":
 			cn.Verdict, cn.Rule = best.Verdict, best.Rule
+		case isIPv6(cn.RIP):
+			// IPv4 logging proves nothing about IPv6 flows: without logged IPv6 rules the verdict stays unknown (#298)
+			if fwDev6[cn.Device] {
+				cn.Verdict, cn.Rule = "allowed", "no logged drop rule matched"
+			}
 		case fwDev[cn.Device]:
 			cn.Verdict, cn.Rule = "allowed", "no logged drop rule matched"
 		}
 	}
+}
+
+// isIPv6 reports whether s is a native IPv6 address (not an IPv4-mapped one).
+func isIPv6(s string) bool {
+	a, err := netip.ParseAddr(s)
+	return err == nil && a.Is6() && !a.Is4In6()
 }
 
 func rank(v string) int {

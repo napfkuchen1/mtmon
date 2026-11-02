@@ -37,7 +37,7 @@ func FeatureOf(e store.ManifestEntry) string {
 		return FeatEventLogs
 	case e.Path == "/system/logging" || e.Path == "/system/logging/action":
 		return FeatFwLog
-	case e.Path == "/ip/firewall/filter":
+	case e.Path == "/ip/firewall/filter" || e.Path == "/ipv6/firewall/filter":
 		switch {
 		case strings.Contains(e.Descr, "FastTrack"):
 			return FeatFasttrack

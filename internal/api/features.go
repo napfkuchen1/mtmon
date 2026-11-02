@@ -109,12 +109,33 @@ func (s *Server) deviceFeaturesGet(w http.ResponseWriter, r *http.Request) {
 	out := map[string]any{"features": deviceFeatures(entries, caps), "managed": row.Managed, "convertible_allow": []string{}}
 	if caps != nil {
 		out["filter_rules"] = caps.Filter
+		out["filter_rules6"] = caps.Filter6
 		out["role"] = caps.Role
 		out["convertible_allow"] = s.convertibleAllow(name, caps)
 	} else {
 		out["filter_rules"] = []provision.FilterRule{}
+		out["filter_rules6"] = []provision.FilterRule{}
+	}
+	if peer := s.flowPeer(name); peer != "" {
+		out["flow_peer"] = peer // another managed router already exports Traffic Flow: a second exporter would only double-count (#286)
 	}
 	jsonOut(w, out)
+}
+
+// flowPeer names another router whose Traffic Flow export mtmon set up itself ("" if none).
+func (s *Server) flowPeer(self string) string {
+	for _, d := range s.Cfg.AllDevices() {
+		if d.Name == self {
+			continue
+		}
+		entries, _ := s.St.Manifest(d.Name)
+		for _, f := range deviceFeatures(entries, nil) {
+			if f.Key == provision.FeatFlow && f.On {
+				return d.Name
+			}
+		}
+	}
+	return ""
 }
 
 type featuresReq struct {
@@ -135,7 +156,7 @@ type featuresReq struct {
 // (logging those would flood the log).
 func defaultAllowRules(caps *provision.Caps) []string {
 	var out []string
-	for _, f := range caps.Filter {
+	for _, f := range slices.Concat(caps.Filter, caps.Filter6) {
 		sum := strings.ToLower(f.Summary)
 		if f.Disabled || f.Managed || f.Log || f.Action != "accept" || strings.Contains(sum, "established") || strings.Contains(sum, "related") || strings.Contains(sum, "untracked") {
 			continue
@@ -222,6 +243,11 @@ func (s *Server) featureOptions(row *store.DeviceRow, caps *provision.Caps, in f
 	}
 	if len(in.FwRules) > 0 {
 		opt.FwRules = in.FwRules
+		for _, f := range caps.Filter6 { // the rule picker lists IPv4 rules only: IPv6 drop rules always come along (#298)
+			if opt.Syslog && !f.Disabled && !f.Managed && (f.Action == "drop" || f.Action == "reject") && !slices.Contains(opt.FwRules, f.ID) {
+				opt.FwRules = append(opt.FwRules, f.ID)
+			}
+		}
 	}
 	if depOnly {
 		opt.FwRules = nil
@@ -269,6 +295,8 @@ func (s *Server) featureRevert(ctx context.Context, admin *poller.Client, name s
 			s.St.DB.Exec(`DELETE FROM fw_rules WHERE device=? AND prefix=?`, name, "MTM-NEW")
 		case e.Path == "/ip/firewall/filter" && e.RID != "":
 			s.St.DB.Exec(`DELETE FROM fw_rules WHERE device=? AND prefix=?`, name, "MTM-"+strings.TrimPrefix(e.RID, "*"))
+		case e.Path == "/ipv6/firewall/filter" && e.RID != "":
+			s.St.DB.Exec(`DELETE FROM fw_rules WHERE device=? AND prefix=?`, name, "MTM6-"+strings.TrimPrefix(e.RID, "*"))
 		}
 	}
 	return true
