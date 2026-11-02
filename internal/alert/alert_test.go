@@ -232,6 +232,24 @@ func TestTrafficSpike(t *testing.T) {
 	}
 }
 
+// #288: a speed test at 500 Mbit/s next to light background traffic raises no spike and does not lift the baseline.
+func TestOwnTrafficIsNoSpike(t *testing.T) {
+	e, got := newEngine(t)
+	for _, svc := range []string{store.SpeedtestSvc, store.MonitorSvc} {
+		e.Hub.AddFlow(store.FlowRow{MAC: "m", Dir: "d", Bytes: 10_000}) // background traffic of ~2 Mbit/s class
+		e.Hub.AddFlow(store.FlowRow{MAC: "m", Dir: "d", Bytes: 2 << 30, Svc: svc})
+		e.Hub.AddFlow(store.FlowRow{MAC: "m", Dir: "u", Bytes: 1 << 30, Svc: svc})
+		e.Checks()
+		if len(*got) != 0 {
+			t.Fatalf("own traffic %s raised %s", svc, kinds(*got))
+		}
+		if e.baseline > 1e6 {
+			t.Fatalf("own traffic %s lifted the baseline to %v", svc, e.baseline)
+		}
+		e.Hub.Reset()
+	}
+}
+
 func TestSpikeOfIgnoredClientIsSilent(t *testing.T) {
 	e, got := newEngine(t)
 	e.Cfg.AlertIgnore = []string{"m"}

@@ -219,7 +219,11 @@ func (e *Engine) Checks() {
 		return
 	}
 	snap := e.Hub.Snapshot(e.Hub.LastSeq(), 1)
-	cur := snap.UpBps + snap.DownBps
+	// mtmon's own speed test and probes are no traffic spike, and they must not lift the baseline either (#288)
+	cur := snap.UpBps + snap.DownBps - snap.OwnBps
+	if cur < 0 {
+		cur = 0
+	}
 	e.mu.Lock()
 	if e.baseline == 0 {
 		e.baseline = cur
