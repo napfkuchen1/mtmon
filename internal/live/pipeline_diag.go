@@ -55,6 +55,21 @@ type pipeDiag struct {
 	dedup   map[netip.Addr]int64 // flows dropped as a second copy of another exporter's flow, per exporter (#286)
 	ignored []diagIgnored        // ring, oldest first once full
 	next    int
+	total   int64 // all flows seen
+	attDrop int64 // dropped as transit while one side is in a network a router has on its WAN side (#297)
+}
+
+func (d *pipeDiag) attachedDrop() {
+	d.mu.Lock()
+	d.attDrop++
+	d.mu.Unlock()
+}
+
+// TransitAttached returns the flows dropped as transit that touch a router-attached network, and all flows seen.
+func (p *Pipeline) TransitAttached() (dropped, total int64) {
+	p.diag.mu.Lock()
+	defer p.diag.mu.Unlock()
+	return p.diag.attDrop, p.diag.total
 }
 
 // dedupDrop counts a flow of exporter that another router already reported (#286).
@@ -81,6 +96,7 @@ func (d *pipeDiag) note(r flow.Record, dir string, why ...string) {
 	}
 	d.counts[k]++
 	d.bytes[k] += r.Bytes
+	d.total++
 	if dir != "x" {
 		return
 	}
@@ -126,11 +142,15 @@ func (p *Pipeline) Diagnostics() map[string]any {
 	nets := []string{}
 	if p.Cfg != nil {
 		nets = append(nets, p.Cfg.LocalNets...)
-		nets = append(nets, p.Cfg.LearnedNets()...) // the routers' own delegated IPv6 prefixes, learned automatically
+		nets = append(nets, p.Cfg.LearnedNets()...) // the routers' own delegated IPv6 prefixes and LAN-side IPv4 networks, learned automatically
+	}
+	attached := []string{}
+	if p.Cfg != nil {
+		attached = p.Cfg.AttachedNets()
 	}
 	dd := map[string]int64{}
 	for a, n := range d.dedup {
 		dd[a.String()] = n
 	}
-	return map[string]any{"local_nets": nets, "by_interface": rows, "dedup_dropped": dd, "ignored_recent": ign, "note": "in_if/out_if are the router's interface indexes (since boot); dir x = dropped because neither address is in local_nets"}
+	return map[string]any{"local_nets": nets, "by_interface": rows, "dedup_dropped": dd, "ignored_recent": ign, "attached_nets": attached, "transit_attached": d.attDrop, "note": "in_if/out_if are the router's interface indexes (since boot); dir x = dropped because neither address is in local_nets"}
 }

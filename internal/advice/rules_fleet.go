@@ -288,6 +288,30 @@ func ruleClockSkew(s Snapshot) ([]Suggestion, string) {
 	return out, ""
 }
 
+// TransitShareLimit: from this share of flows dropped as transit next to a router network on, mtmon suggests local_nets (#297).
+const TransitShareLimit = 0.05
+
+// ruleTransitAttached (#297): traffic of a network a router is attached to is dropped because both addresses look
+// remote. Typical: a routed public /29 on a LAN port that mtmon could not tell from the WAN side.
+func ruleTransitAttached(s Snapshot) ([]Suggestion, string) {
+	t := s.TransitDrops()
+	if t.Total < 200 {
+		return nil, "too few flows seen yet"
+	}
+	share := float64(t.Dropped) / float64(t.Total)
+	if share <= TransitShareLimit {
+		return nil, ""
+	}
+	return []Suggestion{{
+		Subject: "local_nets", Severity: SevWarning, Category: CatMonitoring, Link: "devices", Confidence: "medium",
+		Title:    fmt.Sprintf("%d %% of the flows are dropped as transit next to a router network", int(share*100+0.5)),
+		Why:      "Both addresses of these flows look remote, but one lies in a network a router is attached to. If that is one of your own LANs (a routed public range, a VLAN in 100.64.0.0/10), its traffic is missing from all totals.",
+		Evidence: []string{fmt.Sprintf("%d of %d flows dropped; networks: %s", t.Dropped, t.Total, strings.Join(t.Nets, ", "))},
+		Steps:    []string{"If one of these networks is a LAN of yours, add it to local_nets in the settings.", "If it is the upstream side (modem, ISP), ignore this."},
+		Limits:   "mtmon learns LAN networks of routers by itself, except those on the WAN interface list or on a tunnel.",
+	}}, ""
+}
+
 // ruleAPOnAP (#190 baseline): the API service on an access point. mtmon talks REST (www), so the binary API is only
 // attack surface unless a script of yours uses it.
 func ruleAPOnAP(s Snapshot) ([]Suggestion, string) {

@@ -33,6 +33,8 @@ type Live struct {
 	IsSelf func(mac string) bool
 	// ExporterSkew returns the clock offset of an exporter (this host minus router, from the flow export header).
 	ExporterSkew func(addr string) (skew time.Duration, ok bool)
+	// Transit returns the transit-drop counters of the flow pipeline (#297); optional.
+	Transit func() TransitStat
 	// OwnsAddr reports whether an address belongs to a managed device (shared address-ownership answer); sightings
 	// stored before the pipeline knew this address are filtered here, so old findings vanish without manual action.
 	OwnsAddr func(ip string) bool
@@ -360,6 +362,13 @@ func (l *Live) FwHistory() time.Duration {
 		return 0
 	}
 	return l.now.Sub(time.Unix(oldest, 0))
+}
+
+func (l *Live) TransitDrops() TransitStat {
+	if l.Transit == nil {
+		return TransitStat{}
+	}
+	return l.Transit()
 }
 
 func (l *Live) GhostDNS7d() []GhostDNS {

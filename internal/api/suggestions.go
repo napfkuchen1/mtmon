@@ -52,6 +52,12 @@ func (s *Server) adviceResult(force bool) advice.Result {
 		l.IsSelf = func(mac string) bool { _, ok := s.Mgr.SelfDevice(mac); return ok }
 		l.OwnsAddr = s.Mgr.OwnsAddr
 	}
+	if s.Pipe != nil {
+		l.Transit = func() advice.TransitStat {
+			d, n := s.Pipe.TransitAttached()
+			return advice.TransitStat{Dropped: d, Total: n, Nets: s.Cfg.AttachedNets()}
+		}
+	}
 	if s.Col != nil {
 		l.ExporterLast = func(addr string) (time.Time, bool) {
 			ip, err := netip.ParseAddr(addr)

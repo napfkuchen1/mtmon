@@ -456,6 +456,12 @@ func (w *worker) l3Poll(ctx context.Context) {
 			wan = map[string]bool{}
 		}
 		w.m.setSnap(w.d.Name, func(s *devSnap) { s.wan = wan })
+		if w.d.Role != "ap" {
+			learn, attached := ownV4Prefixes(addrs, ifs, wan)
+			now := time.Now()
+			w.m.Cfg.LearnNets(learn, now)
+			w.m.Cfg.NoteAttached(attached, now)
+		}
 		if n := w.m.St.RemoveWANClients(w.d.Name, wanList(wan)); n > 0 { // leftovers from before the WAN check existed
 			w.m.Log.Info("removed offline records learned on a WAN interface", "device", w.d.Name, "count", n)
 		}

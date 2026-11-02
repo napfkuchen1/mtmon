@@ -81,6 +81,7 @@ type Config struct {
 	localPrefixes []netip.Prefix
 	learnedMu     sync.RWMutex
 	learned       map[netip.Prefix]time.Time // prefixes of the routers themselves (delegated IPv6), last seen
+	attached      map[netip.Prefix]time.Time // router networks on the WAN side (not learned as internal), last seen (#297)
 	path          string
 	mu            sync.RWMutex
 	dyn           []Device // devices added via the UI (DB), merged with Devices
@@ -212,6 +213,48 @@ func (c *Config) LearnNets(ps []netip.Prefix, now time.Time) {
 			delete(c.learned, p)
 		}
 	}
+}
+
+// NoteAttached records networks a router has on its WAN side or tunnels. They stay remote; flows that touch them and
+// are dropped as transit hint at a LAN that mtmon could not tell apart (#297).
+func (c *Config) NoteAttached(ps []netip.Prefix, now time.Time) {
+	c.learnedMu.Lock()
+	defer c.learnedMu.Unlock()
+	if c.attached == nil {
+		c.attached = map[netip.Prefix]time.Time{}
+	}
+	for _, p := range ps {
+		c.attached[p.Masked()] = now
+	}
+	for p, t := range c.attached {
+		if now.Sub(t) > LearnedNetsKeep {
+			delete(c.attached, p)
+		}
+	}
+}
+
+// InAttached reports whether ip is in a network a router has on its WAN side or tunnels.
+func (c *Config) InAttached(ip netip.Addr) bool {
+	c.learnedMu.RLock()
+	defer c.learnedMu.RUnlock()
+	for p := range c.attached {
+		if p.Contains(ip.Unmap()) {
+			return true
+		}
+	}
+	return false
+}
+
+// AttachedNets lists those networks (diagnostics, suggestion).
+func (c *Config) AttachedNets() []string {
+	c.learnedMu.RLock()
+	defer c.learnedMu.RUnlock()
+	out := make([]string, 0, len(c.attached))
+	for p := range c.attached {
+		out = append(out, p.String())
+	}
+	sort.Strings(out)
+	return out
 }
 
 // LearnedNets lists the learned prefixes (diagnostics).

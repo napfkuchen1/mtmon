@@ -7,6 +7,7 @@ import "time"
 // Data is a plain in-memory Snapshot (test fixture; the live Snapshot is built in the API layer).
 type Data struct {
 	NowT    time.Time
+	Transit TransitStat
 	Uptime  time.Duration
 	Devs    []Device
 	Cls     []Client
@@ -58,4 +59,5 @@ func (d *Data) BlockedSources24h() []BlockedSrc                      { return d.
 func (d *Data) FwRules() []FwRule                                    { return d.Rules }
 func (d *Data) SelfHealth() SelfHealth                               { return d.Self }
 func (d *Data) FwHistory() time.Duration                             { return d.FwHist }
+func (d *Data) TransitDrops() TransitStat                            { return d.Transit }
 func (d *Data) GhostDNS7d() []GhostDNS                               { return d.Ghosts }

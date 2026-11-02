@@ -799,3 +799,12 @@ func TestDanglingInterfaceUsesHistoryHint(t *testing.T) {
 	d.Devs[0].Caps.Dangling = []DanglingRef{}
 	expect(t, d, "dangling-ifaces", 0) // fixed: the next advice run no longer reports it
 }
+
+func TestRuleTransitAttached(t *testing.T) {
+	d := base()
+	skipped(t, d, "transit-attached")
+	d.Transit = TransitStat{Dropped: 5, Total: 1000, Nets: []string{"203.0.113.0/29"}}
+	expect(t, d, "transit-attached", 0)
+	d.Transit.Dropped = 200
+	expect(t, d, "transit-attached", 1)
+}
