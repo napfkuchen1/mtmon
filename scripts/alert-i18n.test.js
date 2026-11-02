@@ -72,6 +72,10 @@ tmps.push(deTmp, tmp)
       ['Memory use is rising: +6.2 points between the first and second half of the window', 'steigt'],
       ['Default peer AA:BB:CC:DD:EE:FF (tunnel address 10.0.0.2) on rb1 has connected', 'Standard-Peer'],
     ]
+    // {ver} is one word (CodeQL: the escape in a plain string turned "\\s" into the letter "s")
+    sugg.push(['rb1 runs 7.15.3-testing', 'läuft mit 7.15.3-testing'], ['rb1 runs v1.0.0-rc.s1', 'läuft mit v1.0.0-rc.s1'])
+    const twoWords = tr('rb1 runs 7.15 beta')
+    assert(!twoWords.includes('läuft'), 'a version is one word, got: ' + twoWords)
     for (const [en, de] of sugg) {
       const out = tr(en)
       assert(out.includes(de), 'suggestion not translated: ' + en + ' -> ' + out)

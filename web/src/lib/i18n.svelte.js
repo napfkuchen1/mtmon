@@ -57,7 +57,7 @@ function templates() {
   if (tpl) return tpl
   tpl = Object.keys(srv).filter(k => k.includes('{')).map(k => {
     const names = []
-    const re = new RegExp('^' + k.replace(/[.*+?^$()|[\]\\]/g, '\\$&').replace(/\{(\w+)\}/g, (m, n) => { names.push(n); return n === 'ver' ? '([^\s;,]+)' : '((?:(?! – ).)+?)' }) + '$', 's')
+    const re = new RegExp('^' + k.replace(/[.*+?^$()|[\]\\]/g, '\\$&').replace(/\{(\w+)\}/g, (m, n) => { names.push(n); return n === 'ver' ? '([^\\s;,]+)' : '((?:(?! – ).)+?)' }) + '$', 's')
     return { re, names, to: srv[k] }
   })
   return tpl
