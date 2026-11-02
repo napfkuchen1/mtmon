@@ -23,6 +23,13 @@ commit built it). Check it with:
 gh attestation verify mtmon-linux-amd64.tar.gz --repo napfkuchen1/mtmon
 ```
 
+## SBOM
+Each release also carries two CycloneDX SBOMs, `mtmon-sbom-go.cdx.json` (Go modules in the binary) and
+`mtmon-sbom-npm.cdx.json` (production npm packages of the UI), each with an SBOM attestation for the archive:
+```bash
+gh attestation verify mtmon-linux-amd64.tar.gz --repo napfkuchen1/mtmon --predicate-type https://cyclonedx.org/bom
+```
+
 ## CI gate
 The release workflow does not repeat tests and lint: it requires a successful `ci` run for exactly the commit being
 released (merge to `main`, wait for CI, then release). Without one, the run stops before building anything.

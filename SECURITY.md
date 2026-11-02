@@ -9,7 +9,7 @@ observed and, if possible, steps to reproduce. You will get an answer as soon as
 mtmon is in beta (0.x). Only the latest release receives fixes.
 
 ## Verifying releases
-Release archives are signed with minisign and carry a build-provenance attestation. See
+Release archives are signed with minisign and carry a build-provenance attestation and SBOMs (CycloneDX, Go and npm) with their own attestation. See
 [docs/release-signing.md](docs/release-signing.md) for the public key and the verification commands.
 
 The installer refuses a signed release when `minisign` is not installed (`apt install minisign`). Override with

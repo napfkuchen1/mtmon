@@ -1,0 +1,11 @@
+# Security-sensitive paths (#302). The ruleset on main can require a code-owner review for these once enabled
+# (see docs/repo-hardening.md).
+/.github/                  @napfkuchen1
+/deploy/                   @napfkuchen1
+/install.sh                @napfkuchen1
+/internal/update/          @napfkuchen1
+/internal/api/auth*.go     @napfkuchen1
+/internal/api/access.go    @napfkuchen1
+/internal/api/roles.go     @napfkuchen1
+/internal/addr/            @napfkuchen1
+/minisign.pub              @napfkuchen1
