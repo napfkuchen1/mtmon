@@ -8,7 +8,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 (what is new, changed, fixed). Upgrading is always the same: run the installer again and choose *update*
 (a snapshot of the container is taken first).
 
-## [Unreleased]
+## [0.20.14] - 2026-11-02
 
 ### Security
 - Login rate limit: a device on your network could choose its own rate-limit bucket by sending an `X-Forwarded-For` header, and parallel requests could all slip past the limit. Forwarded headers are now only honoured from trusted proxies, and every attempt is counted before the password is checked.
