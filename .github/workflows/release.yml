@@ -10,16 +10,18 @@ on:
         description: "Release tag to create from main, e.g. v0.8.0"
         required: true
 permissions:
-  contents: write
-  actions: read        # CI gate
-  id-token: write      # build provenance attestation
-  attestations: write
+  contents: read
 env:
   TAG: ${{ inputs.tag || github.ref_name }}
   VERSION: ${{ inputs.tag || github.ref_name }} # make uses it instead of git describe: the binary must report exactly the release tag
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write      # create the release
+      actions: read        # CI gate
+      id-token: write      # build provenance and SBOM attestations
+      attestations: write
     steps:
       - name: manual runs only from main
         if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
@@ -70,6 +72,18 @@ jobs:
       - name: build provenance attestation
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with: { subject-path: dist/mtmon-linux-amd64.tar.gz }
+      - name: SBOM (CycloneDX, Go and npm)
+        run: |
+          # production dependencies only; the Go SBOM lists the modules compiled into cmd/mtmon
+          go run github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.10.0 app -json -main cmd/mtmon -version "$TAG" -output dist/mtmon-sbom-go.cdx.json
+          (cd web && npm sbom --sbom-format=cyclonedx --omit=dev > ../dist/mtmon-sbom-npm.cdx.json)
+          test -s dist/mtmon-sbom-go.cdx.json && test -s dist/mtmon-sbom-npm.cdx.json
+      - name: SBOM attestation (Go)
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with: { subject-path: dist/mtmon-linux-amd64.tar.gz, sbom-path: dist/mtmon-sbom-go.cdx.json }
+      - name: SBOM attestation (npm)
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with: { subject-path: dist/mtmon-linux-amd64.tar.gz, sbom-path: dist/mtmon-sbom-npm.cdx.json }
       - name: publish
         env: { GH_TOKEN: "${{ github.token }}" }
-        run: gh release create "$TAG" --target "$GITHUB_SHA" dist/mtmon-linux-amd64.tar.gz dist/mtmon-linux-amd64.tar.gz.sha256 dist/mtmon-linux-amd64.tar.gz.minisig --title "mtmon $TAG" --notes-file /tmp/notes.md $( [[ "$TAG" == *-* ]] && echo --prerelease )
+        run: gh release create "$TAG" --target "$GITHUB_SHA" dist/mtmon-linux-amd64.tar.gz dist/mtmon-linux-amd64.tar.gz.sha256 dist/mtmon-linux-amd64.tar.gz.minisig dist/mtmon-sbom-go.cdx.json dist/mtmon-sbom-npm.cdx.json --title "mtmon $TAG" --notes-file /tmp/notes.md $( [[ "$TAG" == *-* ]] && echo --prerelease )

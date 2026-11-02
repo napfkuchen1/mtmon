@@ -1,11 +1,18 @@
 version: 2
 updates:
+  # one grouped pull request per ecosystem and week (#302); security updates stay separate pull requests
   - package-ecosystem: gomod
     directory: /
     schedule: { interval: weekly }
+    groups:
+      go-modules: { patterns: ["*"] }
   - package-ecosystem: npm
     directory: /web
     schedule: { interval: weekly }
+    groups:
+      npm-packages: { patterns: ["*"] }
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
+    groups:
+      github-actions: { patterns: ["*"] }
