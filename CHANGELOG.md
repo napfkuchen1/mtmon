@@ -11,6 +11,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 ## [Unreleased]
 
 ### Fixed
+- Traffic totals (#287): WireGuard (including Back to Home) and IPsec (ESP, UDP 500/4500) packets that end on a managed router are no longer counted next to the traffic inside the tunnel. mtmon reads the `listen-port` of every WireGuard interface from the router. Only new flow data is corrected; earlier rows stay as they were. Diagnostics shows these drops with the reason "tunnel outer".
 - German texts with a version number: a version containing the letter "s" (e.g. `7.15.3-testing`) stayed English, and two words were taken as one version. Found by code scanning.
 
 ## [0.20.17] - 2026-11-02

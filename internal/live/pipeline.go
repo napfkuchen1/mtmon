@@ -39,6 +39,7 @@ type Pipeline struct {
 	Owns              func(ip string) bool   // a managed device owns this address (any interface, polling address); optional
 	HostAddr          func(ip string) bool   // an address of the machine mtmon runs on; optional
 	SelfMAC           func(ip string) string // own interface MAC of the managed device that has this address, "" = none; optional
+	TunnelPort        func(ip string, port uint16) bool // ip is a managed router and port a WireGuard listen-port of it: tunnel transport, optional
 	mu                sync.Mutex
 	seen              map[dkey]int64
 	dnsSeen           map[rkey]int64
@@ -117,7 +118,7 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 			p.mu.Lock()
 			p.Ignored++
 			p.mu.Unlock()
-			p.diag.note(r, "x")
+			p.diag.note(r, "x", "tunnel outer")
 			continue
 		}
 		var row store.FlowRow
@@ -261,9 +262,10 @@ func (p *Pipeline) ghostDNSReply(r flow.Record, src, dst netip.Addr, ts int64) (
 	return true, p.macOf(dst.String(), ts)
 }
 
-// tunnelOuter reports whether r is the outer packet of a tunnel (IP protocol 4 IPIP / DS-Lite, 41 6in4, 47 GRE).
-// Protocol 4 and 41 are never client behaviour here; GRE only counts as outer when a router's own address sends or
-// receives it (a client's own GRE tunnel stays visible).
+// tunnelOuter reports whether r is the outer packet of a tunnel (IP protocol 4 IPIP / DS-Lite, 41 6in4, 47 GRE,
+// 50 ESP, UDP 500/4500 IKE and NAT-T, UDP to a WireGuard listen-port: WireGuard, Back to Home).
+// Protocol 4 and 41 are never client behaviour here; the others only count as outer when a router's own address
+// sends or receives them (a client's own tunnel stays visible).
 func (p *Pipeline) tunnelOuter(r flow.Record, src, dst netip.Addr, sl, dl bool) bool {
 	switch r.Proto {
 	case 4, 41:
@@ -273,9 +275,22 @@ func (p *Pipeline) tunnelOuter(r flow.Record, src, dst netip.Addr, sl, dl bool) 
 			return false
 		}
 		return (sl && p.SelfMAC(src.String()) != "") || (dl && p.SelfMAC(dst.String()) != "")
+	case 50:
+		return p.SelfMAC != nil && (p.SelfMAC(src.String()) != "" || p.SelfMAC(dst.String()) != "")
+	case 17:
+		if p.SelfMAC == nil {
+			return false
+		}
+		if p.SelfMAC(src.String()) != "" && (ikePort(r.SrcPort) || p.TunnelPort != nil && p.TunnelPort(src.String(), r.SrcPort)) {
+			return true
+		}
+		return p.SelfMAC(dst.String()) != "" && (ikePort(r.DstPort) || p.TunnelPort != nil && p.TunnelPort(dst.String(), r.DstPort))
 	}
 	return false
 }
+
+// ikePort is IKE (500) and IPsec NAT traversal (4500).
+func ikePort(port uint16) bool { return port == 500 || port == 4500 }
 
 func (p *Pipeline) dupInternal(r flow.Record, ts int64) bool {
 	k := dkey{r.Src, r.Dst, r.SrcPort, r.DstPort, r.Proto, r.Bytes, r.Packets, ts / 5}

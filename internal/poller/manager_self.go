@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/netip"
+	"strconv"
 	"strings"
 	"time"
 
@@ -174,6 +175,30 @@ func (m *Manager) SelfMACByAddr(ip string) string {
 		return m.addrMAC[a.String()]
 	}
 	return ""
+}
+
+// TunnelPort reports whether (ip, port) of a UDP flow is the transport end of a tunnel that terminates on a managed
+// router: ip is an address of that router and port the listen-port of one of its WireGuard interfaces (Back to Home
+// included) or an IKE/NAT-T port. The flow pipeline skips such flows: the traffic inside the tunnel is counted
+// through its inner flows.
+func (m *Manager) TunnelPort(ip string, port uint16) bool {
+	if port == 0 {
+		return false
+	}
+	if m.SelfMACByAddr(ip) == "" {
+		return false
+	}
+	want := strconv.Itoa(int(port))
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, s := range m.snaps {
+		for _, r := range s.wg {
+			if r["listen-port"] == want && r["disabled"] != "true" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // isSelf reports whether the observation is one of the managed devices themselves.

@@ -57,6 +57,7 @@ type devSnap struct {
 	wifi   []Row
 	bridge []Row
 	peers  []Row           // /interface/wireguard/peers (absent without the wireguard package)
+	wg     []Row           // /interface/wireguard (listen-port of every tunnel interface)
 	wan    map[string]bool // interfaces that face the upstream: members of the WAN interface list, default-route interface
 	addrs  []Row           // /ip/address (transfer net towards a modem)
 	addrs6 []Row           // /ipv6/address (dynamic PPPoE / DHCPv6 addresses change between capability probes)
@@ -432,6 +433,9 @@ func (w *worker) l3Poll(ctx context.Context) {
 	w.l3n++
 	if w.l3n%staticEvery != 1 { // interface lists, routes, addresses and pools change rarely: every few runs only
 		return
+	}
+	if rows, err := w.c.Get(ctx, "/interface/wireguard"); err == nil {
+		w.m.setSnap(w.d.Name, func(s *devSnap) { s.wg = rows })
 	}
 	members, merr := w.c.Get(ctx, "/interface/list/member")
 	routes, rerr := w.c.Get(ctx, "/ip/route")
