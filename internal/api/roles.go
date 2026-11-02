@@ -51,6 +51,16 @@ func (s *Server) sessionUser(tok string) string {
 	return s.Cfg.AdminUser
 }
 
+// credOf is the current credential fingerprint of a role: admin = the configured admin hash, viewer = the stored
+// viewer hash. Changing a password (`mtmon passwd`, Settings → viewer) or removing the viewer changes it, which ends
+// every session opened with the old one.
+func (s *Server) credOf(role string) string {
+	if role == roleViewer {
+		return credFingerprint(s.St.GetMeta(metaViewerHash))
+	}
+	return credFingerprint(s.Cfg.AdminHash)
+}
+
 // viewerLogin reports whether user/password match the viewer account. errBusy: no password-check slot was free.
 func (s *Server) viewerLogin(r *http.Request, user, password string) (bool, error) {
 	u, h := s.St.GetMeta(metaViewerUser), s.St.GetMeta(metaViewerHash)

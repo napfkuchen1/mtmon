@@ -202,6 +202,9 @@ func Open(dir string) (*Store, error) {
 	if err := migrateSessionRoles(db); err != nil {
 		return nil, fmt.Errorf("session role schema: %w", err)
 	}
+	if err := migrateSessionCred(db); err != nil {
+		return nil, fmt.Errorf("session credential schema: %w", err)
+	}
 	if _, err := db.Exec(healthSchema); err != nil {
 		return nil, err
 	}

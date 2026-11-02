@@ -4,8 +4,10 @@ package api
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -102,6 +104,7 @@ const (
 type session struct {
 	idleUntil, born time.Time
 	role            string // "" = admin, "viewer" = read-only account
+	cred            string // fingerprint of the password hash the session was opened with (credFingerprint)
 }
 
 type sessions struct {
@@ -110,6 +113,19 @@ type sessions struct {
 	fails  map[string][]time.Time
 	now    func() time.Time
 	st     *store.Store // nil: memory only
+	// credOf returns the current credential fingerprint of a role. A session whose fingerprint differs (password
+	// changed, viewer removed) is no longer valid. nil: no binding (unit tests of the session mechanics).
+	credOf func(role string) string
+}
+
+// credFingerprint identifies a password hash without revealing it. An account without password gets a value no
+// stored session can carry.
+func credFingerprint(hash string) string {
+	if hash == "" {
+		return "none"
+	}
+	h := sha256.Sum256([]byte(hash))
+	return hex.EncodeToString(h[:8])
 }
 
 func newSessions() *sessions {
@@ -185,39 +201,40 @@ func (s *sessions) release(ip string) {
 	}
 }
 
-func (s *sessions) create() string {
+// open starts a session for role ("" = admin). Role and credential fingerprint are stored in one write; if the
+// session cannot be stored, there is no session (the caller refuses the login).
+func (s *sessions) open(role string) (string, error) {
 	b := make([]byte, 32)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
 	tok := base64.RawURLEncoding.EncodeToString(b)
-	s.mu.Lock()
+	cred := ""
+	if s.credOf != nil {
+		cred = s.credOf(role)
+	}
 	now := s.now()
+	if s.st != nil {
+		s.st.PruneSessions(now.Add(-time.Hour).Unix(), now.Add(-sessionMax).Unix())
+		if err := s.st.CreateSession(hashToken(tok), now.Add(sessionIdle).Unix(), now.Unix(), role, cred); err != nil {
+			return "", err
+		}
+	}
+	s.mu.Lock()
 	for k, v := range s.tokens { // drop sessions that can no longer be used (never touched again after expiry)
 		if s.expired(v, now) {
 			delete(s.tokens, k)
 		}
 	}
-	s.tokens[tok] = session{idleUntil: now.Add(sessionIdle), born: now}
+	s.tokens[tok] = session{idleUntil: now.Add(sessionIdle), born: now, role: role, cred: cred}
 	s.mu.Unlock()
-	if s.st != nil {
-		s.st.PruneSessions(now.Add(-time.Hour).Unix(), now.Add(-sessionMax).Unix())
-		s.st.SaveSession(hashToken(tok), now.Add(sessionIdle).Unix(), now.Unix())
-	}
-	return tok
+	return tok, nil
 }
 
-// createRole starts a session for a non-admin account.
-func (s *sessions) createRole(role string) string {
-	tok := s.create()
-	s.mu.Lock()
-	v := s.tokens[tok]
-	v.role = role
-	s.tokens[tok] = v
-	s.mu.Unlock()
-	if s.st != nil {
-		s.st.SetSessionRole(hashToken(tok), role)
-	}
-	return tok
-}
+// create / createRole: open for tests and callers that cannot fail (memory-only sessions).
+func (s *sessions) create() string { tok, _ := s.open(""); return tok }
+
+func (s *sessions) createRole(role string) string { tok, _ := s.open(role); return tok }
 
 // roleOf is the role of a (valid) session.
 func (s *sessions) roleOf(tok string) string {
@@ -235,15 +252,16 @@ func (s *sessions) valid(tok string) bool {
 	defer s.mu.Unlock()
 	v, ok := s.tokens[tok]
 	if !ok && s.st != nil { // not known in memory: a session from before the restart
-		if idle, born, found := s.st.LoadSession(hashToken(tok)); found {
-			v, ok = session{idleUntil: time.Unix(idle, 0), born: time.Unix(born, 0), role: s.st.SessionRole(hashToken(tok))}, true
+		if x, found := s.st.LoadSession(hashToken(tok)); found {
+			v, ok = session{idleUntil: time.Unix(x.IdleUntil, 0), born: time.Unix(x.Born, 0), role: x.Role, cred: x.Cred}, true
 		}
 	}
 	if !ok {
 		return false
 	}
 	now := s.now()
-	if s.expired(v, now) {
+	// expired, or opened with a password that is no longer the account's (changed, account removed)
+	if s.expired(v, now) || (s.credOf != nil && v.cred != s.credOf(v.role)) {
 		delete(s.tokens, tok)
 		if s.st != nil {
 			s.st.DropSession(hashToken(tok))
@@ -251,7 +269,7 @@ func (s *sessions) valid(tok string) bool {
 		return false
 	}
 	if s.st != nil && now.Add(sessionIdle).Sub(v.idleUntil) > time.Minute { // persist the slide, but not on every request
-		s.st.SaveSession(hashToken(tok), now.Add(sessionIdle).Unix(), v.born.Unix())
+		s.st.TouchSession(hashToken(tok), now.Add(sessionIdle).Unix())
 	}
 	v.idleUntil = now.Add(sessionIdle) // sliding, but never beyond born+sessionMax
 	s.tokens[tok] = v

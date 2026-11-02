@@ -76,6 +76,7 @@ type Server struct {
 func New(s *Server) http.Handler {
 	s.sess = newSessions()
 	s.sess.st = s.St
+	s.sess.credOf = s.credOf
 	s.loadTrustedProxies()
 	s.Started = time.Now()
 	s.up = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
@@ -259,7 +260,12 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	if viewerOK {
 		s.sess.release(ip)
 		s.audit(in.User, sourceIP(r), "login.ok", "viewer")
-		http.SetCookie(w, &http.Cookie{Name: "mtmon_session", Value: s.sess.createRole(roleViewer), Path: "/", HttpOnly: true,
+		tok, err := s.sess.open(roleViewer)
+		if err != nil {
+			jerr(w, 500, "could not store the session: "+err.Error())
+			return
+		}
+		http.SetCookie(w, &http.Cookie{Name: "mtmon_session", Value: tok, Path: "/", HttpOnly: true,
 			Secure: s.secureRequest(r), SameSite: http.SameSiteStrictMode, MaxAge: 12 * 3600})
 		jsonOut(w, map[string]string{"user": in.User, "role": roleViewer})
 		return
@@ -295,7 +301,12 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	s.sess.release(ip)
 	s.audit(in.User, sourceIP(r), "login.ok", "")
-	http.SetCookie(w, &http.Cookie{Name: "mtmon_session", Value: s.sess.create(), Path: "/", HttpOnly: true,
+	tok, err := s.sess.open("")
+	if err != nil {
+		jerr(w, 500, "could not store the session: "+err.Error())
+		return
+	}
+	http.SetCookie(w, &http.Cookie{Name: "mtmon_session", Value: tok, Path: "/", HttpOnly: true,
 		Secure: s.secureRequest(r), SameSite: http.SameSiteStrictMode, MaxAge: 12 * 3600})
 	jsonOut(w, map[string]string{"user": in.User})
 }
