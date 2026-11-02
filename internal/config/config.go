@@ -172,9 +172,14 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+var limitedBroadcast = netip.MustParseAddr("255.255.255.255")
+
 // IsLocal reports whether ip belongs to a configured internal network.
 func (c *Config) IsLocal(ip netip.Addr) bool {
 	ip = ip.Unmap()
+	if ip.IsMulticast() || ip == limitedBroadcast {
+		return true // never internet traffic (#290)
+	}
 	for _, p := range c.localPrefixes {
 		if p.Contains(ip) {
 			return true

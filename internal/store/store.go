@@ -180,6 +180,9 @@ func Open(dir string) (*Store, error) {
 	if err := migrateClients(db); err != nil {
 		return nil, fmt.Errorf("clients schema: %w", err)
 	}
+	if err := migrateMulticast(db); err != nil {
+		return nil, fmt.Errorf("multicast rebook: %w", err)
+	}
 	if err := migrateDim(db); err != nil {
 		return nil, fmt.Errorf("dimension rollups: %w", err)
 	}
