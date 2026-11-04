@@ -6,10 +6,16 @@ GO      ?= go
 
 all: test build
 
-ui:                       ## build the Svelte UI into web/dist (embedded into the binary)
+UI_SRC := $(shell find web/src web/index.html web/package.json web/package-lock.json web/vite.config.js -type f 2>/dev/null)
+
+# real file target: skipped while web/dist is newer than every UI source (CI builds the UI once; locally it rebuilds after edits)
+web/dist/index.html: $(UI_SRC)
+	@$(MAKE) --no-print-directory ui
+
+ui:                       ## build the Svelte UI into web/dist (embedded into the binary), always
 	cd web && npm ci --no-audit --no-fund && npm run build
 
-build: ui                 ## static linux/amd64 binary with embedded UI
+build: web/dist/index.html ## static linux/amd64 binary with embedded UI (reuses an up-to-date web/dist; `make ui` forces a rebuild)
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/mtmon ./cmd/mtmon
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/flowgen ./cmd/flowgen
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/mockros ./cmd/mockros

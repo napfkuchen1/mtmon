@@ -31,6 +31,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Firewall log (#289): IPv6 addresses in firewall log lines are parsed completely (with and without brackets, with and without port, link-local and multicast). Entries stored cut off or in brackets by earlier versions are removed on start, so IPv6 sources can be matched to clients and looked up for country and network.
 - Firewall (#298): IPv6 filter rules are now covered like IPv4 ones. The device features probe `/ipv6/firewall/filter`, set the log prefix `MTM6-<id>` on drop rules (logging) and accept rules (hit counter), and roll them back with the rest. On the connection list, IPv6 flows only get the verdict "allowed" when IPv6 logging is active on that router; before, IPv4 logging made every IPv6 flow look "allowed".
 - German texts with a version number: a version containing the letter "s" (e.g. `7.15.3-testing`) stayed English, and two words were taken as one version. Found by code scanning.
+- CI and tests (#303): the UI is built once and `make build` reuses an up-to-date `web/dist` instead of rebuilding it (`make ui` still forces a rebuild). A nightly workflow runs `make scale`, 60 s of fuzzing for the flow and syslog parsers and a demo end-to-end smoke test (mock routers, flow generator, API checks). The code-health job writes gocyclo and dupl results to the job summary and fails only for new functions above complexity 25 (known ones are listed in a baseline file).
 
 ## [0.20.17] - 2026-11-02
 
