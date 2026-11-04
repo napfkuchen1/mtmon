@@ -119,7 +119,10 @@ func main() {
 			for k := 0; k < int(float64(perSlot)*(0.4+f)); k++ {
 				c := clients[pick(rng, cw)]
 				d := dests[pick(rng, dw)]
-				scale := float64(step) / 60
+				if d.port == 53 {
+					c = clients[0] // one client with its own resolver, not the whole network
+				}
+				scale := 15 * float64(step) / 60 // same order of magnitude as the live flowgen traffic of scripts/demo.sh
 				down := int64(d.down * (0.3 + rng.Float64()) * f * scale)
 				up := down / int64(6+rng.Intn(10))
 				stmt.Exec(ts, c.MAC, d.ip, d.port, d.proto, enrich.Service(uint8(d.proto), uint16(d.port), 0), d.host, d.cc, d.asn, d.org, up, down, 0, 1+rng.Intn(6))

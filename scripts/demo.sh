@@ -24,4 +24,4 @@ bin/mockros -demo & sleep 0.5
 bin/mtmon run -c "$D/config.json" & sleep 2
 echo "UI: http://127.0.0.1:18443   user: admin   password: demo-password-1   (Ctrl+C to stop)"
 echo "Tipp: Setup-Wizard (Devices -> Add device) gegen das freie Mock-Gerät 127.0.0.20, REST-Port 9001 (HTTPS), Login admin / adminpw"
-bin/flowgen -target 127.0.0.1:12055 -src 127.0.0.11 -rate 300 -duration 0 -docdests -clientips "$(bin/demoseed -list-ips)"
+bin/flowgen -target 127.0.0.1:12055 -src 127.0.0.11 -rate 60 -duration 0 -docdests -clientips "$(bin/demoseed -list-ips)"
