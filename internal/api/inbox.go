@@ -174,6 +174,13 @@ func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	out["clock_skew_s"] = skews
+	sampling := map[string]uint32{}
+	if s.Col != nil && s.Col.Dec != nil {
+		for a, n := range s.Col.Dec.Sampling() {
+			sampling[a.String()] = n
+		}
+	}
+	out["flow_sampling"] = sampling
 	ns, _ := s.St.Neighbors()
 	out["neighbors"] = ns
 	cl, _ := s.St.Clients()

@@ -41,6 +41,21 @@ type template struct {
 	options bool
 }
 
+type skey struct {
+	exp    netip.Addr
+	domain uint32
+}
+
+type totKey struct {
+	exp          netip.Addr
+	src, dst     netip.Addr
+	sport, dport uint16
+	proto        uint8
+}
+
+// maxTotals bounds the memory of the total-counter tracking; it starts over when full.
+const maxTotals = 100000
+
 type tkey struct {
 	exp    netip.Addr
 	domain uint32
@@ -49,11 +64,16 @@ type tkey struct {
 
 // Decoder keeps the per-exporter template cache. Safe for concurrent use.
 type Decoder struct {
-	mu    sync.RWMutex
-	tmpl  map[tkey]*template
-	order []tkey                       // insertion order, oldest first, for eviction
-	now   func() time.Time             // test clock; nil = time.Now
-	skew  map[netip.Addr]time.Duration // receive time minus the exporter header time, per exporter (#292)
+	mu     sync.RWMutex
+	tmpl   map[tkey]*template
+	order  []tkey                       // insertion order, oldest first, for eviction
+	now    func() time.Time             // test clock; nil = time.Now
+	skew   map[netip.Addr]time.Duration // receive time minus the exporter header time, per exporter (#292)
+	rate   map[skey]uint32              // packet sampling rate 1:N announced in options data, per exporter and domain (#293)
+	totals map[totKey][2]uint64         // last octet/packet total counter per flow, for exporters that send totals instead of deltas
+
+	// TotalsConverted counts flows whose total counters (fields 85/86) were turned into deltas.
+	TotalsConverted uint64
 
 	// Counters (read with atomic-free best effort; guarded by mu for writes).
 	Packets, Records, Errors, NoTemplate uint64
@@ -214,9 +234,16 @@ func (d *Decoder) sets(exp netip.Addr, domain uint32, b []byte, ctx timeCtx, ipf
 				continue
 			}
 			if t.options {
+				d.parseOptions(exp, domain, t, body)
 				continue
 			}
 			recs := d.parseData(exp, t, body, ctx)
+			if rate := d.Rate(exp, domain); rate > 1 {
+				for i := range recs {
+					recs[i].Bytes *= uint64(rate)
+					recs[i].Packets *= uint64(rate)
+				}
+			}
 			out = append(out, recs...)
 		}
 	}
@@ -251,8 +278,16 @@ func (d *Decoder) parseTemplates(exp netip.Addr, domain uint32, b []byte, ipfix,
 				if skip > len(b) {
 					return
 				}
+				t := &template{options: true}
+				for i := 0; i+4 <= skip; i += 4 { // scope fields, then option fields: type and length, 4 bytes each
+					t.fields = append(t.fields, field{id: binary.BigEndian.Uint16(b[i:]), length: binary.BigEndian.Uint16(b[i+2:])})
+				}
 				b = b[skip:]
-				d.store(exp, domain, tid, &template{options: true, fixed: -1})
+				t.fixed = 0
+				for _, f := range t.fields {
+					t.fixed += int(f.length)
+				}
+				d.store(exp, domain, tid, t)
 				continue
 			}
 		}
@@ -288,6 +323,93 @@ func (d *Decoder) parseTemplates(exp netip.Addr, domain uint32, b []byte, ipfix,
 			return
 		}
 	}
+}
+
+// Rate returns the packet sampling rate (1 out of N) the exporter announced for the observation domain, or 1.
+func (d *Decoder) Rate(exp netip.Addr, domain uint32) uint32 {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	if r := d.rate[skey{exp, domain}]; r > 1 {
+		return r
+	}
+	return 1
+}
+
+// Sampling reports the announced sampling rate per exporter (the highest over its observation domains).
+func (d *Decoder) Sampling() map[netip.Addr]uint32 {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	out := map[netip.Addr]uint32{}
+	for k, r := range d.rate {
+		if r > out[k.exp] {
+			out[k.exp] = r
+		}
+	}
+	return out
+}
+
+// maxSampling bounds an announced rate; a larger value is a broken exporter, not a sampling setup.
+const maxSampling = 1 << 20
+
+// parseOptions reads options data records for the sampling fields: samplingInterval (34, 1 out of N) and
+// samplingPacketInterval/-Space (305/306, N packets taken, then M skipped), and remembers the rate (#293).
+func (d *Decoder) parseOptions(exp netip.Addr, domain uint32, t *template, b []byte) {
+	if t.fixed <= 0 {
+		return
+	}
+	for len(b) >= t.fixed {
+		var iv, pi, ps uint64
+		pos := 0
+		for _, f := range t.fields {
+			v := b[pos : pos+int(f.length)]
+			pos += int(f.length)
+			switch f.id {
+			case 34:
+				iv = uintOf(v)
+			case 305:
+				pi = uintOf(v)
+			case 306:
+				ps = uintOf(v)
+			}
+		}
+		b = b[t.fixed:]
+		rate := uint64(1)
+		switch {
+		case pi > 0:
+			rate = (pi + ps) / pi
+		case iv > 1:
+			rate = iv
+		}
+		if rate > maxSampling {
+			continue
+		}
+		d.mu.Lock()
+		if d.rate == nil {
+			d.rate = map[skey]uint32{}
+		}
+		if rate > 1 {
+			d.rate[skey{exp, domain}] = uint32(rate)
+		} else {
+			delete(d.rate, skey{exp, domain})
+		}
+		d.mu.Unlock()
+	}
+}
+
+// totalDelta turns the running total counters of a flow into the amount since the previous export.
+func (d *Decoder) totalDelta(k totKey, b, p uint64) (uint64, uint64) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.totals == nil || len(d.totals) >= maxTotals {
+		d.totals = map[totKey][2]uint64{}
+	}
+	prev, ok := d.totals[k]
+	d.totals[k] = [2]uint64{b, p}
+	d.TotalsConverted++
+	if ok && b >= prev[0] && p >= prev[1] {
+		return b - prev[0], p - prev[1]
+	}
+	return b, p
 }
 
 func (d *Decoder) store(exp netip.Addr, domain uint32, id uint16, t *template) {
@@ -353,7 +475,8 @@ func (d *Decoder) parseData(exp netip.Addr, t *template, b []byte, ctx timeCtx) 
 		r := Record{Exporter: exp, Start: ctx.export, End: ctx.export}
 		var first, last uint32
 		var haveFL bool
-		var startMs, endMs, sysInitMs uint64
+		var startMs, endMs, sysInitMs, totB, totP uint64
+		var haveB, haveP, haveTB, haveTP bool
 		pos := 0
 		ok := true
 		for _, f := range t.fields {
@@ -406,10 +529,14 @@ func (d *Decoder) parseData(exp netip.Addr, t *template, b []byte, ctx timeCtx) 
 				r.DstPort = uint16(uintOf(v))
 			case 4:
 				r.Proto = uint8(uintOf(v))
-			case 1, 85:
-				r.Bytes = uintOf(v)
-			case 2, 86:
-				r.Packets = uintOf(v)
+			case 1:
+				r.Bytes, haveB = uintOf(v), true
+			case 85:
+				totB, haveTB = uintOf(v), true
+			case 2:
+				r.Packets, haveP = uintOf(v), true
+			case 86:
+				totP, haveTP = uintOf(v), true
 			case 10:
 				r.InIf = uint32(uintOf(v))
 			case 14:
@@ -437,6 +564,15 @@ func (d *Decoder) parseData(exp netip.Addr, t *template, b []byte, ctx timeCtx) 
 		if ctx.v9 && haveFL {
 			r.Start = ctx.export.Add(-time.Duration(int64(ctx.uptimeMs)-int64(first)) * time.Millisecond)
 			r.End = ctx.export.Add(-time.Duration(int64(ctx.uptimeMs)-int64(last)) * time.Millisecond)
+		}
+		if (haveTB && !haveB) || (haveTP && !haveP) {
+			db, dp := d.totalDelta(totKey{exp, r.Src, r.Dst, r.SrcPort, r.DstPort, r.Proto}, totB, totP)
+			if !haveB {
+				r.Bytes = db
+			}
+			if !haveP {
+				r.Packets = dp
+			}
 		}
 		if !ctx.v9 && haveFL && sysInitMs > 0 {
 			r.Start = time.UnixMilli(int64(sysInitMs) + int64(first))
