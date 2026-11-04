@@ -160,7 +160,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/napfkuchen1/mtmon/main/i
 MTMON_VERSION=v0.16.0 bash -c "$(curl -fsSL https://raw.githubusercontent.com/napfkuchen1/mtmon/main/install.sh)"
 ```
 
-All options: `install.sh install --help`. If `minisign` is installed on the host (`apt install minisign`), the installer verifies the release signature and aborts without it unless `MTMON_ALLOW_UNVERIFIED=1` is set (see [docs/release-signing.md](docs/release-signing.md)). You can also download `mtmon-linux-amd64.tar.gz` and its `.sha256` from the [releases page](https://github.com/napfkuchen1/mtmon/releases), unpack it on the host and run `./install-mtmon.sh --dry-run`.
+All options: `install.sh install --help`. The installer verifies the release signature with `minisign`. If it is missing, an interactive run offers to install it with `apt-get`; otherwise, or if you decline, it aborts unless `MTMON_ALLOW_UNVERIFIED=1` is set (see [docs/release-signing.md](docs/release-signing.md)). You can also download `mtmon-linux-amd64.tar.gz` and its `.sha256` from the [releases page](https://github.com/napfkuchen1/mtmon/releases), unpack it on the host and run `./install-mtmon.sh --dry-run`.
 </details>
 
 ## Usage
