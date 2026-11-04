@@ -132,7 +132,7 @@ func (s *Store) UpsertClients(obs []Observation) ([]string, error) {
 
 // MarkOffline flags clients not seen for `after` seconds as offline.
 func (s *Store) MarkOffline(after int64) {
-	s.DB.Exec(`UPDATE clients SET online=0 WHERE online=1 AND last_seen < ?`, time.Now().Unix()-after)
+	s.exec(`UPDATE clients SET online=0 WHERE online=1 AND last_seen < ?`, time.Now().Unix()-after)
 }
 
 // SetIcon stores the icon the user picked for a client ("" goes back to the automatic guess).

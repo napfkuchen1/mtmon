@@ -57,7 +57,7 @@ func (s *Store) Audit(limit int, before int64, prefix string) []AuditEntry {
 
 // PruneAudit deletes entries older than the retention.
 func (s *Store) PruneAudit(now int64) {
-	s.DB.Exec(`DELETE FROM audit WHERE ts<?`, now-int64(AuditKeepDays)*86400)
+	s.exec(`DELETE FROM audit WHERE ts<?`, now-int64(AuditKeepDays)*86400)
 }
 
 // MetaAll returns every meta entry (used to see which settings a request changed).

@@ -71,7 +71,7 @@ func (s *Store) DeviceRow(name string) (*DeviceRow, error) {
 }
 
 func (s *Store) SetDeviceCaps(name string, caps json.RawMessage) {
-	s.DB.Exec(`UPDATE devices SET caps=? WHERE name=?`, string(caps), name)
+	s.exec(`UPDATE devices SET caps=? WHERE name=?`, string(caps), name)
 }
 
 // DeleteDevice removes the device registration (history is kept unless purge).
@@ -143,7 +143,7 @@ func (s *Store) LastManifestTS(device string) int64 {
 }
 
 func (s *Store) SetManifestState(id int64, st string) {
-	s.DB.Exec(`UPDATE manifest SET state=? WHERE id=?`, st, id)
+	s.exec(`UPDATE manifest SET state=? WHERE id=?`, st, id)
 }
 
 // ---- service rules ----

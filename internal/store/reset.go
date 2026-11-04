@@ -91,7 +91,7 @@ func (s *Store) ResetData(o ResetOpts) (*ResetResult, error) {
 		return nil, err
 	}
 	// hand the freed pages back; failures here do not undo the reset
-	s.DB.Exec(`PRAGMA wal_checkpoint(TRUNCATE)`)
-	s.DB.Exec(`VACUUM`)
+	s.exec(`PRAGMA wal_checkpoint(TRUNCATE)`)
+	s.exec(`VACUUM`)
 	return res, nil
 }

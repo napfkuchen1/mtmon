@@ -118,8 +118,17 @@ func (s *Server) deviceFeaturesGet(w http.ResponseWriter, r *http.Request) {
 	}
 	if peer := s.flowPeer(name); peer != "" {
 		out["flow_peer"] = peer // another managed router already exports Traffic Flow: a second exporter would only double-count (#286)
+		cl, _ := s.St.Clients()
+		root, _, _, _ := s.deviceTree(cl)
+		out["flow_peer_gateway"] = flowPeerIsGateway(root, peer, name)
 	}
 	jsonOut(w, out)
+}
+
+// flowPeerIsGateway: the router that already exports is the top of the device tree (the internet gateway) and this
+// is another router, i.e. it sits behind it (#286).
+func flowPeerIsGateway(root, peer, self string) bool {
+	return peer != "" && peer == root && self != root
 }
 
 // flowPeer names another router whose Traffic Flow export mtmon set up itself ("" if none).

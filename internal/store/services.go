@@ -63,7 +63,7 @@ func (s *Store) applyRule(r ServiceRule, name string) {
 				s.relabelCIDR(tbl, pfx, name, a, a+step)
 			} else {
 				cond, args := ruleCond(r)
-				s.DB.Exec(`UPDATE `+tbl+` SET svc=? WHERE ts>=? AND ts<? AND `+cond+` AND svc IS NOT ?`,
+				s.exec(`UPDATE `+tbl+` SET svc=? WHERE ts>=? AND ts<? AND `+cond+` AND svc IS NOT ?`,
 					append([]any{name, a, a + step}, append(args, name)...)...)
 			}
 			time.Sleep(5 * time.Millisecond) // yield to the flow writer
@@ -88,7 +88,7 @@ func (s *Store) relabelCIDR(tbl string, pfx netip.Prefix, name string, a, b int6
 	for i := 0; i < len(ips); i += 400 {
 		j := min(i+400, len(ips))
 		ph := strings.TrimSuffix(strings.Repeat("?,", j-i), ",")
-		s.DB.Exec(`UPDATE `+tbl+` SET svc=? WHERE ts>=? AND ts<? AND svc IS NOT ? AND rip IN (`+ph+`)`,
+		s.exec(`UPDATE `+tbl+` SET svc=? WHERE ts>=? AND ts<? AND svc IS NOT ? AND rip IN (`+ph+`)`,
 			append([]any{name, a, b, name}, ips[i:j]...)...)
 	}
 }
@@ -109,7 +109,7 @@ func (s *Store) resetLabel(name string, builtin func(proto uint8, rport uint16) 
 		}
 		rows.Close()
 		for _, p := range ps {
-			s.DB.Exec(`UPDATE `+tbl+` SET svc=? WHERE svc=? AND proto=? AND rport=?`, builtin(uint8(p.proto), uint16(p.port)), name, p.proto, p.port)
+			s.exec(`UPDATE `+tbl+` SET svc=? WHERE svc=? AND proto=? AND rport=?`, builtin(uint8(p.proto), uint16(p.port)), name, p.proto, p.port)
 			time.Sleep(2 * time.Millisecond)
 		}
 	}

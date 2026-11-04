@@ -253,31 +253,31 @@ func (s *Store) Cleanup(rawDays, days int) {
 	if minCut < cut {
 		minCut = cut
 	}
-	s.DB.Exec(`DELETE FROM flows WHERE ts < ?`, rawCut)
+	s.exec(`DELETE FROM flows WHERE ts < ?`, rawCut)
 	var span int64
 	if s.DB.QueryRow(`SELECT coalesce(max(rowid)-min(rowid),0) FROM flows`).Scan(&span); span > RawRowCap {
-		s.DB.Exec(`DELETE FROM flows WHERE rowid <= (SELECT max(rowid) FROM flows) - ?`, RawRowCap)
+		s.exec(`DELETE FROM flows WHERE rowid <= (SELECT max(rowid) FROM flows) - ?`, RawRowCap)
 	}
 	s.cleanupFw(rawCut, cut)
-	s.DB.Exec(`DELETE FROM rollup_1m WHERE ts < ?`, minCut)
-	s.DB.Exec(`DELETE FROM rollup_1h WHERE ts < ?`, cut)
-	s.DB.Exec(`DELETE FROM rollup_1h_client WHERE ts < ?`, cut)
-	s.DB.Exec(`DELETE FROM rollup_1d WHERE ts < ?`, cut)
-	s.DB.Exec(`DELETE FROM rollup_1d_dim WHERE ts < ?`, cut)
-	s.DB.Exec(`DELETE FROM dev_metrics WHERE ts < ?`, cut)
-	s.DB.Exec(`DELETE FROM log_events WHERE ts < ?`, now.AddDate(0, 0, -LogRetentionDays).Unix())
+	s.exec(`DELETE FROM rollup_1m WHERE ts < ?`, minCut)
+	s.exec(`DELETE FROM rollup_1h WHERE ts < ?`, cut)
+	s.exec(`DELETE FROM rollup_1h_client WHERE ts < ?`, cut)
+	s.exec(`DELETE FROM rollup_1d WHERE ts < ?`, cut)
+	s.exec(`DELETE FROM rollup_1d_dim WHERE ts < ?`, cut)
+	s.exec(`DELETE FROM dev_metrics WHERE ts < ?`, cut)
+	s.exec(`DELETE FROM log_events WHERE ts < ?`, now.AddDate(0, 0, -LogRetentionDays).Unix())
 
-	s.DB.Exec(`DELETE FROM wifi_hist WHERE ts < ?`, cut)
-	s.DB.Exec(`DELETE FROM wifi_disc WHERE ts < ?`, cut)
-	s.DB.Exec(`DELETE FROM wan_quality WHERE ts < ?`, cut)
+	s.exec(`DELETE FROM wifi_hist WHERE ts < ?`, cut)
+	s.exec(`DELETE FROM wifi_disc WHERE ts < ?`, cut)
+	s.exec(`DELETE FROM wan_quality WHERE ts < ?`, cut)
 	s.pruneSpeedtests(now)
-	s.DB.Exec(`DELETE FROM ipv6_hist WHERE last < ?`, now.AddDate(0, 0, -IPv6HistDays).Unix())
-	s.DB.Exec(`DELETE FROM ghost_dns WHERE last < ?`, now.AddDate(0, 0, -GhostDNSDays).Unix())
-	s.DB.Exec(`DELETE FROM if_metrics WHERE ts < ?`, cut)
-	s.DB.Exec(`DELETE FROM alerts WHERE ts < ?`, cut)
-	s.DB.Exec(`DELETE FROM roam WHERE ts < ?`, cut)
-	s.DB.Exec(`DELETE FROM ip_history WHERE last < ?`, cut)
-	s.DB.Exec(`PRAGMA wal_checkpoint(TRUNCATE)`)
+	s.exec(`DELETE FROM ipv6_hist WHERE last < ?`, now.AddDate(0, 0, -IPv6HistDays).Unix())
+	s.exec(`DELETE FROM ghost_dns WHERE last < ?`, now.AddDate(0, 0, -GhostDNSDays).Unix())
+	s.exec(`DELETE FROM if_metrics WHERE ts < ?`, cut)
+	s.exec(`DELETE FROM alerts WHERE ts < ?`, cut)
+	s.exec(`DELETE FROM roam WHERE ts < ?`, cut)
+	s.exec(`DELETE FROM ip_history WHERE last < ?`, cut)
+	s.exec(`PRAGMA wal_checkpoint(TRUNCATE)`)
 }
 
 // Backup writes a consistent copy via VACUUM INTO and keeps `keep` generations.

@@ -38,7 +38,7 @@ func (s *Store) pruneSpeedtests(now time.Time) {
 	if n, err := strconv.Atoi(s.GetMeta("speedtest_retention_days")); err == nil && n >= 7 && n <= 3650 {
 		days = n
 	}
-	s.DB.Exec(`DELETE FROM speedtests WHERE ts < ?`, now.AddDate(0, 0, -days).Unix())
+	s.exec(`DELETE FROM speedtests WHERE ts < ?`, now.AddDate(0, 0, -days).Unix())
 }
 
 // AddSpeedtest stores a result and returns its id.

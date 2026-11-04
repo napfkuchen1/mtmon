@@ -46,7 +46,7 @@ func (s *Store) Maintenance() map[string]int64 {
 	}
 	rows.Close()
 	for _, k := range expired {
-		s.DB.Exec(`DELETE FROM meta WHERE k=?`, k)
+		s.exec(`DELETE FROM meta WHERE k=?`, k)
 	}
 	return out
 }

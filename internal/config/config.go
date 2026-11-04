@@ -175,6 +175,12 @@ func (c *Config) Validate() error {
 
 var limitedBroadcast = netip.MustParseAddr("255.255.255.255")
 
+// IsGroupAddr reports a multicast or limited-broadcast address: no one to look up (GeoIP, reverse DNS) there (#290).
+func IsGroupAddr(ip netip.Addr) bool {
+	ip = ip.Unmap()
+	return ip.IsMulticast() || ip == limitedBroadcast
+}
+
 // IsLocal reports whether ip belongs to a configured internal network.
 func (c *Config) IsLocal(ip netip.Addr) bool {
 	ip = ip.Unmap()

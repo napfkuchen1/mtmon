@@ -179,6 +179,13 @@ func (e *Enricher) Name(ip netip.Addr) string {
 	return n.name
 }
 
+// Queued is the number of addresses waiting for (or already handed to) a reverse-DNS lookup.
+func (e *Enricher) Queued() int {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return len(e.queued)
+}
+
 // NameCached returns a known, unexpired name for ip without ever scheduling a lookup. Request
 // handlers use it so that listing pages never trigger (or wait for) network traffic.
 func (e *Enricher) NameCached(ip netip.Addr) string {

@@ -102,7 +102,7 @@ func (s *Store) FlushFw() error {
 // SaveFwRules registers the prefix→rule meaning for a device (replaces earlier entries of the same prefixes).
 func (s *Store) SaveFwRules(rs []FwRule) {
 	for _, r := range rs {
-		s.DB.Exec(`INSERT INTO fw_rules(device,prefix,chain,action,descr,managed,counter) VALUES(?,?,?,?,?,?,?)
+		s.exec(`INSERT INTO fw_rules(device,prefix,chain,action,descr,managed,counter) VALUES(?,?,?,?,?,?,?)
 			ON CONFLICT(device,prefix) DO UPDATE SET chain=excluded.chain, action=excluded.action, descr=excluded.descr, managed=excluded.managed, counter=excluded.counter`,
 			r.Device, r.Prefix, r.Chain, r.Action, r.Descr, b2i(r.Managed), b2i(r.Counter))
 	}
@@ -386,13 +386,13 @@ func sortInt64(a []int64) {
 }
 
 func (s *Store) cleanupFw(rawCut, cut int64) {
-	s.DB.Exec(`DELETE FROM fw_events WHERE ts < ?`, rawCut)
+	s.exec(`DELETE FROM fw_events WHERE ts < ?`, rawCut)
 	var span int64
 	if s.DB.QueryRow(`SELECT coalesce(max(rowid)-min(rowid),0) FROM fw_events`).Scan(&span); span > FwRowCap {
-		s.DB.Exec(`DELETE FROM fw_events WHERE rowid <= (SELECT max(rowid) FROM fw_events) - ?`, FwRowCap)
+		s.exec(`DELETE FROM fw_events WHERE rowid <= (SELECT max(rowid) FROM fw_events) - ?`, FwRowCap)
 	}
-	s.DB.Exec(`DELETE FROM fw_hourly WHERE ts < ?`, cut)
-	s.DB.Exec(`DELETE FROM fw_ctr WHERE device||prefix NOT IN (SELECT device||prefix FROM fw_rules)`)
-	s.DB.Exec(`DELETE FROM fw_src_hourly WHERE ts < ?`, rawCut)
-	s.DB.Exec(`DELETE FROM fw_dst_hourly WHERE ts < ?`, rawCut)
+	s.exec(`DELETE FROM fw_hourly WHERE ts < ?`, cut)
+	s.exec(`DELETE FROM fw_ctr WHERE device||prefix NOT IN (SELECT device||prefix FROM fw_rules)`)
+	s.exec(`DELETE FROM fw_src_hourly WHERE ts < ?`, rawCut)
+	s.exec(`DELETE FROM fw_dst_hourly WHERE ts < ?`, rawCut)
 }

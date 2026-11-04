@@ -210,11 +210,13 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 			row.MAC = p.St.MACForIPAt(row.CIP, row.TS)
 		}
 		rip, _ := netip.ParseAddr(row.RIP)
-		if !p.Cfg.IsLocal(rip) {
+		switch {
+		case config.IsGroupAddr(rip): // multicast / broadcast: no GeoIP and no reverse-DNS lookup (#290)
+		case !p.Cfg.IsLocal(rip):
 			row.Host = p.En.Name(rip)
 			g := p.En.Lookup(rip)
 			row.CC, row.ASN, row.ASOrg = g.CC, g.ASN, g.ASOrg
-		} else {
+		default:
 			row.Host = p.En.Name(rip)
 		}
 		if p.Cls != nil {
