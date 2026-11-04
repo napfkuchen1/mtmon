@@ -45,6 +45,8 @@ type Snapshot interface {
 	GhostDNS7d() []GhostDNS
 	// TransitDrops: flows dropped as transit that touch a network a router has on its WAN side (#297).
 	TransitDrops() TransitStat
+	// FlowLoss: export packets lost between the routers and mtmon over the last hour, from the sequence numbers (#294).
+	FlowLoss() LossStat
 }
 
 // TransitStat counts flows dropped as transit (both sides remote) against all flows seen; Nets lists the router
@@ -52,6 +54,12 @@ type Snapshot interface {
 type TransitStat struct {
 	Dropped, Total int64
 	Nets           []string
+}
+
+// LossStat is the flow export loss of the last hour over all exporters; Worst names the exporter with the highest rate.
+type LossStat struct {
+	Expected, Lost int64
+	Worst          string
 }
 
 // GhostDNS is one client that uses a DNS server that does not exist.

@@ -35,6 +35,8 @@ type Live struct {
 	ExporterSkew func(addr string) (skew time.Duration, ok bool)
 	// Transit returns the transit-drop counters of the flow pipeline (#297); optional.
 	Transit func() TransitStat
+	// Loss returns the flow export loss of the last hour (#294); optional.
+	Loss func() LossStat
 	// OwnsAddr reports whether an address belongs to a managed device (shared address-ownership answer); sightings
 	// stored before the pipeline knew this address are filtered here, so old findings vanish without manual action.
 	OwnsAddr func(ip string) bool
@@ -369,6 +371,13 @@ func (l *Live) TransitDrops() TransitStat {
 		return TransitStat{}
 	}
 	return l.Transit()
+}
+
+func (l *Live) FlowLoss() LossStat {
+	if l.Loss == nil {
+		return LossStat{}
+	}
+	return l.Loss()
 }
 
 func (l *Live) GhostDNS7d() []GhostDNS {

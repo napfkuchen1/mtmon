@@ -181,6 +181,16 @@ func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	out["flow_sampling"] = sampling
+	loss := []map[string]any{}
+	if s.Col != nil {
+		for _, ls := range s.Col.Loss() {
+			loss = append(loss, map[string]any{"exporter": ls.Exporter.String(), "domain": ls.Domain, "expected": ls.Expected, "lost": ls.Lost,
+				"expected_1h": ls.Expected1h, "lost_1h": ls.Lost1h, "loss_pct_1h": ls.Pct1h(), "resets": ls.Resets})
+		}
+		out["flow_rcvbuf"] = s.Col.RcvBuf()
+		out["flow_queue_dropped"] = s.Col.QueueDropped.Load()
+	}
+	out["flow_loss"] = loss
 	ns, _ := s.St.Neighbors()
 	out["neighbors"] = ns
 	cl, _ := s.St.Clients()

@@ -4,6 +4,7 @@ package flow
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"net/netip"
 	"sync"
@@ -24,10 +25,45 @@ type Collector struct {
 	Handler func([]Record)
 	Dec     *Decoder
 
-	Dropped atomic.Uint64 // datagrams from unknown exporters
-	mu      sync.Mutex
-	conn    *net.UDPConn
-	seen    map[netip.Addr]*ExporterStat
+	Dropped      atomic.Uint64 // datagrams from unknown exporters
+	QueueDropped atomic.Uint64 // datagrams dropped because decoding fell behind the socket (#294)
+	rcvbuf       atomic.Int64  // effective kernel receive buffer in bytes (0 = unknown)
+	seq          seqTracker
+	mu           sync.Mutex
+	conn         *net.UDPConn
+	seen         map[netip.Addr]*ExporterStat
+}
+
+// queueLen bounds the datagrams waiting for the decoder; the socket loop never blocks on it.
+const queueLen = 8192
+
+// wantRcvbuf is the receive buffer asked for; below minRcvbuf a warning names the sysctl to raise.
+const (
+	wantRcvbuf = 8 << 20
+	minRcvbuf  = 4 << 20
+)
+
+type dgram struct {
+	exp netip.Addr
+	b   []byte
+}
+
+// Loss returns the export-packet loss accounting per exporter and observation domain (#294).
+func (c *Collector) Loss() []LossStat { return c.seq.stats() }
+
+// RcvBuf is the effective kernel receive buffer in bytes (0 when unknown or not listening).
+func (c *Collector) RcvBuf() int64 { return c.rcvbuf.Load() }
+
+// process decodes one datagram and accounts its sequence number.
+func (c *Collector) process(d dgram) {
+	_, _, _, nt0 := c.Dec.Stats()
+	recs, _ := c.Dec.Decode(d.exp, d.b)
+	_, _, _, nt1 := c.Dec.Stats()
+	c.seq.observe(d.exp, d.b, len(recs), nt1 != nt0)
+	c.touch(d.exp, len(recs))
+	if len(recs) > 0 && c.Handler != nil {
+		c.Handler(recs)
+	}
 }
 
 func (c *Collector) touch(ip netip.Addr, n int) {
@@ -63,7 +99,14 @@ func (c *Collector) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_ = conn.SetReadBuffer(8 << 20)
+	_ = conn.SetReadBuffer(wantRcvbuf)
+	if n := readRcvbuf(conn); n > 0 {
+		c.rcvbuf.Store(int64(n))
+		if n < minRcvbuf {
+			slog.Warn("flow receive buffer is small, bursts will be dropped by the kernel", "bytes", n,
+				"hint", "raise net.core.rmem_max on the host (e.g. 8388608)")
+		}
+	}
 	c.mu.Lock()
 	c.conn = conn
 	c.mu.Unlock()
@@ -71,6 +114,16 @@ func (c *Collector) Run(ctx context.Context) error {
 	if c.Dec == nil {
 		c.Dec = NewDecoder()
 	}
+	// The socket loop only copies; one worker decodes. A slow handler no longer stalls the socket (#294).
+	q := make(chan dgram, queueLen)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for d := range q {
+			c.process(d)
+		}
+	}()
+	defer func() { close(q); <-done }()
 	buf := make([]byte, 65535)
 	for {
 		n, from, err := conn.ReadFromUDPAddrPort(buf)
@@ -85,10 +138,10 @@ func (c *Collector) Run(ctx context.Context) error {
 			c.Dropped.Add(1)
 			continue
 		}
-		recs, _ := c.Dec.Decode(exp, buf[:n])
-		c.touch(exp, len(recs))
-		if len(recs) > 0 && c.Handler != nil {
-			c.Handler(recs)
+		select {
+		case q <- dgram{exp, append([]byte(nil), buf[:n]...)}:
+		default:
+			c.QueueDropped.Add(1)
 		}
 	}
 }

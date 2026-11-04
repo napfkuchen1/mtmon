@@ -312,6 +312,34 @@ func ruleTransitAttached(s Snapshot) ([]Suggestion, string) {
 	}}, ""
 }
 
+// FlowLossLimit: from this share of lost export packets in the last hour, mtmon suggests a fix (#294).
+const FlowLossLimit = 0.01
+
+// ruleFlowLoss (#294): the sequence numbers of the flow export show gaps. Every lost packet is traffic that is missing
+// from all totals, with no other sign of it.
+func ruleFlowLoss(s Snapshot) ([]Suggestion, string) {
+	l := s.FlowLoss()
+	if l.Expected < 1000 {
+		return nil, "too few export packets seen yet"
+	}
+	share := float64(l.Lost) / float64(l.Expected)
+	if share <= FlowLossLimit {
+		return nil, ""
+	}
+	return []Suggestion{{
+		Subject: "flow_loss", Severity: SevWarning, Category: CatMonitoring, Link: "devices", Confidence: "medium",
+		Title:    fmt.Sprintf("%d %% of the flow export is lost on the way to mtmon", int(share*100+0.5)),
+		Why:      "The sequence numbers of the flow export have gaps. Lost export packets are traffic that is missing from every total, without any other sign of it.",
+		Evidence: []string{fmt.Sprintf("%d of %d export units lost in the last hour; worst exporter: %s", l.Lost, l.Expected, l.Worst)},
+		Steps: []string{
+			"Raise the UDP receive buffer on the mtmon host (net.core.rmem_max, e.g. 8388608) and restart mtmon.",
+			"Check the CPU load of the exporting router; flow export on a busy router drops packets itself.",
+			"Reduce the export volume: fewer interfaces in the flow target, or a longer active-flow timeout.",
+		},
+		Limits: "Only export packets lost between the router and mtmon are counted; flows the router never exported are not visible.",
+	}}, ""
+}
+
 // ruleAPOnAP (#190 baseline): the API service on an access point. mtmon talks REST (www), so the binary API is only
 // attack surface unless a script of yours uses it.
 func ruleAPOnAP(s Snapshot) ([]Suggestion, string) {
