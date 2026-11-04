@@ -16,7 +16,7 @@ func (s *Store) AddWANSample(at time.Time, target string, ok bool, rttMS float64
 	if ok {
 		lost, rtt = 0, rttMS
 	}
-	s.DB.Exec(`INSERT INTO wan_quality(ts,target,sent,lost,rtt_sum,rtt_max) VALUES(?,?,1,?,?,?)
+	s.exec(`INSERT INTO wan_quality(ts,target,sent,lost,rtt_sum,rtt_max) VALUES(?,?,1,?,?,?)
 		ON CONFLICT DO UPDATE SET sent=sent+1, lost=lost+excluded.lost, rtt_sum=rtt_sum+excluded.rtt_sum,
 		rtt_max=CASE WHEN excluded.rtt_max>rtt_max THEN excluded.rtt_max ELSE rtt_max END`, ts, target, lost, rtt, rtt)
 }

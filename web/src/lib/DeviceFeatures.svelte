@@ -66,7 +66,8 @@
           <button class="sw" class:on={want[f.key]} role="switch" aria-checked={want[f.key]} aria-label={tr(f.title)} disabled={busy || (!f.available && !f.on)} onclick={() => toggle(f.key)}><i></i></button>
         </div>
         <div class="muted fw">{tr(f.why)}{#if !f.available && !f.on} <i>{tr(f.unavailable_reason)}</i>{/if}</div>
-        {#if f.key === 'flow' && data.flow_peer && !f.on && !f.external}<div class="muted fw"><i>{t('Router {name} already sends Traffic Flow. A second exporter on the same path only duplicates data; mtmon drops the duplicates, but one exporter is enough.', { name: data.flow_peer })}</i></div>{/if}
+        {#if f.key === 'flow' && data.flow_peer && data.flow_peer_gateway && !f.on && !f.external}<div class="muted fw"><i>{t('This router is behind {name}, which already exports Traffic Flow: flow export here counts the same traffic twice. mtmon drops the duplicates, but one exporter is enough.', { name: data.flow_peer })}</i></div>
+        {:else if f.key === 'flow' && data.flow_peer && !f.on && !f.external}<div class="muted fw"><i>{t('Router {name} already sends Traffic Flow. A second exporter on the same path only duplicates data; mtmon drops the duplicates, but one exporter is enough.', { name: data.flow_peer })}</i></div>{/if}
         {#if f.key === 'firewall_logs' && want[f.key] && !f.on}
           <div class="sub">
             <div class="muted" style="font-size:12.5px;margin-bottom:6px">{t('Log on these drop rules:')}</div>

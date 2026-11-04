@@ -28,9 +28,9 @@ func (s *Store) LogDBSize() {
 	var last int64
 	s.DB.QueryRow(`SELECT coalesce(max(ts),0) FROM db_size_log`).Scan(&last)
 	if now-last >= 50*60 {
-		s.DB.Exec(`INSERT OR REPLACE INTO db_size_log(ts,bytes) VALUES(?,?)`, now, s.DBBytes())
+		s.exec(`INSERT OR REPLACE INTO db_size_log(ts,bytes) VALUES(?,?)`, now, s.DBBytes())
 	}
-	s.DB.Exec(`DELETE FROM db_size_log WHERE ts<?`, now-35*86400)
+	s.exec(`DELETE FROM db_size_log WHERE ts<?`, now-35*86400)
 }
 
 // DBGrowthPerDay is the growth of the database per day over the last 7 days of samples (bytes, never negative):

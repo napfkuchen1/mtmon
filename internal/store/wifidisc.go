@@ -59,7 +59,7 @@ func backfillWifiDisc(db *sql.DB) error {
 
 // AddWifiDisc records one disconnect of a client (MAC upper case) seen in the log of `device`.
 func (s *Store) AddWifiDisc(ts int64, mac, device string) {
-	s.DB.Exec(`INSERT INTO wifi_disc(ts,mac,device) VALUES(?,?,?)`, ts, NormMAC(mac), device)
+	s.exec(`INSERT INTO wifi_disc(ts,mac,device) VALUES(?,?,?)`, ts, NormMAC(mac), device)
 }
 
 // wifiDiscPeak returns, per client, the disconnects of its worst clock hour since `since`. A burst of six in five

@@ -61,7 +61,7 @@ type DevMetric struct {
 }
 
 func (s *Store) SaveDevMetric(m DevMetric) {
-	s.DB.Exec(`INSERT INTO dev_metrics(ts,device,cpu,mem_used,mem_total,temp,uptime,clients,up) VALUES(?,?,?,?,?,?,?,?,?)`,
+	s.exec(`INSERT INTO dev_metrics(ts,device,cpu,mem_used,mem_total,temp,uptime,clients,up) VALUES(?,?,?,?,?,?,?,?,?)`,
 		m.TS, m.Device, m.CPU, m.MemUsed, m.MemTotal, m.Temp, m.Uptime, m.Clients, b2i(m.Up))
 }
 
@@ -219,7 +219,7 @@ func (s *Store) ResolveAlerts(kind, subject, note string) int64 {
 
 // AmendAlert appends a note to the newest alert of this kind and subject (a fact that is only known later).
 func (s *Store) AmendAlert(kind, subject, note string) {
-	s.DB.Exec(`UPDATE alerts SET msg=msg||? WHERE id=(SELECT max(id) FROM alerts WHERE kind=? AND subject=?)`, note, kind, subject)
+	s.exec(`UPDATE alerts SET msg=msg||? WHERE id=(SELECT max(id) FROM alerts WHERE kind=? AND subject=?)`, note, kind, subject)
 }
 
 func (s *Store) AckAlert(id int64) error {

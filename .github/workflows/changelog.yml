@@ -17,7 +17,15 @@ jobs:
         run: |
           base="origin/${{ github.event.pull_request.base.ref }}"
           files=$(git diff --name-only "$base"...HEAD)
-          if echo "$files" | grep -Eq '^(internal/|cmd/|web/src/|deploy/)' && ! echo "$files" | grep -qx 'CHANGELOG.md'; then
-            echo "::error::This PR changes code but not CHANGELOG.md (## [Unreleased]). Add an entry or label the PR no-changelog."
+          if ! echo "$files" | grep -Eq '^(internal/|cmd/|web/src/|deploy/)'; then
+            exit 0
+          fi
+          # the text under "## [Unreleased]" must differ from the one at the merge base; touching an older release section does not count
+          unreleased() {
+            git show "$1:CHANGELOG.md" 2>/dev/null | tr -d '\r' | awk '/^## \[Unreleased\]/{f=1;next} /^## \[/{f=0} f'
+          }
+          mb=$(git merge-base "$base" HEAD)
+          if [ "$(unreleased "$mb")" = "$(unreleased HEAD)" ]; then
+            echo "::error::This PR changes code but not the CHANGELOG.md section '## [Unreleased]'. Add an entry there or label the PR no-changelog."
             exit 1
           fi

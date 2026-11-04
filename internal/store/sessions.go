@@ -16,7 +16,7 @@ func (s *Store) CreateSession(hash string, idleUntil, born int64, role, cred str
 
 // TouchSession extends the idle deadline of an existing session. It never creates one.
 func (s *Store) TouchSession(hash string, idleUntil int64) {
-	s.DB.Exec(`UPDATE sessions SET idle_until=? WHERE hash=?`, idleUntil, hash)
+	s.exec(`UPDATE sessions SET idle_until=? WHERE hash=?`, idleUntil, hash)
 }
 
 // StoredSession is one row of the sessions table.
@@ -37,7 +37,7 @@ func (s *Store) DropSession(hash string) { s.DB.Exec(`DELETE FROM sessions WHERE
 
 // PruneSessions removes sessions that idled out before `idleBefore` or were born before `bornBefore`.
 func (s *Store) PruneSessions(idleBefore, bornBefore int64) {
-	s.DB.Exec(`DELETE FROM sessions WHERE idle_until<? OR born<?`, idleBefore, bornBefore)
+	s.exec(`DELETE FROM sessions WHERE idle_until<? OR born<?`, idleBefore, bornBefore)
 }
 
 // Roles (#192): sessions of the read-only "viewer" account carry the role "viewer"; "" means admin.

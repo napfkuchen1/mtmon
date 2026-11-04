@@ -68,7 +68,7 @@ func (s *Store) TokenValid(hash string) bool {
 		return false
 	}
 	if now := time.Now().Unix(); now-last > 60 {
-		s.DB.Exec(`UPDATE api_tokens SET last_used=? WHERE id=?`, now, id)
+		s.exec(`UPDATE api_tokens SET last_used=? WHERE id=?`, now, id)
 	}
 	return true
 }

@@ -41,7 +41,7 @@ func (s *Store) RestoreSuggestion(id string) error {
 // DismissedSuggestions returns id → until (0 = forever); expired snoozes are removed.
 func (s *Store) DismissedSuggestions() (map[string]int64, error) {
 	now := time.Now().Unix()
-	s.DB.Exec(`DELETE FROM advice_dismissed WHERE until>0 AND until<?`, now)
+	s.exec(`DELETE FROM advice_dismissed WHERE until>0 AND until<?`, now)
 	rows, err := s.DB.Query(`SELECT id,until FROM advice_dismissed`)
 	if err != nil {
 		return nil, err
