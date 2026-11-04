@@ -7,7 +7,9 @@ set -uo pipefail
 T=$(cd "$(dirname "$0")" && pwd); D=$(dirname "$T"); R=$(dirname "$D")
 WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
 # the fake release is not signed: the dialog tests accept that explicitly; the signature rules are tested below
-export FAKE_STATE=$WORK/state PATH="$T/stubs:$PATH" MTMON_FORCE_TUI=1 MTMON_BASE_URL="file://$WORK/rel" MTMON_ALLOW_UNVERIFIED=1
+# $WORK/bin comes first: the tests must never reach the real apt-get
+mkdir -p "$WORK/bin"
+export FAKE_BIN=$WORK/bin FAKE_STATE=$WORK/state PATH="$WORK/bin:$T/stubs:$PATH" MTMON_FORCE_TUI=1 MTMON_BASE_URL="file://$WORK/rel" MTMON_ALLOW_UNVERIFIED=1
 # fake release: scripts from this checkout + shell-wrapper "binary"
 mkdir -p "$WORK/rel/mtmon" && cp "$D"/*.sh "$D"/*.service "$D"/*.conf "$WORK/rel/mtmon/"
 # shellcheck disable=SC2016
@@ -20,6 +22,8 @@ answers() { printf '%s\n' "$@" > "$FAKE_STATE/answers"; }
 ok() { pass=$((pass+1)); echo "PASS  $1"; }
 no() { fail=$((fail+1)); echo "FAIL  $1"; [ -z "${2:-}" ] || echo "$2" | tail -12 | sed 's/^/        /'; }
 run() { OUT=$("$R/install.sh" "$@" 2>&1 </dev/null); RC=$?; }
+# runin ANSWER ARGS...: like run, with one line typed at the prompt
+runin() { local a=$1; shift; OUT=$(printf '%s\n' "$a" | "$R/install.sh" "$@" 2>&1); RC=$?; }
 has() { grep -q -- "$1" <<<"$OUT" && ok "output has: $1" || no "output missing: $1" "$OUT"; }
 called() { grep -q -- "$1" "$FAKE_STATE/calls.log" && ok "called: $1" || no "never called: $1" "$(cat "$FAKE_STATE/calls.log")"; }
 notcalled() { grep -q -- "$1" "$FAKE_STATE/calls.log" && no "unexpectedly called: $1" || ok "not called: $1"; }
@@ -72,6 +76,36 @@ printf 'untrusted comment: x\n' > "$WORK/rel/mtmon-linux-amd64.tar.gz.minisig"
 if ! command -v minisign >/dev/null; then
   reset; MTMON_ALLOW_UNVERIFIED='' run install --dry-run --yes
   [ $RC != 0 ] && ok "signed release without minisign installed refused" || no "rc=$RC" "$OUT"; has "minisign is not installed"
+
+  echo "== offer to install minisign =="
+  # fake apt-get: logs its call; "install" succeeds and adds a fake minisign unless FAKE_APT_FAIL is set
+  cat > "$FAKE_BIN/apt-get" <<'EOS'
+#!/bin/sh
+echo "apt-get $*" >> "$FAKE_STATE/calls.log"
+[ "$1" = install ] || exit 0
+[ -z "${FAKE_APT_FAIL:-}" ] || exit 100
+printf '#!/bin/sh\nexit %s\n' "${FAKE_SIG_RC:-0}" > "$FAKE_BIN/minisign"; chmod +x "$FAKE_BIN/minisign"
+EOS
+  chmod +x "$FAKE_BIN/apt-get"
+  INST=(install --ctid 212 --storage local-lvm --bridge vmbr0 --yes)
+  export MTMON_ALLOW_UNVERIFIED='' MTMON_FORCE_TUI=1
+  reset; rm -f "$FAKE_BIN/minisign"; runin n "${INST[@]}"
+  [ $RC != 0 ] && ok "declined: aborts" || no "rc=$RC" "$OUT"; has "Install it now"; has "minisign is not installed - aborting"; notcalled "apt-get"
+  reset; rm -f "$FAKE_BIN/minisign"; runin "" "${INST[@]}"
+  [ $RC = 0 ] && ok "Enter: installs minisign and goes on" || no "rc=$RC" "$OUT"; called "apt-get install -y minisign"; has "signature verified"
+  reset; rm -f "$FAKE_BIN/minisign"; FAKE_SIG_RC=1 runin y "${INST[@]}"
+  [ $RC != 0 ] && ok "freshly installed minisign still enforces the signature" || no "rc=$RC" "$OUT"; has "signature check FAILED"
+  reset; rm -f "$FAKE_BIN/minisign"; FAKE_APT_FAIL=1 runin y "${INST[@]}"
+  [ $RC != 0 ] && ok "apt failure: aborts" || no "rc=$RC" "$OUT"; called "apt-get update"; has "could not install minisign"; has "minisign is not installed - aborting"
+  reset; rm -f "$FAKE_BIN/minisign"; run "${INST[@]}"
+  [ $RC != 0 ] && ok "no answer (EOF): aborts" || no "rc=$RC" "$OUT"; notcalled "apt-get"
+  reset; runin y install --dry-run --yes
+  [ $RC != 0 ] && ok "dry run: aborts without installing" || no "rc=$RC" "$OUT"; notcalled "apt-get"
+  reset; MTMON_FORCE_TUI='' runin y "${INST[@]}"
+  [ $RC != 0 ] && ok "no terminal: aborts without asking" || no "rc=$RC" "$OUT"; has "minisign is not installed - aborting"; notcalled "apt-get"
+  reset; MTMON_ALLOW_UNVERIFIED=1 runin y "${INST[@]}"
+  [ $RC = 0 ] && ok "MTMON_ALLOW_UNVERIFIED=1: no offer" || no "rc=$RC" "$OUT"; has "signature NOT checked"; notcalled "apt-get"
+  rm -f "$FAKE_BIN/minisign" "$FAKE_BIN/apt-get"; export MTMON_ALLOW_UNVERIFIED=1; unset MTMON_FORCE_TUI
 else
   reset; MTMON_ALLOW_UNVERIFIED='' run install --dry-run --yes
   [ $RC != 0 ] && ok "bad signature refused" || no "rc=$RC" "$OUT"; has "signature check FAILED"

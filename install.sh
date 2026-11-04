@@ -215,7 +215,26 @@ pre_signing() {
   [ "$maj" = 0 ] && [ "$min" -lt 8 ]
 }
 MTMON_PUBKEY=RWSj18U8+XTlXnicS+OIExn6YF3O9+RC4U9VIaDLVtPFeMkp75YhedSK
+# offer_minisign: on an interactive run, offer to install the missing minisign with apt-get.
+# Every other outcome (declined, no terminal, no apt-get, dry run, apt failure) leaves it missing, and the caller aborts.
+offer_minisign() {
+  local a
+  if ! { [ -t 0 ] || [ -n "${MTMON_FORCE_TUI:-}" ]; }; then return 1; fi
+  command -v apt-get >/dev/null || return 1
+  case " ${ARGS[*]:-} " in *" --dry-run "*) return 1 ;; esac
+  printf '  %s!%s minisign is needed to check the release signature, but it is not installed.
+' "$C_YL" "$C_RS"
+  printf '    Install it now with apt-get? [Y/n] '
+  read -r a || { echo; return 1; }
+  case $a in "" | [Yy]*) ;; *) return 1 ;; esac
+  say "installing minisign"
+  # a first failure is usually stale package lists: refresh them once
+  DEBIAN_FRONTEND=noninteractive apt-get install -y minisign     || { apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y minisign; }     || printf '  %s!%s apt-get could not install minisign
+' "$C_YL" "$C_RS"
+  command -v minisign >/dev/null
+}
 if curl -fsSL --retry 3 -o "$T/$ASSET.minisig" "$BASE/$ASSET.minisig" 2>/dev/null; then
+  if ! command -v minisign >/dev/null && [ "${MTMON_ALLOW_UNVERIFIED:-}" != 1 ]; then offer_minisign || true; fi
   if command -v minisign >/dev/null; then
     minisign -Vqm "$T/$ASSET" -x "$T/$ASSET.minisig" -P "$MTMON_PUBKEY" || die "signature check FAILED - aborting (the archive was not signed by the mtmon maintainer)"
     printf '  %s✔%s signature verified (minisign)\n' "$C_GR" "$C_RS"

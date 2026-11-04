@@ -12,7 +12,8 @@ mtmon is in beta (0.x). Only the latest release receives fixes.
 Release archives are signed with minisign and carry a build-provenance attestation and SBOMs (CycloneDX, Go and npm) with their own attestation. See
 [docs/release-signing.md](docs/release-signing.md) for the public key and the verification commands.
 
-The installer refuses a signed release when `minisign` is not installed (`apt install minisign`). Override with
+When `minisign` is not installed, an interactive installer run offers to install it with `apt-get`. If you decline,
+or without a terminal, it refuses a signed release (`apt install minisign`). Override with
 `MTMON_ALLOW_UNVERIFIED=1` to accept the SHA-256 checksum only.
 
 ## Network ingest
