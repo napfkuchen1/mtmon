@@ -75,7 +75,7 @@ jobs:
       - name: SBOM (CycloneDX, Go and npm)
         run: |
           # production dependencies only; the Go SBOM lists the modules compiled into cmd/mtmon
-          go run github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.10.0 app -json -main cmd/mtmon -version "$TAG" -output dist/mtmon-sbom-go.cdx.json
+          go run github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.10.0 app -json -main cmd/mtmon -output dist/mtmon-sbom-go.cdx.json
           (cd web && npm sbom --sbom-format=cyclonedx --omit=dev > ../dist/mtmon-sbom-npm.cdx.json)
           test -s dist/mtmon-sbom-go.cdx.json && test -s dist/mtmon-sbom-npm.cdx.json
       - name: SBOM attestation (Go)
