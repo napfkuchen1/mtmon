@@ -222,7 +222,8 @@
 <style>
   .boot { height: 100vh; display: grid; place-items: center; }
   .shell { display: grid; grid-template-columns: var(--sidebar) 1fr; min-height: 100vh; transition: grid-template-columns .18s; }
-  .shell.rail { grid-template-columns: 64px 1fr; }
+  .shell { --sw: var(--sidebar); background: linear-gradient(to right, var(--card) calc(var(--sw) - 1px), var(--border) 0 var(--sw), transparent 0); }
+  .shell.rail { --sw: 64px; grid-template-columns: 64px 1fr; }
   aside { position: sticky; top: 0; height: 100vh; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 14px 10px; }
   .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; color: var(--text); padding: 6px 10px 16px; letter-spacing: -.01em; }
   .brand:hover { text-decoration: none; }
@@ -235,7 +236,7 @@
   .cnt { margin-left: auto; background: var(--bad); color: #fff; border-radius: 999px; font-size: 11px; padding: 0 7px; font-weight: 600; }
   .foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 8px 6px 0; border-top: 1px solid var(--border); }
   .conn { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; }
-  .row2 { display: flex; gap: 8px; } .row2 select { flex: 1; padding: 4px 6px; }
+  .row2 { display: flex; gap: 8px; } .row2 select { flex: 1; padding: 4px 24px 4px 6px; }
   .ver { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-size: 11.5px; min-width: 0; }
   .ver .vtxt { color: var(--muted); } .ver .vtxt:hover { color: var(--text); text-decoration: none; }
   .vbadge { background: var(--accent-bg); color: var(--accent-strong); border-radius: 999px; padding: 0 8px; font-weight: 600; white-space: nowrap; font-size: 11.5px; }
@@ -259,7 +260,7 @@
   .page { padding: 24px 28px 48px; max-width: 1500px; }
   @media (min-width: 1900px) { .page { max-width: 2000px; margin-inline: auto; } }
   @media (max-width: 860px) {
-    .shell, .shell.rail { grid-template-columns: 1fr; }
+    .shell, .shell.rail { grid-template-columns: 1fr; background: none; }
     aside { position: fixed; z-index: 30; left: 0; top: 0; bottom: 0; width: min(280px, 84vw); transform: translateX(-100%); transition: transform .2s; box-shadow: none; overflow-y: auto; }
     aside.open { transform: none; box-shadow: 0 0 40px rgba(0,0,0,.4); }
     .rail .lbl, .rail .full { display: revert; } .rail .mini { display: none; } .rail nav a, .rail .sl { justify-content: flex-start; padding-left: 10px; }

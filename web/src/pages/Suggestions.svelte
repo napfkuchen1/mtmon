@@ -154,7 +154,7 @@
   .filters { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-bottom: 14px; color: var(--muted); }
   .filters label { display: inline-flex; align-items: center; gap: 8px; }
   .filters .chk { color: var(--text); }
-  .filters select { padding: 4px 8px; }
+  .filters select { padding: 4px 24px 4px 8px; }
   .list { display: flex; flex-direction: column; gap: 12px; }
   .sg { --sc: var(--faint); padding: 0; overflow: hidden; border-left: 4px solid var(--sc); }
   .sg.warning { --sc: var(--warn); } .sg.tip { --sc: var(--accent); } .sg.info { --sc: var(--faint); }
