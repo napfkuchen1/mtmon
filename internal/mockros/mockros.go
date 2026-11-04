@@ -16,12 +16,21 @@ type Client struct {
 	WiFi          bool
 	Signal        int
 	SSID          string
+	// On limits the device that reports this client in its Wi-Fi registration table (wireless) or bridge host
+	// table (wired). Empty = every device.
+	On string
+	// Port is the bridge port of a wired client (default ether3).
+	Port string
 }
+
+// Neighbor is one /ip/neighbor entry (LLDP/MNDP) a mock device reports.
+type Neighbor struct{ Iface, MAC, Ident, Addr string }
 
 type Server struct {
 	Name, Role string
 	User, Pass string
 	Clients    []Client
+	Neighbors  []Neighbor        // nil = the single legacy neighbor "ap-living"
 	DNS        map[string]string // name → ip
 	CPU        int
 	Fail       bool // return 500 on everything (simulate outage)
@@ -43,6 +52,8 @@ func New(name, role, user, pass string, clients []Client) *Server {
 	s.initState()
 	return s
 }
+
+func (s *Server) sees(c Client) bool { return c.On == "" || c.On == s.Name }
 
 func (s *Server) SetFail(f bool) { s.mu.Lock(); s.Fail = f; s.mu.Unlock() }
 
@@ -92,7 +103,7 @@ func (s *Server) Handler() http.Handler {
 		}
 		var out []obj
 		for _, c := range s.Clients {
-			if c.WiFi {
+			if c.WiFi && s.sees(c) {
 				out = append(out, obj{"mac-address": c.MAC, "interface": "wifi1", "ssid": c.SSID, "signal": fmt.Sprint(c.Signal),
 					"tx-rate": "866.7Mbps-80MHz/2S/SGI", "rx-rate": "780Mbps-80MHz/2S", "band": "5ghz-ax"})
 			}
@@ -116,8 +127,12 @@ func (s *Server) Handler() http.Handler {
 	get("/interface/bridge/host", func() any {
 		var out []obj
 		for _, c := range s.Clients {
-			if !c.WiFi {
-				out = append(out, obj{"mac-address": c.MAC, "on-interface": "ether3", "local": "false"})
+			if !c.WiFi && s.sees(c) {
+				port := c.Port
+				if port == "" {
+					port = "ether3"
+				}
+				out = append(out, obj{"mac-address": c.MAC, "on-interface": port, "local": "false"})
 			}
 		}
 		return out
@@ -130,6 +145,13 @@ func (s *Server) Handler() http.Handler {
 		return out
 	})
 	get("/ip/neighbor", func() any {
+		if s.Neighbors != nil {
+			out := []obj{}
+			for _, n := range s.Neighbors {
+				out = append(out, obj{"interface": n.Iface, "mac-address": n.MAC, "identity": n.Ident, "address": n.Addr, "platform": "MikroTik"})
+			}
+			return out
+		}
 		return []obj{{"interface": "ether2", "mac-address": "AA:BB:CC:00:00:01", "identity": "ap-living", "address": "192.168.88.2", "platform": "MikroTik"}}
 	})
 	// unknown path → 404

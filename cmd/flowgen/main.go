@@ -28,6 +28,17 @@ var dests = []struct {
 	{"91.189.91.83", 80, 6}, {"162.159.135.234", 443, 6}, {"192.0.2.55", 51820, 17}, {"198.51.100.7", 993, 6}, {"203.0.113.80", 8883, 6},
 }
 
+// docDests are remote servers in the documentation ranges (RFC 5737) only: demos and screenshots never show real addresses.
+var docDests = []struct {
+	ip   string
+	port uint16
+	p    uint8
+}{
+	{"192.0.2.10", 443, 6}, {"192.0.2.20", 443, 17}, {"192.0.2.55", 51820, 17}, {"198.51.100.7", 993, 6}, {"198.51.100.30", 443, 6},
+	{"198.51.100.44", 80, 6}, {"198.51.100.90", 443, 6}, {"203.0.113.80", 8883, 6}, {"203.0.113.12", 443, 6}, {"203.0.113.150", 443, 17},
+	{"203.0.113.200", 443, 6}, {"192.0.2.130", 443, 6},
+}
+
 func main() {
 	target := flag.String("target", "127.0.0.1:2055", "collector host:port")
 	rate := flag.Int("rate", 1000, "flows per second")
@@ -36,7 +47,11 @@ func main() {
 	ipfix := flag.Bool("ipfix", true, "IPFIX (false = NetFlow v9)")
 	ips := flag.String("clientips", "", "comma separated client IPs to use instead of 192.168.88.x")
 	src := flag.String("src", "", "local source IP to bind (must match an allowed exporter)")
+	docOnly := flag.Bool("docdests", false, "use only documentation-range (RFC 5737) remote addresses")
 	flag.Parse()
+	if *docOnly {
+		dests = docDests
+	}
 
 	d := net.Dialer{}
 	if *src != "" {
