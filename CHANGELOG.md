@@ -12,6 +12,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ### Fixed
 - UI polish (#307): the Clients table keeps rate and usage on one line and no longer breaks MAC or vendor in the middle; the vendor has its own line. All drop-down lists share one styled look in light and dark theme. The sidebar background now runs the full page height, also in full-page captures.
+- Demo and screenshots (#306): `scripts/demo.sh` now starts a fuller fictional network (router, switch, two access points, 25 clients, a spare router for the setup wizard) with 36 hours of seeded history (`bin/demoseed`: traffic with countries, firewall log, alerts), and `make screenshots` builds with a clean version and checks that no screenshot shows a loopback address, a `-dirty` version or an empty chart. The script now also takes the Firewall and Add-device wizard pictures, in English and one theme, in a single run.
 - Speed test and mtmon probes no longer raise a traffic spike (#288): their bytes are subtracted from the live total the spike check uses, so they neither trigger the alert nor lift its baseline. The total rate on the overview still shows them.
 - Changelog check (#304): the CI check now compares the text under Unreleased with the base branch, so an unrelated edit elsewhere in the file no longer counts as an entry.
 - Behind-gateway hint (#286): the Traffic Flow card says when a router sits behind a gateway that already exports flows, and that mtmon drops the duplicates.

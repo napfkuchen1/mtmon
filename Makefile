@@ -19,6 +19,7 @@ build: web/dist/index.html ## static linux/amd64 binary with embedded UI (reuses
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/mtmon ./cmd/mtmon
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/flowgen ./cmd/flowgen
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/mockros ./cmd/mockros
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/demoseed ./cmd/demoseed
 
 test:                     ## unit + integration tests (race detector on)
 	$(GO) vet ./...
@@ -40,7 +41,8 @@ scale:                    ## 100 clients x 30 days data set; asserts every query
 scale-live:               ## like scale, but sized like a real install (~2 GB, 50 clients around the clock); reports slow queries
 	MTMON_SCALE=1 MTMON_SCALE_PROFILE=live $(GO) test ./internal/integration -run TestScale -v -timeout 40m
 
-screenshots: build        ## regenerate docs/img from the demo (needs Playwright + Chromium)
+screenshots: VERSION = $(shell git describe --tags --abbrev=0 2>/dev/null || echo dev)
+screenshots: build        ## regenerate docs/img from the demo (needs Playwright + Chromium); version is the last tag, never -dirty
 	@bash -c 'trap "pkill -x mtmon; pkill -x mockros; pkill -x flowgen" EXIT; scripts/demo.sh >/dev/null 2>&1 & sleep 8; NODE_PATH=$$(npm root -g) node scripts/screenshots.js'
 
 deploy-test: build        ## install/update/uninstall scripts against fake Proxmox tools
