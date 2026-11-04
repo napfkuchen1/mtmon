@@ -174,7 +174,6 @@ func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	out["clock_skew_s"] = skews
-<<<<<<< HEAD
 	sampling := map[string]uint32{}
 	if s.Col != nil && s.Col.Dec != nil {
 		for a, n := range s.Col.Dec.Sampling() {
@@ -182,7 +181,6 @@ func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	out["flow_sampling"] = sampling
-=======
 	loss := []map[string]any{}
 	if s.Col != nil {
 		for _, ls := range s.Col.Loss() {
@@ -193,7 +191,6 @@ func (s *Server) diagnostics(w http.ResponseWriter, r *http.Request) {
 		out["flow_queue_dropped"] = s.Col.QueueDropped.Load()
 	}
 	out["flow_loss"] = loss
->>>>>>> 3e87a75 (feat: flow loss accounting and decoupled receive loop)
 	ns, _ := s.St.Neighbors()
 	out["neighbors"] = ns
 	cl, _ := s.St.Clients()
