@@ -165,7 +165,7 @@ func TestSamplingRateScalesVolumes(t *testing.T) {
 	exp := netip.MustParseAddr("10.0.0.1")
 	now := time.Now()
 	// options template 257: scope observationDomainId (149), samplingPacketInterval (305), samplingPacketSpace (306)
-	opt := ipfixSet(3, append(u16(257, 3, 1, 149, 4, 305, 4, 306, 4)))
+	opt := ipfixSet(3, u16(257, 3, 1, 149, 4, 305, 4, 306, 4))
 	d.Decode(exp, ipfixMsg(now, flowTemplate(256, 1), opt))
 	rec := binary.BigEndian.AppendUint32(nil, 0)
 	rec = binary.BigEndian.AppendUint32(rec, 1)
