@@ -92,4 +92,3 @@ func TestSeqWindowAndDomains(t *testing.T) {
 		t.Fatalf("window: %+v", st)
 	}
 }
-
