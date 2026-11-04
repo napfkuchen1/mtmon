@@ -57,7 +57,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .btn.sm { padding: 3px 9px; font-size: 12.5px; }
 .input { padding: 7px 10px; border: 1px solid var(--border-2); background: var(--card); color: var(--text); border-radius: 8px; font: inherit; min-width: 0; }
 .input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
-select { appearance: none; -webkit-appearance: none; padding: 7px 28px 7px 10px; border: 1px solid var(--border-2); border-radius: 8px; color: var(--text); font: inherit; min-width: 0; cursor: pointer;
+select, select.input { appearance: none; -webkit-appearance: none; padding: 7px 28px 7px 10px; border: 1px solid var(--border-2); border-radius: 8px; color: var(--text); font: inherit; min-width: 0; cursor: pointer;
   background-color: var(--card); background-repeat: no-repeat; background-position: right 12px center, right 7px center; background-size: 5px 5px;
   background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); }
 select:hover:not(:disabled) { background-color: var(--card-2); }

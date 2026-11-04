@@ -236,7 +236,7 @@
   .cnt { margin-left: auto; background: var(--bad); color: #fff; border-radius: 999px; font-size: 11px; padding: 0 7px; font-weight: 600; }
   .foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 8px 6px 0; border-top: 1px solid var(--border); }
   .conn { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; }
-  .row2 { display: flex; gap: 8px; } .row2 select { flex: 1; padding: 4px 6px; }
+  .row2 { display: flex; gap: 8px; } .row2 select { flex: 1; padding: 4px 24px 4px 6px; }
   .ver { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-size: 11.5px; min-width: 0; }
   .ver .vtxt { color: var(--muted); } .ver .vtxt:hover { color: var(--text); text-decoration: none; }
   .vbadge { background: var(--accent-bg); color: var(--accent-strong); border-radius: 999px; padding: 0 8px; font-weight: 600; white-space: nowrap; font-size: 11.5px; }
