@@ -1,4 +1,4 @@
-<h1 align="center">mtmon</h1>
+<p align="center"><img src="docs/img/logo.svg" alt="mtmon" height="64"></p>
 <p align="center"><b>Realtime monitoring for MikroTik routers and access points.</b><br>
 See who talks to whom, how much, over which port, and whether your firewall let it through.<br>
 One small container, zero-touch device onboarding, fully reversible.</p>
@@ -10,13 +10,15 @@ One small container, zero-touch device onboarding, fully reversible.</p>
   <a href="docs/release-signing.md"><img alt="signed releases" src="https://img.shields.io/badge/releases-signed%20(minisign)-brightgreen"></a>
 </p>
 
-<p align="center"><img src="docs/img/overview.png" alt="mtmon overview dashboard" width="900"></p>
+<p align="center">Web interface in <b>English</b> and <b>Deutsch</b> (language switch in the sidebar) &middot; this README is in English, the <a href="docs/runbook.md">runbook</a> and <a href="docs/router-setup.md">router setup</a> are in German</p>
 
----
+<!-- demo-media:start -->
+<p align="center"><img src="docs/img/overview.png" alt="mtmon overview dashboard" width="900"></p>
+<!-- demo-media:end -->
 
 ## Table of contents
 
-[What it does](#what-it-does) · [Why mtmon](#why-mtmon) · [Screenshots](#screenshots) · [Requirements](#requirements) · [Install](#install) · [Usage](#usage) · [What mtmon changes on your router](#what-mtmon-changes-on-your-router) · [Update](#update) · [Uninstall](#uninstall) · [Security & privacy](#security--privacy) · [Known limits](#known-limits) · [Troubleshooting](#troubleshooting) · [Development](#development)
+[Who is it for](#who-is-it-for) · [What it is not](#what-it-is-not) · [What it does](#what-it-does) · [Why mtmon](#why-mtmon) · [Screenshots](#screenshots) · [Requirements](#requirements) · [Install](#install) · [Usage](#usage) · [What mtmon changes on your router](#what-mtmon-changes-on-your-router) · [Update](#update) · [Uninstall](#uninstall) · [Security & privacy](#security--privacy) · [Known limits](#known-limits) · [Troubleshooting](#troubleshooting) · [Development](#development)
 
 ## Quick start
 
@@ -30,6 +32,20 @@ One small container, zero-touch device onboarding, fully reversible.</p>
    Data appears within seconds.
 
 Details, requirements and what changes on your router are below.
+
+## Who is it for
+
+* You run **MikroTik RouterOS 7** at home, in a small office or for a few customers, and want to see which device talks to what, without building a monitoring stack.
+* You have a **Proxmox VE 9** host (or can run one small unprivileged LXC) and prefer self-hosted tools without an account or a cloud.
+* You want the router set up for you, with every change listed and undoable.
+
+## What it is not
+
+* Not a general network management system: it does not poll arbitrary vendors via SNMP. It is built for MikroTik RouterOS 7 and goes deep on that one thing.
+* Not a firewall or an intrusion prevention system: it watches and suggests, it does not block traffic. Router changes (setup wizard, offboarding, one-click fixes) happen only after your explicit action with an admin login that is never stored.
+* Not a multi-site or multi-tenant service: one instance per site.
+* Not a packet capture tool: it uses router flow data (IPFIX) and the firewall log, no payload.
+* Not battle-tested on many devices yet, see [Known limits](#known-limits).
 
 ## What it does
 
@@ -52,6 +68,9 @@ Adding a router is a form in the web UI: enter its address and a one-time admin 
 
 ## Why mtmon
 
+<details>
+<summary>Show the comparison with typical alternatives</summary>
+
 | | mtmon | Typical alternatives |
 |---|---|---|
 | **Onboarding** | A wizard reads the router's capabilities and sets up a read-only user, Traffic Flow and firewall logging for you. Every change is listed, backed up, and undoable with one button. | Hand-written RouterOS commands, SNMP profiles, exporter configs. |
@@ -64,7 +83,12 @@ Adding a router is a form in the web UI: enter its address and a one-time admin 
 
 mtmon is not a replacement for a full network management system that polls arbitrary vendors via SNMP. It is built for MikroTik RouterOS 7 and goes deep on that one thing.
 
+</details>
+
 ## Screenshots
+
+<details>
+<summary>Show all screenshots</summary>
 
 > Demo data from the built-in simulator (mock routers and synthetic traffic), dark theme. Regenerate most of them with `make screenshots`.
 
@@ -94,6 +118,8 @@ mtmon is not a replacement for a full network management system that polls arbit
     <td><img src="docs/img/wizard-plan.png" alt="Add device wizard"><br><sub><b>Add a device.</b> The plan lists every change with a reason, the exact commands, the undo step and the risk. (Older look: the wizard needs a real router.)</sub></td>
   </tr>
 </table>
+
+</details>
 
 ## Requirements
 
@@ -207,6 +233,9 @@ If any step fails, mtmon rolls back automatically. If the router is unreachable 
 
 ## Update
 
+<details>
+<summary>Show update instructions</summary>
+
 Since v0.7.0 you can also update from the web UI: **Settings → Updates** (check, one-click install with automatic rollback, optional nightly auto-update). Containers installed earlier need one installer *update* first.
 
 Run the same command again and choose **update**:
@@ -219,13 +248,23 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/napfkuchen1/mtmon/main/i
 
 The update takes a Proxmox snapshot and a copy of the database first, swaps the binary, runs a health check and **rolls back automatically** if it fails. Your devices, rules and history are kept.
 
+</details>
+
 ## Config history and downloads
+
+<details>
+<summary>Show details on config history</summary>
 
 mtmon reads a fixed set of read-only REST lists from each device once a day (and when `/system/history` shows a change) and stores a snapshot when something differs. Passwords, keys, tokens and runtime values are never stored. **Download** on the device page gives one snapshot as a readable text file (`<device>_<date>-<time>.txt`, RouterOS-like syntax).
 
 This is a **change log, not a restorable backup**: it covers only the sections mtmon reads and leaves out secrets. To restore a router use `/export` or a binary backup on the router itself. Snapshots are kept for 90 days by default (changeable on the device page, 7 days minimum); the newest snapshot of each device is never deleted.
 
+</details>
+
 ## Uninstall
+
+<details>
+<summary>Show uninstall instructions</summary>
 
 Run the command again and choose **uninstall**. You pick the container and must type its ID to confirm. A final `vzdump` backup is made first (restore later with `pct restore`), then the container is destroyed.
 
@@ -243,7 +282,12 @@ Your routers are **not** touched by this. Use *Offboarding* on each device **bef
 /system logging action remove [find where comment~"mtmon-managed"]
 ```
 
+</details>
+
 ## Security & privacy
+
+<details>
+<summary>Show security and privacy details</summary>
 
 * **Read-only by default.** The only code that writes to a router is the setup/offboarding wizard, and only after your explicit confirmation.
 * **Admin credentials are used once and never stored.** The long-lived account is a generated read-only user restricted to the mtmon address. Its password is stored encrypted (AES-256-GCM, key file mode 0600).
@@ -254,6 +298,8 @@ Your routers are **not** touched by this. Use *Offboarding* on each device **bef
 * Web UI: argon2id passwords, 12-hour sessions, login rate limiting, origin checks on changes, strict security headers, CSV export protected against formula injection. Forwarded headers (`X-Forwarded-For`, `-Host`, `-Proto`) are only honoured from a proxy on the same machine or one you list under *Settings → Access & reverse proxy*.
 * Flows and syslog are accepted only from known devices.
 * **Privacy:** connection data per client is personal data. In a company or shared household, inform the people concerned and set retention (`raw_retention_days`, `retention_days`) accordingly. Nothing leaves your network; GeoIP and vendor lookups use local files.
+
+</details>
 
 ## Known limits
 
@@ -272,6 +318,9 @@ mtmon is young. Please read this before relying on it:
 
 ## Troubleshooting
 
+<details>
+<summary>Show the troubleshooting table</summary>
+
 | Symptom | Check |
 |---|---|
 | No data after adding a router | The *Devices* page shows when flows were last seen. If never: allow UDP 2055 from the router to the container and check the router's Traffic Flow target. |
@@ -283,6 +332,8 @@ mtmon is young. Please read this before relying on it:
 
 More (German): [runbook](docs/runbook.md) · [router setup](docs/router-setup.md) · [architecture](docs/architecture.md)
 
+</details>
+
 ## Versioning & changelog
 
 mtmon uses [Semantic Versioning](https://semver.org). Versions below `1.0.0` are **beta**: they work and are tested,
@@ -290,6 +341,9 @@ but minor releases can still change behaviour. Every release has a plain-languag
 [CHANGELOG.md](CHANGELOG.md) and on the [Releases](https://github.com/napfkuchen1/mtmon/releases) page.
 
 ## Development
+
+<details>
+<summary>Show development commands</summary>
 
 ```bash
 make test         # vet + tests with race detector
@@ -305,6 +359,8 @@ make run-demo     # local demo with mock routers: http://127.0.0.1:18443 (admin 
 Go (single static binary, pure-Go SQLite) and a Svelte 5 UI embedded with `go:embed`. A release is started from *Actions → release → Run workflow* (input `tag`, on `main`) after the `CHANGELOG.md` entry is merged. The workflow requires a green CI run for the commit, creates the tag, then builds, signs and publishes the archive that `install.sh` downloads (see [docs/release-signing.md](docs/release-signing.md)).
 
 Contributions, bug reports and feedback from real MikroTik setups are welcome: please open an issue.
+
+</details>
 
 ## License
 
