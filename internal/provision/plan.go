@@ -32,6 +32,7 @@ type Options struct {
 	MonPass          string   `json:"-"`
 	SyslogReady      bool     `json:"-"`          // the syslog target already exists (set up earlier), so only the rules are added
 	EventLogs        bool     `json:"event_logs"` // also send the system/account/dhcp/wifi/wireguard/script log topics (router event log)
+	AddRules         []string `json:"-"`          // rules of an addition (additions.go): log on them, the log target is there already
 }
 
 // Step is the human-readable description shown in the wizard before anything is changed.

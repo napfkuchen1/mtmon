@@ -58,10 +58,10 @@ var stepKeys = map[string][]string{FeatFlow: {"flow"}, FeatFwLog: {"syslog", "fw
 func featureOptions(o Options, feats map[string]bool) Options {
 	o.Flow = feats[FeatFlow]
 	o.Syslog = feats[FeatFwLog]
-	o.SyslogReady = o.Syslog || feats[FeatAllowLog] || feats[FeatLogNew] || feats[FeatEventLogs]
+	o.SyslogReady = o.Syslog || feats[FeatAllowLog] || feats[FeatLogNew] || feats[FeatEventLogs] || len(o.AddRules) > 0
 	o.EventLogs = feats[FeatEventLogs]
 	if !feats[FeatFwLog] {
-		o.FwRules = nil
+		o.FwRules = o.AddRules
 	}
 	if !feats[FeatAllowLog] {
 		o.AllowRules, o.ConvertAllow = nil, nil
@@ -72,7 +72,7 @@ func featureOptions(o Options, feats map[string]bool) Options {
 }
 
 func featureActions(k *Caps, o Options, feats map[string]bool) []action {
-	keep := map[string]bool{"backup": true}
+	keep := map[string]bool{"backup": true, "fwlog": len(o.AddRules) > 0}
 	for f, on := range feats {
 		if on {
 			for _, s := range stepKeys[f] {
