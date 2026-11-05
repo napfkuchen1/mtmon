@@ -79,6 +79,7 @@ type Engine struct {
 	hc      *http.Client
 	Notify  func(store.Alert) // test hook
 	wanBad  bool              // the internet quality alert is open (a recovery follows)
+	hwOpen  map[string]bool   // kind|device/port -> a hardware alert (PoE fault, SFP power) is open (hardware.go)
 }
 
 func New(c *config.Config, s *store.Store, h *live.Hub, log *slog.Logger) *Engine {

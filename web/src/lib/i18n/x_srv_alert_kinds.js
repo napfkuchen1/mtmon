@@ -4,7 +4,7 @@ export default {
   "config_changed": "Konfiguration geändert", "cpu_high": "CPU-Last hoch", "device_offline": "Gerät offline", "device_online": "Gerät wieder online",
   "device_reboot": "Gerät neu gestartet", "device_updated": "Gerät aktualisiert", "devices_unreachable": "Geräte nicht erreichbar",
   "iface_down": "Schnittstelle ausgefallen", "iface_up": "Schnittstelle wieder aktiv", "new_client": "Neuer Client", "other": "Sonstiges",
-  "port_scan": "Port-Scan", "rogue_dns": "Unerlaubter DNS-Server", "temp_high": "Temperatur hoch", "traffic_spike": "Datenspitze",
+  "port_scan": "Port-Scan", "poe_fault": "PoE-Fehler", "sfp_rx_low": "SFP-Empfangspegel niedrig", "rogue_dns": "Unerlaubter DNS-Server", "temp_high": "Temperatur hoch", "traffic_spike": "Datenspitze",
   "wan_down": "WAN ausgefallen", "wan_up": "WAN wieder aktiv",
   "one known client causes the load, probably a download, backup or stream": "ein bekannter Client verursacht die Last, vermutlich Download, Backup oder Stream",
   "group {name} (spikes of this group are recorded as info)": "Gruppe {name} (Spitzen dieser Gruppe werden nur als Info festgehalten)",
