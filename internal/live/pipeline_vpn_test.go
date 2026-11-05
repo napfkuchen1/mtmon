@@ -102,13 +102,190 @@ func TestVPNReplyMatchesUploadOfPeer(t *testing.T) {
 	}
 }
 
+// vpnExpire ends the wait of every buffered reply of an exporter whose timeout is not known.
+func vpnExpire(p *Pipeline) { p.SweepVPN(time.Now().Add((vpnHoldDefault + 1) * time.Second)) }
+
+// Each half of a flow has its own export timers: two peers active, the reply arrives first, its upload in a later
+// batch. The reply waits and lands on the right peer, even though the other peer talked to that server before.
+func TestVPNReplyBeforeUploadTwoPeers(t *testing.T) {
+	p := vpnPipe(t, vpnPeerA, vpnPeerB)
+	p.Handle([]flow.Record{vpnRec(vpnPeerB, vpnServer, 50000, 443, vpnWG, vpnWAN, 700)}) // the wrong peer, same server
+	p.Handle([]flow.Record{vpnRec(vpnServer, vpnNAT, 443, 60118, vpnWAN, vpnWG, 6000)})
+	if got := vpnBooked(t, p); got[vpnPeerA][1] != 0 || got[vpnPeerB][1] != 0 || got[store.VPNUnassignedMAC][1] != 0 {
+		t.Fatalf("booked while it should wait: %v", got)
+	}
+	if vpnCounter(p, "vpn_replies_held") != 1 {
+		t.Errorf("counters: %v", p.Diagnostics())
+	}
+	p.Handle([]flow.Record{vpnRec(vpnPeerA, vpnServer, 60118, 443, vpnWG, vpnWAN, 200)})
+	got := vpnBooked(t, p)
+	if a := got[vpnPeerA]; a != [2]int64{200, 6000} {
+		t.Errorf("peer A %v, all %v", a, got)
+	}
+	if a := got[vpnPeerB]; a != [2]int64{700, 0} {
+		t.Errorf("peer B %v", a)
+	}
+	if _, ok := got[store.VPNUnassignedMAC]; ok {
+		t.Errorf("booked as not attributable: %v", got)
+	}
+	if vpnCounter(p, "vpn_replies_late_matched") != 1 || vpnCounter(p, "vpn_replies_matched") != 1 || vpnCounter(p, "vpn_replies_held") != 0 {
+		t.Errorf("counters: %v", p.Diagnostics())
+	}
+	vpnExpire(p)
+	if got := vpnBooked(t, p); got[vpnPeerA] != [2]int64{200, 6000} {
+		t.Errorf("booked twice: %v", got)
+	}
+}
+
+// A reply waits as long as the exporter says, and not longer. It keeps its own timestamp.
+func TestVPNReplyHoldTime(t *testing.T) {
+	p := vpnPipe(t, vpnPeerA, vpnPeerB)
+	ifc, _ := p.VPNIf("gw", vpnWG)
+	ifc.HoldSec = 200
+	p.VPNIf = func(dev string, idx uint32) (VPNIface, bool) { return ifc, dev == "gw" && idx == vpnWG }
+	start := time.Now()
+	rec := vpnRec(vpnServer, vpnNAT, 443, 60118, vpnWAN, vpnWG, 900)
+	rec.End = start.Add(-5 * time.Minute)
+	p.Handle([]flow.Record{rec})
+	p.SweepVPN(start.Add(190 * time.Second))
+	if vpnCounter(p, "vpn_replies_held") != 1 || vpnCounter(p, "vpn_replies_unassigned") != 0 {
+		t.Fatalf("ended the wait too early: %v", p.Diagnostics())
+	}
+	p.SweepVPN(start.Add(202 * time.Second))
+	if vpnCounter(p, "vpn_replies_held") != 0 || vpnCounter(p, "vpn_replies_unassigned") != 1 {
+		t.Fatalf("still waiting: %v", p.Diagnostics())
+	}
+	p.St.Flush()
+	var ts int64
+	if err := p.St.DB.QueryRow(`SELECT ts FROM flows WHERE mac = ?`, store.VPNUnassignedMAC).Scan(&ts); err != nil {
+		t.Fatal(err)
+	}
+	if ts != rec.End.Unix() {
+		t.Errorf("timestamp %d, want %d", ts, rec.End.Unix())
+	}
+
+	p = vpnPipe(t, vpnPeerA, vpnPeerB) // exporter's timeout not known
+	start = time.Now()
+	p.Handle([]flow.Record{vpnRec(vpnServer, vpnNAT, 443, 60118, vpnWAN, vpnWG, 900)})
+	p.SweepVPN(start.Add((vpnHoldDefault - 10) * time.Second))
+	if vpnCounter(p, "vpn_replies_held") != 1 {
+		t.Errorf("default wait too short: %v", p.Diagnostics())
+	}
+	p.SweepVPN(start.Add((vpnHoldDefault + 2) * time.Second))
+	if vpnCounter(p, "vpn_replies_held") != 0 {
+		t.Errorf("default wait too long: %v", p.Diagnostics())
+	}
+}
+
+// The connection table names the source while the reply waits. It is asked only for the connections that wait.
+func TestVPNReplyConnectionTable(t *testing.T) {
+	p := vpnPipe(t, vpnPeerA, vpnPeerB)
+	var asked []VPNConnQuery
+	p.VPNConn = func(dev string, q VPNConnQuery) (netip.Addr, bool) {
+		asked = append(asked, q)
+		if dev == "gw" && q.NATPort == 61000 {
+			return netip.MustParseAddr(vpnPeerB), true
+		}
+		return netip.Addr{}, false
+	}
+	p.Handle([]flow.Record{
+		vpnRec(vpnServer, vpnNAT, 443, 61000, vpnWAN, vpnWG, 900),
+		vpnRec(vpnServer, vpnNAT, 443, 61001, vpnWAN, vpnWG, 50),
+	})
+	now := time.Now()
+	p.SweepVPN(now)
+	if a := vpnBooked(t, p)[vpnPeerB]; a != [2]int64{0, 900} {
+		t.Errorf("peer B %v", a)
+	}
+	want := VPNConnQuery{NAT: netip.MustParseAddr(vpnNAT), Server: netip.MustParseAddr(vpnServer), NATPort: 61000, ServerPort: 443, Proto: 6}
+	if len(asked) != 2 || (asked[0] != want && asked[1] != want) {
+		t.Errorf("asked %+v", asked)
+	}
+	if vpnCounter(p, "vpn_replies_conntrack") != 1 || vpnCounter(p, "vpn_replies_held") != 1 {
+		t.Errorf("counters: %v", p.Diagnostics())
+	}
+	p.SweepVPN(now.Add(10 * time.Second)) // the other connection is not asked again at once
+	if len(asked) != 2 {
+		t.Errorf("asked again: %+v", asked)
+	}
+	p.SweepVPN(now.Add(vpnConnEvery * time.Second))
+	if len(asked) != 3 {
+		t.Errorf("no second lookup: %+v", asked)
+	}
+	vpnExpire(p)
+	if a := vpnBooked(t, p)[store.VPNUnassignedMAC]; a != [2]int64{0, 50} {
+		t.Errorf("unassigned %v", a)
+	}
+}
+
+// An answer that names the router itself, as a connection of its own would, is no peer.
+func TestVPNReplyConnectionTableRouterOwned(t *testing.T) {
+	p := vpnPipe(t, vpnPeerA, vpnPeerB)
+	p.VPNConn = func(string, VPNConnQuery) (netip.Addr, bool) { return netip.MustParseAddr(vpnNAT), true }
+	p.Handle([]flow.Record{vpnRec(vpnServer, vpnNAT, 443, 61000, vpnWAN, vpnWG, 900)})
+	vpnExpire(p)
+	if a := vpnBooked(t, p)[store.VPNUnassignedMAC]; a != [2]int64{0, 900} {
+		t.Errorf("unassigned %v", a)
+	}
+}
+
+// Stopping mtmon books what still waits, and a full buffer books at once: the bytes are never lost.
+func TestVPNReplyNothingLost(t *testing.T) {
+	p := vpnPipe(t, vpnPeerA, vpnPeerB)
+	p.VPNConn = func(string, VPNConnQuery) (netip.Addr, bool) {
+		t.Error("asked a router while stopping")
+		return netip.Addr{}, false
+	}
+	p.Handle([]flow.Record{vpnRec(vpnServer, vpnNAT, 443, 61000, vpnWAN, vpnWG, 900)})
+	p.FlushVPN()
+	if a := vpnBooked(t, p)[store.VPNUnassignedMAC]; a != [2]int64{0, 900} {
+		t.Errorf("after stop: %v", a)
+	}
+
+	p = vpnPipe(t, vpnPeerA, vpnPeerB)
+	p.vpnHeldN = vpnHeldMax
+	p.Handle([]flow.Record{vpnRec(vpnServer, vpnNAT, 443, 61000, vpnWAN, vpnWG, 300)})
+	if a := vpnBooked(t, p)[store.VPNUnassignedMAC]; a != [2]int64{0, 300} {
+		t.Errorf("buffer full: %v", a)
+	}
+}
+
+// What stays open is one row in the top clients, so that the total stays right.
+func TestVPNUnassignedRowInTopClients(t *testing.T) {
+	p := vpnPipe(t, vpnPeerA, vpnPeerB)
+	p.Handle([]flow.Record{
+		vpnRec(vpnPeerA, vpnServer, 40000, 443, vpnWG, vpnWAN, 100),
+		vpnRec(vpnServer, vpnNAT, 443, 40000, vpnWAN, vpnWG, 900),
+		vpnRec("93.184.216.99", vpnNAT, 80, 61001, vpnWAN, vpnWG, 50),
+	})
+	vpnExpire(p)
+	p.St.Flush()
+	top, err := p.St.TopBy("clients", time.Now().Add(-time.Hour).Unix(), 10, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var total, row int64
+	label := ""
+	for _, r := range top {
+		total += r.Up + r.Down
+		if r.Key == store.VPNUnassignedMAC {
+			row, label = r.Up+r.Down, r.Label
+		}
+	}
+	if row != 50 || label != store.VPNUnassignedName || total != 1050 {
+		t.Errorf("row %d %q, total %d, top %+v", row, label, total, top)
+	}
+}
+
 // The router changed the source port: server and server port still name the peer, as long as only one talks to it.
+// With several peers active that is only known at the end of the wait, as another peer's own upload could still come.
 func TestVPNReplyPortRewritten(t *testing.T) {
 	p := vpnPipe(t, vpnPeerA, vpnPeerB)
 	p.Handle([]flow.Record{
 		vpnRec(vpnPeerA, vpnServer, 40000, 443, vpnWG, vpnWAN, 100),
 		vpnRec(vpnServer, vpnNAT, 443, 61000, vpnWAN, vpnWG, 900),
 	})
+	vpnExpire(p)
 	if a := vpnBooked(t, p)[vpnPeerA]; a != [2]int64{100, 900} {
 		t.Errorf("peer A %v", a)
 	}
@@ -136,6 +313,7 @@ func TestVPNReplyUnassigned(t *testing.T) {
 		vpnRec(vpnServer, vpnNAT, 443, 61000, vpnWAN, vpnWG, 900),
 		vpnRec("93.184.216.99", vpnNAT, 80, 61001, vpnWAN, vpnWG, 50),
 	})
+	vpnExpire(p)
 	got := vpnBooked(t, p)
 	if a := got[store.VPNUnassignedMAC]; a != [2]int64{0, 950} {
 		t.Errorf("unassigned %v, all %v", a, got)

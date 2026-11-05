@@ -132,6 +132,7 @@ func run(args []string) error {
 	pipe.IfMiss = pm.RequestIfRefresh
 	pipe.TunnelPort = pm.TunnelPort
 	pipe.VPNIf = pm.VPNIf
+	pipe.VPNConn = pm.VPNConn
 	pipe.Owns = pm.OwnsAddr
 	pipe.HostAddr = hostAddrs()
 	al.SelfName = pm.SelfDevice
@@ -202,6 +203,7 @@ func run(args []string) error {
 	go newDNSBypassWatcher(cfg, st, pm, al).Run(ctx)
 	go srv.WarmCaches(ctx)
 	go pm.Run(ctx)
+	go pipe.RunVPNSweep(ctx)
 	go al.Run(ctx.Done())
 	go (&probe.Prober{St: st, Log: log, Targets: func() []string { return cfg.WANTargets }, DNS: func() []string { return cfg.WANDNS }, HTTP: func() []string { return cfg.WANHTTP }, Custom: func() []probe.Custom { return api.CustomTargets(st.GetMeta) }, Report: al.TargetResult, Enabled: func() bool { return st.GetMeta("wan_probe") != "off" }}).Run(ctx)
 	go func() {
@@ -228,10 +230,12 @@ func run(args []string) error {
 		} else {
 			log.Error("fatal", "err", err)
 		}
+		pipe.FlushVPN()
 		shutdown(hs, st)
 		return err
 	}
 	log.Info("shutting down")
+	pipe.FlushVPN()
 	shutdown(hs, st)
 	return nil
 }
