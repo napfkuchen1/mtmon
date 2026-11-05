@@ -9,13 +9,14 @@
   let { name, onchanged, preset = [] } = $props()
   let data = $state(null), want = $state({}), err = $state(''), loading = $state(true)
   let user = $state('admin'), pass = $state(''), busy = $state(false), prev = $state(null), res = $state(null)
-  let fwRules = $state([]), allowRules = $state([]), convert = $state(false)
+  let fwRules = $state([]), allowRules = $state([]), convert = $state(false), additions = $state([])
 
   async function load() {
     loading = true
     try {
       data = await api('/devices/' + encodeURIComponent(name) + '/features')
       want = Object.fromEntries(data.features.map(f => [f.key, f.on || (preset.includes(f.key) && f.available)]))
+      additions = []
       err = ''
     } catch (e) { err = e.message } finally { loading = false }
   }
@@ -23,19 +24,22 @@
 
   const enable = $derived(data ? data.features.filter(f => want[f.key] && !f.on).map(f => f.key) : [])
   const disable = $derived(data ? data.features.filter(f => !want[f.key] && f.on).map(f => f.key) : [])
-  const changed = $derived(enable.length + disable.length > 0 || convert)
+  const chosenAdds = $derived(additions.filter(k => (data?.additions || []).some(a => a.key === k && want[a.feature])))
+  const changed = $derived(enable.length + disable.length + chosenAdds.length > 0 || convert)
+  const addTitle = { ipv6_firewall: () => t('IPv6 firewall') }
+  const addWhy = { ipv6_firewall: () => t('This firewall log was set up before mtmon logged IPv6. The addition enables logging on the IPv6 drop rules only. Nothing else on the router changes, and switching the firewall log off undoes it too.') }
   const dropRules = $derived((data?.filter_rules || []).filter(r => !r.disabled && !r.managed && (r.action === 'drop' || r.action === 'reject')))
   // accept rules that match every packet of an established connection would flood the log: listed, but not preselected
   const noisy = r => /established|related|untracked/.test(r.summary || '')
   const allowList = $derived((data?.filter_rules || []).filter(r => !r.disabled && !r.managed && r.action === 'accept'))
-  const body = dryRun => ({ user, pass, enable, disable, fw_rules: fwRules, allow_rules: allowRules, convert, dry_run: dryRun })
+  const body = dryRun => ({ user, pass, enable, disable, fw_rules: fwRules, allow_rules: allowRules, convert, additions: chosenAdds, dry_run: dryRun })
   // switching the firewall log off also switches off what builds on its log target
   function toggle(k) {
     want[k] = !want[k]
     if (k === 'firewall_logs' && !want[k]) { want.allow_log = false; want.log_new = false }
   }
   const pick = (list, id) => (list.includes(id) ? list.filter(x => x !== id) : [...list, id])
-  $effect(() => { enable.length; disable.length; convert; prev = null; res = null })  // a changed selection invalidates the preview
+  $effect(() => { enable.length; disable.length; chosenAdds.length; convert; prev = null; res = null })  // a changed selection invalidates the preview
   $effect(() => { if (enable.includes('firewall_logs') && !fwRules.length) fwRules = dropRules.map(r => r.id) })
   $effect(() => { if (enable.includes('allow_log') && !allowRules.length) allowRules = allowList.filter(r => !r.log && !noisy(r)).map(r => r.id) })
 
@@ -77,6 +81,15 @@
                 <span><b>{r.chain}/{r.action}</b> <span class="muted">{r.comment || r.summary}</span></span></label>
             {:else}<div class="muted" style="font-size:12.5px">{t('No drop rules found – only the log target is set up.')}</div>{/each}
           </div>
+        {/if}
+        {#if f.on && want[f.key]}
+          {#each (data.additions || []).filter(a => a.feature === f.key) as a (a.key)}
+            <div class="sub">
+              <label class="chk"><input type="checkbox" checked={additions.includes(a.key)} disabled={busy} onchange={() => (additions = pick(additions, a.key))} />
+                <span><b>{t('1 addition available: {title}', { title: addTitle[a.key]?.() || a.key })}</b> <span class="muted">{t('{n} rule(s)', { n: a.rules.length })}</span></span></label>
+              <div class="muted fw">{addWhy[a.key]?.()}</div>
+            </div>
+          {/each}
         {/if}
         {#if f.key === 'allow_log' && want[f.key] && !f.on}
           <div class="sub">

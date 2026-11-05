@@ -14,6 +14,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/netip"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -701,5 +702,124 @@ func TestDeviceFeaturesOnOff(t *testing.T) {
 	}
 	if len(r.rt.Lists("/ip/traffic-flow/target")) != 0 {
 		t.Fatal("changed with wrong credentials")
+	}
+}
+
+// A firewall log from an IPv4-only version is offered its IPv6 rules as an addition: preview first, only that step,
+// and switching the firewall log off undoes it with the rest (#298).
+func TestDeviceFeatureAddition(t *testing.T) {
+	r := newAPIRig(t)
+	body := r.conn()
+	body["name"], body["role"] = "gw-ro", "router"
+	if code := r.call("POST", "/api/devices/readonly", body, nil); code != 200 {
+		t.Fatalf("readonly add: %d", code)
+	}
+	const url = "/api/devices/gw-ro/features"
+	req := func(extra map[string]any) map[string]any {
+		extra["user"], extra["pass"] = "admin", "adminpw"
+		return extra
+	}
+	type addition struct {
+		Key, Feature string
+		Rules        []string
+	}
+	offered := func() []addition {
+		var f struct{ Additions []addition }
+		if code := r.call("GET", url, nil, &f); code != 200 {
+			t.Fatalf("features: %d", code)
+		}
+		return f.Additions
+	}
+	if a := offered(); len(a) != 0 {
+		t.Fatalf("firewall log is off: %+v", a)
+	}
+	if code := r.call("POST", url, req(map[string]any{"additions": []string{"rm -rf"}}), nil); code != 400 {
+		t.Fatalf("unknown addition: %d", code)
+	}
+
+	// the picker sends IPv6 along, so this state only comes from an old version: put one IPv4 rule on, then take IPv6 off
+	var v4 string
+	for _, f := range r.rt.Lists("/ip/firewall/filter") {
+		if f["action"] == "drop" {
+			v4 = f[".id"]
+			break
+		}
+	}
+	var on map[string]any
+	if code := r.call("POST", url, req(map[string]any{"enable": []string{"firewall_logs"}, "fw_rules": []string{v4}}), &on); code != 200 || on["ok"] != true {
+		t.Fatalf("enable: %d %v", code, on)
+	}
+	v6Logged := func() (n int) {
+		for _, f := range r.rt.Lists("/ipv6/firewall/filter") {
+			if f["log"] == "true" {
+				n++
+			}
+		}
+		return n
+	}
+	if v6Logged() != 1 {
+		t.Fatalf("picker keeps IPv6 drop rules: %d", v6Logged())
+	}
+	if a := offered(); len(a) != 0 {
+		t.Fatalf("nothing is missing: %+v", a)
+	}
+	for _, f := range r.rt.Lists("/ipv6/firewall/filter") {
+		if f["log"] == "true" {
+			r.rt.Patch("/ipv6/firewall/filter", f[".id"], map[string]string{"log": "false", "log-prefix": ""})
+		}
+	}
+	a := offered()
+	if len(a) != 1 || a[0].Key != "ipv6_firewall" || a[0].Feature != "firewall_logs" || len(a[0].Rules) != 1 {
+		t.Fatalf("offered: %+v", a)
+	}
+
+	// preview: backup + fwlog, the router stays as it is
+	var prev struct {
+		Plan []struct {
+			Key      string
+			Commands []string
+		}
+	}
+	if code := r.call("POST", url, req(map[string]any{"additions": []string{"ipv6_firewall"}, "dry_run": true}), &prev); code != 200 {
+		t.Fatalf("preview: %d", code)
+	}
+	if len(prev.Plan) != 2 || prev.Plan[0].Key != "backup" || prev.Plan[1].Key != "fwlog" || len(prev.Plan[1].Commands) != 1 ||
+		!strings.HasPrefix(prev.Plan[1].Commands[0], "/ipv6 firewall filter set") {
+		t.Fatalf("plan: %+v", prev.Plan)
+	}
+	if v6Logged() != 0 {
+		t.Fatal("preview changed the router")
+	}
+
+	// apply: IPv6 logs, IPv4 stays as it was
+	v4State := func() []map[string]string {
+		rows := r.rt.Lists("/ip/firewall/filter")
+		for _, f := range rows {
+			delete(f, "packets") // the mock's counters keep running
+		}
+		return rows
+	}
+	before := v4State()
+	var done map[string]any
+	if code := r.call("POST", url, req(map[string]any{"additions": []string{"ipv6_firewall"}}), &done); code != 200 || done["ok"] != true {
+		t.Fatalf("apply: %d %v", code, done)
+	}
+	if v6Logged() != 1 {
+		t.Fatalf("IPv6 rules logging: %d", v6Logged())
+	}
+	if after := v4State(); !reflect.DeepEqual(before, after) {
+		t.Fatalf("IPv4 rules changed:\n%v\n%v", before, after)
+	}
+	if a := offered(); len(a) != 0 {
+		t.Fatalf("still offered: %+v", a)
+	}
+
+	// off undoes it with the rest
+	var off map[string]any
+	if code := r.call("POST", url, req(map[string]any{"disable": []string{"firewall_logs"}}), &off); code != 200 || off["ok"] != true {
+		t.Fatalf("disable: %d %v", code, off)
+	}
+	if v6Logged() != 0 {
+		t.Fatalf("IPv6 rules still logging: %d", v6Logged())
 	}
 }

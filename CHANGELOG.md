@@ -10,6 +10,9 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ## [Unreleased]
 
+### New
+- A router feature that is on can now be completed without switching it off: the device dialog shows "1 addition available: IPv6 firewall" with a preview. It enables logging on the IPv6 drop rules of a router whose firewall log dates from an IPv4-only version, after the usual backup. Nothing else is touched, and switching the firewall log off undoes it too. (#298)
+
 ### Fixed
 - Downloads of a WireGuard or Back to Home client behind a masquerading router were counted as transit and missing on the client, so a phone showed its upload and almost no download. Replies that leave through a WireGuard interface towards an address of the router now go to the peer: by the matching upload, or to the only active peer. If neither tells the peer apart they show on a client "VPN (not attributable)" instead of disappearing, and Diagnostics counts them. (#287)
 

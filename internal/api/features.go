@@ -79,6 +79,21 @@ func deviceFeatures(entries []store.ManifestEntry, caps *provision.Caps) []featu
 	return out
 }
 
+// deviceAdditions: the missing sub-steps of the features that are on (#298). None while a failed undo is left on the
+// router: new changes must not be stacked on a half-reverted state.
+func deviceAdditions(entries []store.ManifestEntry, caps *provision.Caps) []provision.Addition {
+	for _, e := range entries {
+		if e.State == "revert-failed" {
+			return []provision.Addition{}
+		}
+	}
+	on := map[string]bool{}
+	for _, f := range deviceFeatures(entries, caps) {
+		on[f.Key] = f.On
+	}
+	return provision.Additions(caps, on)
+}
+
 // storedCaps reads the capabilities saved with the device row.
 func storedCaps(row *store.DeviceRow) *provision.Caps {
 	var c provision.Caps
@@ -106,7 +121,7 @@ func (s *Server) deviceFeaturesGet(w http.ResponseWriter, r *http.Request) {
 		}
 		cancel()
 	}
-	out := map[string]any{"features": deviceFeatures(entries, caps), "managed": row.Managed, "convertible_allow": []string{}}
+	out := map[string]any{"features": deviceFeatures(entries, caps), "managed": row.Managed, "convertible_allow": []string{}, "additions": deviceAdditions(entries, caps)}
 	if caps != nil {
 		out["filter_rules"] = caps.Filter
 		out["filter_rules6"] = caps.Filter6
@@ -159,6 +174,8 @@ type featuresReq struct {
 	Convert bool `json:"convert"`
 	LogNew  bool `json:"log_new"` // legacy: together with enabling firewall_logs it enables log_new as well
 	DryRun  bool `json:"dry_run"`
+	// Additions: keys of missing sub-steps of features that are on (#298). Only those steps run.
+	Additions []string `json:"additions"`
 }
 
 // defaultAllowRules: enabled, not yet logging accept rules that do not match every packet of established connections
@@ -401,7 +418,13 @@ func (s *Server) deviceFeaturesApply(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if len(in.Enable)+len(in.Disable) == 0 && !in.Convert {
+	for _, k := range in.Additions {
+		if !provision.ValidAddition(k) {
+			jerr(w, 400, "unknown addition")
+			return
+		}
+	}
+	if len(in.Enable)+len(in.Disable)+len(in.Additions) == 0 && !in.Convert {
 		jerr(w, 400, "nothing selected")
 		return
 	}
@@ -436,6 +459,11 @@ func (s *Server) deviceFeaturesApply(w http.ResponseWriter, r *http.Request) {
 	}
 	enable, disable, depOnly := featureSelection(in, state)
 	opt := s.featureOptions(row, caps, in, depOnly)
+	for _, a := range deviceAdditions(entries, caps) {
+		if slices.Contains(in.Additions, a.Key) && !disable[a.Feature] {
+			opt.AddRules = append(opt.AddRules, a.Rules...)
+		}
+	}
 	if (enable[provision.FeatFwLog] || enable[provision.FeatFlow]) && opt.MtmonIP == "" {
 		jerr(w, 502, "could not determine mtmon's address as seen from the router")
 		return
@@ -460,7 +488,7 @@ func (s *Server) deviceFeaturesApply(w http.ResponseWriter, r *http.Request) {
 		jsonOut(w, out)
 		return
 	}
-	if len(enable) > 0 {
+	if len(enable) > 0 || len(opt.AddRules) > 0 {
 		if !s.featureEnable(ctx, admin, name, caps, opt, enable, entries, out) {
 			jsonOut(w, out)
 			return
