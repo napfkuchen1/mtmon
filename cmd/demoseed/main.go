@@ -83,7 +83,13 @@ func main() {
 	if *dir == "" {
 		log.Fatal("demoseed: -dir is required")
 	}
-	st, err := store.Open(*dir)
+	seed(*dir)
+}
+
+// seed writes the demo history into the data directory. A failing statement is fatal: a rollup that silently stays
+// empty after a schema change makes the demo lists disagree with each other.
+func seed(dir string) {
+	st, err := store.Open(dir)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -106,6 +112,11 @@ func main() {
 	tx, err := st.DB.Begin()
 	if err != nil {
 		log.Fatal(err)
+	}
+	exec := func(q string) {
+		if _, err := tx.Exec(q); err != nil {
+			log.Fatal(err)
+		}
 	}
 	ins := func(table string, step int64, from int64, perSlot int) int {
 		stmt, err := tx.Prepare(`INSERT OR IGNORE INTO ` + table + `(ts,mac,rip,rport,proto,svc,host,cc,asn,asorg,b_up,b_down,b_int,flows) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
@@ -139,8 +150,8 @@ func main() {
 	}
 	n1 := ins("rollup_1m", 60, now-36*3600, 7)
 	n2 := ins("rollup_1h", 3600, now-30*86400, 70)
-	tx.Exec(`INSERT OR IGNORE INTO rollup_1h_client SELECT ts,mac,sum(b_up),sum(b_down),sum(b_int),sum(flows) FROM rollup_1h GROUP BY ts,mac`)
-	tx.Exec(`INSERT OR IGNORE INTO rollup_1d SELECT ts/86400*86400,rip,rport,proto,max(svc),max(host),max(cc),max(asn),max(asorg),sum(b_up),sum(b_down),sum(b_int),sum(flows) FROM rollup_1h GROUP BY ts/86400*86400,rip,rport,proto`)
+	exec(`INSERT OR IGNORE INTO rollup_1h_client(ts,mac,b_up,b_down,b_int,flows) SELECT ts,mac,sum(b_up),sum(b_down),sum(b_int),sum(flows) FROM rollup_1h GROUP BY ts,mac`)
+	exec(`INSERT OR IGNORE INTO rollup_1d(ts,rip,rport,proto,svc,host,cc,asn,asorg,b_up,b_down,b_int,flows) SELECT ts/86400*86400,rip,rport,proto,max(svc),max(host),max(cc),max(asn),max(asorg),sum(b_up),sum(b_down),sum(b_int),sum(flows) FROM rollup_1h GROUP BY ts/86400*86400,rip,rport,proto`)
 
 	// device metrics: 6 h, one per minute
 	m, _ := tx.Prepare(`INSERT INTO dev_metrics(ts,device,cpu,mem_used,mem_total,temp,uptime,clients,up) VALUES(?,?,?,?,?,?,?,?,1)`)
@@ -153,7 +164,7 @@ func main() {
 	m.Close()
 
 	// firewall: rules, blocked scans from the internet, a few allowed (logged) forwards
-	tx.Exec(`INSERT OR IGNORE INTO fw_rules(device,prefix,chain,action,descr,managed) VALUES
+	exec(`INSERT OR IGNORE INTO fw_rules(device,prefix,chain,action,descr,managed) VALUES
 		('gw-main','drop-wan-in','input','drop','drop all not coming from LAN',0),
 		('gw-main','drop-wan-fwd','forward','drop','drop all from WAN not DSTNATed',0),
 		('gw-main','allow-ha-https','forward','accept','HTTPS to Home Assistant',0)`)
@@ -176,9 +187,9 @@ func main() {
 		ev.Exec(ts, "gw-main", pre, ch, "ether1", "", "tcp", "SYN", src, 40000+rng.Intn(20000), "203.0.113.2", ports[rng.Intn(len(ports))], "", 60, "", "new")
 	}
 	ev.Close()
-	tx.Exec(`INSERT OR IGNORE INTO fw_hourly SELECT ts/3600*3600,device,prefix,count(*) FROM fw_events GROUP BY 1,2,3`)
-	tx.Exec(`INSERT OR IGNORE INTO fw_src_hourly SELECT ts/3600*3600,device,prefix,src,count(*) FROM fw_events GROUP BY 1,2,3,4`)
-	tx.Exec(`INSERT OR IGNORE INTO fw_dst_hourly SELECT ts/3600*3600,device,prefix,dst,dport,count(*) FROM fw_events GROUP BY 1,2,3,4,5`)
+	exec(`INSERT OR IGNORE INTO fw_hourly SELECT ts/3600*3600,device,prefix,count(*) FROM fw_events GROUP BY 1,2,3`)
+	exec(`INSERT OR IGNORE INTO fw_src_hourly SELECT ts/3600*3600,device,prefix,src,count(*) FROM fw_events GROUP BY 1,2,3,4`)
+	exec(`INSERT OR IGNORE INTO fw_dst_hourly SELECT ts/3600*3600,device,prefix,dst,dport,count(*) FROM fw_events GROUP BY 1,2,3,4,5`)
 	if err := tx.Commit(); err != nil {
 		log.Fatal(err)
 	}

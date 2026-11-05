@@ -15,10 +15,14 @@ The first section below lists everything mtmon already covers. Later releases ad
 ### New
 - A router feature that is on can now be completed without switching it off: the device dialog shows "1 addition available: IPv6 firewall" with a preview. It enables logging on the IPv6 drop rules of a router whose firewall log dates from an IPv4-only version, after the usual backup. Nothing else is touched, and switching the firewall log off undoes it too. (#298)
 
+### Changed
+- Updated dependencies: maxminddb-golang 2.9.0, modernc sqlite 1.61.1, upload-artifact 7.0.2.
+
 ### Fixed
 - A router left in a mixed state now says up front what the retry does: the alert and the device dialog name the features that get switched off, because a retry is switching them off. (#343)
 - "Rules by hits" no longer lists rules mtmon has taken back. A row such as " – prefix MTM-33" disappears once nothing on the router carries that prefix; its past hits stay in the totals. Labels of rules that were undone are also forgotten when another step of the same undo failed. (#343)
 - Downloads of a WireGuard or Back to Home client behind a masquerading router were counted as transit and missing on the client, so a phone showed its upload and almost no download. Replies that leave through a WireGuard interface towards an address of the router now go to the peer: by the matching upload, or to the only active peer. If neither tells the peer apart they show on a client "VPN (not attributable)" instead of disappearing, and Diagnostics counts them. (#287)
+- Demo data: top clients showed only the live traffic, because the seeded client history failed to load. They now match the other lists.
 
 ## [0.21.0] - 2026-11-05
 
