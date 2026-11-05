@@ -268,73 +268,17 @@ func (p *Pipeline) FlushVPN() { p.sweepVPN(time.Now(), true) }
 
 func (p *Pipeline) sweepVPN(now time.Time, flush bool) {
 	t := now.Unix()
-	type question struct {
-		k vpnKey
-		q VPNConnQuery
-	}
-	var ask []question
-	p.mu.Lock()
-	if p.vpnHeldN == 0 {
-		p.mu.Unlock()
-		return
-	}
-	if !flush && p.VPNConn != nil {
-		budget := map[string]int{}
-		for k, set := range p.vpnHeld {
-			// IPv4 only: IPv6 connections are in another menu, and without NAT their replies name the peer themselves
-			if k.rip.Is4() && k.nat != 0 && set.nextConn <= t && budget[k.dev] < vpnConnPerSweep {
-				budget[k.dev]++
-				set.nextConn = t + vpnConnEvery
-				ask = append(ask, question{k, VPNConnQuery{NAT: set.recs[0].dst, Server: k.rip, NATPort: k.nat, ServerPort: k.rport, Proto: k.proto}})
-			}
-		}
-	}
-	p.mu.Unlock()
-
-	found := map[vpnKey]netip.Addr{} // router calls: not under the lock, the flow path needs it
-	for _, a := range ask {
-		if peer, ok := p.VPNConn(a.k.dev, a.q); ok && peer.IsValid() && !p.routerOwned(peer) {
-			found[a.k] = peer
-		}
-	}
-
-	type booking struct {
-		h    vpnHeldRec
-		peer netip.Addr
-		v    vpnVerdict
-	}
-	var book []booking
+	found := p.askVPNConn(t, flush)
+	var book []vpnBooking
 	p.mu.Lock()
 	for k, set := range p.vpnHeld {
 		if peer, ok := found[k]; ok {
 			for _, h := range p.takeHeldLocked(k) {
-				book = append(book, booking{h, peer, vpnConntrack})
+				book = append(book, vpnBooking{h, peer, vpnConntrack})
 			}
 			continue
 		}
-		var due, keep []vpnHeldRec
-		for _, h := range set.recs {
-			if flush || h.deadline <= t {
-				due = append(due, h)
-			} else {
-				keep = append(keep, h)
-			}
-		}
-		if len(due) == 0 {
-			continue
-		}
-		p.forgetHeldLocked(due)
-		if set.recs = keep; len(keep) == 0 {
-			delete(p.vpnHeld, k)
-		}
-		loose, ok := p.vpnUp[vpnKey{k.dev, k.ifx, k.rip, k.rport, 0, k.proto}]
-		for _, h := range due {
-			if ok && !loose.ambiguous && t-loose.ts <= h.window {
-				book = append(book, booking{h, loose.peer, vpnMatched})
-			} else {
-				book = append(book, booking{h, netip.Addr{}, vpnUnassigned})
-			}
-		}
+		book = append(book, p.takeDueLocked(k, set, t, flush)...)
 	}
 	p.mu.Unlock()
 
@@ -347,6 +291,74 @@ func (p *Pipeline) sweepVPN(now time.Time, flush bool) {
 	if len(rows) > 0 {
 		p.St.Enqueue(rows...)
 	}
+}
+
+// vpnBooking is the verdict on a reply leaving the buffer.
+type vpnBooking struct {
+	h    vpnHeldRec
+	peer netip.Addr
+	v    vpnVerdict
+}
+
+// askVPNConn asks the routers about waiting NAT connections that are due for a lookup. The calls run outside the lock,
+// the flow path needs it.
+func (p *Pipeline) askVPNConn(t int64, flush bool) map[vpnKey]netip.Addr {
+	if flush || p.VPNConn == nil {
+		return nil
+	}
+	type question struct {
+		k vpnKey
+		q VPNConnQuery
+	}
+	var ask []question
+	budget := map[string]int{}
+	p.mu.Lock()
+	for k, set := range p.vpnHeld {
+		// IPv4 only: IPv6 connections are in another menu, and without NAT their replies name the peer themselves
+		if k.rip.Is4() && k.nat != 0 && set.nextConn <= t && budget[k.dev] < vpnConnPerSweep {
+			budget[k.dev]++
+			set.nextConn = t + vpnConnEvery
+			ask = append(ask, question{k, VPNConnQuery{NAT: set.recs[0].dst, Server: k.rip, NATPort: k.nat, ServerPort: k.rport, Proto: k.proto}})
+		}
+	}
+	p.mu.Unlock()
+	found := map[vpnKey]netip.Addr{}
+	for _, a := range ask {
+		if peer, ok := p.VPNConn(a.k.dev, a.q); ok && peer.IsValid() && !p.routerOwned(peer) {
+			found[a.k] = peer
+		}
+	}
+	return found
+}
+
+// takeDueLocked removes the replies of a connection whose wait is over and decides on them: the only peer that talked
+// to this server and port recently, else not attributable.
+func (p *Pipeline) takeDueLocked(k vpnKey, set *vpnHeldSet, t int64, flush bool) []vpnBooking {
+	var due, keep []vpnHeldRec
+	for _, h := range set.recs {
+		if flush || h.deadline <= t {
+			due = append(due, h)
+		} else {
+			keep = append(keep, h)
+		}
+	}
+	if len(due) == 0 {
+		return nil
+	}
+	p.forgetHeldLocked(due)
+	if set.recs = keep; len(keep) == 0 {
+		delete(p.vpnHeld, k)
+	}
+	loose, ok := p.vpnUp[vpnKey{k.dev, k.ifx, k.rip, k.rport, 0, k.proto}]
+	book := make([]vpnBooking, 0, len(due))
+	for _, h := range due {
+		if ok && !loose.ambiguous && t-loose.ts <= h.window {
+			book = append(book, vpnBooking{h, loose.peer, vpnMatched})
+		} else {
+			book = append(book, vpnBooking{h, netip.Addr{}, vpnUnassigned})
+		}
+	}
+	return book
 }
 
 // bookVPN attributes a reply that waited in the buffer. false: the exporter also reported it with the peer as destination.
