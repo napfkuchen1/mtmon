@@ -22,6 +22,8 @@ type StepResult struct {
 	Title string `json:"title"`
 	OK    bool   `json:"ok"`
 	Msg   string `json:"msg,omitempty"`
+	Cmd   string `json:"cmd,omitempty"` // failed rollback step: the RouterOS command that fixes it by hand
+	Seq   int    `json:"-"`             // manifest sequence number of a rollback step
 }
 
 type Result struct {
@@ -67,7 +69,7 @@ func (r *runner) record(e store.ManifestEntry) {
 func undoJSON(u Undo) string { b, _ := json.Marshal(u); return string(b) }
 
 func (r *runner) create(ctx context.Context, path string, body map[string]string, descr string, guard map[string]string) (string, error) {
-	rows, err := r.cl.Do(ctx, "PUT", path, body)
+	rows, err := r.cl.Do(ctx, "PUT", path, rosBody(body))
 	if err != nil {
 		return "", err
 	}
@@ -99,17 +101,9 @@ func (r *runner) modify(ctx context.Context, path, id string, body map[string]st
 	if len(rows) > 0 {
 		cur = rows[0]
 	}
-	prev := map[string]string{}
+	do, undo := rosBody(body), map[string]string{}
 	for k := range body {
-		prev[k] = cur[k]
-	}
-	do := map[string]string{}
-	for k, v := range body {
-		do[k] = v
-	}
-	undo := map[string]string{}
-	for k, v := range prev {
-		undo[k] = v
+		undo[k] = rosValue(k, cur[k])
 	}
 	if id != "" {
 		do[".id"], undo[".id"] = id, id
@@ -191,7 +185,6 @@ func (r *runner) syslog(ctx context.Context, o Options) error {
 // fwLog switches logging on for the given filter rules. allow marks accept rules: their manifest entries start with
 // "Allow " so FeatureOf can tell them from the drop-rule logging (each can be switched off on its own).
 func (r *runner) fwLog(ctx context.Context, k *Caps, ids []string, allow bool) error {
-	pre := map[bool]string{true: "Allow "}[allow]
 	for _, id := range ids {
 		f := k.rule(id)
 		if f == nil {
@@ -203,25 +196,15 @@ func (r *runner) fwLog(ctx context.Context, k *Caps, ids []string, allow bool) e
 		}
 		meta := FwMeta{Chain: f.Chain, Action: f.Action, Descr: descr, Managed: true}
 		menu, _, raw := ruleMenu(id)
-		switch {
-		case f.Log && f.LogPrefix != "":
-			meta.Prefix, meta.Managed = f.LogPrefix, false // already logs with its own prefix: leave untouched
-		case f.Log:
-			meta.Prefix = prefixFor(id)
-			if err := r.modify(ctx, menu, raw, map[string]string{"log-prefix": meta.Prefix}, pre+"Log prefix "+meta.Prefix+" for "+f.Chain+"/"+f.Action); err != nil {
-				return err
-			}
-		case allow:
+		meta.Prefix = prefixFor(id)
+		if allow {
 			// accept rules are counted from the router's rule counter: the prefix names the rule, log stays off (#278)
-			meta.Prefix, meta.Counter = prefixFor(id), true
-			if err := r.modify(ctx, menu, raw, map[string]string{"log-prefix": meta.Prefix}, pre+"Counting hits: "+f.Chain+"/"+f.Action+" "+f.Comment); err != nil {
+			meta.Counter = true
+			if err := r.modify(ctx, menu, raw, map[string]string{"log-prefix": meta.Prefix}, "Allow Counting hits: "+f.Chain+"/"+f.Action+" "+f.Comment); err != nil {
 				return err
 			}
-		default:
-			meta.Prefix = prefixFor(id)
-			if err := r.modify(ctx, menu, raw, map[string]string{"log": "yes", "log-prefix": meta.Prefix}, pre+"Logging enabled: "+f.Chain+"/"+f.Action+" "+f.Comment); err != nil {
-				return err
-			}
+		} else if err := r.modify(ctx, menu, raw, map[string]string{"log": "yes", "log-prefix": meta.Prefix}, "Logging enabled: "+f.Chain+"/"+f.Action+" "+f.Comment); err != nil {
+			return err
 		}
 		r.res.FwMeta = append(r.res.FwMeta, meta)
 	}
@@ -293,6 +276,7 @@ func Apply(ctx context.Context, cl *poller.Client, ro func(user, pass string) *p
 	if o.MonUser == "" {
 		o.MonUser = "mtmon"
 	}
+	res.FwMeta = holdingRuleMeta(k, o)
 	r := &runner{cl: cl, ro: ro, rec: rec, res: res}
 	for _, a := range buildActions(k, o) {
 		err := a.run(ctx, r)
@@ -324,10 +308,11 @@ func Rollback(ctx context.Context, cl *poller.Client, entries []store.ManifestEn
 		if e.State == "reverted" {
 			continue
 		}
-		sr := StepResult{Key: e.Kind, Title: "Rolled back: " + e.Descr, OK: true}
+		sr := StepResult{Key: e.Kind, Title: "Rolled back: " + e.Descr, OK: true, Seq: e.Seq}
 		st := "reverted"
 		if err := undoOne(ctx, cl, e); err != nil {
 			sr.OK, sr.Msg, st = false, err.Error(), "revert-failed"
+			sr.Cmd = manualCommand(e)
 		}
 		if onState != nil {
 			onState(e.ID, st)
@@ -363,7 +348,7 @@ func undoOne(ctx context.Context, cl *poller.Client, e store.ManifestEntry) erro
 	}
 	var body any
 	if u.Body != nil {
-		body = u.Body
+		body = rosBody(u.Body)
 	}
 	_, err := cl.Do(ctx, u.Method, u.Path, body)
 	if err != nil && u.Method == "DELETE" && (strings.Contains(err.Error(), "no such item") || strings.Contains(err.Error(), "HTTP 404")) {
@@ -383,34 +368,42 @@ func ManualScript(entries []store.ManifestEntry) string {
 		if e.State == "reverted" {
 			continue
 		}
-		var u Undo
-		if json.Unmarshal([]byte(e.Undo), &u) != nil {
-			continue
+		if cmd := manualCommand(e); cmd != "" {
+			fmt.Fprintf(&b, "# %s\n%s\n", e.Descr, cmd)
 		}
-		fmt.Fprintf(&b, "# %s\n", e.Descr)
-		cli := func(p string) string { return "/" + strings.ReplaceAll(strings.Trim(p, "/"), "/", " ") }
-		menu := cli(strings.TrimSuffix(u.Path, "/set"))
-		if u.Method == "DELETE" {
-			i := strings.LastIndex(u.Path, "/")
-			fmt.Fprintf(&b, "%s remove %s\n", cli(u.Path[:i]), u.Path[i+1:])
-			continue
-		}
-		keys := make([]string, 0, len(u.Body))
-		for k := range u.Body {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		id, args := "", []string{}
-		for _, k := range keys {
-			if k == ".id" {
-				id = u.Body[k]
-				continue
-			}
-			args = append(args, fmt.Sprintf("%s=%q", k, u.Body[k]))
-		}
-		fmt.Fprintf(&b, "%s set %s\n", menu, strings.TrimSpace(id+" "+strings.Join(args, " ")))
 	}
 	return b.String()
+}
+
+// manualCommand is the RouterOS terminal command that reverts one entry ("" when its undo cannot be read).
+func manualCommand(e store.ManifestEntry) string {
+	var u Undo
+	if json.Unmarshal([]byte(e.Undo), &u) != nil {
+		return ""
+	}
+	cli := func(p string) string { return "/" + strings.ReplaceAll(strings.Trim(p, "/"), "/", " ") }
+	if u.Method == "DELETE" {
+		i := strings.LastIndex(u.Path, "/")
+		return cli(u.Path[:i]) + " remove " + u.Path[i+1:]
+	}
+	return cli(strings.TrimSuffix(u.Path, "/set")) + " set " + cliSet(u.Body)
+}
+
+// FailedEntries returns the entries whose rollback step failed.
+func FailedEntries(entries []store.ManifestEntry, steps []StepResult) []store.ManifestEntry {
+	failed := map[int]bool{}
+	for _, s := range steps {
+		if !s.OK {
+			failed[s.Seq] = true
+		}
+	}
+	var out []store.ManifestEntry
+	for _, e := range entries {
+		if failed[e.Seq] {
+			out = append(out, e)
+		}
+	}
+	return out
 }
 
 var _ = errors.New

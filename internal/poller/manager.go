@@ -170,6 +170,7 @@ type worker struct {
 	retryAt   time.Time
 	since     time.Time // polling of this device started
 	l3n, dnsn int       // runs of l3Poll / dnsCache: the rarely changing tables are read only every few runs
+	hw        hwState   // monitor capability per hardware feature (hardware.go)
 }
 
 func (m *Manager) runDevice(ctx context.Context, d config.Device) {
@@ -223,6 +224,9 @@ func (m *Manager) runDevice(ctx context.Context, d config.Device) {
 		}
 		if err == nil && (run(60) || tick == 1) {
 			w.neighbors(ctx)
+		}
+		if err == nil && hwDue(tick, sl) {
+			w.hwPoll(ctx)
 		}
 		if run(3600) && tick > 1 {
 			w.identity(ctx)

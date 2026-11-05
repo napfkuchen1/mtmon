@@ -357,7 +357,7 @@ func TestDeviceLifecycleEndToEnd(t *testing.T) {
 		t.Fatal("router not restored")
 	}
 	for _, f := range r.rt.Lists("/ip/firewall/filter") {
-		if f["log"] == "yes" || strings.HasPrefix(f["comment"], "mtmon-managed") {
+		if f["log"] == "true" || strings.HasPrefix(f["comment"], "mtmon-managed") {
 			t.Fatalf("filter rule left changed: %v", f)
 		}
 	}
@@ -485,7 +485,7 @@ func TestDeviceFeaturesAllowLog(t *testing.T) {
 	logging := func(prefix string) int {
 		n := 0
 		for _, f := range r.rt.Lists("/ip/firewall/filter") {
-			if f["log"] == "yes" && strings.HasPrefix(f["log-prefix"], prefix) {
+			if f["log"] == "true" && strings.HasPrefix(f["log-prefix"], prefix) {
 				n++
 			}
 		}
@@ -687,7 +687,7 @@ func TestDeviceFeaturesOnOff(t *testing.T) {
 		t.Fatal("only the firewall log feature must be reverted")
 	}
 	for _, f := range r.rt.Lists("/ip/firewall/filter") {
-		if f["log"] == "yes" && strings.HasPrefix(f["log-prefix"], "MTM-") || strings.HasPrefix(f["comment"], "mtmon-managed") {
+		if f["log"] == "true" && strings.HasPrefix(f["log-prefix"], "MTM-") || strings.HasPrefix(f["comment"], "mtmon-managed") {
 			t.Fatalf("filter rule left changed: %v", f)
 		}
 	}

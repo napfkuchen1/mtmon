@@ -81,6 +81,7 @@ func (s *Store) DeleteDevice(name string, purge bool) error {
 		return err
 	}
 	defer tx.Rollback()
+	s.ForgetHW(name)
 	tx.Exec(`DELETE FROM devices WHERE name=?`, name)
 	tx.Exec(`DELETE FROM devices_state WHERE name=?`, name)
 	tx.Exec(`DELETE FROM neighbors WHERE device=?`, name)
@@ -88,6 +89,7 @@ func (s *Store) DeleteDevice(name string, purge bool) error {
 	tx.Exec(`DELETE FROM fw_rules WHERE device=?`, name)
 	if purge {
 		tx.Exec(`DELETE FROM dev_metrics WHERE device=?`, name)
+		tx.Exec(`DELETE FROM sfp_metrics WHERE device=?`, name)
 		tx.Exec(`DELETE FROM if_metrics WHERE device=?`, name)
 		tx.Exec(`DELETE FROM fw_events WHERE device=?`, name)
 		tx.Exec(`DELETE FROM log_events WHERE device=?`, name)

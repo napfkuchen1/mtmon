@@ -254,6 +254,10 @@ func (s *Server) dynamic(w http.ResponseWriter, r *http.Request, canWrite bool) 
 			}
 		}
 		rosErr(w, 404, "Not Found")
+	case r.Method == "PUT" && list && badBool(w, in):
+	case r.Method == "POST" && isSet && badBool(w, in):
+	case r.Method == "POST" && isSet && s.FailSet != nil && s.FailSet(menu, in):
+		rosErr(w, 400, "failure: injected error")
 	case r.Method == "PUT" && list:
 		if (menu == "/user" || menu == "/user/group" || menu == "/system/logging/action") && s.dupName(menu, str(in["name"])) {
 			rosErr(w, 400, "failure: item with the same name already exists")
@@ -277,7 +281,7 @@ func (s *Server) dynamic(w http.ResponseWriter, r *http.Request, canWrite bool) 
 		}
 		o := s.withID(obj{})
 		for k, v := range in {
-			o[k] = str(v)
+			o[k] = rosStored(menu, k, str(v))
 		}
 		if isFilterMenu(menu) {
 			for k, v := range map[string]string{"log": "false", "disabled": "false", "log-prefix": ""} {
@@ -292,7 +296,7 @@ func (s *Server) dynamic(w http.ResponseWriter, r *http.Request, canWrite bool) 
 		writeJSON(w, 200, c)
 	case r.Method == "POST" && isSet && single:
 		for k, v := range in {
-			s.singles[menu][k] = str(v)
+			s.singles[menu][k] = rosStored(menu, k, str(v))
 		}
 		writeJSON(w, 200, []obj{})
 	case r.Method == "POST" && isSet && list:
@@ -305,7 +309,7 @@ func (s *Server) dynamic(w http.ResponseWriter, r *http.Request, canWrite bool) 
 				}
 				for k, v := range in {
 					if k != ".id" {
-						o[k] = str(v)
+						o[k] = rosStored(menu, k, str(v))
 					}
 				}
 				writeJSON(w, 200, []obj{})
@@ -326,6 +330,56 @@ func (s *Server) dynamic(w http.ResponseWriter, r *http.Request, canWrite bool) 
 		rosErr(w, 400, "unsupported")
 	}
 	return true
+}
+
+// boolProps are the boolean properties of the menus mtmon writes to.
+var boolProps = map[string]bool{"log": true, "disabled": true, "enabled": true, "passthrough": true}
+
+// badBool answers like a real router when a boolean is neither yes nor no. mtmon must only ever send those two (#343).
+func badBool(w http.ResponseWriter, in obj) bool {
+	for k, v := range in {
+		if boolProps[k] && str(v) != "yes" && str(v) != "no" {
+			rosErr(w, 400, "invalid value of "+k+", must be either yes or no")
+			return true
+		}
+	}
+	return false
+}
+
+// rosStored: firewall rules and Traffic Flow report booleans as true/false over REST, whatever was written.
+func rosStored(menu, k, v string) string {
+	if boolProps[k] && (isFilterMenu(menu) || menu == "/ip/traffic-flow") {
+		return map[string]string{"yes": "true", "no": "false"}[v]
+	}
+	return v
+}
+
+// Snapshot is the router configuration as text, for comparing it before and after a change. Rule counters and empty
+// values (the router does not tell them from unset ones) are left out, the order of the rows counts.
+func (s *Server) Snapshot() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	clean := func(o obj) obj {
+		c := obj{}
+		for k, v := range o {
+			if k != "packets" && k != "bytes" && str(v) != "" {
+				c[k] = str(v)
+			}
+		}
+		return c
+	}
+	lists := map[string][]obj{}
+	for m, rows := range s.lists {
+		for _, o := range rows {
+			lists[m] = append(lists[m], clean(o))
+		}
+	}
+	singles := map[string]obj{}
+	for m, o := range s.singles {
+		singles[m] = clean(o)
+	}
+	b, _ := json.Marshal(map[string]any{"lists": lists, "singles": singles})
+	return string(b)
 }
 
 func (s *Server) dupName(menu, name string) bool {

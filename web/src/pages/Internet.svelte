@@ -11,6 +11,7 @@
   api('/timezone').then(x => (tzName = x.zone)).catch(() => {})
   import Empty from '../lib/Empty.svelte'
   import Upstream from '../lib/Upstream.svelte'
+  import LteSignal from '../lib/LteSignal.svelte'
   const inet = poll(() => api('/internet?range=24h'), 60000)
 
   const ranges = [['24h', '24 h'], ['7d', '7 d'], ['30d', '30 d'], ['90d', '90 d'], ['365d', '1 y']]
@@ -129,6 +130,7 @@
 <div class="head"><h1>{t('Internet')}</h1>
   <span class="muted">{t('Speed tests run from the mtmon host, not from a router, so they measure your line.')}</span></div>
 <Upstream items={inet.data?.upstream || []} compact />
+<LteSignal items={inet.data?.lte || []} />
 
 {#if !x}
   <div class="muted">{t('Loading…')}</div>

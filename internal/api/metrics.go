@@ -122,6 +122,7 @@ func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(&b, "mtmon_client_wifi_score{mac=%s,name=%s} %d\n", lbl(c.MAC), lbl(c.Name), c.Score)
 		}
 	}
+	s.hardwareMetrics(&b, g)
 	g("mtmon_uptime_seconds", "Uptime of mtmon itself.")
 	fmt.Fprintf(&b, "mtmon_uptime_seconds %d\n", int64(time.Since(s.Started).Seconds()))
 	fmt.Fprintf(&b, "# HELP mtmon_build_info Version of the running mtmon.\n# TYPE mtmon_build_info gauge\nmtmon_build_info{version=%s} 1\n", lbl(s.Version))

@@ -2,6 +2,7 @@
 <script>
   import { api } from './api.js'
   import { t, tr } from './i18n.svelte.js'
+  import ProvisionResult from './ProvisionResult.svelte'
   // Switch the optional router-side parts of the auto setup on and off for one registered device.
   // Flow: toggle → "Preview" (nothing is changed yet) → "Apply". Admin login is needed once and never stored.
   // preset: feature keys to switch on right away (used by the one-click fix on the Suggestions page)
@@ -122,8 +123,7 @@
   {#if res}
     <div class="warnbox" style="margin-top:12px;background:{res.ok ? 'var(--ok-bg)' : 'var(--bad-bg)'}">
       {res.ok ? t('Done.') : t('Not everything worked – changes of this attempt were undone where possible.')}
-      {#each (res.result?.steps || []).concat(res.undone || []) as s}<div style="font-size:12.5px"><span class="badge {s.ok ? 'ok' : 'bad'}">{s.ok ? '✓' : '✗'}</span> {tr(s.title)}{s.msg ? ' – ' + tr(s.msg) : ''}</div>{/each}
-      {#if res.result?.error}<div style="font-size:12.5px">{tr(res.result.error)}</div>{/if}
+      <ProvisionResult steps={res.result?.steps} rollback={(res.result?.rollback || []).concat(res.undone || [])} error={res.result?.error} />
     </div>
     {#if res.manual_script}<pre class="code" style="margin-top:10px">{res.manual_script}</pre>{/if}
   {/if}

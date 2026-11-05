@@ -88,6 +88,10 @@ CREATE TABLE IF NOT EXISTS dev_metrics(
   ts INTEGER, device TEXT, cpu REAL, mem_used INTEGER, mem_total INTEGER,
   temp REAL, uptime INTEGER, clients INTEGER, up INTEGER);
 CREATE INDEX IF NOT EXISTS dev_metrics_k ON dev_metrics(device, ts);
+-- SFP optics (#300): one row per cage and slow poll; NULL = the module did not report that value
+CREATE TABLE IF NOT EXISTS sfp_metrics(
+  ts INTEGER, device TEXT, iface TEXT, rx_dbm REAL, tx_dbm REAL, temp REAL);
+CREATE INDEX IF NOT EXISTS sfp_metrics_k ON sfp_metrics(device, ts);
 CREATE TABLE IF NOT EXISTS if_metrics(
   ts INTEGER, device TEXT, iface TEXT, rx_bps REAL, tx_bps REAL, errs INTEGER);
 CREATE INDEX IF NOT EXISTS if_metrics_k ON if_metrics(device, iface, ts);
@@ -137,6 +141,8 @@ type Store struct {
 
 	wanStMu sync.Mutex
 	wanSt   map[string]WANStatus // latest probe result per target (wanstatus.go)
+	hwMu    sync.Mutex
+	hw      map[string]HWDevice // latest hardware reading per device (hardware.go)
 
 	mu      sync.Mutex
 	flowQ   []FlowRow
@@ -274,6 +280,7 @@ func (s *Store) Cleanup(rawDays, days int) {
 	s.exec(`DELETE FROM rollup_1h_ifd WHERE ts < ?`, cut)
 	s.exec(`DELETE FROM rollup_1d_ifd WHERE ts < ?`, cut)
 	s.exec(`DELETE FROM dev_metrics WHERE ts < ?`, cut)
+	s.exec(`DELETE FROM sfp_metrics WHERE ts < ?`, cut)
 	s.exec(`DELETE FROM log_events WHERE ts < ?`, now.AddDate(0, 0, -LogRetentionDays).Unix())
 
 	s.exec(`DELETE FROM wifi_hist WHERE ts < ?`, cut)
