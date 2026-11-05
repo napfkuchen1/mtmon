@@ -10,18 +10,11 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-05
+
 ### New
 - Traffic per interface or VLAN: Insights has a new Interfaces tab with the traffic of each LAN and WAN interface and the routed traffic between VLANs. Top lists, Insights and exports can be filtered to one interface, and the Internet page shows the traffic of each WAN link. Names come from the router and update on their own; an unknown number shows as `if<N>`. It records from now on (older traffic has no interface) and covers routed interfaces, not single bridge ports. (#299)
-### Fixed
-- Router changes: booleans now always reach RouterOS as `yes` or `no`, in the setup, in every undo and in the manual script. Undo records written by older versions (`log=""`, `log="false"`) are repaired when they run, so an undo no longer fails with "invalid value of log" and leaves a router half changed (#343).
-- Router features: a rule that already logs or is already counted gets no step any more, so re-applying a feature changes nothing that is already right. Rules that log with someone else's settings stay untouched (#343).
-- Failed router changes show the failing step and the router's error first, then what the undo did. An undo step the router refused comes with the exact command to fix it by hand, and the manual script lists only what is really left (#343).
-- Installer update: an outdated update helper is now refreshed even when the container already runs the same binary (#343).
-
-### New
 - Alert "Router in mixed state" (warning) when an undo left differences on the router, with the list of what is left. A later undo that succeeds resolves it. Switching a feature off retries steps that failed earlier (#343).
-### New
-
 - Hardware health: mtmon now shows SFP optics (receive and transmit power, temperature), PoE port status and LTE signal. They appear on the device page, the LTE signal also on the Internet page, and as metrics. A PoE port with a short circuit or overload raises an alert, and you can set a receive-power limit for SFP modules (off by default) that warns when it is undercut. Values are read every 5 minutes with a read-only call that changes nothing on the router; if the router refuses it, the feature stays off for that device. Models that report no power figures show "—", never 0 W. (#300)
 
 ### Changed
@@ -29,6 +22,12 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Updated Svelte and the QR code library behind the 2FA enrolment. A new test renders the QR code and scans it back (#327).
 - README and project pictures (#306, #308): the README now starts with the logo, the pitch, badges and a note that the interface comes in English and Deutsch, followed by the quick start, a short "Who is it for" and "What it is not"; long sections (screenshots, comparison, update, uninstall, security, troubleshooting, development) are collapsed behind a summary, nothing was removed. A new manually started workflow "screenshots" renders the pictures in the official Playwright container (pinned by digest): it builds the release binary, starts the demo, runs `make screenshots`, records a 20 second GIF of Overview, Clients, Firewall and Suggestions, renders `docs/social-preview.png` (1280x640, to be uploaded under Settings -> Social preview) and opens a pull request with the new images; it fails if a picture would show a 127.0.0.x address, a `-dirty` version or "Collecting data". `make screenshots` now really uses the last release version (the build flags were expanded too early).
 - Installer: when `minisign` is missing, an interactive run now offers to install it with `apt-get` and then checks the signature as usual, instead of aborting straight away. If you decline, in a dry run, without a terminal or if apt fails, it still aborts; it never falls back to an unverified install on its own.
+
+### Fixed
+- Router changes: booleans now always reach RouterOS as `yes` or `no`, in the setup, in every undo and in the manual script. Undo records written by older versions (`log=""`, `log="false"`) are repaired when they run, so an undo no longer fails with "invalid value of log" and leaves a router half changed (#343).
+- Router features: a rule that already logs or is already counted gets no step any more, so re-applying a feature changes nothing that is already right. Rules that log with someone else's settings stay untouched (#343).
+- Failed router changes show the failing step and the router's error first, then what the undo did. An undo step the router refused comes with the exact command to fix it by hand, and the manual script lists only what is really left (#343).
+- Installer update: an outdated update helper is now refreshed even when the container already runs the same binary (#343).
 
 ## [0.20.18] - 2026-11-04
 
