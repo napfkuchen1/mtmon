@@ -71,14 +71,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           BASE: ${{ github.event.repository.default_branch }}
+          ACTOR: ${{ github.actor }}
+          ACTOR_ID: ${{ github.actor_id }}
         run: |
           if [ -z "$(git status --porcelain docs README.md)" ]; then
             echo "::notice::the images did not change, nothing to propose"
             exit 0
           fi
           branch="chore/screenshots-$(date -u +%Y%m%d)-${GITHUB_RUN_ID}"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # commit as the person who started the run: a bot author would add a Co-authored-by trailer to the squash commit
+          git config user.name "$ACTOR"
+          git config user.email "${ACTOR_ID}+${ACTOR}@users.noreply.github.com"
           git checkout -b "$branch"
           git add docs README.md
           git commit -q -m "docs: refresh screenshots, demo GIF and social preview (#306, #308)"
