@@ -10,6 +10,9 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ## [Unreleased]
 
+### Fixed
+- VPN downloads with several phones or laptops connected at once landed on "VPN (not attributable)", because the download half of a connection was often reported before its upload half. mtmon now holds such a reply for a short time (twice the active flow timeout of the router, at most one hour) and books it on the right device when the upload arrives. While it waits, mtmon asks the router's connection table which device the connection belongs to, with one read per connection and never the whole table. A login that may not read the table is not asked again. What stays open remains its own row in Top Clients, so totals stay right. These numbers appear with that delay. (#287)
+
 ## [0.22.0] - 2026-11-05
 
 ### New

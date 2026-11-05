@@ -38,18 +38,22 @@ type Pipeline struct {
 	En                *enrich.Enricher
 	Hub               *Hub
 	Cls               *enrich.Classifier
-	Owns              func(ip string) bool                          // a managed device owns this address (any interface, polling address); optional
-	HostAddr          func(ip string) bool                          // an address of the machine mtmon runs on; optional
-	SelfMAC           func(ip string) string                        // own interface MAC of the managed device that has this address, "" = none; optional
-	TunnelPort        func(ip string, port uint16) bool             // ip is a managed router and port a WireGuard listen-port of it: tunnel transport, optional
-	VPNIf             func(dev string, idx uint32) (VPNIface, bool) // the interface of that device is a WireGuard tunnel; optional
+	Owns              func(ip string) bool                                // a managed device owns this address (any interface, polling address); optional
+	HostAddr          func(ip string) bool                                // an address of the machine mtmon runs on; optional
+	SelfMAC           func(ip string) string                              // own interface MAC of the managed device that has this address, "" = none; optional
+	TunnelPort        func(ip string, port uint16) bool                   // ip is a managed router and port a WireGuard listen-port of it: tunnel transport, optional
+	VPNIf             func(dev string, idx uint32) (VPNIface, bool)       // the interface of that device is a WireGuard tunnel; optional
+	VPNConn           func(dev string, q VPNConnQuery) (netip.Addr, bool) // original source of a NAT connection on that device; optional
 	mu                sync.Mutex
 	seen              map[dkey]int64
 	dnsSeen           map[rkey]int64
-	xseen             map[xkey]xval      // 5-tuples already booked, per exporting router (#286)
-	expSeen           map[string]int64   // MAC of a managed router -> last time it exported flows
-	vpnUp             map[vpnKey]vpnSeen // uploads of VPN peers, to attribute the replies (#287)
-	vpnClient         bool               // the client for unattributable VPN bytes exists
+	xseen             map[xkey]xval          // 5-tuples already booked, per exporting router (#286)
+	expSeen           map[string]int64       // MAC of a managed router -> last time it exported flows
+	vpnUp             map[vpnKey]vpnSeen     // uploads of VPN peers, to attribute the replies (#287)
+	vpnClient         bool                   // the client for unattributable VPN bytes exists
+	vpnHeld           map[vpnKey]*vpnHeldSet // replies waiting for their upload or a connection lookup (#287)
+	vpnHeldN          int
+	vpnHeldB          uint64
 	Ignored, Internal uint64
 	diag              pipeDiag
 
@@ -174,7 +178,7 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 			local[rkey{r.Src.Unmap(), r.SrcPort, r.Proto}] = true
 		}
 	}
-	p.noteVPNUploads(recs, now.Unix())
+	late := p.noteVPNUploads(recs, now.Unix())
 	for _, r := range recs {
 		src, dst := r.Src.Unmap(), r.Dst.Unmap()
 		if p.dnsRedirected(r, local, now.Unix()) {
@@ -198,6 +202,12 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 		}
 		row.TS = ts.Unix()
 		peer, vpn := p.vpnReply(r, src, dst, sl, row.TS)
+		if vpn == vpnHold {
+			if p.holdVPN(r, src, dst, row, now.Unix()) {
+				continue
+			}
+			vpn = vpnUnassigned // the buffer is full: book it now, never drop it
+		}
 		switch {
 		case vpn == vpnDuplicate:
 			p.mu.Lock()
@@ -205,16 +215,8 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 			p.mu.Unlock()
 			p.diag.note(r, "x", "vpn reply, also exported with the peer as destination")
 			continue
-		case vpn == vpnUnassigned:
-			p.diag.vpnReply(vpn, r.Bytes)
-			p.diag.note(r, "d")
-			p.ensureVPNUnassigned(p.Cfg.SourceDevice(r.Exporter))
-			row.MAC = store.VPNUnassignedMAC
-			row.Dir, row.CIP, row.RIP, row.CPort, row.RPort = "d", dst.String(), src.String(), r.DstPort, r.SrcPort
 		case vpn != vpnNone:
-			p.diag.vpnReply(vpn, r.Bytes)
-			p.diag.note(r, "d")
-			row.Dir, row.CIP, row.RIP, row.CPort, row.RPort = "d", peer.String(), src.String(), r.DstPort, r.SrcPort
+			p.fillVPNRow(&row, r, src, dst, peer, vpn)
 		case sl && !dl:
 			if p.crossExporterDup(r, src, row.TS) {
 				p.mu.Lock()
@@ -265,43 +267,54 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 			}
 			continue
 		}
-		if p.SelfMAC != nil && row.MAC == "" {
-			row.MAC = p.SelfMAC(row.CIP) // the router's own address (WAN, PPPoE) is the device, not a client
-		}
-		if row.MAC == "" {
-			row.MAC = p.Hub.MACFor(row.CIP)
-		}
-		if row.MAC == "" {
-			row.MAC = p.St.MACForIPAt(row.CIP, row.TS)
-		}
-		rip, _ := netip.ParseAddr(row.RIP)
-		switch {
-		case config.IsGroupAddr(rip): // multicast / broadcast: no GeoIP and no reverse-DNS lookup (#290)
-		case !p.Cfg.IsLocal(rip):
-			row.Host = p.En.Name(rip)
-			g := p.En.Lookup(rip)
-			row.CC, row.ASN, row.ASOrg = g.CC, g.ASN, g.ASOrg
-		default:
-			row.Host = p.En.Name(rip)
-		}
-		if p.Cls != nil {
-			row.Svc = p.Cls.Classify(r.Proto, row.RPort, row.CPort, rip, row.Host, row.ASN)
-		} else {
-			row.Svc = enrich.Service(r.Proto, row.RPort, row.CPort)
-		}
-		if speedtest.Traffic.Match(row.CIP, row.RIP) { // mtmon's own speed test: visible, but not client behaviour
-			row.Svc = store.SpeedtestSvc
-		} else if p.monitoring(r, src, dst) {
-			row.Svc = store.MonitorSvc
-		}
-		p.setIfaces(&row, r)
+		p.finishRow(&row, r, src, dst)
 		rows = append(rows, row)
-		p.Hub.AddFlow(row)
+	}
+	for _, h := range late {
+		if row, ok := p.bookVPN(h.vpnHeldRec, h.peer, vpnMatched); ok {
+			rows = append(rows, row)
+			p.diag.vpnLateMatch()
+		}
 	}
 	if len(rows) > 0 {
 		p.St.Enqueue(rows...)
 	}
 	p.St.NoteGhostDNS(ghosts, now.Unix())
+}
+
+// finishRow resolves the client's MAC, enriches the row and shows it live. Direction and addresses of the row are set.
+func (p *Pipeline) finishRow(row *store.FlowRow, r flow.Record, src, dst netip.Addr) {
+	if p.SelfMAC != nil && row.MAC == "" {
+		row.MAC = p.SelfMAC(row.CIP) // the router's own address (WAN, PPPoE) is the device, not a client
+	}
+	if row.MAC == "" {
+		row.MAC = p.Hub.MACFor(row.CIP)
+	}
+	if row.MAC == "" {
+		row.MAC = p.St.MACForIPAt(row.CIP, row.TS)
+	}
+	rip, _ := netip.ParseAddr(row.RIP)
+	switch {
+	case config.IsGroupAddr(rip): // multicast / broadcast: no GeoIP and no reverse-DNS lookup (#290)
+	case !p.Cfg.IsLocal(rip):
+		row.Host = p.En.Name(rip)
+		g := p.En.Lookup(rip)
+		row.CC, row.ASN, row.ASOrg = g.CC, g.ASN, g.ASOrg
+	default:
+		row.Host = p.En.Name(rip)
+	}
+	if p.Cls != nil {
+		row.Svc = p.Cls.Classify(r.Proto, row.RPort, row.CPort, rip, row.Host, row.ASN)
+	} else {
+		row.Svc = enrich.Service(r.Proto, row.RPort, row.CPort)
+	}
+	if speedtest.Traffic.Match(row.CIP, row.RIP) { // mtmon's own speed test: visible, but not client behaviour
+		row.Svc = store.SpeedtestSvc
+	} else if p.monitoring(r, src, dst) {
+		row.Svc = store.MonitorSvc
+	}
+	p.setIfaces(row, r)
+	p.Hub.AddFlow(*row)
 }
 
 // monitoring reports whether r is traffic between the machine mtmon runs on and a managed device (REST/API polling,

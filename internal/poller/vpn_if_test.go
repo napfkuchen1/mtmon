@@ -23,12 +23,15 @@ func TestVPNIfTable(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	m := &Manager{St: st, snaps: map[string]*devSnap{"gw": {at: time.Now(), peers: []Row{
+	m := &Manager{St: st, snaps: map[string]*devSnap{"gw": {at: time.Now(), flowActive: 5 * time.Minute, peers: []Row{
 		{"interface": "back-to-home-vpn", "allowed-address": "192.168.216.2/32,fd00::2/128", "last-handshake": "10s"},
 		{"interface": "back-to-home-vpn", "allowed-address": "192.168.216.3/32", "last-handshake": "1h"},
 		{"interface": "wg-plain", "allowed-address": "10.9.0.0/24", "last-handshake": "10s"}, // site-to-site: no client
 	}}}}
 	v, ok := m.VPNIf("gw", 96)
+	if v.HoldSec != 600 {
+		t.Errorf("hold %d, want twice the active flow timeout", v.HoldSec)
+	}
 	if !ok || len(v.Active) != 2 || v.Active[0].String() != "192.168.216.2" || v.Active[1].String() != "fd00::2" {
 		t.Errorf("BTH: %v %+v", ok, v)
 	}

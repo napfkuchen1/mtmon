@@ -17,7 +17,7 @@ type obj = map[string]any
 // listMenus are collection menus ("print" returns many records with .id); singles hold one record.
 var listMenus = []string{"/user", "/user/group", "/ip/traffic-flow/target", "/system/logging", "/system/logging/action",
 	"/ip/firewall/filter", "/ipv6/firewall/filter", "/ip/firewall/nat", "/ip/service", "/system/package", "/interface/wifi", "/interface/wifi/configuration",
-	"/interface/bridge", "/interface/bridge/port", "/ip/address", "/ip/dhcp-server"}
+	"/interface/bridge", "/interface/bridge/port", "/ip/address", "/ip/dhcp-server", "/ip/firewall/connection"}
 var singleMenus = []string{"/ip/traffic-flow", "/interface/wifi/cap", "/interface/wifi/capsman"}
 
 // isFilterMenu: the IPv4 and IPv6 filter menus behave alike (counters, defaults).
@@ -59,6 +59,16 @@ func (s *Server) initState() {
 		add("/ipv6/firewall/filter", obj{"chain": "forward", "action": "accept", "connection-state": "established,related,untracked", "log": "false", "disabled": "false", "comment": "defconf: accept established"})
 		add("/ipv6/firewall/filter", obj{"chain": "forward", "action": "accept", "protocol": "tcp", "dst-port": "443", "in-interface-list": "WAN", "log": "false", "disabled": "false", "comment": "allow https to server"})
 		add("/ipv6/firewall/filter", obj{"chain": "forward", "action": "drop", "in-interface-list": "WAN", "log": "false", "disabled": "false", "comment": "defconf: drop everything else from WAN"})
+	}
+}
+
+// SetConnections replaces the connection table, which a real router fills by itself. The mock ignores query filters.
+func (s *Server) SetConnections(rows []map[string]any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.lists["/ip/firewall/connection"] = nil
+	for _, o := range rows {
+		s.lists["/ip/firewall/connection"] = append(s.lists["/ip/firewall/connection"], s.withID(o))
 	}
 }
 

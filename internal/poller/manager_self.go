@@ -218,11 +218,12 @@ func (m *Manager) buildVPNIfs() map[string]map[uint32]live.VPNIface {
 	type tunnels struct {
 		names  map[string]bool
 		active map[string][]netip.Addr
+		hold   int64
 	}
 	all := map[string]tunnels{}
 	m.mu.Lock()
 	for dev, s := range m.snaps {
-		t := tunnels{names: map[string]bool{}, active: map[string][]netip.Addr{}}
+		t := tunnels{names: map[string]bool{}, active: map[string][]netip.Addr{}, hold: int64(2 * s.flowActive / time.Second)}
 		for _, r := range s.wg {
 			t.names[r["name"]] = true
 		}
@@ -242,7 +243,7 @@ func (m *Manager) buildVPNIfs() map[string]map[uint32]live.VPNIface {
 		byIdx := map[uint32]live.VPNIface{}
 		for idx, n := range m.St.IfNames(dev) { // database read: not under m.mu
 			if n.Type == "wg" || t.names[n.Name] {
-				byIdx[idx] = live.VPNIface{Active: t.active[n.Name]}
+				byIdx[idx] = live.VPNIface{Active: t.active[n.Name], HoldSec: t.hold}
 			}
 		}
 		out[dev] = byIdx

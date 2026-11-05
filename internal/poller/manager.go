@@ -47,6 +47,8 @@ type Manager struct {
 	vpnMu   sync.Mutex
 	vpnIfs  map[string]map[uint32]live.VPNIface // device -> interface index -> WireGuard tunnel
 	vpnAt   time.Time
+	connMu  sync.Mutex
+	conn    map[string]*connClient // device -> client for the connection-table lookups of VPN replies
 	addrMu  sync.Mutex
 	addrAt  time.Time
 	addrMAC map[string]string // address configured on a managed device -> one of its own MACs
@@ -54,21 +56,22 @@ type Manager struct {
 }
 
 type devSnap struct {
-	role   string
-	leases []Row
-	arp    []Row
-	nd6    []Row // /ipv6/neighbor: IPv6 address -> MAC (merges IPv6 traffic into the client)
-	wifi   []Row
-	bridge []Row
-	peers  []Row           // /interface/wireguard/peers (absent without the wireguard package)
-	wg     []Row           // /interface/wireguard (listen-port of every tunnel interface)
-	wan    map[string]bool // interfaces that face the upstream: members of the WAN interface list, default-route interface
-	addrs  []Row           // /ip/address (transfer net towards a modem)
-	addrs6 []Row           // /ipv6/address (dynamic PPPoE / DHCPv6 addresses change between capability probes)
-	pppoe  []Row           // /interface/pppoe-client
-	ifs    []Row           // /interface (name, type) to tell ports, PPPoE and tunnels apart
-	routes []Row           // /ip/route (default route: double NAT)
-	at     time.Time
+	role       string
+	leases     []Row
+	arp        []Row
+	nd6        []Row // /ipv6/neighbor: IPv6 address -> MAC (merges IPv6 traffic into the client)
+	wifi       []Row
+	bridge     []Row
+	peers      []Row           // /interface/wireguard/peers (absent without the wireguard package)
+	wg         []Row           // /interface/wireguard (listen-port of every tunnel interface)
+	flowActive time.Duration   // active-flow-timeout of /ip/traffic-flow, 0 = not known
+	wan        map[string]bool // interfaces that face the upstream: members of the WAN interface list, default-route interface
+	addrs      []Row           // /ip/address (transfer net towards a modem)
+	addrs6     []Row           // /ipv6/address (dynamic PPPoE / DHCPv6 addresses change between capability probes)
+	pppoe      []Row           // /interface/pppoe-client
+	ifs        []Row           // /interface (name, type) to tell ports, PPPoE and tunnels apart
+	routes     []Row           // /ip/route (default route: double NAT)
+	at         time.Time
 }
 
 func NewManager(c *config.Config, s *store.Store, h *live.Hub, e *enrich.Enricher, ev Events, log *slog.Logger) *Manager {
@@ -447,6 +450,9 @@ func (w *worker) l3Poll(ctx context.Context) {
 	}
 	if rows, err := w.c.Get(ctx, "/interface/wireguard"); err == nil {
 		w.m.setSnap(w.d.Name, func(s *devSnap) { s.wg = rows })
+	}
+	if rows, err := w.c.GetProps(ctx, "/ip/traffic-flow", "active-flow-timeout"); err == nil && len(rows) > 0 {
+		w.m.setSnap(w.d.Name, func(s *devSnap) { s.flowActive = ParseDuration(rows[0]["active-flow-timeout"]) })
 	}
 	members, merr := w.c.Get(ctx, "/interface/list/member")
 	routes, rerr := w.c.Get(ctx, "/ip/route")

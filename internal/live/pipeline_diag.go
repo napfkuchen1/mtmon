@@ -60,6 +60,9 @@ type pipeDiag struct {
 
 	vpnMatched, vpnSingle, vpnUnassigned int64  // replies into a tunnel, by how they were attributed (#287)
 	vpnUnassignedBytes                   uint64 // bytes booked on "VPN (not attributable)"
+	vpnConntrack, vpnLate                int64  // named by the connection table; matched by an upload that came later (also in vpnMatched)
+	vpnHeldNow                           int64  // replies waiting in the buffer right now
+	vpnHeldBytes                         uint64
 }
 
 // vpnReply counts a reply into a tunnel by how it was attributed.
@@ -71,10 +74,26 @@ func (d *pipeDiag) vpnReply(v vpnVerdict, bytes uint64) {
 		d.vpnMatched++
 	case vpnSinglePeer:
 		d.vpnSingle++
+	case vpnConntrack:
+		d.vpnConntrack++
 	case vpnUnassigned:
 		d.vpnUnassigned++
 		d.vpnUnassignedBytes += bytes
 	}
+}
+
+// vpnLateMatch counts a reply whose upload arrived while it waited in the buffer.
+func (d *pipeDiag) vpnLateMatch() {
+	d.mu.Lock()
+	d.vpnLate++
+	d.mu.Unlock()
+}
+
+// vpnHeldState publishes the size of the buffer of waiting replies.
+func (d *pipeDiag) vpnHeldState(n int, bytes uint64) {
+	d.mu.Lock()
+	d.vpnHeldNow, d.vpnHeldBytes = int64(n), bytes
+	d.mu.Unlock()
 }
 
 func (d *pipeDiag) attachedDrop() {
@@ -172,5 +191,6 @@ func (p *Pipeline) Diagnostics() map[string]any {
 	}
 	return map[string]any{"local_nets": nets, "by_interface": rows, "dedup_dropped": dd, "ignored_recent": ign, "attached_nets": attached, "transit_attached": d.attDrop,
 		"vpn_replies_matched": d.vpnMatched, "vpn_replies_single_peer": d.vpnSingle, "vpn_replies_unassigned": d.vpnUnassigned, "vpn_replies_unassigned_bytes": d.vpnUnassignedBytes,
+		"vpn_replies_conntrack": d.vpnConntrack, "vpn_replies_late_matched": d.vpnLate, "vpn_replies_held": d.vpnHeldNow, "vpn_replies_held_bytes": d.vpnHeldBytes,
 		"note": "in_if/out_if are the router's interface indexes (since boot); dir x = dropped because neither address is in local_nets"}
 }
