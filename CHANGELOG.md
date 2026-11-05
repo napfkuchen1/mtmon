@@ -20,6 +20,7 @@ The first section below lists everything mtmon already covers. Later releases ad
 - Alert "Router in mixed state" (warning) when an undo left differences on the router, with the list of what is left. A later undo that succeeds resolves it. Switching a feature off retries steps that failed earlier (#343).
 
 ### Changed
+- Updated Svelte and the QR code library behind the 2FA enrolment. A new test renders the QR code and scans it back (#327).
 - Installer: when `minisign` is missing, an interactive run now offers to install it with `apt-get` and then checks the signature as usual, instead of aborting straight away. If you decline, in a dry run, without a terminal or if apt fails, it still aborts; it never falls back to an unverified install on its own.
 
 ## [0.20.18] - 2026-11-04
