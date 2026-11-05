@@ -10,6 +10,9 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ## [Unreleased]
 
+### New
+- Traffic per interface or VLAN: Insights has a new Interfaces tab with the traffic of each LAN and WAN interface and the routed traffic between VLANs. Top lists, Insights and exports can be filtered to one interface, and the Internet page shows the traffic of each WAN link. Names come from the router and update on their own; an unknown number shows as `if<N>`. It records from now on (older traffic has no interface) and covers routed interfaces, not single bridge ports. (#299)
+
 ### Changed
 - Installer: when `minisign` is missing, an interactive run now offers to install it with `apt-get` and then checks the signature as usual, instead of aborting straight away. If you decline, in a dry run, without a terminal or if apt fails, it still aborts; it never falls back to an unverified install on its own.
 
