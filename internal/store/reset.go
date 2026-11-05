@@ -42,7 +42,8 @@ func (s *Store) ResetData(o ResetOpts) (*ResetResult, error) {
 		}
 		return nil
 	}
-	for _, q := range []string{`DELETE FROM flows`, `DELETE FROM rollup_1m`, `DELETE FROM rollup_1h`, `DELETE FROM rollup_1h_client`, `DELETE FROM rollup_1d`, `DELETE FROM seen_dest`} {
+	for _, q := range []string{`DELETE FROM flows`, `DELETE FROM rollup_1m`, `DELETE FROM rollup_1h`, `DELETE FROM rollup_1h_client`, `DELETE FROM rollup_1d`, `DELETE FROM seen_dest`,
+		`DELETE FROM rollup_1h_if`, `DELETE FROM rollup_1h_ifd`, `DELETE FROM rollup_1d_ifd`} {
 		if err := del(&res.Traffic, q); err != nil {
 			return nil, err
 		}
