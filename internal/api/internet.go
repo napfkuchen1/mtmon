@@ -84,8 +84,13 @@ func (s *Server) internet(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().Unix()
 	downs, lastDown := s.St.AlertKindStats("wan_down", now-86400)
 	_, lastUp := s.St.AlertKindStats("wan_up", now-86400)
+	wanUsage := []IfaceInfo{} // traffic per WAN interface (needs flow data with interface indexes; never null)
+	if _, wan, _, err := s.St.IfaceUsage(since, false); err == nil {
+		wanUsage = s.ifaceInfos(ifaceNamer{}, wan)
+	}
 	jsonOut(w, map[string]any{
 		"enabled": s.St.GetMeta("wan_probe") != "off", "range": rn,
+		"wan_usage":      wanUsage,
 		"now":            s.St.WANQualitySince(now - 300),
 		"window":         s.St.WANQualitySince(since),
 		"day":            s.St.WANQualitySince(now - 86400),
