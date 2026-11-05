@@ -93,6 +93,7 @@ func (s *Server) internet(w http.ResponseWriter, r *http.Request) {
 		"series":         s.St.WANSeries(since, bucket),
 		"upstream":       s.upstreams(),
 		"reconnects_24h": downs, "last_drop": lastDown, "last_reconnect": lastUp,
+		"lte": s.lteSignals(),
 	})
 }
 

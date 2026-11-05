@@ -18,6 +18,9 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ### New
 - Alert "Router in mixed state" (warning) when an undo left differences on the router, with the list of what is left. A later undo that succeeds resolves it. Switching a feature off retries steps that failed earlier (#343).
+### New
+
+- Hardware health: mtmon now shows SFP optics (receive and transmit power, temperature), PoE port status and LTE signal. They appear on the device page, the LTE signal also on the Internet page, and as metrics. A PoE port with a short circuit or overload raises an alert, and you can set a receive-power limit for SFP modules (off by default) that warns when it is undercut. Values are read every 5 minutes with a read-only call that changes nothing on the router; if the router refuses it, the feature stays off for that device. Models that report no power figures show "—", never 0 W. (#300)
 
 ### Changed
 - The release job now runs in the GitHub environment `release`. `docs/repo-hardening.md` lists the owner settings that go with it (#302).
