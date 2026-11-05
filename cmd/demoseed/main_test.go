@@ -31,6 +31,10 @@ func TestSeedFillsClientAndDestinationRollups(t *testing.T) {
 	if hourly == 0 || clients != hourly {
 		t.Errorf("client rollup %d bytes, hourly rollup %d bytes", clients, hourly)
 	}
+	// the KPIs read the minute rollup, the lists the hourly one: they have to tell the same story
+	if minute := sum("rollup_1m", since); float64(hourly) < 0.6*float64(minute) || float64(hourly) > 1.6*float64(minute) {
+		t.Errorf("hourly rollup %d bytes, minute rollup %d bytes for the same day", hourly, minute)
+	}
 	if daily := sum("rollup_1d", 0); daily == 0 {
 		t.Error("daily rollup is empty")
 	}
