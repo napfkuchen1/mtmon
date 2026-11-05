@@ -13,7 +13,7 @@ One small container, zero-touch device onboarding, fully reversible.</p>
 <p align="center">Web interface in <b>English</b> and <b>Deutsch</b> (language switch in the sidebar) &middot; this README is in English, the <a href="docs/runbook.md">runbook</a> and <a href="docs/router-setup.md">router setup</a> are in German</p>
 
 <!-- demo-media:start -->
-<p align="center"><img src="docs/img/overview.png" alt="mtmon overview dashboard" width="900"></p>
+<p align="center"><img src="docs/img/demo.gif" alt="mtmon demo: overview, clients, firewall, suggestions" width="900"></p>
 <!-- demo-media:end -->
 
 ## Table of contents
