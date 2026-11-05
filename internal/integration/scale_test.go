@@ -76,6 +76,12 @@ func TestScale(t *testing.T) {
 	if !reuse {
 		st.DB.Exec(`INSERT INTO rollup_1h_client SELECT ts,mac,sum(b_up),sum(b_down),sum(b_int),sum(flows) FROM rollup_1h GROUP BY ts,mac`)
 		st.DB.Exec(`INSERT INTO rollup_1d SELECT ts/86400*86400,rip,rport,proto,max(svc),max(host),max(cc),max(asn),max(asorg),sum(b_up),sum(b_down),sum(b_int),sum(flows) FROM rollup_1h GROUP BY ts/86400*86400,rip,rport,proto`)
+		// per-interface tiers: three LAN interfaces (2, 10, 18) chosen by the client, WAN is interface 1
+		const ifc = `(unicode(substr(mac,-1))%3)*8+2`
+		st.DB.Exec(`INSERT OR IGNORE INTO rollup_1h_if(ts,dev,ifc,ifr,mac,b_up,b_down,b_int,flows) SELECT ts,'gw',` + ifc + `,1,mac,sum(b_up),sum(b_down),sum(b_int),sum(flows) FROM rollup_1h GROUP BY ts,mac`)
+		st.DB.Exec(`INSERT OR IGNORE INTO rollup_1h_if(ts,dev,ifc,ifr,mac,b_up,b_down,b_int,flows) SELECT ts,'gw',2,10,mac,0,0,sum(b_int),1 FROM rollup_1h WHERE b_int>=0 GROUP BY ts,mac`)
+		st.DB.Exec(`INSERT OR IGNORE INTO rollup_1h_ifd(ts,dev,ifc,ifr,rip,rport,proto,svc,host,cc,asn,asorg,b_up,b_down,b_int,flows) SELECT ts,'gw',` + ifc + `,1,rip,rport,proto,max(svc),max(host),max(cc),max(asn),max(asorg),sum(b_up),sum(b_down),sum(b_int),sum(flows) FROM rollup_1h GROUP BY ts,` + ifc + `,rip,rport,proto`)
+		st.DB.Exec(`INSERT OR IGNORE INTO rollup_1d_ifd(ts,dev,ifc,ifr,rip,rport,proto,svc,host,cc,asn,asorg,b_up,b_down,b_int,flows) SELECT ts/86400*86400,dev,ifc,ifr,rip,rport,proto,max(svc),max(host),max(cc),max(asn),max(asorg),sum(b_up),sum(b_down),sum(b_int),sum(flows) FROM rollup_1h_ifd GROUP BY ts/86400*86400,dev,ifc,ifr,rip,rport,proto`)
 	}
 	// raw flows: 3 days
 	tx, _ := st.DB.Begin()
@@ -107,6 +113,12 @@ func TestScale(t *testing.T) {
 	fi, _ := os.Stat(filepath.Join(dir, "mtmon.db"))
 	t.Logf("raw flows=%d  DB size=%.0f MB", raw, float64(fi.Size())/1e6)
 
+	ifTop := func(what string, window int64, idx uint32) func() error {
+		return func() error {
+			_, e := st.TopByIface(what, now-window, 20, false, store.IfaceSel{Dev: "gw", Idx: idx})
+			return e
+		}
+	}
 	for _, q := range []struct {
 		name string
 		f    func() error
@@ -160,6 +172,16 @@ func TestScale(t *testing.T) {
 		{"top dests (apps) 7d", func() error { _, e := st.TopDests(now-7*86400, 3000); return e }},
 		{"top dests (apps) 24h", func() error { _, e := st.TopDests(now-86400, 3000); return e }},
 		{"top dests (apps) 1h", func() error { _, e := st.TopDests(now-3600, 3000); return e }},
+		{"interfaces usage 24h", func() error { _, _, _, e := st.IfaceUsage(now-86400, false); return e }},
+		{"interfaces usage 30d", func() error { _, _, _, e := st.IfaceUsage(now-30*86400, false); return e }},
+		{"interface matrix 30d", func() error { _, e := st.IfaceMatrix(now-30*86400, false); return e }},
+		{"iface clients 30d", ifTop("clients", 30*86400, 10)},
+		{"iface hosts 24h", ifTop("hosts", 86400, 10)},
+		{"iface hosts 7d", ifTop("hosts", 7*86400, 10)},
+		{"iface hosts 30d (daily)", ifTop("hosts", 30*86400, 10)},
+		{"iface services 30d", ifTop("services", 30*86400, 10)},
+		{"iface WAN hosts 30d", ifTop("hosts", 30*86400, 1)},
+		{"iface internal 30d", ifTop("internal", 30*86400, 10)},
 	} {
 		best := time.Hour
 		for i := 0; i < 3; i++ {
