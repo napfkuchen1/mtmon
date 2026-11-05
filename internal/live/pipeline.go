@@ -25,6 +25,8 @@ import (
 //   - both remote            → ignored (NAT'd WAN-side copy or transit)
 //   - DNS answer from a local address nobody owns → ignored (client uses a DNS server that does not exist and the
 //     redirect of the router answers; see ghostDNSReply)
+//   - reply into a tunnel    → download of the VPN peer (dst = address of the router, out_if = WireGuard; see
+//     pipeline_vpn.go), the client "VPN (not attributable)" when no peer can be named; never dropped
 //   - tunnel outer packets   → ignored (IPIP/DS-Lite, 6in4, and GRE from the router itself): the inner flows
 //     are exported on their own, so counting the outer packet would count every byte twice
 //
@@ -36,15 +38,18 @@ type Pipeline struct {
 	En                *enrich.Enricher
 	Hub               *Hub
 	Cls               *enrich.Classifier
-	Owns              func(ip string) bool              // a managed device owns this address (any interface, polling address); optional
-	HostAddr          func(ip string) bool              // an address of the machine mtmon runs on; optional
-	SelfMAC           func(ip string) string            // own interface MAC of the managed device that has this address, "" = none; optional
-	TunnelPort        func(ip string, port uint16) bool // ip is a managed router and port a WireGuard listen-port of it: tunnel transport, optional
+	Owns              func(ip string) bool                          // a managed device owns this address (any interface, polling address); optional
+	HostAddr          func(ip string) bool                          // an address of the machine mtmon runs on; optional
+	SelfMAC           func(ip string) string                        // own interface MAC of the managed device that has this address, "" = none; optional
+	TunnelPort        func(ip string, port uint16) bool             // ip is a managed router and port a WireGuard listen-port of it: tunnel transport, optional
+	VPNIf             func(dev string, idx uint32) (VPNIface, bool) // the interface of that device is a WireGuard tunnel; optional
 	mu                sync.Mutex
 	seen              map[dkey]int64
 	dnsSeen           map[rkey]int64
-	xseen             map[xkey]xval    // 5-tuples already booked, per exporting router (#286)
-	expSeen           map[string]int64 // MAC of a managed router -> last time it exported flows
+	xseen             map[xkey]xval      // 5-tuples already booked, per exporting router (#286)
+	expSeen           map[string]int64   // MAC of a managed router -> last time it exported flows
+	vpnUp             map[vpnKey]vpnSeen // uploads of VPN peers, to attribute the replies (#287)
+	vpnClient         bool               // the client for unattributable VPN bytes exists
 	Ignored, Internal uint64
 	diag              pipeDiag
 
@@ -169,6 +174,7 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 			local[rkey{r.Src.Unmap(), r.SrcPort, r.Proto}] = true
 		}
 	}
+	p.noteVPNUploads(recs, now.Unix())
 	for _, r := range recs {
 		src, dst := r.Src.Unmap(), r.Dst.Unmap()
 		if p.dnsRedirected(r, local, now.Unix()) {
@@ -191,7 +197,24 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 			ts = now
 		}
 		row.TS = ts.Unix()
+		peer, vpn := p.vpnReply(r, src, dst, sl, row.TS)
 		switch {
+		case vpn == vpnDuplicate:
+			p.mu.Lock()
+			p.Ignored++
+			p.mu.Unlock()
+			p.diag.note(r, "x", "vpn reply, also exported with the peer as destination")
+			continue
+		case vpn == vpnUnassigned:
+			p.diag.vpnReply(vpn, r.Bytes)
+			p.diag.note(r, "d")
+			p.ensureVPNUnassigned(p.Cfg.SourceDevice(r.Exporter))
+			row.MAC = store.VPNUnassignedMAC
+			row.Dir, row.CIP, row.RIP, row.CPort, row.RPort = "d", dst.String(), src.String(), r.DstPort, r.SrcPort
+		case vpn != vpnNone:
+			p.diag.vpnReply(vpn, r.Bytes)
+			p.diag.note(r, "d")
+			row.Dir, row.CIP, row.RIP, row.CPort, row.RPort = "d", peer.String(), src.String(), r.DstPort, r.SrcPort
 		case sl && !dl:
 			if p.crossExporterDup(r, src, row.TS) {
 				p.mu.Lock()
@@ -242,7 +265,7 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 			}
 			continue
 		}
-		if p.SelfMAC != nil {
+		if p.SelfMAC != nil && row.MAC == "" {
 			row.MAC = p.SelfMAC(row.CIP) // the router's own address (WAN, PPPoE) is the device, not a client
 		}
 		if row.MAC == "" {

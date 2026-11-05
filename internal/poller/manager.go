@@ -44,6 +44,9 @@ type Manager struct {
 	known   map[string]bool
 	primed  bool
 	self    map[string]string // MAC of a managed device's own interface -> device name (never a client)
+	vpnMu   sync.Mutex
+	vpnIfs  map[string]map[uint32]live.VPNIface // device -> interface index -> WireGuard tunnel
+	vpnAt   time.Time
 	addrMu  sync.Mutex
 	addrAt  time.Time
 	addrMAC map[string]string // address configured on a managed device -> one of its own MACs

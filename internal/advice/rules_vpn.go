@@ -21,8 +21,8 @@ func ruleVPNPeerIdle(s Snapshot) ([]Suggestion, string) {
 	var out []Suggestion
 	peers := 0
 	for _, c := range s.Clients() {
-		if !strings.HasPrefix(c.MAC, "VPN:") {
-			continue
+		if !strings.HasPrefix(c.MAC, "VPN:") || c.MAC == store.VPNUnassignedMAC {
+			continue // the client for unattributable VPN bytes is no peer
 		}
 		peers++
 		if c.Hostname == store.BTHDefaultPeer {

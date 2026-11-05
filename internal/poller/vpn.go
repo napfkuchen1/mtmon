@@ -11,7 +11,7 @@ import (
 )
 
 // VPNVendor marks clients that are VPN peers (shown with the VPN icon, skipped by the "chatty" suggestion).
-const VPNVendor = "WireGuard VPN"
+const VPNVendor = store.VPNVendor
 
 const bthPrefix = "back-to-home-vpn" // comment of Back to Home peers: "back-to-home-vpn <user>"
 

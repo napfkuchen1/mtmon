@@ -10,6 +10,9 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ## [Unreleased]
 
+### Fixed
+- Downloads of a WireGuard or Back to Home client behind a masquerading router were counted as transit and missing on the client, so a phone showed its upload and almost no download. Replies that leave through a WireGuard interface towards an address of the router now go to the peer: by the matching upload, or to the only active peer. If neither tells the peer apart they show on a client "VPN (not attributable)" instead of disappearing, and Diagnostics counts them. (#287)
+
 ## [0.21.0] - 2026-11-05
 
 ### New
