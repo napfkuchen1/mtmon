@@ -7,6 +7,7 @@
   import { bps, dur, display } from '../lib/format.js'
   import Chart from '../lib/Chart.svelte'
   import Modal from '../lib/Modal.svelte'
+  import HardwareHealth from '../lib/HardwareHealth.svelte'
   import { toast } from '../lib/state.svelte.js'
   import { datetime } from '../lib/format.js'
   const name = $derived(app.route.params.id)
@@ -146,6 +147,8 @@
       {#if !ifaces.length}<div class="empty">{t('No interface data yet')}</div>{/if}
     </div>
   </div>
+
+  <HardwareHealth hw={x.hardware} />
 
   <div class="grid g2" style="margin-top:16px">
     <div class="card"><div class="card-h"><h2>{t('Connected clients ({n})', { n: x.clients.length })}</h2></div>

@@ -47,6 +47,7 @@ func main() {
 		for _, d := range devs[:len(devs)-1] {
 			s := mockros.New(d.Name, d.Role, "admin", "adminpw", dc)
 			s.Neighbors = mockros.DemoNeighbors(d.Name)
+			demoHardware(s, d.Name)
 			go func(addr string, h http.Handler) { log.Fatal(serve(addr, h)) }(d.Listen, s.Handler())
 		}
 		// the spare router speaks HTTPS like a real one: the setup wizard only talks TLS
@@ -63,6 +64,18 @@ func main() {
 	go func() { log.Fatal(serve(*rt, mockros.New("gw-main", "router", "admin", "adminpw", cl).Handler())) }()
 	fmt.Println("mockros router on", *rt, "ap on", *ap, "(admin / adminpw; https if -tls-dir)")
 	log.Fatal(serve(*ap, mockros.New("ap-living", "ap", "admin", "adminpw", cl).Handler()))
+}
+
+// demoHardware gives the demo devices SFP, PoE and LTE data: the switch has a PoE port without power figures (a
+// small model), one with, and an SFP module; the router has an LTE backup link.
+func demoHardware(s *mockros.Server, name string) {
+	switch name {
+	case "sw-office":
+		s.Poe = []mockros.PoePort{{Name: "ether2", Status: "powered-on", Pair: "b"}, {Name: "ether3", Status: "powered-on", Pair: "a", Watts: "6.4"}}
+		s.Sfp = []mockros.SfpPort{{Name: "sfp1", Present: true, Rx: "-8.2", Tx: "-2.1", Temp: "41"}}
+	case "gw-main":
+		s.Lte = []mockros.LteIface{{Name: "lte1", Tech: "lte", Status: "connected", RSRP: "-96", RSRQ: "-11", SINR: "9", RSSI: "-68"}}
+	}
 }
 
 func DemoClients() []mockros.Client {
