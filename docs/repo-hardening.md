@@ -1,16 +1,77 @@
-# Repository hardening (maintainer checklist)
+# Repository hardening (#302)
 
-These settings live in GitHub, not in the code, so a pull request cannot change them. Everything the code can do
-is already in the repository: workflows pinned by commit SHA with minimal per-job `permissions`, SBOM attestations
-in the release, grouped Dependabot updates and `.github/CODEOWNERS`.
+Owner settings that live on GitHub, not in the code. Run these once as the repository owner, in this order. Each step can be undone on its own.
 
-| # | Setting | Where | Target |
-|---|---------|-------|--------|
-| 1 | Admin bypass on `main` | Settings → Rules → Rulesets → "main schützen" → Bypass list | Role *Admin*, mode **For pull requests only** (not *Always*) |
-| 2 | Tag protection | Rulesets → New tag ruleset, target `refs/tags/v*` | Restrict creations, updates and deletions; bypass only for admins |
-| 3 | Signing key behind an environment | Settings → Environments → New `release` | Deployment branch `main`; move `MINISIGN_KEY` and `MINISIGN_PASSWORD` from repository secrets into it; then add `environment: release` to the `release` job in `release.yml` (do both in the same change, otherwise the release has no key) |
-| 4 | Dependabot security updates | Settings → Advanced Security | On (version updates are already grouped per ecosystem) |
-| 5 | Code-owner review | Ruleset "main schützen" → *Require review from Code Owners* | On; with 0 required approvals only owner-listed paths wait for the owner |
+Already in place: Dependabot security updates, grouped version updates (`.github/dependabot.yml`), `.github/CODEOWNERS` without required code-owner review, `environment: release` on the release job.
 
-Check afterwards: push a test branch and try `git push origin HEAD:main` (must be refused), and create a `v0.0.0-test`
-tag from a non-admin token (must be refused).
+```bash
+R=napfkuchen1/mtmon
+```
+
+## 1. Admin bypass on `main` only through a pull request
+
+```bash
+ID=$(gh api repos/$R/rulesets -q '.[] | select(.target=="branch") | .id')
+gh api repos/$R/rulesets/$ID \
+  | jq '.bypass_actors[0].bypass_mode="pull_request" | {name,target,enforcement,conditions,rules,bypass_actors}' \
+  | gh api -X PUT repos/$R/rulesets/$ID --input -
+```
+
+Check: `gh api repos/$R/rulesets/$ID -q '.bypass_actors'` shows `pull_request`.
+Undo: same command with `"always"`.
+
+## 2. Tag ruleset for `v*`
+
+Only admins and the release workflow (GitHub Actions, integration 15368) may create tags. Nobody updates or deletes one without the bypass.
+
+```bash
+gh api -X POST repos/$R/rulesets --input - <<'EOF'
+{
+  "name": "release tags",
+  "target": "tag",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/tags/v*"], "exclude": [] } },
+  "rules": [ { "type": "creation" }, { "type": "update" }, { "type": "deletion" }, { "type": "non_fast_forward" } ],
+  "bypass_actors": [
+    { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" },
+    { "actor_id": 15368, "actor_type": "Integration", "bypass_mode": "always" }
+  ]
+}
+EOF
+```
+
+Check: the next release still creates its tag. Undo: `gh api -X DELETE repos/$R/rulesets/<id>`.
+
+## 3. Environment `release`
+
+Releases start with `workflow_dispatch` on `main`, so the job's ref is the branch. A policy that allows only `v*` tags would block every release: allow `main` too. No required reviewers.
+
+```bash
+gh api -X PUT repos/$R/environments/release --input - <<'EOF'
+{ "deployment_branch_policy": { "protected_branches": false, "custom_branch_policies": true } }
+EOF
+gh api -X POST repos/$R/environments/release/deployment-branch-policies -f name=main -f type=branch
+gh api -X POST repos/$R/environments/release/deployment-branch-policies -f name='v*' -f type=tag
+```
+
+## 4. Move the signing secrets
+
+GitHub never hands out secret values, so they have to be entered again from your own copy (see `docs/release-signing.md`). Commands prompt or read from the file. Never paste the key into an issue or a chat.
+
+```bash
+gh secret set MINISIGN_KEY --env release -R $R < /path/to/your/minisign.key
+gh secret set MINISIGN_PASSWORD --env release -R $R
+```
+
+Then run one release. Only after it has signed successfully, remove the repository-level copies:
+
+```bash
+gh secret delete MINISIGN_KEY -R $R
+gh secret delete MINISIGN_PASSWORD -R $R
+```
+
+## Verifying
+
+- A real release after steps 1–4 shows that the workflow still creates the tag and reads the secrets. Its log shows the job in environment `release`.
+- A throwaway tag is not a good dry run: the workflow needs a CHANGELOG section for the tag and would publish a signed release, and published tags are never deleted in this project.
+- Refusal check: a `v*` tag push from a token without admin rights must fail with a ruleset error.

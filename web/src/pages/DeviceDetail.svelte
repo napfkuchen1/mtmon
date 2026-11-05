@@ -7,6 +7,7 @@
   import { bps, dur, display } from '../lib/format.js'
   import Chart from '../lib/Chart.svelte'
   import Modal from '../lib/Modal.svelte'
+  import ProvisionResult from '../lib/ProvisionResult.svelte'
   import HardwareHealth from '../lib/HardwareHealth.svelte'
   import { toast } from '../lib/state.svelte.js'
   import { datetime } from '../lib/format.js'
@@ -229,7 +230,7 @@
     {#if oRes}
       <div class="warnbox" style="margin-top:12px;background:{oRes.ok ? 'var(--ok-bg)' : 'var(--bad-bg)'}">
         {oRes.ok ? t('Everything undone.') : t('Not everything could be undone – the device stays registered. Retry or run the commands manually.')}
-        {#each oRes.rollback || [] as s}<div style="font-size:12.5px"><span class="badge {s.ok ? 'ok' : 'bad'}">{s.ok ? '✓' : '✗'}</span> {tr(s.title)}{s.msg ? ' – ' + tr(s.msg) : ''}</div>{/each}
+        <ProvisionResult rollback={oRes.rollback} />
       </div>
       {#if oRes.manual_script}<pre class="code" style="margin-top:10px">{oRes.manual_script}</pre>{/if}
     {/if}

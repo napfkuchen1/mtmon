@@ -43,6 +43,8 @@ type Server struct {
 	FailExport bool   // make /export fail (tests)
 	ROExport   bool   // let a read-only user run /export (inline text with one secret-looking line)
 	FailMenu   string // make PUT on this menu fail (tests)
+	// FailSet makes a POST .../set fail when it returns true (tests: a rollback step the router refuses)
+	FailSet func(menu string, body map[string]any) bool
 	// Hardware fixtures (hardware.go): an empty list = no such hardware, the list endpoint answers 404.
 	Poe         []PoePort
 	Sfp         []SfpPort

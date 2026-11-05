@@ -52,7 +52,10 @@ reset; touch "$FAKE_STATE/ct_210"; echo "mtmon" > "$FAKE_STATE/ct_210.conf"; ech
 t "update to good version" 0 "$U" --ctid 210 --binary "$WORK/mtmon-1.0.0"; has "updated to 1.0.0"; called "pct snapshot 210"; called "systemctl stop mtmon"
 called "mtmon-apply-update --perms 0755"; called "/etc/systemd/system/mtmon.service --perms 0644"; called "rm -f /var/lib/mtmon/update/mtmon.new"; called "systemctl daemon-reload"
 [ "$(cat "$FAKE_STATE/ct_version")" = 1.0.0 ] && { pass=$((pass+1)); echo "PASS  CT now runs 1.0.0"; } || { fail=$((fail+1)); echo "FAIL  CT version"; }
-t "same binary is a no-op" 0 "$U" --ctid 210 --binary "$WORK/mtmon-1.0.0"; has "nothing to do"
+: > "$FAKE_STATE/calls.log"; t "same binary is a no-op" 0 "$U" --ctid 210 --binary "$WORK/mtmon-1.0.0"; has "nothing to do"; notcalled "pct push"
+echo stale > "$FAKE_STATE/pushed_helper"; : > "$FAKE_STATE/calls.log"
+t "same binary refreshes an outdated update helper" 0 "$U" --ctid 210 --binary "$WORK/mtmon-1.0.0"; has "update helper refreshed"; called "mtmon-apply-update --perms 0755"; notcalled "systemctl stop mtmon"; notcalled "pct snapshot"
+: > "$FAKE_STATE/calls.log"; t "second run has nothing left to refresh" 0 "$U" --ctid 210 --binary "$WORK/mtmon-1.0.0"; has "nothing to do"; notcalled "pct push"
 reset; touch "$FAKE_STATE/ct_210"; echo "mtmon" > "$FAKE_STATE/ct_210.conf"; echo 1.0.0 > "$FAKE_STATE/ct_version"
 t "bad update rolls back automatically" 1 env STUB_BAD_VERSION=9.9.9-bad "$U" --ctid 210 --binary "$WORK/mtmon-9.9.9-bad"; has "ROLLING BACK"; has "old version 1.0.0 is running again"
 [ "$(cat "$FAKE_STATE/ct_version")" = 1.0.0 ] && { pass=$((pass+1)); echo "PASS  rollback restored 1.0.0"; } || { fail=$((fail+1)); echo "FAIL  version after rollback: $(cat "$FAKE_STATE/ct_version")"; }

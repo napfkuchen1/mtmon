@@ -49,7 +49,7 @@ func TestAllowRulesAreCounted(t *testing.T) {
 		t.Fatalf("apply: %s", res.Error)
 	}
 	f := filterByID(m, id)
-	if f["log"] == "yes" || f["log-prefix"] != prefixFor(id) {
+	if f["log"] == "true" || f["log-prefix"] != prefixFor(id) {
 		t.Fatalf("rule must keep log off and carry the prefix: %v", f)
 	}
 	if len(res.FwMeta) != 1 || !res.FwMeta[0].Counter || FeatureOf(entries[0]) != FeatAllowLog {
@@ -83,7 +83,7 @@ func TestConvertLoggedAllowRules(t *testing.T) {
 		t.Fatalf("apply: %s", res.Error)
 	}
 	f := filterByID(m, id)
-	if f["log"] == "yes" || f["log"] == "true" || f["log-prefix"] != prefixFor(id) {
+	if f["log"] == "true" || f["log-prefix"] != prefixFor(id) {
 		t.Fatalf("log must be off, prefix kept: %v", f)
 	}
 	if len(res.FwMeta) != 1 || !res.FwMeta[0].Counter || FeatureOf(entries[0]) != FeatAllowLog {
@@ -138,7 +138,7 @@ func TestAllowRulesIPv6AreCounted(t *testing.T) {
 			f = r
 		}
 	}
-	if f["log"] == "yes" || f["log-prefix"] != prefixFor(id) {
+	if f["log"] == "true" || f["log-prefix"] != prefixFor(id) {
 		t.Fatalf("IPv6 rule must keep log off and carry the prefix: %v", f)
 	}
 	if len(res.FwMeta) != 1 || !res.FwMeta[0].Counter || !strings.HasPrefix(res.FwMeta[0].Prefix, "MTM6-") || FeatureOf(entries[0]) != FeatAllowLog {

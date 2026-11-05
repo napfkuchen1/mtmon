@@ -79,7 +79,7 @@ func TestApplyAndRollback(t *testing.T) {
 	if m.Exports != 1 || res.Backup == "" || res.MonPass == "" {
 		t.Fatal("backup/pass missing")
 	}
-	if got := m.Single("/ip/traffic-flow"); got["enabled"] != "yes" || got["active-flow-timeout"] != "30s" {
+	if got := m.Single("/ip/traffic-flow"); got["enabled"] != "true" || got["active-flow-timeout"] != "30s" {
 		t.Fatalf("flow %v", got)
 	}
 	if len(m.Lists("/ip/traffic-flow/target")) != 1 || len(m.Lists("/system/logging")) != 1 || len(res.FwMeta) != 5 {
@@ -87,10 +87,10 @@ func TestApplyAndRollback(t *testing.T) {
 	}
 	logged := 0
 	for _, f := range m.Lists("/ip/firewall/filter") {
-		if f["log"] == "yes" {
+		if f["log"] == "true" {
 			logged++
 		}
-		if f["action"] == "fasttrack-connection" && f["disabled"] != "yes" {
+		if f["action"] == "fasttrack-connection" && f["disabled"] != "true" {
 			t.Fatal("fasttrack still on")
 		}
 	}
@@ -99,7 +99,7 @@ func TestApplyAndRollback(t *testing.T) {
 	}
 	logged6 := 0
 	for _, f := range m.Lists("/ipv6/firewall/filter") {
-		if f["log"] == "yes" {
+		if f["log"] == "true" {
 			logged6++
 			if !strings.HasPrefix(f["log-prefix"], "MTM6-") {
 				t.Fatalf("IPv6 prefix %q", f["log-prefix"])
@@ -137,7 +137,7 @@ func TestApplyAndRollback(t *testing.T) {
 		t.Fatal("user/group left behind")
 	}
 	for _, f := range append(m.Lists("/ip/firewall/filter"), m.Lists("/ipv6/firewall/filter")...) {
-		if f["log"] == "yes" || f["disabled"] == "yes" || strings.HasPrefix(f["comment"], ManagedTag) {
+		if f["log"] == "true" || f["disabled"] == "true" || strings.HasPrefix(f["comment"], ManagedTag) {
 			t.Fatalf("filter rule not restored: %v", f)
 		}
 	}

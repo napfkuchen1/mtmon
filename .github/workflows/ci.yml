@@ -41,7 +41,7 @@ jobs:
         with: { go-version-file: go.mod }
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
-      - run: cd web && npm ci --no-audit --no-fund && npm run build # the UI must build
+      - run: cd web && npm ci --no-audit --no-fund && node --test test/*.test.mjs && npm run build # the UI must build
       - run: node scripts/spdx.js # every source file carries its SPDX licence line
       - run: node scripts/licenses.js --check # dependency licences stay AGPL-compatible
       - run: node scripts/alert-i18n.test.js # stored alert texts render fully German or fully English

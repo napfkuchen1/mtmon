@@ -29,7 +29,17 @@ chmod +x "$BINARY" 2>/dev/null || true
 NEW_VER=$("$BINARY" version 2>/dev/null) || die "new binary does not run on this host"
 OLD_VER=$(pct exec "$CTID" -- /usr/local/bin/mtmon version 2>/dev/null || echo unknown)
 if [ "$DRY_RUN" != 1 ] && [ "$(sha256_of "$BINARY")" = "$(pct exec "$CTID" -- sha256sum /usr/local/bin/mtmon | awk '{print $1}')" ]; then
-  ok "CT $CTID already runs this exact binary ($OLD_VER) - nothing to do"; exit 0
+  # same binary, but an older installer may have left an outdated update helper behind: refresh it, nothing else
+  REFRESHED=0
+  if [ "$(sha256_of "$HERE/apply-update.sh")" != "$(pct exec "$CTID" -- sha256sum /usr/local/bin/mtmon-apply-update 2>/dev/null | awk '{print $1}')" ]; then
+    run pct push "$CTID" "$HERE/apply-update.sh" /usr/local/bin/mtmon-apply-update --perms 0755; REFRESHED=1
+  fi
+  if [ "$(sha256_of "$HERE/mtmon.service")" != "$(pct exec "$CTID" -- sha256sum /etc/systemd/system/mtmon.service 2>/dev/null | awk '{print $1}')" ]; then
+    run pct push "$CTID" "$HERE/mtmon.service" /etc/systemd/system/mtmon.service --perms 0644; ct_exec "$CTID" systemctl daemon-reload; REFRESHED=1
+  fi
+  if [ "$REFRESHED" = 1 ]; then ok "CT $CTID already runs this exact binary ($OLD_VER) - update helper refreshed"
+  else ok "CT $CTID already runs this exact binary ($OLD_VER) - nothing to do"; fi
+  exit 0
 fi
 info "updating CT $CTID: $OLD_VER -> $NEW_VER"
 

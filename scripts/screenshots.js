@@ -9,72 +9,23 @@
 // is filled by the seeded firewall log.
 const { chromium } = require('playwright')
 const path = require('path')
+const { BASE, newContext, login, waitForDemo, checker } = require('./demo-common.js')
 
-const BASE = process.env.MTMON_URL || 'http://127.0.0.1:18443'
 const OUT = path.join(__dirname, '..', 'docs', 'img')
-
-// what the mocks really are -> what the pictures show
-const SHOW = [
-  [/127\.0\.0\.11(?!\d)/g, '192.168.88.1'], [/127\.0\.0\.12(?!\d)/g, '192.168.88.2'], [/127\.0\.0\.13(?!\d)/g, '192.168.88.3'],
-  [/127\.0\.0\.14(?!\d)/g, '192.168.88.4'], [/127\.0\.0\.20(?!\d)/g, '192.168.88.5'], [/127\.0\.0\.1(?!\d)/g, '192.168.88.10'],
-]
-// the wizard sends the shown address back; the server needs the real one
-const REAL = [
-  [/192\.168\.88\.1(?!\d)/g, '127.0.0.11'], [/192\.168\.88\.2(?!\d)/g, '127.0.0.12'], [/192\.168\.88\.3(?!\d)/g, '127.0.0.13'],
-  [/192\.168\.88\.4(?!\d)/g, '127.0.0.14'], [/192\.168\.88\.5(?!\d)/g, '127.0.0.20'], [/192\.168\.88\.10(?!\d)/g, '127.0.0.1'],
-]
-const swap = (s, table) => table.reduce((t, [re, to]) => t.replace(re, to), s)
 
 ;(async () => {
   const b = await chromium.launch()
-  const ctx = await b.newContext({ viewport: { width: 1400, height: 900 }, colorScheme: 'dark', deviceScaleFactor: 1, locale: 'en-US' })
-  await ctx.route('**/api/**', async route => {
-    const req = route.request()
-    const u = new URL(req.url())
-    const wizard = req.method() === 'POST' && /^\/api\/devices\/(probe|plan|provision|readonly)$/.test(u.pathname)
-    const res = await route.fetch(wizard ? { postData: swap(req.postData() || '', REAL) } : {})
-    if (!/json/.test(res.headers()['content-type'] || '')) return route.fulfill({ response: res })
-    const headers = { ...res.headers() }
-    delete headers['content-length']; delete headers['content-encoding']
-    await route.fulfill({ status: res.status(), headers, body: swap(await res.text(), SHOW) })
-  })
+  const ctx = await newContext(b, { viewport: { width: 1400, height: 900 } })
   const p = await ctx.newPage()
-  await p.addInitScript(() => {
-    try {
-      const set = { lang: 'en', theme: 'dark', range: '24h', density: 'comfortable', chart: 'modern', accent: 'orange', own: '0' }
-      for (const k in set) localStorage.setItem('mtmon.' + k, set[k])
-    } catch {}
-  })
-  // a picture must not show a loopback address, a commit-style version or a half-loaded page
-  const check = async name => {
-    const bad = await p.evaluate(hero => {
-      const t = document.body.innerText
-      return [/127\.0\.0\.\d+/, /-dirty/, /-g[0-9a-f]{7,}/, ...(hero ? [/Collecting data/i] : [])].map(re => (t.match(re) || [])[0]).filter(Boolean)
-    }, name === 'overview')
-    if (bad.length) throw new Error(`screenshot "${name}" would show: ${bad.join(', ')}`)
-  }
+  const verify = checker(p)
   const shot = async (name, opts = {}) => {
-    await check(name)
+    await verify(name, name === 'overview')
     await p.screenshot({ path: path.join(OUT, name + '.png'), ...opts })
     console.log('wrote', name)
   }
 
-  await p.goto(BASE + '/')
-  await p.locator('input').first().fill('admin')
-  await p.locator('input').nth(1).fill(process.env.MTMON_PASSWORD || 'demo-password-1')
-  await p.keyboard.press('Enter')
-  // wait until the demo has clients with traffic and names (the first poll takes ~35 s) and the seeded history is there
-  for (let i = 0; i < 60; i++) {
-    const ok = await p.evaluate(async () => {
-      try {
-        const cl = await (await fetch('/api/clients?range=1h')).json()
-        const o = await (await fetch('/api/overview?range=24h')).json()
-        return cl.filter(x => x.bytes_down > 0).length >= 3 && o.clients_total >= 20 && o.top_clients.length > 0 && o.series.length >= 20 && o.top_countries.length >= 3
-      } catch { return false }
-    })
-    if (ok) break
-    await p.waitForTimeout(3000)
-  }
+  await login(p)
+  await waitForDemo(p)
   await p.waitForTimeout(5000)
   const shots = [
     ['overview', '#/', '.chart svg, svg'], ['clients', '#/clients', 'tbody tr'], ['live', '#/live', 'h1'], ['devices', '#/devices', 'h1'],
