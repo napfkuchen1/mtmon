@@ -121,7 +121,7 @@ func (s *Server) deviceFeaturesGet(w http.ResponseWriter, r *http.Request) {
 		}
 		cancel()
 	}
-	out := map[string]any{"features": deviceFeatures(entries, caps), "managed": row.Managed, "convertible_allow": []string{}, "additions": deviceAdditions(entries, caps)}
+	out := map[string]any{"features": deviceFeatures(entries, caps), "managed": row.Managed, "convertible_allow": []string{}, "additions": deviceAdditions(entries, caps), "mixed_state": mixedStateInfo(entries)}
 	if caps != nil {
 		out["filter_rules"] = caps.Filter
 		out["filter_rules6"] = caps.Filter6
@@ -308,14 +308,16 @@ func (s *Server) featureRevert(ctx context.Context, admin *poller.Client, name s
 	res := provision.Rollback(ctx, admin, undo, func(id int64, st string) { s.St.SetManifestState(id, st) })
 	out["undone"] = res
 	s.noteRollback(name, res)
+	undone := map[int]bool{}
+	failed := false
 	for _, x := range res {
-		if !x.OK {
-			out["ok"] = false
-			out["manual_script"] = provision.ManualScript(provision.FailedEntries(undo, res)) // only what is left of this undo
-			return false
-		}
+		undone[x.Seq] = x.OK
+		failed = failed || !x.OK
 	}
-	for _, e := range undo { // forget the labels of exactly the rules that were switched back
+	for _, e := range undo { // forget the labels of exactly the rules that were switched back, also when another step failed
+		if !undone[e.Seq] {
+			continue
+		}
 		switch {
 		case provision.FeatureOf(e) == provision.FeatLogNew:
 			s.St.DB.Exec(`DELETE FROM fw_rules WHERE device=? AND prefix=?`, name, "MTM-NEW")
@@ -325,11 +327,56 @@ func (s *Server) featureRevert(ctx context.Context, admin *poller.Client, name s
 			s.St.DB.Exec(`DELETE FROM fw_rules WHERE device=? AND prefix=?`, name, "MTM6-"+strings.TrimPrefix(e.RID, "*"))
 		}
 	}
+	if failed {
+		out["ok"] = false
+		out["manual_script"] = provision.ManualScript(provision.FailedEntries(undo, res)) // only what is left of this undo
+		return false
+	}
 	return true
 }
 
 // MixedStateAlert is the alert kind for a router that kept changes mtmon could not undo.
 const MixedStateAlert = "router_mixed_state"
+
+// mixedStateFeatures: the features a retry of a failed undo switches off (#343). The retry is switching the feature
+// off, so everything mtmon set up for it goes; what builds on the firewall log target goes with it.
+func mixedStateFeatures(entries []store.ManifestEntry) []string {
+	off := map[string]bool{}
+	for _, e := range entries {
+		if f := provision.FeatureOf(e); e.State == "revert-failed" && f != "" {
+			off[f] = true
+		}
+	}
+	if off[provision.FeatFwLog] {
+		for _, f := range deviceFeatures(entries, nil) {
+			if f.On && slices.Contains(provision.LogDependents, f.Key) {
+				off[f.Key] = true
+			}
+		}
+	}
+	out := []string{}
+	for _, k := range provision.FeatureKeys {
+		if off[k] {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+// mixedStateInfo: what the device dialog says before a retry: how many changes are left and which features go.
+func mixedStateInfo(entries []store.ManifestEntry) map[string]any {
+	left := 0
+	for _, e := range entries {
+		if e.State == "revert-failed" {
+			left++
+		}
+	}
+	titles := []string{}
+	for _, k := range mixedStateFeatures(entries) {
+		titles = append(titles, featureText[k][0])
+	}
+	return map[string]any{"left": left, "switch_off": titles}
+}
 
 // noteRollback raises a warning alert when a rollback left differences on the router. A later rollback that leaves
 // none clears it.
@@ -352,10 +399,18 @@ func (s *Server) noteRollback(name string, steps []provision.StepResult) {
 	}
 	s.St.ResolveAlerts(MixedStateAlert, name, " (replaced by a newer result)")
 	n, list := strconv.Itoa(len(left)), strings.Join(left, "; ")
-	s.St.AddAlert(store.Alert{TS: time.Now().Unix(), Kind: MixedStateAlert, Subject: name, Severity: "warning",
+	a := store.Alert{TS: time.Now().Unix(), Kind: MixedStateAlert, Subject: name, Severity: "warning",
 		Msg:    "Router " + name + " is in a mixed state: " + n + " changes could not be undone: " + list,
 		MsgKey: "Router {name} is in a mixed state: {n} changes could not be undone: {left}",
-		Params: map[string]string{"name": name, "n": n, "left": list}})
+		Params: map[string]string{"name": name, "n": n, "left": list}}
+	entries, _ := s.St.Manifest(name)
+	if info := mixedStateInfo(entries)["switch_off"].([]string); len(info) > 0 {
+		off := strings.Join(info, "; ")
+		a.Msg += ". The retry switches off: " + off
+		a.MsgKey += ". The retry switches off: {features}"
+		a.Params["features"] = off
+	}
+	s.St.AddAlert(a)
 }
 
 // settleFailedApply brings the manifest in line with the rollback of a failed apply: undone entries are forgotten, the

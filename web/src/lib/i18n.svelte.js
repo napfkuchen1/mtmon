@@ -46,7 +46,9 @@ export function trAlert(a) {
   const tail = a.msg.slice(en.length)
   // an unreachable-device tail ends in the one-word reason: ": i/o timeout (timeout)"
   const seg = x => tr(x).replace(/\((timeout|refused|auth|error)\)$/, (_, w) => '(' + tr(w) + ')')
-  return fill(base, a.params) + (tail ? tail.split(' – ').map(seg).join(' – ') : '')
+  // the feature list of a mixed-state alert is stored in English titles, joined by "; " (#343)
+  const params = a.params.features ? { ...a.params, features: a.params.features.split('; ').map(x => tr(x)).join('; ') } : a.params
+  return fill(base, params) + (tail ? tail.split(' – ').map(seg).join(' – ') : '')
 }
 
 // Backend strings: exact match first, then templates such as "Enabled logging on {n} firewall rules".

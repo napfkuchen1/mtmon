@@ -3,4 +3,5 @@
 export default {
   "router_mixed_state": "Router in Mischzustand",
   "Router {name} is in a mixed state: {n} changes could not be undone: {left}": "Router {name} in Mischzustand: {n} Änderungen konnten nicht zurückgenommen werden: {left}",
+  "Router {name} is in a mixed state: {n} changes could not be undone: {left}. The retry switches off: {features}": "Router {name} in Mischzustand: {n} Änderungen konnten nicht zurückgenommen werden: {left}. Der erneute Versuch schaltet ab: {features}",
 }

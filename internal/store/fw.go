@@ -272,8 +272,39 @@ type FwTop struct {
 	Local   bool   `json:"local,omitempty"`
 }
 
+// mtmFwPrefix: the log prefix format mtmon itself writes on a router rule. A prefix of the owner's own never matches.
+func mtmFwPrefix(p string) bool {
+	return strings.HasPrefix(p, "MTM-") || strings.HasPrefix(p, "MTM6-")
+}
+
+// liveFwPrefixes: the prefixes of rules mtmon's manifest still has on a router. A failed undo stays on this list, and
+// such a rule has no fw_rules row when the apply itself failed.
+func (s *Store) liveFwPrefixes() map[[2]string]bool {
+	live := map[[2]string]bool{}
+	rows, err := s.DB.Query(`SELECT device,descr,path,rid FROM manifest WHERE state IN ('applied','revert-failed') AND path IN ('/ip/firewall/filter','/ipv6/firewall/filter')`)
+	if err != nil {
+		return live
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var dev, descr, path, rid string
+		rows.Scan(&dev, &descr, &path, &rid)
+		id := strings.TrimPrefix(rid, "*")
+		switch {
+		case strings.Contains(descr, "MTM-NEW"):
+			live[[2]string{dev, "MTM-NEW"}] = true
+		case path == "/ipv6/firewall/filter":
+			live[[2]string{dev, "MTM6-" + id}] = true
+		default:
+			live[[2]string{dev, "MTM-" + id}] = true
+		}
+	}
+	return live
+}
+
 func (s *Store) FwSummary(since int64) (*FwSummary, error) {
 	idx := s.ruleIndex()
+	live := s.liveFwPrefixes()
 	sum := &FwSummary{Rules: []FwRuleHits{}, Series: []FwPoint{}, TopSrc: []FwTop{}, TopDst: []FwTop{}}
 	rows, err := s.DB.Query(`SELECT device,prefix,sum(n) FROM fw_hourly WHERE ts>=? GROUP BY device,prefix ORDER BY 3 DESC`, since/3600*3600)
 	if err != nil {
@@ -287,7 +318,10 @@ func (s *Store) FwSummary(since int64) (*FwSummary, error) {
 		h.Rule, h.Verdict = fe.Rule, fe.Verdict
 		h.Own = IsOwnRule(h.Rule)
 		h.Counter = idx[[2]string{h.Device, h.Prefix}].Counter
-		sum.Rules = append(sum.Rules, h)
+		key := [2]string{h.Device, h.Prefix}
+		if _, known := idx[key]; known || live[key] || !mtmFwPrefix(h.Prefix) {
+			sum.Rules = append(sum.Rules, h)
+		} // else: mtmon took this rule back, nothing on the router carries the prefix any more; the hits stay in the totals (#343)
 		if h.Own {
 			sum.OwnHits += h.Hits
 			continue
