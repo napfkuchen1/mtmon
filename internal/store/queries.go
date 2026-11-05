@@ -72,38 +72,9 @@ func (s *Store) topBy(what string, since int64, limit int, mac string, own bool)
 	if _, ok := dimOf[what]; ok && mac == "" && olderThan(since, 8*24*time.Hour) {
 		return s.topByDim(what, since, limit, own)
 	}
-	var sel, grp, where string
-	switch what {
-	case "clients":
-		sel = `r.mac, coalesce(nullif(c.label,''),nullif(c.hostname,''),r.mac), coalesce(c.ip, r.mac)`
-		grp = `r.mac`
-	case "hosts":
-		sel = `r.rip, coalesce(nullif(max(r.host),''),r.rip), trim(coalesce(max(r.cc),'')||' '||coalesce(max(r.asorg),''))`
-		grp = `r.rip`
-	case "asn":
-		sel = `cast(r.asn as text), coalesce(max(r.asorg),'AS'||r.asn), ''`
-		grp = `r.asn`
-		where = ` AND r.asn>0`
-	case "country":
-		sel = `r.cc, r.cc, ''`
-		grp = `r.cc`
-		where = ` AND r.cc<>''`
-	case "ports":
-		sel = `r.proto||'/'||r.rport, r.proto||'/'||r.rport, coalesce(max(r.svc),'')`
-		grp = `r.proto, r.rport`
-	case "services":
-		sel = `r.svc, r.svc, ''`
-		grp = `r.svc`
-		where = ` AND r.svc<>''`
-	case "protocols":
-		sel = `cast(r.proto as text), cast(r.proto as text), ''`
-		grp = `r.proto`
-	case "internal":
-		sel = `r.mac, coalesce(nullif(c.label,''),nullif(c.hostname,''),r.mac), r.rip`
-		grp = `r.mac, r.rip`
-		where = ` AND r.b_int>0`
-	default:
-		return nil, fmt.Errorf("unknown top list %q", what)
+	sel, grp, where, err := topSpec(what)
+	if err != nil {
+		return nil, err
 	}
 	tbl, al := tableFor(what, since, mac)
 	up, down, in := `r.b_up`, `r.b_down`, `r.b_int`
@@ -157,6 +128,44 @@ func (s *Store) topBy(what string, since int64, limit int, mac string, own bool)
 		out = append(out, t)
 	}
 	return out, rows.Err()
+}
+
+// topSpec gives the SELECT list (key, label, detail), GROUP BY and extra WHERE of a top list over a rollup table
+// aliased r; shared by the plain lists and the per-interface lists.
+func topSpec(what string) (sel, grp, where string, err error) {
+	switch what {
+	case "clients":
+		sel = `r.mac, coalesce(nullif(c.label,''),nullif(c.hostname,''),r.mac), coalesce(c.ip, r.mac)`
+		grp = `r.mac`
+	case "hosts":
+		sel = `r.rip, coalesce(nullif(max(r.host),''),r.rip), trim(coalesce(max(r.cc),'')||' '||coalesce(max(r.asorg),''))`
+		grp = `r.rip`
+	case "asn":
+		sel = `cast(r.asn as text), coalesce(max(r.asorg),'AS'||r.asn), ''`
+		grp = `r.asn`
+		where = ` AND r.asn>0`
+	case "country":
+		sel = `r.cc, r.cc, ''`
+		grp = `r.cc`
+		where = ` AND r.cc<>''`
+	case "ports":
+		sel = `r.proto||'/'||r.rport, r.proto||'/'||r.rport, coalesce(max(r.svc),'')`
+		grp = `r.proto, r.rport`
+	case "services":
+		sel = `r.svc, r.svc, ''`
+		grp = `r.svc`
+		where = ` AND r.svc<>''`
+	case "protocols":
+		sel = `cast(r.proto as text), cast(r.proto as text), ''`
+		grp = `r.proto`
+	case "internal":
+		sel = `r.mac, coalesce(nullif(c.label,''),nullif(c.hostname,''),r.mac), r.rip`
+		grp = `r.mac, r.rip`
+		where = ` AND r.b_int>0`
+	default:
+		err = fmt.Errorf("unknown top list %q", what)
+	}
+	return
 }
 
 func deref(s *string) string {

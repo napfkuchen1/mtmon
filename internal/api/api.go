@@ -100,6 +100,8 @@ func New(s *Server) http.Handler {
 	m.HandleFunc("GET /api/clients/{mac}/connections", a(s.clientConns))
 	m.HandleFunc("PUT /api/clients/{mac}/label", a(s.setLabel))
 	m.HandleFunc("GET /api/top/{what}", a(s.top))
+	m.HandleFunc("GET /api/interfaces", a(s.interfaces))
+	m.HandleFunc("GET /api/export/interfaces", a(s.exportInterfaces))
 	m.HandleFunc("GET /api/usage/{what}", a(s.usage))
 	m.HandleFunc("GET /api/series", a(s.series))
 	m.HandleFunc("GET /api/topology", a(s.topology))
@@ -638,7 +640,7 @@ func (s *Server) top(w http.ResponseWriter, r *http.Request) {
 	if group != "" && (r.PathValue("what") == "clients" || r.PathValue("what") == "internal") {
 		limit = 500 // filter first, then cut
 	}
-	rows, err := s.topByOwn(r.PathValue("what"), since, limit, r.URL.Query().Get("mac"), wantOwn(r))
+	rows, err := s.topFor(r, r.PathValue("what"), since, limit, r.URL.Query().Get("mac"), wantOwn(r))
 	if err != nil {
 		jerr(w, 400, err.Error())
 		return
@@ -983,7 +985,13 @@ func (s *Server) system(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) exportTop(w http.ResponseWriter, r *http.Request) {
 	since, _, rn := parseRange(r)
-	rows, err := s.St.TopByOwn(r.PathValue("what"), since, 10000, r.URL.Query().Get("mac"), wantOwn(r))
+	var rows []store.TopRow
+	var err error
+	if sel, set := ifaceFilter(r); set && r.URL.Query().Get("mac") == "" {
+		rows, err = s.St.TopByIface(r.PathValue("what"), since, 10000, wantOwn(r), sel)
+	} else {
+		rows, err = s.St.TopByOwn(r.PathValue("what"), since, 10000, r.URL.Query().Get("mac"), wantOwn(r))
+	}
 	if err != nil {
 		jerr(w, 400, err.Error())
 		return

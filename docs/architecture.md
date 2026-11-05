@@ -42,6 +42,9 @@ Live-Raten sind ein 30-s-Mittel (Router exportieren aktive Flows alle `active-fl
 | `rollup_1h_client` | Stunde × Client (klein) | 30 Tage |
 | `rollup_1d` | Tag × Ziel × Port (ohne Client) | 30 Tage |
 | `rollup_1d_dim` | Tag × Dienst / Land / AS / Port / Protokoll (einige hundert Zeilen pro Tag) | 30 Tage |
+| `rollup_1h_if` | Stunde × Gerät × Eingangs-/Ausgangsschnittstelle (ifIndex) × Client (#299) | 30 Tage |
+| `rollup_1h_ifd`, `rollup_1d_ifd` | wie `rollup_1h_if`, aber × Ziel × Port statt Client; Tag-Stufe für Fenster > 8 d | 30 Tage |
+| `if_names` | Schnittstellenliste je Gerät (ifIndex → Name/Typ), vom Poller aus `/interface` gelesen | bleibt |
 | `fw_src_hourly`, `fw_dst_hourly` | Firewall-Log je Stunde × Quelle bzw. Ziel (für „Top blockiert“) | wie Rohdaten |
 | `clients`, `ip_history`, `roam`, `seen_dest` | Inventar, IP-Historie, Roaming, „erstmals gesehen“ | bis Retention |
 | `dev_metrics`, `if_metrics` | 1 Sample/min | 30 Tage |
@@ -49,6 +52,7 @@ Live-Raten sind ein 30-s-Mittel (Router exportieren aktive Flows alle `active-fl
 
 **Abfrage-Stufen** (`store/queries.go`): ≤ 2 h → Minute; ≤ 8 d → Stunde; darüber → Tag (Ziele) bzw. `rollup_1h_client` (Clients, Charts, Summen). Grund: gemessen auf 100 Clients × 30 Tage kostete eine einzelne Stufe bis zu 4,4 s; gestuft bleibt alles < 320 ms. Bei 24 h/7 d sind Top-Listen auf die volle Stunde ausgerichtet (bis zu 59 min mehr Daten als „24 h“).
 Seit 0.17: Listen ohne Client-Dimension (Ziele, Dienste, Länder …) über 25 h bis 8 d lesen die vollen Tage aus `rollup_1d` und nur den Rest des ersten Tags aus `rollup_1h` (`store/tiers.go`); ab 8 d liefern Dienste/Länder/AS/Ports/Protokolle `rollup_1d_dim`. Lange Fenster werden kurz zwischengespeichert (`store/memo.go`), die Overview-Abfragen laufen parallel. Anzahl Clients/Ziele je Dienst zählt bei langen Fenstern nur die letzten 24 h. `make scale-live` misst mit einem Datensatz in Größe einer echten Installation (≈ 2 GB, 50 Clients, ganztägig aktiv).
+**Verkehr je Schnittstelle/VLAN (#299):** Die ifIndex-Werte stammen aus dem Flow (`InIf`/`OutIf`) und stehen als Zahl in den Rollups; Namen werden erst beim Lesen aus `if_names` aufgelöst (Umbenennung gilt rückwirkend, unbekannte Nummer = `if<N>`, 0 = Router selbst). Die Zuordnung ifIndex = `.id` aus RouterOS (`*67` → 103, hex → dezimal), gelesen per REST `/interface`, aufgefrischt mit dem langsamen Poll und bei unbekanntem Index (max. alle 30 s je Gerät). Richtung `u`/`i`: Client-Seite = Eingang; `d`: Client-Seite = Ausgang. Die Zusatztabellen sind rein additiv (alte Version startet weiter); Filter `?iface=gerät:index` für Top-Listen, Insights, Internet (je WAN) und Export. Die Inter-VLAN-Matrix zählt nur `i`-Verkehr zwischen zwei gerouteten Schnittstellen (ohne 0, ohne gleiche). Grenzen: nicht je Bridge-Port; alter Verkehr hat keinen ifIndex; Gerät umbenennen = neue Schnittstellen-Historie.
 Schreibpfad: Channel-freier Puffer (max. 200 000 Zeilen, danach Drop mit Zähler), 1-s-Flush, Rollups werden vor dem Upsert im Speicher voraggregiert.
 
 ## Sicherheit

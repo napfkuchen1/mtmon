@@ -100,9 +100,10 @@ func (s *Server) Handler() http.Handler {
 		rx, tx := s.rx, s.tx
 		s.mu.Unlock()
 		return []obj{
-			{"name": "ether1", "type": "ether", "running": "true", "disabled": "false", "rx-byte": fmt.Sprint(rx), "tx-byte": fmt.Sprint(tx)},
-			{"name": "bridge", "type": "bridge", "running": "true", "disabled": "false", "rx-byte": fmt.Sprint(rx / 2), "tx-byte": fmt.Sprint(tx / 2)},
-			{"name": "wifi1", "type": "wifi", "running": "true", "disabled": "false", "rx-byte": fmt.Sprint(rx / 3), "tx-byte": fmt.Sprint(tx / 3)},
+			{".id": "*1", "name": "ether1", "type": "ether", "running": "true", "disabled": "false", "rx-byte": fmt.Sprint(rx), "tx-byte": fmt.Sprint(tx)},
+			{".id": "*2", "name": "bridge", "type": "bridge", "running": "true", "disabled": "false", "rx-byte": fmt.Sprint(rx / 2), "tx-byte": fmt.Sprint(tx / 2)},
+			{".id": "*3", "name": "wifi1", "type": "wifi", "running": "true", "disabled": "false", "rx-byte": fmt.Sprint(rx / 3), "tx-byte": fmt.Sprint(tx / 3)},
+			{".id": "*A", "name": "vlan10", "type": "vlan", "running": "true", "disabled": "false", "rx-byte": fmt.Sprint(rx / 4), "tx-byte": fmt.Sprint(tx / 4)},
 		}
 	})
 	get("/interface/wifi/registration-table", func() any {

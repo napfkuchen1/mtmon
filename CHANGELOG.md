@@ -10,6 +10,8 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ## [Unreleased]
 
+### New
+- Traffic per interface or VLAN: Insights has a new Interfaces tab with the traffic of each LAN and WAN interface and the routed traffic between VLANs. Top lists, Insights and exports can be filtered to one interface, and the Internet page shows the traffic of each WAN link. Names come from the router and update on their own; an unknown number shows as `if<N>`. It records from now on (older traffic has no interface) and covers routed interfaces, not single bridge ports. (#299)
 ### Fixed
 - Router changes: booleans now always reach RouterOS as `yes` or `no`, in the setup, in every undo and in the manual script. Undo records written by older versions (`log=""`, `log="false"`) are repaired when they run, so an undo no longer fails with "invalid value of log" and leaves a router half changed (#343).
 - Router features: a rule that already logs or is already counted gets no step any more, so re-applying a feature changes nothing that is already right. Rules that log with someone else's settings stay untouched (#343).

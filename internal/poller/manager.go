@@ -47,6 +47,7 @@ type Manager struct {
 	addrMu  sync.Mutex
 	addrAt  time.Time
 	addrMAC map[string]string // address configured on a managed device -> one of its own MACs
+	ifReq   map[string]bool   // devices whose interface list should be re-read (ifnames.go)
 }
 
 type devSnap struct {
@@ -193,6 +194,9 @@ func (m *Manager) runDevice(ctx context.Context, d config.Device) {
 		// Exponential backoff while failing: 2,4,8,16,30 base intervals between attempts.
 		if w.fails > 0 && time.Now().Before(w.retryAt) {
 			continue
+		}
+		if w.fails == 0 && m.takeIfRefresh(d.Name) { // a flow named an interface index the device did not list yet
+			w.refreshIfNames(ctx)
 		}
 		sl := int64(w.slow)
 		run := func(every int64) bool { return tick%(every*sl) == 0 }
@@ -446,6 +450,7 @@ func (w *worker) l3Poll(ctx context.Context) {
 	addrs, _ := w.c.Get(ctx, "/ip/address")
 	pppoe, _ := w.c.Get(ctx, "/interface/pppoe-client") // absent without the ppp package: nothing to show then
 	ifs, _ := w.c.Get(ctx, "/interface")
+	w.m.noteIfNames(w.d.Name, ifs)
 	// the router's own delegated IPv6 prefixes are internal, too (absent without the ipv6 package: nothing to learn)
 	a6, _ := w.c.Get(ctx, "/ipv6/address")
 	d6, _ := w.c.Get(ctx, "/ipv6/dhcp-client")

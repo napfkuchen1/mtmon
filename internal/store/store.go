@@ -154,6 +154,9 @@ type Store struct {
 
 	memo memoCache
 	dir  string
+
+	ifMu    sync.Mutex
+	ifKnown map[string]map[uint32]bool // interface indexes the device lists (iface.go)
 }
 
 // Open opens (and migrates) the DB in dir.
@@ -216,6 +219,9 @@ func Open(dir string) (*Store, error) {
 	if err := migrateSessionCred(db); err != nil {
 		return nil, fmt.Errorf("session credential schema: %w", err)
 	}
+	if err := migrateIface(db); err != nil {
+		return nil, fmt.Errorf("interface schema: %w", err)
+	}
 	if _, err := db.Exec(healthSchema); err != nil {
 		return nil, err
 	}
@@ -270,6 +276,9 @@ func (s *Store) Cleanup(rawDays, days int) {
 	s.exec(`DELETE FROM rollup_1h_client WHERE ts < ?`, cut)
 	s.exec(`DELETE FROM rollup_1d WHERE ts < ?`, cut)
 	s.exec(`DELETE FROM rollup_1d_dim WHERE ts < ?`, cut)
+	s.exec(`DELETE FROM rollup_1h_if WHERE ts < ?`, cut)
+	s.exec(`DELETE FROM rollup_1h_ifd WHERE ts < ?`, cut)
+	s.exec(`DELETE FROM rollup_1d_ifd WHERE ts < ?`, cut)
 	s.exec(`DELETE FROM dev_metrics WHERE ts < ?`, cut)
 	s.exec(`DELETE FROM sfp_metrics WHERE ts < ?`, cut)
 	s.exec(`DELETE FROM log_events WHERE ts < ?`, now.AddDate(0, 0, -LogRetentionDays).Unix())

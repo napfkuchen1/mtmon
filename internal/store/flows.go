@@ -26,7 +26,10 @@ type FlowRow struct {
 	ASN      uint32
 	ASOrg    string
 	Svc      string
-	tries    uint8 // failed flushes this row was part of (requeue)
+	Dev      string // managed device that exported the flow ("" = use Exporter)
+	IfC      uint32 // ifIndex on the client side (0 = the router itself or unknown)
+	IfR      uint32 // ifIndex on the remote side
+	tries    uint8  // failed flushes this row was part of (requeue)
 }
 
 const (
@@ -228,6 +231,9 @@ func (s *Store) Flush() error {
 		}
 	}
 	if err := writeDims(tx, d1); err != nil {
+		return fail(err)
+	}
+	if err := writeIface(tx, rows); err != nil {
 		return fail(err)
 	}
 	sd, err := tx.Prepare(`INSERT OR IGNORE INTO seen_dest(mac,rip,first) VALUES(?,?,?)`)

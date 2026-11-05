@@ -2,7 +2,7 @@
 <script>
   // Internet page: scheduled speed tests (history, schedule, data budget) measured by mtmon from its own host.
   import { api } from '../lib/api.js'
-  import { toast } from '../lib/state.svelte.js'
+  import { toast, go } from '../lib/state.svelte.js'
   import { poll } from '../lib/Poll.svelte.js'
   import { bps, bytes, ago } from '../lib/format.js'
   import { t, tr, i18n } from '../lib/i18n.svelte.js'
@@ -16,6 +16,11 @@
 
   const ranges = [['24h', '24 h'], ['7d', '7 d'], ['30d', '30 d'], ['90d', '90 d'], ['365d', '1 y']]
   let range = $state('30d'), busy = $state(false), more = $state(false)
+  // traffic per WAN interface (#299); the data exists only from the moment flows carry interface numbers
+  const wanU = poll(() => api('/internet?range=' + (range === '365d' ? '90d' : range)), 60000)
+  const wanRows = $derived(wanU.data?.wan_usage || [])
+  const wanLabel = i => (i.name || 'if' + i.idx) + (wanRows.filter(o => o.name === i.name).length > 1 ? ' (' + i.dev + ')' : '')
+  const showClients = i => { try { sessionStorage.setItem('mtmon.iface', i.token) } catch {} go('insights/clients') }
   const d = poll(() => api('/internet/speedtests?range=' + range), 8000)
   const x = $derived(d.data)
   const st = $derived(x?.settings)
@@ -142,6 +147,18 @@
     <a class="btn" href={'/api/internet/speedtests/export?format=json&range=' + range} download>JSON</a>
   </div>
 
+  {#if wanRows.length}
+  <div class="card" style="margin-bottom:16px"><div class="card-h"><h2>{t('Traffic per WAN link')}</h2>
+    <span class="muted">{t('Bytes that left or arrived through each WAN interface in the range chosen above')}</span></div>
+    <div class="scroll"><table>
+      <thead><tr><th>{t('Interface')}</th><th>{t('Router')}</th><th class="r">{t('↓ Down')}</th><th class="r">{t('↑ Up')}</th><th class="r">{t('Clients')}</th><th></th></tr></thead>
+      <tbody>{#each wanRows as i (i.token)}
+        <tr><td><b>{wanLabel(i)}</b>{#if !i.known} <span class="muted" style="font-size:11.5px">{t('not listed by the router')}</span>{/if}</td><td class="muted">{i.dev}</td>
+          <td class="r num">{bytes(i.down)}</td><td class="r num">{bytes(i.up)}</td><td class="r num muted">{i.clients}</td>
+          <td class="r"><button class="btn sm" onclick={() => showClients(i)}>{t('Show clients')}</button></td></tr>
+      {/each}</tbody></table></div>
+  </div>
+  {/if}
   <div class="card" style="margin-bottom:16px"><div class="card-h"><h2>{t('Quick test')}</h2>
     <span class="muted">{t('One test now with the providers chosen here. The schedule is not changed.')}</span></div>
     <div class="card-b quick">
