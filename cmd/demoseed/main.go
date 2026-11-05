@@ -133,10 +133,13 @@ func seed(dir string) {
 				if d.port == 53 {
 					c = clients[0] // one client with its own resolver, not the whole network
 				}
-				scale := 15 * float64(step) / 60 // same order of magnitude as the live flowgen traffic of scripts/demo.sh
+				// same order of magnitude as the live flowgen traffic of scripts/demo.sh; a row stands for more traffic
+				// when a slot has fewer rows per minute, so that every rollup holds the same volume for the same time
+				perRow := float64(step) / 60 * 7 / float64(perSlot)
+				scale := 15 * perRow
 				down := int64(d.down * (0.3 + rng.Float64()) * f * scale)
 				up := down / int64(6+rng.Intn(10))
-				stmt.Exec(ts, c.MAC, d.ip, d.port, d.proto, enrich.Service(uint8(d.proto), uint16(d.port), 0), d.host, d.cc, d.asn, d.org, up, down, 0, 1+rng.Intn(6))
+				stmt.Exec(ts, c.MAC, d.ip, d.port, d.proto, enrich.Service(uint8(d.proto), uint16(d.port), 0), d.host, d.cc, d.asn, d.org, up, down, 0, int(float64(1+rng.Intn(6))*perRow))
 				n++
 			}
 			// some LAN-internal traffic (NAS, printer, Home Assistant)
