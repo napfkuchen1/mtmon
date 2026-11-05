@@ -72,6 +72,20 @@ func TestFailedRollbackRaisesMixedStateAlert(t *testing.T) {
 	if a == nil || a.Severity != "warning" || a.Acked || a.MsgKey == "" || a.Params["n"] == "" {
 		t.Fatalf("alert %+v", a)
 	}
+	// it says up front what the retry switches off (#343)
+	if !strings.Contains(a.Params["features"], "Firewall log") || !strings.Contains(a.Msg, "The retry switches off: ") || !strings.Contains(a.MsgKey, "{features}") {
+		t.Fatalf("alert does not name the features: %+v", a)
+	}
+	var feats struct {
+		Mixed struct {
+			Left      int      `json:"left"`
+			SwitchOff []string `json:"switch_off"`
+		} `json:"mixed_state"`
+	}
+	if code := r.call("GET", "/api/devices/gw-ro/features", nil, &feats); code != 200 || feats.Mixed.Left != cmds ||
+		len(feats.Mixed.SwitchOff) == 0 || !strings.Contains(strings.Join(feats.Mixed.SwitchOff, ";"), "Firewall log") {
+		t.Fatalf("dialog state: %d %+v", code, feats.Mixed)
+	}
 
 	// router accepts again: switching the feature off retries what is left, the alert clears, the router is clean
 	r.rt.FailMenu, r.rt.FailSet = "", nil
@@ -85,5 +99,9 @@ func TestFailedRollbackRaisesMixedStateAlert(t *testing.T) {
 	}
 	if after := r.rt.Snapshot(); after != before {
 		t.Fatalf("router not clean\nbefore %s\nafter  %s", before, after)
+	}
+	feats.Mixed.Left, feats.Mixed.SwitchOff = -1, nil
+	if r.call("GET", "/api/devices/gw-ro/features", nil, &feats); feats.Mixed.Left != 0 || feats.Mixed.SwitchOff == nil {
+		t.Fatalf("after retry: %+v", feats.Mixed)
 	}
 }

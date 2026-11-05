@@ -62,6 +62,9 @@
 {#if loading}<div class="muted">{t('Loading…')}</div>
 {:else if data}
   <p class="muted" style="margin-top:0">{t('Choose what mtmon should set up on this device. Nothing changes until you preview and confirm. Switching a feature off undoes exactly what mtmon recorded for it.')}</p>
+  {#if data.mixed_state?.left}
+    <div class="warnbox" style="margin-bottom:12px">{t('{n} change(s) on this router could not be undone. To retry, switch these features off: {features}. mtmon then undoes everything it set up for them, not only what is left. Switch them on again afterwards if you still want them.', { n: data.mixed_state.left, features: data.mixed_state.switch_off.map(x => tr(x)).join('; ') })}</div>
+  {/if}
   <div class="feats">
     {#each data.features as f (f.key)}
       <div class="feat" class:dis={!f.available && !f.on}>
