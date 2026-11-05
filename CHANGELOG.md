@@ -10,6 +10,15 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ## [Unreleased]
 
+### Fixed
+- Router changes: booleans now always reach RouterOS as `yes` or `no`, in the setup, in every undo and in the manual script. Undo records written by older versions (`log=""`, `log="false"`) are repaired when they run, so an undo no longer fails with "invalid value of log" and leaves a router half changed (#343).
+- Router features: a rule that already logs or is already counted gets no step any more, so re-applying a feature changes nothing that is already right. Rules that log with someone else's settings stay untouched (#343).
+- Failed router changes show the failing step and the router's error first, then what the undo did. An undo step the router refused comes with the exact command to fix it by hand, and the manual script lists only what is really left (#343).
+- Installer update: an outdated update helper is now refreshed even when the container already runs the same binary (#343).
+
+### New
+- Alert "Router in mixed state" (warning) when an undo left differences on the router, with the list of what is left. A later undo that succeeds resolves it. Switching a feature off retries steps that failed earlier (#343).
+
 ### Changed
 - Installer: when `minisign` is missing, an interactive run now offers to install it with `apt-get` and then checks the signature as usual, instead of aborting straight away. If you decline, in a dry run, without a terminal or if apt fails, it still aborts; it never falls back to an unverified install on its own.
 

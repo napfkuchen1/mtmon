@@ -215,7 +215,7 @@
     </div>
     <div class="steps">
       {#each result.result.steps as s}<div class="srow"><span class="badge {s.ok ? 'ok' : 'bad'}">{s.ok ? '✓' : '✗'}</span> {tr(s.title)}{#if s.msg}<div class="muted" style="font-size:12.5px">{tr(s.msg)}</div>{/if}</div>{/each}
-      {#each result.result.rollback || [] as s}<div class="srow"><span class="badge {s.ok ? 'ok' : 'bad'}">↩</span> {tr(s.title)}{#if s.msg}<div class="muted" style="font-size:12.5px">{tr(s.msg)}</div>{/if}</div>{/each}
+      {#each result.result.rollback || [] as s}<div class="srow"><span class="badge {s.ok ? 'ok' : 'bad'}">↩</span> {tr(s.title)}{#if s.msg}<div class="muted" style="font-size:12.5px">{tr(s.msg)}</div>{/if}{#if s.cmd}<div class="muted" style="font-size:12.5px">{t('Fix by hand in the RouterOS terminal:')}</div><pre class="code">{s.cmd}</pre>{/if}</div>{/each}
     </div>
     {#if result.result.backup}<p class="muted">{t('Config backup on the router:')} <span class="mono">{result.result.backup}</span> ({t('Files')})</p>{/if}
     {#if result.manual_script}<p><b>{t('The undo was incomplete.')}</b> {t('Run these commands in the RouterOS terminal:')}</p><pre class="code">{result.manual_script}</pre>{/if}

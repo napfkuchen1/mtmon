@@ -86,6 +86,9 @@ func featureActions(k *Caps, o Options, feats map[string]bool) []action {
 			out = append(out, a)
 		}
 	}
+	if len(out) == 1 && out[0].Key == "backup" {
+		return nil // nothing but the backup: no feature requested, or every target state already holds
+	}
 	return out
 }
 
@@ -95,16 +98,13 @@ func PlanFeatures(k *Caps, o Options, feats map[string]bool) []Step {
 	for _, a := range featureActions(k, o, feats) {
 		out = append(out, a.Step)
 	}
-	if len(out) == 1 && out[0].Key == "backup" {
-		return nil // nothing but the backup: no feature requested (or nothing applicable on this device)
-	}
 	return out
 }
 
 // ApplyFeatures runs only the steps of the requested features (after the usual configuration backup). Manifest
 // sequence numbers continue after startSeq. Like Apply it undoes its own changes if a step fails.
 func ApplyFeatures(ctx context.Context, cl *poller.Client, k *Caps, o Options, feats map[string]bool, startSeq int, rec func(store.ManifestEntry)) *Result {
-	res := &Result{}
+	res := &Result{FwMeta: holdingRuleMeta(k, featureOptions(o, feats))}
 	r := &runner{cl: cl, rec: rec, res: res, seq: startSeq}
 	for _, a := range featureActions(k, o, feats) {
 		err := a.run(ctx, r)

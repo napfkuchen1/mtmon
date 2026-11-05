@@ -322,14 +322,8 @@ func (s *Server) provision(w http.ResponseWriter, r *http.Request) {
 	res := provision.Apply(ctx, admin, roFor, caps, o, func(e store.ManifestEntry) { s.St.AddManifest(o.Name, e) })
 	out := map[string]any{"result": res, "name": o.Name}
 	if !res.OK {
-		failed := false
-		for _, rb := range res.Rollback {
-			failed = failed || !rb.OK
-		}
-		if failed {
-			out["manual_script"] = provision.ManualScript(res.Entries)
-		} else {
-			s.St.DB.Exec(`DELETE FROM manifest WHERE device=?`, o.Name)
+		if script := s.settleFailedApply(o.Name, res); script != "" {
+			out["manual_script"] = script
 		}
 		jsonOut(w, out)
 		return
@@ -472,6 +466,7 @@ func (s *Server) offboard(w http.ResponseWriter, r *http.Request) {
 		}
 		res := provision.Rollback(ctx, cl, entries, func(id int64, st string) { s.St.SetManifestState(id, st) })
 		out["rollback"] = res
+		s.noteRollback(name, res)
 		for _, x := range res {
 			if !x.OK {
 				out["ok"] = false
