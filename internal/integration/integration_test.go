@@ -25,7 +25,7 @@ import (
 )
 
 var clients = []mockros.Client{
-	{MAC: "3C:22:FB:10:00:01", IP: "192.168.88.23", Host: "daniel-iphone", WiFi: true, Signal: -52, SSID: "Home"},
+	{MAC: "3C:22:FB:10:00:01", IP: "192.168.88.23", Host: "maria-iphone", WiFi: true, Signal: -52, SSID: "Home"},
 	{MAC: "DC:A6:32:10:00:02", IP: "192.168.88.30", Host: "homeassistant"},
 }
 
@@ -113,7 +113,7 @@ func TestPollerBuildsInventory(t *testing.T) {
 		byMAC[c.MAC] = c
 	}
 	ip := byMAC["3C:22:FB:10:00:01"]
-	if !ip.WiFi || ip.Device != "ap-living" || ip.SSID != "Home" || ip.Signal != -52 || ip.Hostname != "daniel-iphone" || ip.IP != "192.168.88.23" {
+	if !ip.WiFi || ip.Device != "ap-living" || ip.SSID != "Home" || ip.Signal != -52 || ip.Hostname != "maria-iphone" || ip.IP != "192.168.88.23" {
 		t.Fatalf("wifi client wrong: %+v", ip)
 	}
 	ha := byMAC["DC:A6:32:10:00:02"]
@@ -159,7 +159,7 @@ func TestOutageAlertAndRecovery(t *testing.T) {
 
 func TestPipelineEndToEnd(t *testing.T) {
 	r := newRig(t)
-	r.hub.SetIPMap(map[string]string{"192.168.88.23": "3C:22:FB:10:00:01"}, map[string]string{"3C:22:FB:10:00:01": "daniel-iphone"})
+	r.hub.SetIPMap(map[string]string{"192.168.88.23": "3C:22:FB:10:00:01"}, map[string]string{"3C:22:FB:10:00:01": "maria-iphone"})
 	r.en.SetName(netip.MustParseAddr("1.1.1.1"), "one.one.one.one", time.Hour)
 	col := &flow.Collector{Addr: "127.0.0.1:0", Allow: r.cfg.ExporterAllowed, Handler: r.pipe.Handle}
 	r.cfg.Devices = append(r.cfg.Devices, config.Device{Name: "lo", Addr: "127.0.0.1"})
@@ -211,7 +211,7 @@ func TestPipelineEndToEnd(t *testing.T) {
 		t.Fatalf("ignored=%d want 1 (WAN copy)", r.pipe.Ignored)
 	}
 	snap := r.hub.Snapshot(0, 10)
-	if len(snap.Clients) == 0 || snap.Clients[0].Name != "daniel-iphone" || len(snap.Conns) != 3 {
+	if len(snap.Clients) == 0 || snap.Clients[0].Name != "maria-iphone" || len(snap.Conns) != 3 {
 		t.Fatalf("snapshot %+v", snap)
 	}
 	// unknown exporter is dropped

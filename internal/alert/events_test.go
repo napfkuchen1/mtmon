@@ -74,14 +74,14 @@ func TestWifiDisconnectNamesInterfaceAndSignal(t *testing.T) {
 
 func TestCLICommandErrorIsNotAScriptError(t *testing.T) {
 	e, got := newEngine(t)
-	e.LogEvent(logEv("gw", "script,error,debug", "error", "(ssh-cmd:daniel@192.168.88.2) bad command name foo (line 1 column 1)"))
+	e.LogEvent(logEv("gw", "script,error,debug", "error", "(ssh-cmd:maria@192.168.88.2) bad command name foo (line 1 column 1)"))
 	e.LogEvent(logEv("gw", "script,error", "error", "executing script from sshd failed, please check it manually"))
 	e.LogEvent(logEv("gw", "script,error", "error", "script error: failing script"))
-	if kinds(*got) != "cli_error/gw/daniel,script_error/gw" {
+	if kinds(*got) != "cli_error/gw/maria,script_error/gw" {
 		t.Fatalf("kinds: %s", kinds(*got))
 	}
 	a := (*got)[0]
-	if a.Severity != "info" || a.Msg != "Command from daniel@192.168.88.2 failed on gw: bad command name foo (line 1 column 1)" {
+	if a.Severity != "info" || a.Msg != "Command from maria@192.168.88.2 failed on gw: bad command name foo (line 1 column 1)" {
 		t.Errorf("cli alert: %+v", a)
 	}
 	if (*got)[1].Severity != "warning" {

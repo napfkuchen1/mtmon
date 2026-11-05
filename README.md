@@ -365,7 +365,7 @@ Contributions, bug reports and feedback from real MikroTik setups are welcome: p
 
 ## License
 
-mtmon is free software under the [GNU Affero General Public License v3.0 only](LICENSE) (AGPL-3.0-only), Copyright (C) 2026 Daniel Sauer.
+mtmon is free software under the [GNU Affero General Public License v3.0 only](LICENSE) (AGPL-3.0-only), Copyright (C) 2026 napfkuchen1.
 
 In plain words: you may run, study, change and share mtmon, including at work. If you change it and let others use it over a network, you must offer them the source of your version under the same license. The running UI links to the source of its exact version (Settings -> System -> Source code). Contributions are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
 

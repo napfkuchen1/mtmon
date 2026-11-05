@@ -9,7 +9,7 @@ func TestGuessLabel(t *testing.T) {
 		host, vendor, mac, ip string
 		want, conf            string
 	}{
-		{"Daniels-iPhone", "Apple", "AA:BB:CC:00:3F:A2", "", "Daniels iPhone", "medium"},
+		{"Marias-iPhone", "Apple", "AA:BB:CC:00:3F:A2", "", "Marias iPhone", "medium"},
 		{"printer.fritz.box", "HP", "AA:BB:CC:00:3F:A2", "", "printer", "medium"},
 		{"pi.hole.lan", "", "AA:BB:CC:00:3F:A2", "", "pi", "medium"},
 		{"Brand-TV-Room (Mr.Name)", "", "AA:BB:CC:00:3F:A2", "", "Brand TV Room (Mr.Name)", "medium"},
