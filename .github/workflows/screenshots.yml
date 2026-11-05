@@ -1,0 +1,108 @@
+name: screenshots
+# Manual only. Builds the release binary, starts the rich demo (mock routers, 25 clients, seeded history), runs
+# `make screenshots` plus the README recording, renders docs/social-preview.png, and opens a pull request with the new
+# images (never a direct push to main). The run fails when a page would show a loopback address, a "-dirty" or
+# commit-style version, or "Collecting data" (scripts/demo-common.js checks the rendered text at capture time).
+# If Actions may not create pull requests in this repository (Settings -> Actions -> General), the branch is pushed
+# and the compare URL is printed instead; the images are also attached to the run as an artifact.
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Push a branch and open the pull request (false: only attach the images to the run)"
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: screenshots
+  cancel-in-progress: false
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # least privilege: only this job may write, and only contents + pull requests
+    permissions:
+      contents: write
+      pull-requests: write
+    container:
+      # official Playwright image, pinned by digest (v1.64.1-noble, Chromium 1.64.1); keep the npm version below in step with the tag
+      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
+    env:
+      PLAYWRIGHT_NPM_VERSION: 1.64.1
+    steps:
+      - name: tools (git, make, ffmpeg, gh, procps)
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends git make ffmpeg gh procps ca-certificates
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # tags are needed: the demo shows the last release version
+          persist-credentials: false # the token is only used by the publish step below
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: { go-version-file: go.mod }
+      - name: Playwright (npm package matching the image)
+        run: npm install -g --no-audit --no-fund "playwright@${PLAYWRIGHT_NPM_VERSION}"
+      - name: screenshots and recording
+        run: make screenshots SHOTS="screenshots.js recording.js"
+      - name: social preview
+        run: NODE_PATH=$(npm root -g) node scripts/social-preview.js
+      - name: demo GIF (max 4 MB, else MP4 with poster) and README
+        run: |
+          kind=$(scripts/make-demo-gif.sh | tail -n 1)
+          echo "demo media: $kind"
+          node scripts/readme-media.js "$kind"
+      - name: result
+        run: |
+          git status --short docs README.md
+          ls -l docs/img docs/social-preview.png
+          for f in docs/social-preview.png docs/img/overview.png docs/img/firewall.png; do test -s "$f" || { echo "::error::missing $f"; exit 1; }; done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screenshots
+          path: |
+            docs/img
+            docs/social-preview.png
+          retention-days: 14
+      - name: branch and pull request
+        if: ${{ inputs.publish }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ -z "$(git status --porcelain docs README.md)" ]; then
+            echo "::notice::the images did not change, nothing to propose"
+            exit 0
+          fi
+          branch="chore/screenshots-$(date -u +%Y%m%d)-${GITHUB_RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add docs README.md
+          git commit -q -m "docs: refresh screenshots, demo GIF and social preview (#306, #308)"
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          git -c "http.extraheader=AUTHORIZATION: basic $auth" push "https://github.com/${REPO}.git" "HEAD:refs/heads/${branch}"
+          cat > "$RUNNER_TEMP/pr-body.md" <<EOF
+          Refs #306
+          Refs #308
+
+          ## Summary
+          New pictures from the demo, made by the screenshots workflow (run ${GITHUB_RUN_ID}): the README screenshots in \`docs/img\`, the demo recording (GIF, or MP4 with poster if the GIF was over 4 MB) and \`docs/social-preview.png\` (1280x640). The README top picture now shows the recording.
+
+          ## Test plan
+          - The workflow checked the rendered page text of every capture: no 127.0.0.x, no \`-dirty\` or commit-style version, a release version in the sidebar, no "Collecting data" on the overview.
+          - Look at the images in the Files tab: 192.168.88.x addresses, English, one theme, filled charts, wizard dialog not cut off.
+          - After the merge: upload \`docs/social-preview.png\` under Settings -> Social preview (GitHub has no API for it).
+
+          ## Rollback
+          Revert this pull request; the README falls back to the previous images.
+          EOF
+          if gh pr create --repo "$REPO" --base "$BASE" --head "$branch" --title "docs: refresh screenshots, demo GIF and social preview (#306, #308)" --body-file "$RUNNER_TEMP/pr-body.md"; then
+            exit 0
+          fi
+          echo "::warning::could not open the pull request (Actions may not be allowed to create pull requests: Settings -> Actions -> General)."
+          echo "Branch pushed. Open the pull request here: https://github.com/${REPO}/compare/${BASE}...${branch}?expand=1"
+          echo "Compare URL: https://github.com/${REPO}/compare/${BASE}...${branch}?expand=1" >> "$GITHUB_STEP_SUMMARY"
