@@ -17,6 +17,7 @@ env:
 jobs:
   release:
     runs-on: ubuntu-latest
+    environment: release # signing secrets (#302), see docs/repo-hardening.md
     permissions:
       contents: write      # create the release
       actions: read        # CI gate
