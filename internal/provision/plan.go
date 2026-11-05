@@ -139,20 +139,21 @@ func buildActions(k *Caps, o Options) []action {
 			run: func(ctx context.Context, r *runner) error { return r.syslog(ctx, o) }})
 	}
 	if o.Syslog || o.SyslogReady {
-		if len(o.FwRules) > 0 {
-			a = append(a, action{Step: logRulesStep(k, "fwlog", o.FwRules, fmt.Sprintf("Enable logging on %d existing firewall rules", len(o.FwRules)),
+		// a rule that already holds the target state gets no step at all (#343): plan and run stay the same action
+		if fw := pendingRules(k, o.FwRules, false); len(fw) > 0 {
+			a = append(a, action{Step: logRulesStep(k, "fwlog", fw, fmt.Sprintf("Enable logging on %d existing firewall rules", len(fw)),
 				"Only 'log' and 'log-prefix' of these rules are set (conditions, action and order stay unchanged). The prefix tells mtmon which rule matched. This way dropped traffic that Traffic Flow never sees shows up in mtmon."),
-				run: func(ctx context.Context, r *runner) error { return r.fwLog(ctx, k, o.FwRules, false) }})
+				run: func(ctx context.Context, r *runner) error { return r.fwLog(ctx, k, fw, false) }})
 		}
-		if len(o.AllowRules) > 0 {
-			a = append(a, action{Step: countRulesStep(k, "allowlog", o.AllowRules, fmt.Sprintf("Count hits on %d allow rules", len(o.AllowRules)),
+		if al := pendingRules(k, o.AllowRules, true); len(al) > 0 {
+			a = append(a, action{Step: countRulesStep(k, "allowlog", al, fmt.Sprintf("Count hits on %d allow rules", len(al)),
 				"Only 'log-prefix' of these accept rules is set; 'log' stays off (conditions, action and order stay unchanged). mtmon reads the rule's hit counter on every poll and shows the difference as 'allowed', so nothing is written to the router log and no syslog line is sent per packet."),
-				run: func(ctx context.Context, r *runner) error { return r.fwLog(ctx, k, o.AllowRules, true) }})
+				run: func(ctx context.Context, r *runner) error { return r.fwLog(ctx, k, al, true) }})
 		}
-		if len(o.ConvertAllow) > 0 {
-			a = append(a, action{Step: countRulesStep(k, "allowcount", o.ConvertAllow, fmt.Sprintf("Switch %d allow rules from logging to counting", len(o.ConvertAllow)),
+		if conv := pendingConvert(k, o.ConvertAllow); len(conv) > 0 {
+			a = append(a, action{Step: countRulesStep(k, "allowcount", conv, fmt.Sprintf("Switch %d allow rules from logging to counting", len(conv)),
 				"These accept rules were set to log every packet by an earlier mtmon version. Only 'log' is switched off; the log prefix stays. mtmon then reads the rule's hit counter instead, so the Firewall page keeps its numbers while the router log and the syslog traffic shrink."),
-				run: func(ctx context.Context, r *runner) error { return r.fwCount(ctx, k, o.ConvertAllow) }})
+				run: func(ctx context.Context, r *runner) error { return r.fwCount(ctx, k, conv) }})
 		}
 		if o.EventLogs {
 			var cmds []string
@@ -184,6 +185,62 @@ func buildActions(k *Caps, o Options) []action {
 		Commands: []string{"GET /rest/system/resource  (as " + o.MonUser + ")"}, Undo: "–", Risk: "none"},
 		run: func(ctx context.Context, r *runner) error { return r.verify(ctx) }})
 	return a
+}
+
+// ruleHolds tells whether a selected rule already is in the state mtmon wants. A rule that logs is never touched, the
+// logging belongs to whoever set it. A counted accept rule stays counted, also when it arrives through the drop-rule list.
+func ruleHolds(f *FilterRule, id string, allow bool) bool {
+	if f.Log {
+		return true
+	}
+	return f.LogPrefix == prefixFor(id) && (allow || f.Action == "accept")
+}
+
+// pendingRules: the selected rules that still need a change. Unknown IDs stay in, the step reports them.
+func pendingRules(k *Caps, ids []string, allow bool) []string {
+	var out []string
+	for _, id := range ids {
+		if f := k.rule(id); f == nil || !ruleHolds(f, id, allow) {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// pendingConvert: the accept rules to switch to counting that still log.
+func pendingConvert(k *Caps, ids []string) []string {
+	var out []string
+	for _, id := range ids {
+		if f := k.rule(id); f == nil || f.Log {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// holdingRuleMeta names the selected rules that need no step, so the Firewall page keeps its labels for them.
+func holdingRuleMeta(k *Caps, o Options) []FwMeta {
+	if !o.Syslog && !o.SyslogReady {
+		return nil
+	}
+	var out []FwMeta
+	note := func(ids []string, allow bool) {
+		for _, id := range ids {
+			f := k.rule(id)
+			if f == nil || !ruleHolds(f, id, allow) || f.LogPrefix == "" {
+				continue
+			}
+			descr := strings.TrimSpace(f.Comment)
+			if descr == "" {
+				descr = f.Summary
+			}
+			out = append(out, FwMeta{Prefix: f.LogPrefix, Chain: f.Chain, Action: f.Action, Descr: descr,
+				Managed: f.LogPrefix == prefixFor(id), Counter: !f.Log})
+		}
+	}
+	note(o.FwRules, false)
+	note(o.AllowRules, true)
+	return out
 }
 
 // logRulesStep describes "switch logging on for these filter rules" (drop rules and allow rules share it).

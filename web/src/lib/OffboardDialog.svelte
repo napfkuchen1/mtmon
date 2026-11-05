@@ -4,6 +4,7 @@
   import { t, tr } from './i18n.svelte.js'
   import { toast } from './state.svelte.js'
   import Modal from './Modal.svelte'
+  import ProvisionResult from './ProvisionResult.svelte'
   // Remove a UI-managed device. "Undo & remove" first reverts every change mtmon made on the router (needs admin
   // credentials once, never stored); "Just forget" only removes it from mtmon.
   let { name, managed = false, onclose, ondone } = $props()
@@ -34,7 +35,7 @@
   {#if res}
     <div class="warnbox" style="margin-top:12px;background:{res.ok ? 'var(--ok-bg)' : 'var(--bad-bg)'}">
       {res.ok ? t('Everything undone.') : t('Not everything could be undone – the device stays registered. Retry or run the commands manually.')}
-      {#each res.rollback || [] as s}<div style="font-size:12.5px"><span class="badge {s.ok ? 'ok' : 'bad'}">{s.ok ? '✓' : '✗'}</span> {tr(s.title)}{s.msg ? ' – ' + tr(s.msg) : ''}</div>{/each}
+      <ProvisionResult rollback={res.rollback} />
     </div>
     {#if res.manual_script}<pre class="code" style="margin-top:10px">{res.manual_script}</pre>{/if}
   {/if}

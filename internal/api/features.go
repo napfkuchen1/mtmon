@@ -53,7 +53,7 @@ var featureText = map[string][2]string{
 func deviceFeatures(entries []store.ManifestEntry, caps *provision.Caps) []featureInfo {
 	on := map[string]int{}
 	for _, e := range entries {
-		if e.State == "applied" {
+		if e.State == "applied" || e.State == "revert-failed" { // still on the router: it can be switched off again
 			if f := provision.FeatureOf(e); f != "" {
 				on[f]++
 			}
@@ -278,7 +278,7 @@ func (s *Server) featureOptions(row *store.DeviceRow, caps *provision.Caps, in f
 func featureUndo(entries []store.ManifestEntry, disable map[string]bool) []store.ManifestEntry {
 	var undo []store.ManifestEntry
 	for _, e := range entries {
-		if e.State == "applied" && disable[provision.FeatureOf(e)] {
+		if (e.State == "applied" || e.State == "revert-failed") && disable[provision.FeatureOf(e)] { // a failed undo gets retried
 			undo = append(undo, e)
 		}
 	}
@@ -290,11 +290,11 @@ func featureUndo(entries []store.ManifestEntry, disable map[string]bool) []store
 func (s *Server) featureRevert(ctx context.Context, admin *poller.Client, name string, undo []store.ManifestEntry, out map[string]any) bool {
 	res := provision.Rollback(ctx, admin, undo, func(id int64, st string) { s.St.SetManifestState(id, st) })
 	out["undone"] = res
+	s.noteRollback(name, res)
 	for _, x := range res {
 		if !x.OK {
 			out["ok"] = false
-			all, _ := s.St.Manifest(name)
-			out["manual_script"] = provision.ManualScript(all)
+			out["manual_script"] = provision.ManualScript(provision.FailedEntries(undo, res)) // only what is left of this undo
 			return false
 		}
 	}
@@ -311,6 +311,54 @@ func (s *Server) featureRevert(ctx context.Context, admin *poller.Client, name s
 	return true
 }
 
+// MixedStateAlert is the alert kind for a router that kept changes mtmon could not undo.
+const MixedStateAlert = "router_mixed_state"
+
+// noteRollback raises a warning alert when a rollback left differences on the router. A later rollback that leaves
+// none clears it.
+func (s *Server) noteRollback(name string, steps []provision.StepResult) {
+	var left []string
+	for _, x := range steps {
+		if !x.OK {
+			left = append(left, strings.TrimPrefix(x.Title, "Rolled back: "))
+		}
+	}
+	if len(left) == 0 {
+		entries, _ := s.St.Manifest(name)
+		for _, e := range entries {
+			if e.State == "revert-failed" {
+				return
+			}
+		}
+		s.St.ResolveAlerts(MixedStateAlert, name, " (undone)")
+		return
+	}
+	s.St.ResolveAlerts(MixedStateAlert, name, " (replaced by a newer result)")
+	n, list := strconv.Itoa(len(left)), strings.Join(left, "; ")
+	s.St.AddAlert(store.Alert{TS: time.Now().Unix(), Kind: MixedStateAlert, Subject: name, Severity: "warning",
+		Msg:    "Router " + name + " is in a mixed state: " + n + " changes could not be undone: " + list,
+		MsgKey: "Router {name} is in a mixed state: {n} changes could not be undone: {left}",
+		Params: map[string]string{"name": name, "n": n, "left": list}})
+}
+
+// settleFailedApply brings the manifest in line with the rollback of a failed apply: undone entries are forgotten, the
+// ones the router refused stay on record. It returns the manual script for those ("" when nothing is left).
+func (s *Server) settleFailedApply(name string, res *provision.Result) string {
+	for _, rb := range res.Rollback {
+		if rb.OK {
+			s.St.DB.Exec(`DELETE FROM manifest WHERE device=? AND seq=?`, name, rb.Seq)
+		} else {
+			s.St.DB.Exec(`UPDATE manifest SET state='revert-failed' WHERE device=? AND seq=?`, name, rb.Seq)
+		}
+	}
+	s.noteRollback(name, res.Rollback)
+	failed := provision.FailedEntries(res.Entries, res.Rollback)
+	if len(failed) == 0 {
+		return ""
+	}
+	return provision.ManualScript(failed)
+}
+
 // featureEnable applies the switched-on features. It returns false (and fills out) when the apply failed.
 func (s *Server) featureEnable(ctx context.Context, admin *poller.Client, name string, caps *provision.Caps, opt provision.Options, enable map[string]bool, entries []store.ManifestEntry, out map[string]any) bool {
 	maxSeq := 0
@@ -322,15 +370,8 @@ func (s *Server) featureEnable(ctx context.Context, admin *poller.Client, name s
 	res := provision.ApplyFeatures(ctx, admin, caps, opt, enable, maxSeq, func(e store.ManifestEntry) { s.St.AddManifest(name, e) })
 	out["result"] = res
 	if !res.OK {
-		failed := false
-		for _, rb := range res.Rollback {
-			failed = failed || !rb.OK
-		}
-		if failed {
-			all, _ := s.St.Manifest(name)
-			out["manual_script"] = provision.ManualScript(all)
-		} else {
-			s.St.DB.Exec(`DELETE FROM manifest WHERE device=? AND seq>?`, name, maxSeq) // everything of this attempt was undone
+		if script := s.settleFailedApply(name, res); script != "" {
+			out["manual_script"] = script
 		}
 		out["ok"] = false
 		return false
