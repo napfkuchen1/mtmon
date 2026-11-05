@@ -102,10 +102,14 @@ func main() {
 				dst := dests[rng.Intn(len(dests))]
 				r := netip.MustParseAddr(dst.ip)
 				b := uint64(200 + rng.Intn(200000))
+				lan := uint32(2) // clients with an odd address sit on VLAN 10 (ifIndex 10), the others on the bridge
+				if c.Is4() && c.As4()[3]%2 == 1 {
+					lan = 10
+				}
 				if rng.Intn(2) == 0 {
-					recs = append(recs, flow.Record{Src: c, Dst: r, SrcPort: uint16(32768 + rng.Intn(28000)), DstPort: dst.port, Proto: dst.p, Bytes: b / 10, Packets: b / 1400, InIf: 2, OutIf: 1})
+					recs = append(recs, flow.Record{Src: c, Dst: r, SrcPort: uint16(32768 + rng.Intn(28000)), DstPort: dst.port, Proto: dst.p, Bytes: b / 10, Packets: b / 1400, InIf: lan, OutIf: 1})
 				} else {
-					recs = append(recs, flow.Record{Src: r, Dst: c, SrcPort: dst.port, DstPort: uint16(32768 + rng.Intn(28000)), Proto: dst.p, Bytes: b, Packets: b / 1400, InIf: 1, OutIf: 2})
+					recs = append(recs, flow.Record{Src: r, Dst: c, SrcPort: dst.port, DstPort: uint16(32768 + rng.Intn(28000)), Proto: dst.p, Bytes: b, Packets: b / 1400, InIf: 1, OutIf: lan})
 				}
 			}
 			conn.Write(e.Data(now, recs))
