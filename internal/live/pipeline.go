@@ -47,6 +47,48 @@ type Pipeline struct {
 	expSeen           map[string]int64 // MAC of a managed router -> last time it exported flows
 	Ignored, Internal uint64
 	diag              pipeDiag
+
+	// IfMiss is called (rate-limited per device) when a flow names an interface index the device does not list yet,
+	// so the poller can refresh the interface names. Optional.
+	IfMiss func(dev string)
+	missAt map[string]int64
+}
+
+// ifMissEvery is the shortest time in seconds between two refresh requests for the same device.
+const ifMissEvery = 30
+
+// setIfaces attaches the device and the client/remote interface indexes (ifIndex of the exporter) to a row. The
+// client side is the ingress interface for upload and internal flows and the egress interface for download.
+func (p *Pipeline) setIfaces(row *store.FlowRow, r flow.Record) {
+	dev := p.Cfg.SourceDevice(r.Exporter)
+	row.Dev = dev
+	if row.Dir == "d" {
+		row.IfC, row.IfR = r.OutIf, r.InIf
+	} else {
+		row.IfC, row.IfR = r.InIf, r.OutIf
+	}
+	if dev == "" || p.IfMiss == nil {
+		return
+	}
+	for _, idx := range [2]uint32{row.IfC, row.IfR} {
+		if idx == 0 || p.St.IfKnown(dev, idx) {
+			continue
+		}
+		now := time.Now().Unix()
+		p.mu.Lock()
+		if p.missAt == nil {
+			p.missAt = map[string]int64{}
+		}
+		due := now-p.missAt[dev] >= ifMissEvery
+		if due {
+			p.missAt[dev] = now
+		}
+		p.mu.Unlock()
+		if due {
+			p.IfMiss(dev)
+		}
+		return
+	}
 }
 
 // xkey is a flow's 5-tuple, xval the exporter that booked it first and when it last reported it.
@@ -229,6 +271,7 @@ func (p *Pipeline) Handle(recs []flow.Record) {
 		} else if p.monitoring(r, src, dst) {
 			row.Svc = store.MonitorSvc
 		}
+		p.setIfaces(&row, r)
 		rows = append(rows, row)
 		p.Hub.AddFlow(row)
 	}
