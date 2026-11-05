@@ -1,6 +1,7 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-LDFLAGS := -s -w -X main.version=$(VERSION)
+LDFLAGS = -s -w -X main.version=$(VERSION)
 GO      ?= go
+SHOTS   ?= screenshots.js
 
 .PHONY: all ui build test lint licenses scale screenshots scale-live deploy-test release run-demo clean
 
@@ -42,8 +43,8 @@ scale-live:               ## like scale, but sized like a real install (~2 GB, 5
 	MTMON_SCALE=1 MTMON_SCALE_PROFILE=live $(GO) test ./internal/integration -run TestScale -v -timeout 40m
 
 screenshots: VERSION = $(shell git describe --tags --abbrev=0 2>/dev/null || echo dev)
-screenshots: build        ## regenerate docs/img from the demo (needs Playwright + Chromium); version is the last tag, never -dirty
-	@bash -c 'trap "pkill -x mtmon; pkill -x mockros; pkill -x flowgen" EXIT; scripts/demo.sh >/dev/null 2>&1 & sleep 8; NODE_PATH=$$(npm root -g) node scripts/screenshots.js'
+screenshots: build        ## regenerate docs/img from the demo (needs Playwright + Chromium); version is the last tag, never -dirty. SHOTS="screenshots.js recording.js" also records the demo
+	@bash -c 'trap "pkill -x mtmon; pkill -x mockros; pkill -x flowgen" EXIT; scripts/demo.sh >/dev/null 2>&1 & sleep 8; for s in $(SHOTS); do NODE_PATH=$$(npm root -g) node scripts/$$s || exit 1; done'
 
 deploy-test: build        ## install/update/uninstall scripts against fake Proxmox tools
 	deploy/test/test-deploy.sh bin/mtmon
