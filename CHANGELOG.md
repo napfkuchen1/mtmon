@@ -10,6 +10,10 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ## [Unreleased]
 
+### New
+
+- Hardware health: mtmon now shows SFP optics (receive and transmit power, temperature), PoE port status and LTE signal. They appear on the device page, the LTE signal also on the Internet page, and as metrics. A PoE port with a short circuit or overload raises an alert, and you can set a receive-power limit for SFP modules (off by default) that warns when it is undercut. Values are read every 5 minutes with a read-only call that changes nothing on the router; if the router refuses it, the feature stays off for that device. Models that report no power figures show "—", never 0 W. (#300)
+
 ### Changed
 - Installer: when `minisign` is missing, an interactive run now offers to install it with `apt-get` and then checks the signature as usual, instead of aborting straight away. If you decline, in a dry run, without a terminal or if apt fails, it still aborts; it never falls back to an unverified install on its own.
 
