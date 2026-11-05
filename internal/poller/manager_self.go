@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/napfkuchen1/mtmon/internal/live"
 	"github.com/napfkuchen1/mtmon/internal/store"
 )
 
@@ -199,6 +200,76 @@ func (m *Manager) TunnelPort(ip string, port uint16) bool {
 		}
 	}
 	return false
+}
+
+// VPNIf reports whether interface idx of device dev is a WireGuard tunnel (Back to Home included) and which peers have
+// a recent handshake on it. The table is rebuilt at most every 30 s; the flow pipeline asks for every record.
+func (m *Manager) VPNIf(dev string, idx uint32) (live.VPNIface, bool) {
+	m.vpnMu.Lock()
+	defer m.vpnMu.Unlock()
+	if m.vpnIfs == nil || time.Since(m.vpnAt) > 30*time.Second {
+		m.vpnIfs, m.vpnAt = m.buildVPNIfs(), time.Now()
+	}
+	v, ok := m.vpnIfs[dev][idx]
+	return v, ok
+}
+
+func (m *Manager) buildVPNIfs() map[string]map[uint32]live.VPNIface {
+	type tunnels struct {
+		names  map[string]bool
+		active map[string][]netip.Addr
+	}
+	all := map[string]tunnels{}
+	m.mu.Lock()
+	for dev, s := range m.snaps {
+		t := tunnels{names: map[string]bool{}, active: map[string][]netip.Addr{}}
+		for _, r := range s.wg {
+			t.names[r["name"]] = true
+		}
+		for _, r := range s.peers {
+			t.names[r["interface"]] = true
+		}
+		for _, o := range vpnObservations(dev, s.peers) {
+			if o.Present {
+				t.active[o.Iface] = append(t.active[o.Iface], firstPerFamily(o.Aliases)...)
+			}
+		}
+		all[dev] = t
+	}
+	m.mu.Unlock()
+	out := map[string]map[uint32]live.VPNIface{}
+	for dev, t := range all {
+		byIdx := map[uint32]live.VPNIface{}
+		for idx, n := range m.St.IfNames(dev) { // database read: not under m.mu
+			if n.Type == "wg" || t.names[n.Name] {
+				byIdx[idx] = live.VPNIface{Active: t.active[n.Name]}
+			}
+		}
+		out[dev] = byIdx
+	}
+	return out
+}
+
+// firstPerFamily returns the first address of each family of a peer, so that counting a family counts peers.
+func firstPerFamily(list []string) []netip.Addr {
+	var v4, v6 netip.Addr
+	for _, s := range list {
+		a, err := netip.ParseAddr(s)
+		switch {
+		case err != nil:
+		case a.Is4() && !v4.IsValid():
+			v4 = a
+		case !a.Is4() && !v6.IsValid():
+			v6 = a
+		}
+	}
+	var out []netip.Addr
+	for _, a := range []netip.Addr{v4, v6} {
+		if a.IsValid() {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 // isSelf reports whether the observation is one of the managed devices themselves.

@@ -57,6 +57,24 @@ type pipeDiag struct {
 	next    int
 	total   int64 // all flows seen
 	attDrop int64 // dropped as transit while one side is in a network a router has on its WAN side (#297)
+
+	vpnMatched, vpnSingle, vpnUnassigned int64  // replies into a tunnel, by how they were attributed (#287)
+	vpnUnassignedBytes                   uint64 // bytes booked on "VPN (not attributable)"
+}
+
+// vpnReply counts a reply into a tunnel by how it was attributed.
+func (d *pipeDiag) vpnReply(v vpnVerdict, bytes uint64) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	switch v {
+	case vpnMatched:
+		d.vpnMatched++
+	case vpnSinglePeer:
+		d.vpnSingle++
+	case vpnUnassigned:
+		d.vpnUnassigned++
+		d.vpnUnassignedBytes += bytes
+	}
 }
 
 func (d *pipeDiag) attachedDrop() {
@@ -152,5 +170,7 @@ func (p *Pipeline) Diagnostics() map[string]any {
 	for a, n := range d.dedup {
 		dd[a.String()] = n
 	}
-	return map[string]any{"local_nets": nets, "by_interface": rows, "dedup_dropped": dd, "ignored_recent": ign, "attached_nets": attached, "transit_attached": d.attDrop, "note": "in_if/out_if are the router's interface indexes (since boot); dir x = dropped because neither address is in local_nets"}
+	return map[string]any{"local_nets": nets, "by_interface": rows, "dedup_dropped": dd, "ignored_recent": ign, "attached_nets": attached, "transit_attached": d.attDrop,
+		"vpn_replies_matched": d.vpnMatched, "vpn_replies_single_peer": d.vpnSingle, "vpn_replies_unassigned": d.vpnUnassigned, "vpn_replies_unassigned_bytes": d.vpnUnassignedBytes,
+		"note": "in_if/out_if are the router's interface indexes (since boot); dir x = dropped because neither address is in local_nets"}
 }

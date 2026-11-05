@@ -14,6 +14,16 @@ import (
 // /ip cloud). It has no Back to Home user; "never connected" is its normal state.
 const BTHDefaultPeer = "BTH default peer (router config / QR code)"
 
+// VPNVendor marks clients that are VPN peers (shown with the VPN icon, skipped by the "chatty" suggestion).
+const VPNVendor = "WireGuard VPN"
+
+// VPNUnassignedMAC and VPNUnassignedName are the client that holds VPN replies no peer can be named for (several peers
+// active, no matching upload): the bytes were used and must stay visible (#287).
+const (
+	VPNUnassignedMAC  = "VPN:UNASSIGNED"
+	VPNUnassignedName = "VPN (not attributable)"
+)
+
 type Client struct {
 	MAC       string `json:"mac"`
 	Hostname  string `json:"hostname"`

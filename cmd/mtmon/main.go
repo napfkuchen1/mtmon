@@ -131,6 +131,7 @@ func run(args []string) error {
 	pipe.SelfMAC = pm.SelfMACByAddr
 	pipe.IfMiss = pm.RequestIfRefresh
 	pipe.TunnelPort = pm.TunnelPort
+	pipe.VPNIf = pm.VPNIf
 	pipe.Owns = pm.OwnsAddr
 	pipe.HostAddr = hostAddrs()
 	al.SelfName = pm.SelfDevice
