@@ -10,6 +10,8 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-11-27
+
 ### New
 - Diagnostics warns when the container memory limit is below the database size (the page cache then cannot hold the working set, which shows up as CPU bursts), and lists the size per table (flows, rollups, firewall events, indexes). The limit shows in Settings → System as "Container memory limit". (#377, #378)
 
