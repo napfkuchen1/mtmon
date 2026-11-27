@@ -40,7 +40,7 @@ jobs:
           fetch-depth: 0 # tags are needed: the demo shows the last release version
           persist-credentials: false # the token is only used by the publish step below
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with: { go-version-file: go.mod }
       - name: Playwright (npm package matching the image)
         run: npm install -g --no-audit --no-fund "playwright@${PLAYWRIGHT_NPM_VERSION}"
