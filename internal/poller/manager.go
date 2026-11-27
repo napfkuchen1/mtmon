@@ -52,7 +52,10 @@ type Manager struct {
 	addrMu  sync.Mutex
 	addrAt  time.Time
 	addrMAC map[string]string // address configured on a managed device -> one of its own MACs
-	ifReq   map[string]bool   // devices whose interface list should be re-read (ifnames.go)
+	ixMu    sync.Mutex
+	ixAt    time.Time
+	ixAddr  map[netip.Addr]string // live address of a managed device -> device (SelfByAddr), rebuilt every 10 s
+	ifReq   map[string]bool       // devices whose interface list should be re-read (ifnames.go)
 }
 
 type devSnap struct {

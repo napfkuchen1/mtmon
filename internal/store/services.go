@@ -190,6 +190,34 @@ func svcTable(since int64) (string, int64) {
 // svcClientWindow is how far back client lists look when the main window is answered from rollup_1d.
 const svcClientWindow = 24 * 3600
 
+// svcCounts: service -> distinct clients and destinations of the recent hourly window.
+type svcCounts map[string][2]int64
+
+func cloneSvcCounts(m svcCounts) svcCounts {
+	out := make(svcCounts, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
+// svcClientCounts reads the distinct clients and destinations per service from rollup_1h since start.
+func (s *Store) svcClientCounts(start int64) (svcCounts, error) {
+	cnt := svcCounts{}
+	cr, err := s.DB.Query(`SELECT svc, count(DISTINCT mac), count(DISTINCT rip) FROM rollup_1h INDEXED BY sqlite_autoindex_rollup_1h_1 WHERE ts>=? AND svc<>'' GROUP BY svc`, start)
+	if err != nil {
+		return cnt, err
+	}
+	defer cr.Close()
+	for cr.Next() {
+		var n string
+		var c, d int64
+		cr.Scan(&n, &c, &d)
+		cnt[n] = [2]int64{c, d}
+	}
+	return cnt, nil
+}
+
 // Services lists all services with traffic in the window. Windows of 25 h and more use the hybrid source (see
 // dimSource) or the daily service totals; their client and destination counts only look at the last svcClientWindow.
 func (s *Store) Services(since int64) ([]ServiceRow, error) {
@@ -203,25 +231,16 @@ func (s *Store) Services(since int64) ([]ServiceRow, error) {
 func (s *Store) services(since int64) ([]ServiceRow, error) {
 	tbl, al := svcTable(since)
 	// client and destination counts of long windows come from the recent hourly window: read it side by side
-	type counts map[string][2]int64
-	winCh := make(chan counts, 1)
+	winCh := make(chan svcCounts, 1)
 	_, _, hybrid := dimSource(since)
 	if tbl != "rollup_1d" && !hybrid {
-		winCh <- counts{}
+		winCh <- svcCounts{}
 	} else {
+		start := max(since, time.Now().Unix()-svcClientWindow) / 3600 * 3600
 		go func() {
-			cnt := counts{}
-			cr, err := s.DB.Query(`SELECT svc, count(DISTINCT mac), count(DISTINCT rip) FROM rollup_1h INDEXED BY sqlite_autoindex_rollup_1h_1 WHERE ts>=? AND svc<>'' GROUP BY svc`,
-				max(since, time.Now().Unix()-svcClientWindow)/3600*3600)
-			if err == nil {
-				for cr.Next() {
-					var n string
-					var c, d int64
-					cr.Scan(&n, &c, &d)
-					cnt[n] = [2]int64{c, d}
-				}
-				cr.Close()
-			}
+			// the distinct counts change at most once an hour (the window start moves in whole hours): memoised for that long
+			cnt, _ := memoize(&s.memo, "svccnt|"+itoa(int(start/3600)), time.Hour, cloneSvcCounts,
+				func() (svcCounts, error) { return s.svcClientCounts(start) })
 			winCh <- cnt
 		}()
 	}

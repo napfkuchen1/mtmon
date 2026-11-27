@@ -10,6 +10,15 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ## [Unreleased]
 
+### New
+- Diagnostics warns when the container memory limit is below the database size (the page cache then cannot hold the working set, which shows up as CPU bursts), and lists the size per table (flows, rollups, firewall events, indexes). The limit shows in Settings → System as "Container memory limit". (#377, #378)
+
+### Changed
+- The cache warmer for the long-window pages runs only while the UI is in use (an interactive session request within 10 minutes) and warms one page per step, so an idle install no longer scans the database around the clock. (#375)
+- Address ownership lookups for the flow pipeline use an in-memory index rebuilt every 10 s instead of a database read and JSON decode per flow. (#376)
+- The distinct client and destination counts of the Services page are memoised for an hour. (#378)
+- Updated dependencies: actions/setup-go 7.1.0, the go-modules group.
+
 ## [0.23.0] - 2026-11-27
 
 ### Changed
