@@ -24,14 +24,7 @@ func applyMemoryLimit(log *slog.Logger) int64 {
 	if os.Getenv("GOMEMLIMIT") != "" {
 		return 0
 	}
-	self, err := os.ReadFile("/proc/self/cgroup")
-	if err != nil {
-		return 0
-	}
-	lim := cgroupLimit(string(self), func(p string) (string, error) {
-		b, err := os.ReadFile(p)
-		return string(b), err
-	})
+	lim := cgroupMemLimit()
 	if lim <= 0 {
 		return 0
 	}
@@ -39,6 +32,18 @@ func applyMemoryLimit(log *slog.Logger) int64 {
 	debug.SetMemoryLimit(soft)
 	log.Info("memory limit from cgroup", "cgroup_bytes", lim, "go_limit_bytes", soft)
 	return soft
+}
+
+// cgroupMemLimit returns the memory limit of the process's cgroup (0: none or not readable, e.g. cgroup v1, bare metal).
+func cgroupMemLimit() int64 {
+	self, err := os.ReadFile("/proc/self/cgroup")
+	if err != nil {
+		return 0
+	}
+	return cgroupLimit(string(self), func(p string) (string, error) {
+		b, err := os.ReadFile(p)
+		return string(b), err
+	})
 }
 
 // cgroupLimit returns the smallest memory.max on the path from the process's cgroup (v2, line "0::/path" in

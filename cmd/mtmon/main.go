@@ -161,6 +161,7 @@ func run(args []string) error {
 	speedtest.UserAgent = "mtmon/" + version
 	srv := &api.Server{Cfg: cfg, St: st, Hub: hub, En: en, Col: col, Pipe: pipe, UI: web.FS(), Version: version, TLS: !cfg.NoTLS,
 		Box: box, Mgr: pm, Cls: cls, Sys: sys}
+	srv.MemLimit = cgroupMemLimit()
 	srv.ResetBaseline = al.ResetBaseline
 	srv.ConfigChanged = al.ConfigChanged
 	srv.Speed = &speedtest.Runner{St: st, Log: log, DataDir: cfg.DataDir,

@@ -170,6 +170,7 @@
         <tr><td class="muted">{t('Ignored transit flows (WAN-side copies)')}</td><td class="r num">{num(s.ignored_transit)}</td></tr>
         <tr><td class="muted">{t('Write queue · rows dropped')}</td><td class="r num">{s.queue} · {s.db_dropped}</td></tr>
         <tr><td class="muted">{t('Database size')}</td><td class="r num">{bytes(s.db_bytes)}</td></tr>
+        {#if s.mem_limit_bytes}<tr><td class="muted">{t('Container memory limit')}</td><td class="r num"><span class="badge {s.mem_too_small ? 'bad' : ''}">{bytes(s.mem_limit_bytes)}</span>{#if s.mem_too_small} <span class="muted" style="font-size:12px">{t('smaller than the database: raise the container RAM to at least the database size, or shorten retention')}</span>{/if}</td></tr>{/if}
         <tr><td class="muted">{t('Retention (raw / rollup)')}</td><td class="r">{s.raw_retention_days} d / {s.retention_days} d</td></tr>
         {#if s.rss_bytes}<tr><td class="muted">{t('Memory (mtmon)')}</td><td class="r num">{bytes(s.rss_bytes)}</td></tr>{/if}
         <tr><td class="muted">{t('CPU (mtmon)')}</td><td class="r num">{s.cpu_pct.toFixed(1)} %</td></tr>

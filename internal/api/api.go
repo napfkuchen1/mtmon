@@ -38,6 +38,7 @@ import (
 
 type Server struct {
 	uiLast        atomic.Int64                                  // last interactive request, see touchUI
+	MemLimit      int64                                         // container memory limit (cgroup), 0: none
 	DiskFn        func(dir string) (free, total int64, ok bool) // nil: the real file system (tests)
 	cpu           sysinfo.CPU
 	fwMu          sync.Mutex
@@ -989,9 +990,16 @@ func (s *Server) system(w http.ResponseWriter, r *http.Request) {
 		"retention_days": s.Cfg.Retention, "raw_retention_days": s.Cfg.RawRetention,
 		"learning_until": s.St.LearningUntil(), "learning_reason": s.St.LearningReason(),
 		"rss_bytes": sysinfo.RSS(), "cpu_pct": s.cpu.Percent(),
+		"mem_limit_bytes": s.MemLimit, "mem_too_small": memTooSmall(s.MemLimit, dbSize),
 		"data_dir_free_bytes": free, "data_dir_total_bytes": total, "db_growth_bytes_per_day": growth, "disk_days_left": daysLeft,
 		"db_growth_known": growthKnown, "db_sample_hours": growthH, "db_growth_estimate": growthEst,
 	})
+}
+
+// memTooSmall reports a container memory limit below the database size. Below 200 MB nothing is flagged: the page
+// cache holds such a database anyway. Without a limit (bare metal, VM) nothing is flagged either.
+func memTooSmall(limit, dbBytes int64) bool {
+	return limit > 0 && dbBytes >= 200<<20 && limit < dbBytes
 }
 
 func (s *Server) exportTop(w http.ResponseWriter, r *http.Request) {
