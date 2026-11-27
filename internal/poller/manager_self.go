@@ -71,6 +71,26 @@ func (m *Manager) liveAddrs() map[string][]netip.Addr {
 	return out
 }
 
+// liveIndex maps every live address of the managed devices to the device that has it. It is rebuilt at most every
+// 10 s, so the flow pipeline does neither a database read nor a JSON decode per flow; a change of the addresses or
+// the stored caps shows up within that window.
+func (m *Manager) liveIndex() map[netip.Addr]string {
+	m.ixMu.Lock()
+	defer m.ixMu.Unlock()
+	if m.ixAddr == nil || time.Since(m.ixAt) > 10*time.Second {
+		idx := map[netip.Addr]string{}
+		for dev, list := range m.liveAddrs() {
+			for _, ad := range list {
+				if old, ok := idx[ad]; !ok || dev < old {
+					idx[ad] = dev
+				}
+			}
+		}
+		m.ixAddr, m.ixAt = idx, time.Now()
+	}
+	return m.ixAddr
+}
+
 // SelfDevice returns the managed device that owns this MAC address on one of its own interfaces.
 func (m *Manager) SelfDevice(mac string) (string, bool) {
 	mac = store.NormMAC(mac)
@@ -99,12 +119,8 @@ func (m *Manager) SelfByAddr(ip string) (string, bool) {
 			return d.Name, true
 		}
 	}
-	for dev, list := range m.liveAddrs() {
-		for _, ad := range list {
-			if ad == a {
-				return dev, true
-			}
-		}
+	if dev, ok := m.liveIndex()[a]; ok {
+		return dev, true
 	}
 	if a.Is6() { // EUI-64 interface id: link-local, SLAAC or an old PPPoE address (zero MAC = 0200:00ff:fe00:0000) of a router
 		b := a.As16()
