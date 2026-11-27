@@ -37,6 +37,7 @@ import (
 )
 
 type Server struct {
+	uiLast        atomic.Int64                                  // last interactive request, see touchUI
 	DiskFn        func(dir string) (free, total int64, ok bool) // nil: the real file system (tests)
 	cpu           sysinfo.CPU
 	fwMu          sync.Mutex
@@ -231,6 +232,7 @@ func (s *Server) auth(h http.HandlerFunc) http.HandlerFunc {
 			jerr(w, 403, "not allowed for the viewer role")
 			return
 		}
+		s.touchUI()
 		// CSRF: state-changing requests must be same-origin JSON (SameSite=Strict cookie is the primary defence)
 		if r.Method != "GET" && r.Method != "HEAD" {
 			if !s.originOK(r) {

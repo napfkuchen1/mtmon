@@ -9,9 +9,16 @@ import (
 	"time"
 )
 
-// warmEvery stays below the memo lifetimes in store/memo.go callers (1–2 minutes) so the long-window answers
-// are always cached when a page asks; the first load after a quiet period used to cost 1–3 s on a big database.
-const warmEvery = 50 * time.Second
+// warmEvery is the spacing of one warm-up step. The pages run one per step (round robin), so each page is warmed
+// every 4 steps (80 s), inside the memo lifetimes (1–2 minutes) of store/memo.go callers.
+const warmEvery = 20 * time.Second
+
+// warmIdle: after this long without an interactive, session-authenticated request the warmer stops. A cold start
+// then costs the first UI user one slower load, instead of the database being scanned around the clock.
+const warmIdle = 10 * time.Minute
+
+// warmBase is the monotonic reference for the last-UI timestamp.
+var warmBase = time.Now()
 
 // warmPages are the long-window reads the dashboard and the Services page open with.
 var warmPages = []struct {
@@ -24,28 +31,54 @@ var warmPages = []struct {
 	{"/api/services?range=7d", func(s *Server) http.HandlerFunc { return s.services }},
 }
 
-// WarmCaches keeps the memoised long-window queries hot by running the handlers in the background. Results are
-// discarded; it only fills the store's memo. Stops with ctx.
+// touchUI records an interactive request. Only the session-cookie branch of auth calls it; API tokens, health
+// checks and the warmer's own calls (which bypass auth) do not reset the idle timer.
+func (s *Server) touchUI() {
+	s.uiLast.Store(int64(time.Since(warmBase)) + 1) // +1: 0 means "never"
+}
+
+// uiIdle reports whether no interactive request came within warmIdle.
+func (s *Server) uiIdle() bool {
+	v := s.uiLast.Load()
+	if v == 0 {
+		return true
+	}
+	return time.Since(warmBase)-time.Duration(v-1) > warmIdle
+}
+
+// WarmCaches keeps the memoised long-window queries hot while someone uses the UI: one page per step, and no step
+// at all when the UI has been idle for warmIdle. Results are discarded; it only fills the store's memo. Stops with ctx.
 func (s *Server) WarmCaches(ctx context.Context) {
 	t := time.NewTimer(20 * time.Second) // let the start-up work (migrations, first polls) settle
 	defer t.Stop()
+	next := 0
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
 		}
-		s.warmOnce(ctx)
+		if !s.uiIdle() {
+			s.warmStep(ctx, next)
+			next = (next + 1) % len(warmPages)
+		}
 		t.Reset(warmEvery)
 	}
 }
 
+// warmStep runs one warm-up page (index i).
+func (s *Server) warmStep(ctx context.Context, i int) {
+	if ctx.Err() != nil {
+		return
+	}
+	p := warmPages[i]
+	r := httptest.NewRequest("GET", p.path, nil).WithContext(ctx)
+	p.h(s)(httptest.NewRecorder(), r)
+}
+
+// warmOnce runs all pages in a row (tests and the coverage check).
 func (s *Server) warmOnce(ctx context.Context) {
-	for _, p := range warmPages {
-		if ctx.Err() != nil {
-			return
-		}
-		r := httptest.NewRequest("GET", p.path, nil).WithContext(ctx)
-		p.h(s)(httptest.NewRecorder(), r)
+	for i := range warmPages {
+		s.warmStep(ctx, i)
 	}
 }
