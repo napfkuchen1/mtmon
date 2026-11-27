@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"net/netip"
 	"os"
 	"path"
@@ -124,6 +125,14 @@ func New(s *Server) http.Handler {
 	m.HandleFunc("GET /api/export/connections/{mac}", a(s.exportConns))
 	m.HandleFunc("GET /api/live", a(s.liveWS))
 	m.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
+	if s.Cfg != nil && s.Cfg.DebugPprof {
+		m.HandleFunc("GET /debug/pprof/cmdline", a(pprof.Cmdline))
+		m.HandleFunc("GET /debug/pprof/profile", a(pprof.Profile))
+		m.HandleFunc("GET /debug/pprof/symbol", a(pprof.Symbol))
+		m.HandleFunc("POST /debug/pprof/symbol", a(pprof.Symbol))
+		m.HandleFunc("GET /debug/pprof/trace", a(pprof.Trace))
+		m.HandleFunc("GET /debug/pprof/", a(pprof.Index))
+	}
 	m.HandleFunc("/", s.static)
 	return secure(m)
 }

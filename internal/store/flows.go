@@ -176,7 +176,7 @@ func (s *Store) Flush() error {
 		return err
 	}
 	fail := func(err error) error { tx.Rollback(); s.requeue(rows); return err }
-	ins, err := tx.Prepare(`INSERT INTO flows(ts,exporter,mac,cip,rip,cport,rport,proto,dir,bytes,pkts,flags,host,cc,asn,asorg,svc)
+	ins, err := s.txStmt(tx, `INSERT INTO flows(ts,exporter,mac,cip,rip,cport,rport,proto,dir,bytes,pkts,flags,host,cc,asn,asorg,svc)
 		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		return fail(err)
@@ -189,8 +189,8 @@ func (s *Store) Flush() error {
 		}
 	}
 	full := func(table string, m map[aggKey]*aggVal) error {
-		st, err := tx.Prepare(`INSERT INTO ` + table + `(ts,mac,rip,rport,proto,svc,host,cc,asn,asorg,b_up,b_down,b_int,flows)
-			VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)` + upsertTail + `, host=CASE WHEN excluded.host<>'' THEN excluded.host ELSE host END`)
+		st, err := s.txStmt(tx, `INSERT INTO `+table+`(ts,mac,rip,rport,proto,svc,host,cc,asn,asorg,b_up,b_down,b_int,flows)
+			VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`+upsertTail+`, host=CASE WHEN excluded.host<>'' THEN excluded.host ELSE host END`)
 		if err != nil {
 			return err
 		}
@@ -208,7 +208,7 @@ func (s *Store) Flush() error {
 	if err := full("rollup_1h", h1); err != nil {
 		return fail(err)
 	}
-	stc, err := tx.Prepare(`INSERT INTO rollup_1h_client(ts,mac,b_up,b_down,b_int,flows,o_up,o_down,o_int) VALUES(?,?,?,?,?,?,?,?,?)` + upsertTail +
+	stc, err := s.txStmt(tx, `INSERT INTO rollup_1h_client(ts,mac,b_up,b_down,b_int,flows,o_up,o_down,o_int) VALUES(?,?,?,?,?,?,?,?,?)`+upsertTail+
 		`, o_up=o_up+excluded.o_up, o_down=o_down+excluded.o_down, o_int=o_int+excluded.o_int`)
 	if err != nil {
 		return fail(err)
@@ -219,8 +219,8 @@ func (s *Store) Flush() error {
 			return fail(err)
 		}
 	}
-	std, err := tx.Prepare(`INSERT INTO rollup_1d(ts,rip,rport,proto,svc,host,cc,asn,asorg,b_up,b_down,b_int,flows) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)` +
-		upsertTail + `, host=CASE WHEN excluded.host<>'' THEN excluded.host ELSE host END`)
+	std, err := s.txStmt(tx, `INSERT INTO rollup_1d(ts,rip,rport,proto,svc,host,cc,asn,asorg,b_up,b_down,b_int,flows) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`+
+		upsertTail+`, host=CASE WHEN excluded.host<>'' THEN excluded.host ELSE host END`)
 	if err != nil {
 		return fail(err)
 	}
@@ -236,7 +236,7 @@ func (s *Store) Flush() error {
 	if err := writeIface(tx, rows); err != nil {
 		return fail(err)
 	}
-	sd, err := tx.Prepare(`INSERT OR IGNORE INTO seen_dest(mac,rip,first) VALUES(?,?,?)`)
+	sd, err := s.txStmt(tx, `INSERT OR IGNORE INTO seen_dest(mac,rip,first) VALUES(?,?,?)`)
 	if err != nil {
 		return fail(err)
 	}

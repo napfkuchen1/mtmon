@@ -157,6 +157,9 @@ type Store struct {
 
 	ifMu    sync.Mutex
 	ifKnown map[string]map[uint32]bool // interface indexes the device lists (iface.go)
+
+	stmtMu sync.Mutex
+	stmts  map[string]*sql.Stmt // prepared once per SQL text (stmts.go)
 }
 
 // Open opens (and migrates) the DB in dir.

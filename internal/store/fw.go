@@ -71,7 +71,7 @@ func (s *Store) FlushFw() error {
 	if err != nil {
 		return err
 	}
-	ins, err := tx.Prepare(`INSERT INTO fw_events(ts,device,prefix,chain,in_if,out_if,proto,flags,src,sport,dst,dport,nat,len,mac,cstate) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+	ins, err := s.txStmt(tx, `INSERT INTO fw_events(ts,device,prefix,chain,in_if,out_if,proto,flags,src,sport,dst,dport,nat,len,mac,cstate) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -87,14 +87,32 @@ func (s *Store) FlushFw() error {
 		srcs[[4]any{h, e.Device, e.Prefix, e.Src}]++
 		dsts[[5]any{h, e.Device, e.Prefix, e.Dst, e.DPort}]++
 	}
+	src, err := s.txStmt(tx, `INSERT INTO fw_src_hourly(ts,device,prefix,src,n) VALUES(?,?,?,?,?) ON CONFLICT DO UPDATE SET n=n+excluded.n`)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	defer src.Close()
+	dst, err := s.txStmt(tx, `INSERT INTO fw_dst_hourly(ts,device,prefix,dst,dport,n) VALUES(?,?,?,?,?,?) ON CONFLICT DO UPDATE SET n=n+excluded.n`)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	defer dst.Close()
+	hr, err := s.txStmt(tx, `INSERT INTO fw_hourly(ts,device,prefix,n) VALUES(?,?,?,?) ON CONFLICT DO UPDATE SET n=n+excluded.n`)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	defer hr.Close()
 	for k, n := range srcs {
-		tx.Exec(`INSERT INTO fw_src_hourly(ts,device,prefix,src,n) VALUES(?,?,?,?,?) ON CONFLICT DO UPDATE SET n=n+excluded.n`, k[0], k[1], k[2], k[3], n)
+		src.Exec(k[0], k[1], k[2], k[3], n)
 	}
 	for k, n := range dsts {
-		tx.Exec(`INSERT INTO fw_dst_hourly(ts,device,prefix,dst,dport,n) VALUES(?,?,?,?,?,?) ON CONFLICT DO UPDATE SET n=n+excluded.n`, k[0], k[1], k[2], k[3], k[4], n)
+		dst.Exec(k[0], k[1], k[2], k[3], k[4], n)
 	}
 	for k, n := range hourly {
-		tx.Exec(`INSERT INTO fw_hourly(ts,device,prefix,n) VALUES(?,?,?,?) ON CONFLICT DO UPDATE SET n=n+excluded.n`, k[0], k[1], k[2], n)
+		hr.Exec(k[0], k[1], k[2], n)
 	}
 	return tx.Commit()
 }

@@ -48,10 +48,11 @@ type Config struct {
 	Listen       string   `json:"listen"`   // UI/API, default :8443
 	TLSCert      string   `json:"tls_cert"` // empty => self-signed in DataDir
 	TLSKey       string   `json:"tls_key"`
-	NoTLS        bool     `json:"no_tls"`      // behind reverse proxy / tests
-	FlowListen   string   `json:"flow_listen"` // default :2055
-	DataDir      string   `json:"data_dir"`    // default /var/lib/mtmon
-	LocalNets    []string `json:"local_nets"`  // default RFC1918
+	NoTLS        bool     `json:"no_tls"`                // behind reverse proxy / tests
+	DebugPprof   bool     `json:"debug_pprof,omitempty"` // serves /debug/pprof on the API listener, admin/Bearer only; off by default
+	FlowListen   string   `json:"flow_listen"`           // default :2055
+	DataDir      string   `json:"data_dir"`              // default /var/lib/mtmon
+	LocalNets    []string `json:"local_nets"`            // default RFC1918
 	Devices      []Device `json:"devices"`
 	GeoCityDB    string   `json:"geo_country_db,omitempty"` // mmdb path (optional)
 	GeoASNDB     string   `json:"geo_asn_db,omitempty"`
