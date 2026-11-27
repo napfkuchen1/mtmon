@@ -10,6 +10,8 @@ The first section below lists everything mtmon already covers. Later releases ad
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-11-27
+
 ### Changed
 - Lower idle CPU. The flow and firewall writers reuse their SQL statements instead of parsing them on every flush, and they skip the transaction when nothing is queued (the second part already held). Stored data and rollup sums are unchanged. (#372)
 - Optional profiling endpoint /debug/pprof for support, off by default. Enable with `"debug_pprof": true` in the config file; it sits behind the normal admin login on the same port. (#372)
