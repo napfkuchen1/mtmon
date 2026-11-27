@@ -990,10 +990,19 @@ func (s *Server) system(w http.ResponseWriter, r *http.Request) {
 		"retention_days": s.Cfg.Retention, "raw_retention_days": s.Cfg.RawRetention,
 		"learning_until": s.St.LearningUntil(), "learning_reason": s.St.LearningReason(),
 		"rss_bytes": sysinfo.RSS(), "cpu_pct": s.cpu.Percent(),
-		"mem_limit_bytes": s.MemLimit, "mem_too_small": memTooSmall(s.MemLimit, dbSize),
+		"mem_limit_bytes": s.MemLimit, "mem_too_small": memTooSmall(s.MemLimit, dbSize), "table_bytes": tableBytes(s),
 		"data_dir_free_bytes": free, "data_dir_total_bytes": total, "db_growth_bytes_per_day": growth, "disk_days_left": daysLeft,
 		"db_growth_known": growthKnown, "db_sample_hours": growthH, "db_growth_estimate": growthEst,
 	})
+}
+
+// tableBytes is the on-disk size per table and index (cached hourly in the store); nil when unavailable.
+func tableBytes(s *Server) map[string]int64 {
+	m, err := s.St.TableBytes()
+	if err != nil {
+		return nil
+	}
+	return m
 }
 
 // memTooSmall reports a container memory limit below the database size. Below 200 MB nothing is flagged: the page
